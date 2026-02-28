@@ -1,0 +1,266 @@
+from fastapi import APIRouter, Request, Response, Depends
+from app.services.auth_service import auth_service
+from app.services.session_service import session_service
+from app.services.supabase_service import supabase_service
+from app.core.dependencies import get_current_user, CurrentUser
+from app.schemas.auth import (
+    LoginRequest, LoginResponse, RegisterRequest,
+    LogoutRequest, RefreshResponse, PasswordResetRequest,
+    UserInfo, TokenPair
+)
+from app.schemas.response import BaseResponse, DataResponse
+from app.schemas.user import UserSessionInfo, UserSessionsResponse
+from app.core.security import hash_session_id
+
+router = APIRouter(prefix="/auth", tags=["認證"])
+
+@router.post("/register", response_model=BaseResponse)
+async def register(data: RegisterRequest):
+    """用戶註冊
+
+    根據角色需要不同欄位：
+    - **學生 (student)**: phone, address, birth_date, emergency_contact_name, emergency_contact_phone
+    - **教師 (teacher)**: phone, address, bio
+    - **員工 (employee)**: phone, address, employee_type（必填）
+    """
+    try:
+        metadata = {"name": data.name, "role": data.role}
+        if data.employee_type:
+            metadata["employee_type"] = data.employee_type
+
+        result = await supabase_service.sign_up(
+            email=data.email,
+            password=data.password,
+            metadata=metadata
+        )
+
+        user = result.user
+
+        if user and user.id:
+            # 建立 user_profile（觸發器會自動建立對應的 student/teacher/employee 記錄）
+            try:
+                profile_data = {
+                    "id": user.id,
+                    "role": data.role
+                }
+                if data.role == "employee" and data.employee_type:
+                    profile_data["employee_subtype"] = data.employee_type
+
+                await supabase_service.table_insert(
+                    table="user_profiles",
+                    data=profile_data,
+                    use_service_key=True
+                )
+            except Exception as profile_error:
+                print(f"建立 user_profile 失敗: {profile_error}")
+                return BaseResponse(success=False, message="註冊失敗，建立用戶資料錯誤")
+
+            # 更新角色專屬欄位
+            try:
+                await _update_entity_extra_fields(user.id, data)
+            except Exception as entity_error:
+                print(f"更新角色欄位失敗: {entity_error}")
+                # 不影響註冊成功，額外欄位可之後補填
+
+            return BaseResponse(message="註冊成功，請檢查您的郵箱進行驗證")
+
+        return BaseResponse(success=False, message="註冊失敗，請稍後再試")
+
+    except Exception as e:
+        error_msg = str(e)
+        if "already registered" in error_msg.lower():
+            return BaseResponse(success=False, message="此郵箱已被註冊")
+        if "invalid email" in error_msg.lower():
+            return BaseResponse(success=False, message="無效的郵箱格式")
+        if "password" in error_msg.lower():
+            return BaseResponse(success=False, message="密碼不符合要求（至少6位）")
+
+        return BaseResponse(success=False, message=f"註冊失敗: {error_msg}")
+
+
+async def _update_entity_extra_fields(user_id: str, data: RegisterRequest):
+    """根據角色更新對應實體的額外欄位"""
+    # 查詢 user_profile 取得 entity ID
+    profiles = await supabase_service.table_select(
+        table="user_profiles",
+        select="student_id,teacher_id,employee_id",
+        filters={"id": user_id},
+        use_service_key=True
+    )
+    if not profiles:
+        return
+
+    profile = profiles[0]
+
+    if data.role == "student" and profile.get("student_id"):
+        update_data = {}
+        if data.phone:
+            update_data["phone"] = data.phone
+        if data.address:
+            update_data["address"] = data.address
+        if data.birth_date:
+            update_data["birth_date"] = data.birth_date.isoformat()
+        if data.emergency_contact_name:
+            update_data["emergency_contact_name"] = data.emergency_contact_name
+        if data.emergency_contact_phone:
+            update_data["emergency_contact_phone"] = data.emergency_contact_phone
+
+        if update_data:
+            await supabase_service.table_update(
+                table="students",
+                data=update_data,
+                filters={"id": profile["student_id"]},
+                use_service_key=True
+            )
+
+    elif data.role == "teacher" and profile.get("teacher_id"):
+        update_data = {}
+        if data.phone:
+            update_data["phone"] = data.phone
+        if data.address:
+            update_data["address"] = data.address
+        if data.bio:
+            update_data["bio"] = data.bio
+
+        if update_data:
+            await supabase_service.table_update(
+                table="teachers",
+                data=update_data,
+                filters={"id": profile["teacher_id"]},
+                use_service_key=True
+            )
+
+    elif data.role == "employee" and profile.get("employee_id"):
+        update_data = {}
+        if data.phone:
+            update_data["phone"] = data.phone
+        if data.address:
+            update_data["address"] = data.address
+
+        if update_data:
+            await supabase_service.table_update(
+                table="employees",
+                data=update_data,
+                filters={"id": profile["employee_id"]},
+                use_service_key=True
+            )
+
+@router.post("/login", response_model=LoginResponse)
+async def login(
+    data: LoginRequest,
+    request: Request,
+    response: Response
+):
+    """用戶登入"""
+    user_info, token_pair = await auth_service.login(
+        email=data.email,
+        password=data.password,
+        request=request,
+        response=response
+    )
+    
+    return LoginResponse(
+        user=user_info,
+        tokens=token_pair
+    )
+
+@router.post("/logout", response_model=BaseResponse)
+async def logout(
+    request: Request,
+    response: Response,
+    data: LogoutRequest = LogoutRequest(),
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """用戶登出"""
+    await auth_service.logout(
+        request=request,
+        response=response,
+        logout_all_devices=data.logout_all_devices
+    )
+    
+    message = "已登出所有裝置" if data.logout_all_devices else "登出成功"
+    return BaseResponse(message=message)
+
+@router.post("/refresh", response_model=RefreshResponse)
+async def refresh_tokens(
+    request: Request,
+    response: Response
+):
+    """刷新 Token"""
+    token_pair = await auth_service.refresh_tokens(
+        request=request,
+        response=response
+    )
+    
+    return RefreshResponse(tokens=token_pair)
+
+@router.get("/me", response_model=DataResponse[UserInfo])
+async def get_current_user_info(
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """取得當前用戶資訊"""
+    return DataResponse(
+        data=UserInfo(
+            id=current_user.user_id,
+            email=current_user.email,
+            role=current_user.role,
+            email_confirmed=True,
+            employee_type=current_user.employee_type,
+            permission_level=current_user.permission_level
+        )
+    )
+
+@router.get("/sessions", response_model=UserSessionsResponse)
+async def get_user_sessions(
+    request: Request,
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """取得用戶所有 Sessions"""
+    sessions = await session_service.get_user_sessions(current_user.user_id)
+    current_session_hash = hash_session_id(current_user.session_id)
+    
+    session_list = [
+        UserSessionInfo(
+            session_id=s.session_id[:16] + "...",  # 只顯示部分
+            user_agent=s.user_agent,
+            ip_address=s.ip_address,
+            created_at=s.created_at,
+            last_activity=s.last_activity,
+            is_current=(s.session_id == current_session_hash)
+        )
+        for s in sessions
+    ]
+    
+    return UserSessionsResponse(
+        sessions=session_list,
+        total=len(session_list)
+    )
+
+@router.delete("/sessions/{session_id}", response_model=BaseResponse)
+async def revoke_session(
+    session_id: str,
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """撤銷特定 Session"""
+    # 這裡的 session_id 是前端顯示的部分 ID，需要實際查找
+    sessions = await session_service.get_user_sessions(current_user.user_id)
+    
+    for s in sessions:
+        if s.session_id.startswith(session_id.replace("...", "")):
+            await session_service.destroy_session(s.session_id)
+            return BaseResponse(message="Session 已撤銷")
+    
+    return BaseResponse(success=False, message="Session 不存在")
+
+@router.post("/password/reset", response_model=BaseResponse)
+async def request_password_reset(data: PasswordResetRequest):
+    """請求重設密碼"""
+    try:
+        await supabase_service.reset_password_email(
+            email=data.email,
+            redirect_url="https://your-app.com/reset-password"
+        )
+        return BaseResponse(message="重設密碼郵件已發送")
+    except:
+        # 為了安全，不透露郵箱是否存在
+        return BaseResponse(message="如果該郵箱已註冊，您將收到重設密碼郵件")
