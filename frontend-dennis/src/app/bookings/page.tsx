@@ -22,8 +22,9 @@ import {
     SlotAvailabilityResponse,
     TimeBlock
 } from '@/lib/api/bookings'
-import { Plus, Pencil, Trash2, Search, X, Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, GraduationCap, Settings, List } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, GraduationCap, Settings, List, Star } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
+import { studentTeacherPreferencesApi, StudentTeacherPreference, CreatePreferenceData, UpdatePreferenceData } from '@/lib/api/studentTeacherPreferences'
 
 const statusConfig: Record<BookingStatus, { label: string; color: string; bgColor: string }> = {
     pending: { label: '待確認', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
@@ -139,6 +140,22 @@ export default function BookingsPage() {
     const [batchCreateTeacherContracts, setBatchCreateTeacherContracts] = useState<TeacherContractOption[]>([])
     const [batchCreateLoadingContracts, setBatchCreateLoadingContracts] = useState(false)
 
+    // Preferences panel state
+    const [showPrefsPanel, setShowPrefsPanel] = useState(false)
+    const [prefsStudentId, setPrefsStudentId] = useState('')
+    const [preferences, setPreferences] = useState<StudentTeacherPreference[]>([])
+    const [loadingPrefs, setLoadingPrefs] = useState(false)
+    const [prefError, setPrefError] = useState<string | null>(null)
+    // Pref form
+    const [showPrefForm, setShowPrefForm] = useState(false)
+    const [editingPref, setEditingPref] = useState<StudentTeacherPreference | null>(null)
+    const [prefFormCourseId, setPrefFormCourseId] = useState('')
+    const [prefFormMinLevel, setPrefFormMinLevel] = useState(1)
+    const [prefFormPrimaryTeacherId, setPrefFormPrimaryTeacherId] = useState('')
+    const [prefSubmitting, setPrefSubmitting] = useState(false)
+    // All teachers (unfiltered) for pref form dropdown
+    const [allTeacherOptions, setAllTeacherOptions] = useState<TeacherOption[]>([])
+
     const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
     const isStudent = profile?.role === 'student'
     const isTeacher = profile?.role === 'teacher'
@@ -177,7 +194,10 @@ export default function BookingsPage() {
                 bookingsApi.getCourseOptions()
             ])
             if (studentsRes.data) setStudentOptions(studentsRes.data)
-            if (teachersRes.data) setTeacherOptions(teachersRes.data)
+            if (teachersRes.data) {
+                setTeacherOptions(teachersRes.data)
+                setAllTeacherOptions(teachersRes.data)
+            }
             if (coursesRes.data) setCourseOptions(coursesRes.data)
         }
         loadOptions()
@@ -276,6 +296,26 @@ export default function BookingsPage() {
         }
         loadContracts()
     }, [formStudent, isStudent, myStudentInfo])
+
+    // Refetch teacher options filtered by student preference when student/contract changes
+    useEffect(() => {
+        const studentId = isStudent && myStudentInfo ? myStudentInfo.id : formStudent
+        if (!studentId) return
+
+        // Get course_id from selected contract
+        const selectedContract = studentContracts.find(c => c.id === formStudentContract)
+        const courseId = selectedContract?.course_id || (isTrialStudent ? formCourseId : undefined)
+
+        bookingsApi.getTeacherOptions({ student_id: studentId, course_id: courseId || undefined }).then(res => {
+            if (res.data) {
+                setTeacherOptions(res.data)
+                // Reset teacher selection if current teacher is no longer in filtered list
+                if (formTeacher && !res.data.find(t => t.id === formTeacher)) {
+                    setFormTeacher('')
+                }
+            }
+        })
+    }, [formStudent, formStudentContract, formCourseId, isStudent, myStudentInfo, studentContracts, isTrialStudent])
 
     // Load teacher contracts when teacher selected
     useEffect(() => {
@@ -421,6 +461,8 @@ export default function BookingsPage() {
         setShowModal(false)
         setEditingBooking(null)
         setFormError(null)
+        // Reset teacher options to unfiltered
+        setTeacherOptions(allTeacherOptions)
     }
 
     // 教師確認預約
@@ -620,6 +662,8 @@ export default function BookingsPage() {
         setShowBatchModal(null)
         setBatchError(null)
         setBatchCreateCourseId('')
+        // Reset teacher options to unfiltered
+        setTeacherOptions(allTeacherOptions)
     }
 
     const handleBatchUpdate = async () => {
@@ -780,6 +824,25 @@ export default function BookingsPage() {
         loadBatchCreateTeacherContracts()
     }, [showBatchModal, batchCreateTeacherId])
 
+    // Refetch teacher options for batch create when student/contract changes
+    useEffect(() => {
+        if (showBatchModal !== 'period-create') return
+        const studentId = isStudent && myStudentInfo ? myStudentInfo.id : batchCreateStudentId
+        if (!studentId) return
+
+        const selectedContract = batchCreateStudentContracts.find(c => c.id === batchCreateStudentContractId)
+        const courseId = selectedContract?.course_id || (isBatchTrialStudent ? batchCreateCourseId : undefined)
+
+        bookingsApi.getTeacherOptions({ student_id: studentId, course_id: courseId || undefined }).then(res => {
+            if (res.data) {
+                setTeacherOptions(res.data)
+                if (batchCreateTeacherId && !res.data.find(t => t.id === batchCreateTeacherId)) {
+                    setBatchCreateTeacherId('')
+                }
+            }
+        })
+    }, [showBatchModal, batchCreateStudentId, batchCreateStudentContractId, batchCreateCourseId, isStudent, myStudentInfo, batchCreateStudentContracts, isBatchTrialStudent])
+
     // Handle batch create
     const handleBatchCreate = async () => {
         if (!batchStartDate || !batchEndDate) {
@@ -834,6 +897,87 @@ export default function BookingsPage() {
         setBatchSubmitting(false)
     }
 
+    // === Preferences Panel Functions ===
+    const loadPreferences = async (studentId: string) => {
+        setLoadingPrefs(true)
+        setPrefError(null)
+        const { data, error } = await studentTeacherPreferencesApi.list(studentId)
+        if (error) {
+            setPrefError(error.message)
+        } else {
+            setPreferences(data || [])
+        }
+        setLoadingPrefs(false)
+    }
+
+    useEffect(() => {
+        if (showPrefsPanel && prefsStudentId) {
+            loadPreferences(prefsStudentId)
+        }
+    }, [showPrefsPanel, prefsStudentId])
+
+    const openPrefCreate = () => {
+        setEditingPref(null)
+        setPrefFormCourseId('')
+        setPrefFormMinLevel(1)
+        setPrefFormPrimaryTeacherId('')
+        setPrefError(null)
+        setShowPrefForm(true)
+    }
+
+    const openPrefEdit = (pref: StudentTeacherPreference) => {
+        setEditingPref(pref)
+        setPrefFormCourseId(pref.course_id || '')
+        setPrefFormMinLevel(pref.min_teacher_level)
+        setPrefFormPrimaryTeacherId(pref.primary_teacher_id || '')
+        setPrefError(null)
+        setShowPrefForm(true)
+    }
+
+    const handlePrefSubmit = async () => {
+        setPrefSubmitting(true)
+        setPrefError(null)
+
+        if (editingPref) {
+            const updateData: UpdatePreferenceData = {
+                min_teacher_level: prefFormMinLevel,
+                primary_teacher_id: prefFormPrimaryTeacherId || null,
+            }
+            const { error } = await studentTeacherPreferencesApi.update(editingPref.id, updateData)
+            if (error) {
+                setPrefError(error.message)
+            } else {
+                setShowPrefForm(false)
+                loadPreferences(prefsStudentId)
+            }
+        } else {
+            const createData: CreatePreferenceData = {
+                student_id: prefsStudentId,
+                course_id: prefFormCourseId || null,
+                min_teacher_level: prefFormMinLevel,
+                primary_teacher_id: prefFormPrimaryTeacherId || null,
+            }
+            const { error } = await studentTeacherPreferencesApi.create(createData)
+            if (error) {
+                setPrefError(error.message)
+            } else {
+                setShowPrefForm(false)
+                loadPreferences(prefsStudentId)
+            }
+        }
+
+        setPrefSubmitting(false)
+    }
+
+    const handlePrefDelete = async (prefId: string) => {
+        const { error } = await studentTeacherPreferencesApi.delete(prefId)
+        if (error) {
+            setPrefError(error.message)
+        } else {
+            loadPreferences(prefsStudentId)
+        }
+    }
+
     return (
         <DashboardLayout>
             <div className="py-8">
@@ -853,6 +997,13 @@ export default function BookingsPage() {
                             <div className="flex items-center gap-3">
                                 {isStaff && (
                                     <>
+                                        <button
+                                            onClick={() => setShowPrefsPanel(true)}
+                                            className="btn-secondary flex items-center gap-2"
+                                        >
+                                            <Star className="w-5 h-5" />
+                                            偏好設定
+                                        </button>
                                         <button
                                             onClick={() => openBatchModal('period-update')}
                                             className="btn-secondary flex items-center gap-2"
@@ -1363,7 +1514,9 @@ export default function BookingsPage() {
                                                 >
                                                     <option value="">請選擇教師</option>
                                                     {teacherOptions.map(t => (
-                                                        <option key={t.id} value={t.id}>{t.name} ({t.teacher_no})</option>
+                                                        <option key={t.id} value={t.id}>
+                                                            {t.is_primary ? '★ ' : ''}{t.name} ({t.teacher_no}){t.teacher_level ? ` Lv.${t.teacher_level}` : ''}
+                                                        </option>
                                                     ))}
                                                 </select>
                                             </div>
@@ -2258,7 +2411,9 @@ export default function BookingsPage() {
                                         >
                                             <option value="">請選擇教師</option>
                                             {teacherOptions.map(t => (
-                                                <option key={t.id} value={t.id}>{t.name} ({t.teacher_no})</option>
+                                                <option key={t.id} value={t.id}>
+                                                    {t.is_primary ? '★ ' : ''}{t.name} ({t.teacher_no}){t.teacher_level ? ` Lv.${t.teacher_level}` : ''}
+                                                </option>
                                             ))}
                                         </select>
                                     </div>
@@ -2393,6 +2548,178 @@ export default function BookingsPage() {
                                         ) : '確認批次新增'}
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Student Teacher Preferences Panel */}
+                {showPrefsPanel && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                            <div className="p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                        <Star className="w-5 h-5 text-yellow-500" />
+                                        學生教師偏好設定
+                                    </h3>
+                                    <button onClick={() => { setShowPrefsPanel(false); setShowPrefForm(false) }} className="text-gray-400 hover:text-gray-600">
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+
+                                {/* Student selector */}
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        選擇學生
+                                    </label>
+                                    <select
+                                        value={prefsStudentId}
+                                        onChange={(e) => { setPrefsStudentId(e.target.value); setShowPrefForm(false) }}
+                                        className="input-field"
+                                    >
+                                        <option value="">請選擇學生</option>
+                                        {studentOptions.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name} ({s.student_no}){s.student_type === 'trial' ? ' [試上]' : ''}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {prefError && (
+                                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                                        {prefError}
+                                    </div>
+                                )}
+
+                                {prefsStudentId && (
+                                    <>
+                                        {/* Preference list */}
+                                        {loadingPrefs ? (
+                                            <p className="text-gray-500 text-sm">載入中...</p>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {preferences.length === 0 ? (
+                                                    <p className="text-gray-400 text-sm">此學生尚無偏好設定</p>
+                                                ) : (
+                                                    preferences.map(pref => (
+                                                        <div key={pref.id} className="border rounded-lg p-3 flex items-center justify-between">
+                                                            <div>
+                                                                <p className="text-sm font-medium text-gray-900">
+                                                                    {pref.course_name || '全域預設'}
+                                                                </p>
+                                                                <p className="text-xs text-gray-500">
+                                                                    最低等級: Lv.{pref.min_teacher_level}
+                                                                    {pref.primary_teacher_name && ` | 主要教師: ${pref.primary_teacher_name}`}
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => openPrefEdit(pref)}
+                                                                    className="p-1 text-gray-400 hover:text-blue-600"
+                                                                    title="編輯"
+                                                                >
+                                                                    <Pencil className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handlePrefDelete(pref.id)}
+                                                                    className="p-1 text-gray-400 hover:text-red-600"
+                                                                    title="刪除"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+
+                                                {!showPrefForm && (
+                                                    <button
+                                                        onClick={openPrefCreate}
+                                                        className="btn-secondary flex items-center gap-2 w-full justify-center"
+                                                    >
+                                                        <Plus className="w-4 h-4" />
+                                                        新增偏好
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Preference form */}
+                                        {showPrefForm && (
+                                            <div className="mt-4 border rounded-lg p-4 bg-gray-50 space-y-3">
+                                                <h4 className="font-medium text-gray-900">
+                                                    {editingPref ? '編輯偏好' : '新增偏好'}
+                                                </h4>
+
+                                                {!editingPref && (
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                            課程（不選 = 全域預設）
+                                                        </label>
+                                                        <select
+                                                            value={prefFormCourseId}
+                                                            onChange={(e) => setPrefFormCourseId(e.target.value)}
+                                                            className="input-field"
+                                                        >
+                                                            <option value="">全域預設</option>
+                                                            {courseOptions.map(c => (
+                                                                <option key={c.id} value={c.id}>{c.course_name} ({c.course_code})</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                )}
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        最低教師等級
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        value={prefFormMinLevel}
+                                                        onChange={(e) => setPrefFormMinLevel(parseInt(e.target.value) || 1)}
+                                                        className="input-field"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        主要教師
+                                                    </label>
+                                                    <select
+                                                        value={prefFormPrimaryTeacherId}
+                                                        onChange={(e) => setPrefFormPrimaryTeacherId(e.target.value)}
+                                                        className="input-field"
+                                                    >
+                                                        <option value="">不指定</option>
+                                                        {allTeacherOptions.map(t => (
+                                                            <option key={t.id} value={t.id}>
+                                                                {t.name} ({t.teacher_no}){t.teacher_level ? ` Lv.${t.teacher_level}` : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div className="flex gap-3 pt-2">
+                                                    <button
+                                                        onClick={() => setShowPrefForm(false)}
+                                                        className="btn-secondary flex-1"
+                                                        disabled={prefSubmitting}
+                                                    >
+                                                        取消
+                                                    </button>
+                                                    <button
+                                                        onClick={handlePrefSubmit}
+                                                        className="btn-primary flex-1"
+                                                        disabled={prefSubmitting}
+                                                    >
+                                                        {prefSubmitting ? '儲存中...' : '儲存'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>

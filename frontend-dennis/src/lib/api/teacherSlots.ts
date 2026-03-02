@@ -104,6 +104,7 @@ export interface TeacherOption {
     id: string
     teacher_no: string
     name: string
+    teacher_level?: number
 }
 
 export interface TeacherContractOption {
