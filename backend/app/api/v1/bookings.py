@@ -44,6 +44,44 @@ async def generate_booking_no() -> str:
     return f"{prefix}{str(max_seq + 1).zfill(3)}"
 
 
+async def get_student_teacher_preference(student_id: str, course_id: str | None) -> dict | None:
+    """取得學生的教師偏好設定
+
+    優先找 course-specific，找不到 fallback 到 global（course_id IS NULL）。
+    都找不到回傳 None（代表無限制）。
+    """
+    # 1. 先找 course-specific
+    if course_id:
+        prefs = await supabase_service.table_select(
+            table="student_teacher_preferences",
+            select="id,min_teacher_level,primary_teacher_id",
+            filters={
+                "student_id": student_id,
+                "course_id": course_id,
+                "is_deleted": "eq.false"
+            },
+            use_service_key=True
+        )
+        if prefs:
+            return prefs[0]
+
+    # 2. Fallback 到 global（course_id IS NULL）
+    global_prefs = await supabase_service.table_select(
+        table="student_teacher_preferences",
+        select="id,min_teacher_level,primary_teacher_id",
+        filters={
+            "student_id": student_id,
+            "course_id": "is.null",
+            "is_deleted": "eq.false"
+        },
+        use_service_key=True
+    )
+    if global_prefs:
+        return global_prefs[0]
+
+    return None
+
+
 async def check_booking_overlap(
     teacher_slot_id: str,
     start_time: str,
@@ -592,7 +630,7 @@ async def create_booking(
         # 驗證教師存在
         teacher = await supabase_service.table_select(
             table="teachers",
-            select="id,name",
+            select="id,name,teacher_level",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
             use_service_key=True
         )
@@ -608,6 +646,19 @@ async def create_booking(
         )
         if not course:
             raise HTTPException(status_code=400, detail="課程不存在")
+
+        # 驗證教師等級是否符合學生偏好（主要教師不受等級限制）
+        pref = await get_student_teacher_preference(data.student_id, data.course_id)
+        if pref:
+            is_primary = pref.get("primary_teacher_id") == data.teacher_id
+            if not is_primary:
+                teacher_level = teacher[0].get("teacher_level", 1)
+                min_level = pref.get("min_teacher_level", 1)
+                if teacher_level < min_level:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"教師等級 ({teacher_level}) 低於學生要求的最低等級 ({min_level})"
+                    )
 
         # 驗證學生合約存在且有效（試上學生可不提供合約）
         student_contract = None
@@ -1005,7 +1056,7 @@ async def batch_create_bookings(
         # 驗證教師存在
         teacher = await supabase_service.table_select(
             table="teachers",
-            select="id,name",
+            select="id,name,teacher_level",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
             use_service_key=True
         )
@@ -1048,6 +1099,19 @@ async def batch_create_bookings(
                 raise HTTPException(status_code=400, detail="試上學生無合約時必須提供課程 ID")
         else:
             raise HTTPException(status_code=400, detail="正式學生必須提供學生合約")
+
+        # 驗證教師等級是否符合學生偏好（主要教師不受等級限制）
+        pref = await get_student_teacher_preference(data.student_id, course_id)
+        if pref:
+            is_primary = pref.get("primary_teacher_id") == data.teacher_id
+            if not is_primary:
+                teacher_level = teacher[0].get("teacher_level", 1)
+                min_level = pref.get("min_teacher_level", 1)
+                if teacher_level < min_level:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"教師等級 ({teacher_level}) 低於學生要求的最低等級 ({min_level})"
+                    )
 
         # 驗證教師合約存在（如果有提供）
         teacher_contract_id = data.teacher_contract_id
@@ -1654,17 +1718,86 @@ async def get_student_options(
 
 @router.get("/options/teachers", tags=["預約管理"])
 async def get_teacher_options(
+    student_id: Optional[str] = Query(None, description="學生 ID（用於等級過濾）"),
+    course_id: Optional[str] = Query(None, description="課程 ID（用於等級過濾）"),
     current_user: CurrentUser = Depends(get_current_user)
 ):
-    """取得教師下拉選單"""
+    """取得教師下拉選單（可依學生偏好過濾等級）"""
     try:
+        filters: dict = {"is_deleted": "eq.false", "is_active": "eq.true"}
+
+        # 如果提供了 student_id，查詢偏好設定
+        pref = None
+        primary_teacher_id = None
+        min_level = 0
+        if student_id:
+            pref = await get_student_teacher_preference(student_id, course_id)
+            if pref:
+                min_level = pref.get("min_teacher_level", 1)
+                primary_teacher_id = pref.get("primary_teacher_id")
+
+        # 一次撈全部啟用教師，程式端過濾（主要教師不受等級限制）
         teachers = await supabase_service.table_select(
             table="teachers",
-            select="id,teacher_no,name",
-            filters={"is_deleted": "eq.false", "is_active": "eq.true"},
+            select="id,teacher_no,name,teacher_level",
+            filters=filters,
             use_service_key=True
         )
+
+        if pref and min_level > 0:
+            teachers = [
+                t for t in teachers
+                if t.get("teacher_level", 1) >= min_level or t["id"] == primary_teacher_id
+            ]
+
+        # 標記 primary teacher 並排序
+        for t in teachers:
+            t["is_primary"] = (t["id"] == primary_teacher_id) if primary_teacher_id else False
+
+        # primary teacher 排第一
+        if primary_teacher_id:
+            teachers.sort(key=lambda t: (not t["is_primary"], t.get("name", "")))
+
         return {"data": teachers}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/options/teachers/{teacher_id}/level", tags=["預約管理"])
+async def update_teacher_level(
+    teacher_id: str,
+    level: int = Query(..., ge=1, description="教師等級"),
+    current_user: CurrentUser = Depends(require_staff)
+):
+    """更新教師等級（僅員工）"""
+    try:
+        employee_id = await get_user_employee_id(current_user.user_id)
+
+        teacher = await supabase_service.table_select(
+            table="teachers", select="id",
+            filters={"id": teacher_id, "is_deleted": "eq.false"},
+            use_service_key=True
+        )
+        if not teacher:
+            raise HTTPException(status_code=404, detail="教師不存在")
+
+        update_data = {"teacher_level": level}
+        if employee_id:
+            update_data["updated_by"] = employee_id
+
+        result = await supabase_service.table_update(
+            table="teachers",
+            data=update_data,
+            filters={"id": teacher_id},
+            use_service_key=True
+        )
+
+        if not result:
+            raise HTTPException(status_code=500, detail="更新教師等級失敗")
+
+        return {"success": True, "message": f"教師等級已更新為 {level}", "data": result}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
