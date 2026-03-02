@@ -51,15 +51,18 @@ app = FastAPI(
 
 # ========== 中間件 ==========
 
-# CORS
+# CORS — 從 FRONTEND_URL 環境變數動態組合，支援逗號分隔多個 origin
+_default_origins = [
+    "http://localhost:3000",
+    "http://localhost:4173",
+    "http://localhost:5173",
+]
+_extra_origins = [o.strip() for o in settings.FRONTEND_URL.split(",") if o.strip()]
+_all_origins = list(dict.fromkeys(_default_origins + _extra_origins))  # 去重保序
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:4173",
-        "http://localhost:5173",
-        "https://your-frontend-domain.com"
-    ],
+    allow_origins=_all_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
