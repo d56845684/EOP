@@ -53,10 +53,10 @@ services:
       - redis-data:/data
     command: redis-server --appendonly yes
 
-  frontend:
+  frontend-demo:
     container_name: teaching-platform-frontend
     build:
-      context: ./frontend
+      context: ./frontend-dennis
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_PUBLIC_URL:-http://localhost:8000}

@@ -47,7 +47,7 @@ export interface CreateBookingData {
     student_id: string
     teacher_id: string
     course_id: string
-    student_contract_id: string
+    student_contract_id?: string  // 試上學生可不提供
     teacher_contract_id?: string
     teacher_slot_id?: string  // 可選，不提供則系統自動尋找符合時間的時段
     booking_date: string
@@ -96,7 +96,8 @@ export interface BatchDeleteData {
 
 export interface BatchCreateData {
     student_id: string
-    student_contract_id: string
+    student_contract_id?: string  // 試上學生可不提供
+    course_id?: string  // 試上學生無合約時必填
     teacher_id: string
     teacher_contract_id?: string
     start_date: string
@@ -112,6 +113,7 @@ export interface StudentOption {
     id: string
     student_no: string
     name: string
+    student_type?: 'formal' | 'trial'
 }
 
 export interface TeacherOption {

@@ -75,6 +75,7 @@ export default function BookingsPage() {
     const [formStartTime, setFormStartTime] = useState('')
     const [formEndTime, setFormEndTime] = useState('')
     const [formNotes, setFormNotes] = useState('')
+    const [formCourseId, setFormCourseId] = useState('')  // 試上學生無合約時手動選課程
     const [formUseAutoSlot, setFormUseAutoSlot] = useState(true)  // 是否自動尋找時段
 
     // Form data for edit
@@ -133,6 +134,7 @@ export default function BookingsPage() {
     const [batchCreateStartTime, setBatchCreateStartTime] = useState('')
     const [batchCreateEndTime, setBatchCreateEndTime] = useState('')
     const [batchCreateNotes, setBatchCreateNotes] = useState('')
+    const [batchCreateCourseId, setBatchCreateCourseId] = useState('')  // 試上學生無合約時手動選課程
     const [batchCreateStudentContracts, setBatchCreateStudentContracts] = useState<StudentContractOption[]>([])
     const [batchCreateTeacherContracts, setBatchCreateTeacherContracts] = useState<TeacherContractOption[]>([])
     const [batchCreateLoadingContracts, setBatchCreateLoadingContracts] = useState(false)
@@ -141,6 +143,30 @@ export default function BookingsPage() {
     const isStudent = profile?.role === 'student'
     const isTeacher = profile?.role === 'teacher'
     const canCreateBooking = isStaff || isStudent
+
+    // 判斷選中的學生是否為試上學生
+    const isTrialStudent = (() => {
+        if (isStudent && myStudentInfo) {
+            return myStudentInfo.student_type === 'trial'
+        }
+        if (formStudent) {
+            const selected = studentOptions.find(s => s.id === formStudent)
+            return selected?.student_type === 'trial'
+        }
+        return false
+    })()
+
+    // 批次建立時判斷選中的學生是否為試上學生
+    const isBatchTrialStudent = (() => {
+        if (isStudent && myStudentInfo) {
+            return myStudentInfo.student_type === 'trial'
+        }
+        if (batchCreateStudentId) {
+            const selected = studentOptions.find(s => s.id === batchCreateStudentId)
+            return selected?.student_type === 'trial'
+        }
+        return false
+    })()
 
     // Load filter options
     useEffect(() => {
@@ -368,6 +394,7 @@ export default function BookingsPage() {
         setFormStartTime('')
         setFormEndTime('')
         setFormNotes('')
+        setFormCourseId('')
         setFormUseAutoSlot(true)
         setSlotAvailability(null)
         setSelectedBlockStart(null)
@@ -414,9 +441,19 @@ export default function BookingsPage() {
 
         try {
             if (modalMode === 'create') {
-                // Get course_id from student contract
+                // 決定 course_id 來源：有合約從合約取，試上學生無合約則手動選
                 const selectedContract = studentContracts.find(c => c.id === formStudentContract)
-                if (!selectedContract) {
+                let courseId: string
+
+                if (selectedContract) {
+                    courseId = selectedContract.course_id
+                } else if (isTrialStudent && formCourseId) {
+                    courseId = formCourseId
+                } else if (isTrialStudent && !formCourseId) {
+                    setFormError('請選擇課程')
+                    setSubmitting(false)
+                    return
+                } else {
                     setFormError('請選擇學生合約')
                     setSubmitting(false)
                     return
@@ -440,8 +477,8 @@ export default function BookingsPage() {
                     createData = {
                         student_id: formStudent,
                         teacher_id: formTeacher,
-                        course_id: selectedContract.course_id,
-                        student_contract_id: formStudentContract,
+                        course_id: courseId,
+                        student_contract_id: formStudentContract || undefined,
                         teacher_contract_id: formTeacherContract || undefined,
                         // 不提供 teacher_slot_id，讓後端自動尋找
                         booking_date: formBookingDate,
@@ -465,8 +502,8 @@ export default function BookingsPage() {
                     createData = {
                         student_id: formStudent,
                         teacher_id: formTeacher,
-                        course_id: selectedContract.course_id,
-                        student_contract_id: formStudentContract,
+                        course_id: courseId,
+                        student_contract_id: formStudentContract || undefined,
                         teacher_contract_id: formTeacherContract || undefined,
                         teacher_slot_id: formTeacherSlot,
                         booking_date: formBookingDate,
@@ -582,6 +619,7 @@ export default function BookingsPage() {
     const closeBatchModal = () => {
         setShowBatchModal(null)
         setBatchError(null)
+        setBatchCreateCourseId('')
     }
 
     const handleBatchUpdate = async () => {
@@ -756,8 +794,12 @@ export default function BookingsPage() {
             setBatchError('請選擇學生')
             return
         }
-        if (!batchCreateStudentContractId) {
+        if (!batchCreateStudentContractId && !isBatchTrialStudent) {
             setBatchError('請選擇學生合約')
+            return
+        }
+        if (isBatchTrialStudent && !batchCreateStudentContractId && !batchCreateCourseId) {
+            setBatchError('試上學生未選合約時請選擇課程')
             return
         }
         if (!batchCreateTeacherId) {
@@ -770,7 +812,8 @@ export default function BookingsPage() {
 
         const { success, message, error } = await bookingsApi.createBatch({
             student_id: batchCreateStudentId,
-            student_contract_id: batchCreateStudentContractId,
+            student_contract_id: batchCreateStudentContractId || undefined,
+            course_id: (!batchCreateStudentContractId && isBatchTrialStudent) ? batchCreateCourseId : undefined,
             teacher_id: batchCreateTeacherId,
             teacher_contract_id: batchCreateTeacherContractId || undefined,
             start_date: batchStartDate,
@@ -1251,7 +1294,7 @@ export default function BookingsPage() {
                                                     >
                                                         <option value="">請選擇學生</option>
                                                         {studentOptions.map(s => (
-                                                            <option key={s.id} value={s.id}>{s.name} ({s.student_no})</option>
+                                                            <option key={s.id} value={s.id}>{s.name} ({s.student_no}){s.student_type === 'trial' ? ' [試上]' : ''}</option>
                                                         ))}
                                                     </select>
                                                 </div>
@@ -1260,16 +1303,17 @@ export default function BookingsPage() {
                                             {/* Student contract select */}
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    學生合約 <span className="text-red-500">*</span>
+                                                    學生合約 {!isTrialStudent && <span className="text-red-500">*</span>}
+                                                    {isTrialStudent && <span className="text-gray-400 text-xs ml-1">（試上學生可不選）</span>}
                                                 </label>
                                                 <select
                                                     value={formStudentContract}
                                                     onChange={(e) => setFormStudentContract(e.target.value)}
                                                     className="input-field"
-                                                    required
+                                                    required={!isTrialStudent}
                                                     disabled={(!formStudent && !isStudent) || loadingContracts}
                                                 >
-                                                    <option value="">{loadingContracts ? '載入中...' : '請選擇合約'}</option>
+                                                    <option value="">{loadingContracts ? '載入中...' : isTrialStudent ? '不選擇合約（試上）' : '請選擇合約'}</option>
                                                     {studentContracts.map(c => (
                                                         <option key={c.id} value={c.id}>
                                                             {c.contract_no} - {c.course_name} (剩餘 {c.remaining_lessons} 堂)
@@ -1277,9 +1321,34 @@ export default function BookingsPage() {
                                                     ))}
                                                 </select>
                                                 {(formStudent || isStudent) && studentContracts.length === 0 && !loadingContracts && (
-                                                    <p className="mt-1 text-sm text-yellow-600">{isStudent ? '您沒有有效合約' : '此學生沒有有效合約'}</p>
+                                                    <p className="mt-1 text-sm text-yellow-600">
+                                                        {isTrialStudent
+                                                            ? (isStudent ? '您尚無合約，請在下方選擇課程' : '此試上學生尚無合約，請在下方選擇課程')
+                                                            : (isStudent ? '您沒有有效合約' : '此學生沒有有效合約')
+                                                        }
+                                                    </p>
                                                 )}
                                             </div>
+
+                                            {/* Course select - shown for trial students without contract */}
+                                            {isTrialStudent && !formStudentContract && (
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        課程 <span className="text-red-500">*</span>
+                                                    </label>
+                                                    <select
+                                                        value={formCourseId}
+                                                        onChange={(e) => setFormCourseId(e.target.value)}
+                                                        className="input-field"
+                                                        required
+                                                    >
+                                                        <option value="">請選擇課程</option>
+                                                        {courseOptions.map(c => (
+                                                            <option key={c.id} value={c.id}>{c.course_name} ({c.course_code})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
 
                                             {/* Teacher select */}
                                             <div>
@@ -2122,7 +2191,7 @@ export default function BookingsPage() {
                                             >
                                                 <option value="">請選擇學生</option>
                                                 {studentOptions.map(s => (
-                                                    <option key={s.id} value={s.id}>{s.name} ({s.student_no})</option>
+                                                    <option key={s.id} value={s.id}>{s.name} ({s.student_no}){s.student_type === 'trial' ? ' [試上]' : ''}</option>
                                                 ))}
                                             </select>
                                         </div>
@@ -2130,23 +2199,49 @@ export default function BookingsPage() {
 
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            學生合約 <span className="text-red-500">*</span>
+                                            學生合約 {!isBatchTrialStudent && <span className="text-red-500">*</span>}
+                                            {isBatchTrialStudent && <span className="text-gray-400 text-xs ml-1">（試上學生可不選）</span>}
                                         </label>
                                         <select
                                             value={batchCreateStudentContractId}
                                             onChange={(e) => setBatchCreateStudentContractId(e.target.value)}
                                             className="input-field"
-                                            required
+                                            required={!isBatchTrialStudent}
                                             disabled={!batchCreateStudentId && !isStudent}
                                         >
-                                            <option value="">{batchCreateLoadingContracts ? '載入中...' : '請選擇合約'}</option>
+                                            <option value="">{batchCreateLoadingContracts ? '載入中...' : isBatchTrialStudent ? '不選擇合約（試上）' : '請選擇合約'}</option>
                                             {batchCreateStudentContracts.map(c => (
                                                 <option key={c.id} value={c.id}>
                                                     {c.contract_no} - {c.course_name} (剩餘 {c.remaining_lessons} 堂)
                                                 </option>
                                             ))}
                                         </select>
+                                        {(batchCreateStudentId || isStudent) && batchCreateStudentContracts.length === 0 && !batchCreateLoadingContracts && isBatchTrialStudent && (
+                                            <p className="mt-1 text-sm text-yellow-600">
+                                                {isStudent ? '您尚無合約，請在下方選擇課程' : '此試上學生尚無合約，請在下方選擇課程'}
+                                            </p>
+                                        )}
                                     </div>
+
+                                    {/* Course select - shown for trial students without contract */}
+                                    {isBatchTrialStudent && !batchCreateStudentContractId && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                課程 <span className="text-red-500">*</span>
+                                            </label>
+                                            <select
+                                                value={batchCreateCourseId}
+                                                onChange={(e) => setBatchCreateCourseId(e.target.value)}
+                                                className="input-field"
+                                                required
+                                            >
+                                                <option value="">請選擇課程</option>
+                                                {courseOptions.map(c => (
+                                                    <option key={c.id} value={c.id}>{c.course_name} ({c.course_code})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
 
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">

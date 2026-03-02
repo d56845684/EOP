@@ -16,7 +16,7 @@ class BookingBase(BaseModel):
     student_id: str = Field(..., description="學生 ID")
     teacher_id: str = Field(..., description="教師 ID")
     course_id: str = Field(..., description="課程 ID")
-    student_contract_id: str = Field(..., description="學生合約 ID")
+    student_contract_id: Optional[str] = Field(None, description="學生合約 ID（試上學生可不提供）")
     teacher_contract_id: Optional[str] = Field(None, description="教師合約 ID")
     teacher_slot_id: Optional[str] = Field(None, description="教師時段 ID（可選，系統會自動尋找）")
     booking_date: date = Field(..., description="預約日期")
@@ -72,8 +72,8 @@ class BookingResponse(BaseModel):
     student_id: str
     teacher_id: str
     course_id: str
-    student_contract_id: str
-    teacher_contract_id: str
+    student_contract_id: Optional[str] = None
+    teacher_contract_id: Optional[str] = None
     teacher_slot_id: str
     teacher_hourly_rate: float
     teacher_rate_percentage: Optional[float] = None
@@ -146,7 +146,8 @@ class BookingBatchDelete(BaseModel):
 class BookingBatchCreate(BaseModel):
     """批次建立預約（週期性），日期範圍不得超過三個月"""
     student_id: str = Field(..., description="學生 ID")
-    student_contract_id: str = Field(..., description="學生合約 ID")
+    student_contract_id: Optional[str] = Field(None, description="學生合約 ID（試上學生可不提供）")
+    course_id: Optional[str] = Field(None, description="課程 ID（試上學生無合約時必填）")
     teacher_id: str = Field(..., description="教師 ID")
     teacher_contract_id: Optional[str] = Field(None, description="教師合約 ID（可選）")
     start_date: date = Field(..., description="開始日期")
