@@ -26,8 +26,7 @@ from typing import Optional
 
 # 設定
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
-SUPABASE_URL = os.getenv("SUPABASE_URL", "http://127.0.0.1:8000")
-SERVICE_ROLE_KEY = os.getenv("SERVICE_ROLE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3NjczMjM3NDcsImV4cCI6MTkyNTAwMzc0N30.h8XFj9oZdc0ZaiczkL83AkQtf6zKDTrdTO3SxtrZVU8")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:2f8b5e9731c472a52f3d3068dc97d0d8@127.0.0.1:5432/postgres")
 
 TEST_EMAIL_PREFIX = "test_seed_"
 TEST_EMAIL_DOMAIN = "@example.com"
@@ -117,20 +116,15 @@ class CreatedData:
 
 
 class LiveSeedTester:
-    def __init__(self, backend_url: str, supabase_url: str, service_role_key: str):
+    def __init__(self, backend_url: str, database_url: str):
         self.backend_url = backend_url.rstrip("/")
-        self.supabase_url = supabase_url.rstrip("/")
-        self.service_role_key = service_role_key
+        self.database_url = database_url
         self.data = CreatedData()
         self.all_user_ids: list[str] = []
 
         self.client_kwargs = {
             "follow_redirects": True,
             "timeout": httpx.Timeout(30.0, connect=10.0),
-        }
-        self.supa_headers = {
-            "Authorization": f"Bearer {self.service_role_key}",
-            "apikey": self.service_role_key,
         }
 
     # ========== 主流程 ==========
@@ -167,8 +161,8 @@ class LiveSeedTester:
 
     # ========== 註冊帳號 ==========
 
-    async def _register_and_get_entity(self, register_data: dict, role: str) -> tuple[str, str]:
-        """註冊帳號，回傳 (user_id, entity_id)"""
+    async def _register_and_get_entity(self, register_data: dict, role: str) -> tuple[str, str, dict]:
+        """註冊帳號，回傳 (user_id, entity_id, cookies)"""
         async with httpx.AsyncClient(**self.client_kwargs) as client:
             # 註冊
             resp = await client.post(
@@ -188,15 +182,18 @@ class LiveSeedTester:
             login_data = resp.json()
             user_id = login_data["user"]["id"]
 
-            # 查詢 entity ID
-            resp2 = await client.get(
-                f"{self.supabase_url}/rest/v1/user_profiles?id=eq.{user_id}&select=student_id,teacher_id,employee_id",
-                headers=self.supa_headers,
-            )
-            profile = resp2.json()[0]
-
-            entity_key = f"{role}_id" if role != "employee" else "employee_id"
-            entity_id = profile.get(entity_key)
+            # Query entity ID via asyncpg
+            import asyncpg
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                profile = await conn.fetchrow(
+                    "SELECT student_id, teacher_id, employee_id FROM user_profiles WHERE id = $1::uuid",
+                    user_id
+                )
+                entity_key = f"{role}_id" if role != "employee" else "employee_id"
+                entity_id = str(profile[entity_key]) if profile and profile[entity_key] else None
+            finally:
+                await conn.close()
 
             return user_id, entity_id, dict(resp.cookies)
 
@@ -282,14 +279,16 @@ class LiveSeedTester:
             self.data.trial_student_entity_ids.append(entity_id)
             self.all_user_ids.append(user_id)
 
-            # 設定 student_type = 'trial'
-            async with httpx.AsyncClient(**self.client_kwargs) as client:
-                resp = await client.patch(
-                    f"{self.supabase_url}/rest/v1/students?id=eq.{entity_id}",
-                    headers={**self.supa_headers, "Content-Type": "application/json", "Prefer": "return=minimal"},
-                    json={"student_type": "trial"},
+            # 設定 student_type = 'trial' via asyncpg
+            import asyncpg
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                await conn.execute(
+                    "UPDATE students SET student_type = $1 WHERE id = $2::uuid",
+                    "trial", entity_id
                 )
-                assert resp.status_code in (200, 204), f"Failed to set trial: {resp.text}"
+            finally:
+                await conn.close()
 
             print(f"    ✅ {s['name']}（試上）| {email}")
             print(f"       user_id={user_id[:8]}… student_id={entity_id[:8]}… student_type=trial")
@@ -299,27 +298,28 @@ class LiveSeedTester:
     async def _seed_courses(self):
         async with httpx.AsyncClient(cookies=self.data.employee_cookies, **self.client_kwargs) as client:
             for c in COURSES:
-                # 先嘗試找已存在的課程（含軟刪除），用 Supabase service role
-                async with httpx.AsyncClient(**self.client_kwargs) as supa_client:
-                    find_resp = await supa_client.get(
-                        f"{self.supabase_url}/rest/v1/courses?course_code=eq.{c['course_code']}&select=id,is_deleted",
-                        headers=self.supa_headers,
+                # 先嘗試找已存在的課程（含軟刪除），用 asyncpg 直連 DB
+                import asyncpg
+                conn = await asyncpg.connect(self.database_url)
+                try:
+                    existing = await conn.fetchrow(
+                        "SELECT id, is_deleted FROM courses WHERE course_code = $1",
+                        c['course_code']
                     )
-                    if find_resp.status_code == 200 and find_resp.json():
-                        existing = find_resp.json()[0]
-                        course_id = existing["id"]
-                        # 如果被軟刪除了，恢復它
-                        if existing.get("is_deleted"):
-                            await supa_client.patch(
-                                f"{self.supabase_url}/rest/v1/courses?id=eq.{course_id}",
-                                headers={**self.supa_headers, "Content-Type": "application/json", "Prefer": "return=minimal"},
-                                json={"is_deleted": False, "is_active": True},
+                    if existing:
+                        course_id = str(existing["id"])
+                        if existing["is_deleted"]:
+                            await conn.execute(
+                                "UPDATE courses SET is_deleted = false, is_active = true WHERE id = $1",
+                                existing["id"]
                             )
                             print(f"    ✅ {c['course_name']}（恢復已有課程）| id={course_id[:8]}…")
                         else:
                             print(f"    ✅ {c['course_name']}（已存在）| id={course_id[:8]}…")
                         self.data.course_ids.append(course_id)
                         continue
+                finally:
+                    await conn.close()
 
                 resp = await client.post(
                     f"{self.backend_url}/api/v1/courses",
@@ -491,151 +491,99 @@ class LiveSeedTester:
         print("🧹 Cleaning up seed test data...")
         print(f"{'='*60}\n")
 
-        async with httpx.AsyncClient(**self.client_kwargs) as client:
-            # 搜尋所有 test_seed_ 前綴的用戶
-            resp = await client.get(
-                f"{self.supabase_url}/auth/v1/admin/users",
-                headers=self.supa_headers,
-                params={"per_page": 1000},
+        try:
+            import asyncpg
+        except ImportError:
+            print("⚠️  asyncpg not installed, skipping cleanup.")
+            return
+
+        try:
+            conn = await asyncpg.connect(self.database_url)
+        except Exception as e:
+            print(f"  ❌ Failed to connect to database: {e}")
+            return
+
+        try:
+            # Find all test_seed_ users
+            test_users = await conn.fetch(
+                "SELECT id, email FROM public.users WHERE email LIKE $1",
+                f"{TEST_EMAIL_PREFIX}%"
             )
-
-            if resp.status_code != 200:
-                print(f"  ❌ Failed to list users: {resp.status_code}")
-                return
-
-            users = resp.json().get("users", [])
-            test_users = [u for u in users if u.get("email", "").startswith(TEST_EMAIL_PREFIX)]
 
             if not test_users:
                 print("  No seed test users found")
             else:
                 print(f"  Found {len(test_users)} seed test user(s)")
+                for user in test_users:
+                    await self._delete_user_db(conn, user["id"], user["email"])
 
-            for user in test_users:
-                await self._delete_user(client, user["id"])
-
-            # 清理課程（透過 notes 欄位不容易做，用 service role 搜尋名稱）
+            # Soft-delete test courses
             for course_name in [c["course_name"] for c in COURSES]:
-                resp = await client.get(
-                    f"{self.supabase_url}/rest/v1/courses?course_name=eq.{course_name}&select=id",
-                    headers=self.supa_headers,
+                result = await conn.execute(
+                    "UPDATE courses SET is_deleted = true WHERE course_name = $1 AND is_deleted = false",
+                    course_name
                 )
-                if resp.status_code == 200:
-                    for c in resp.json():
-                        del_resp = await client.patch(
-                            f"{self.supabase_url}/rest/v1/courses?id=eq.{c['id']}",
-                            headers={**self.supa_headers, "Content-Type": "application/json", "Prefer": "return=minimal"},
-                            json={"is_deleted": True},
-                        )
-                        status = "✅" if del_resp.status_code in (200, 204) else "❌"
-                        print(f"    {status} Soft-deleted course: {course_name}")
+                if "UPDATE" in result and result != "UPDATE 0":
+                    print(f"    ✅ Soft-deleted course: {course_name}")
+
+        except Exception as e:
+            print(f"  ❌ Cleanup error: {e}")
+        finally:
+            await conn.close()
 
         print("\n✅ Cleanup completed\n")
 
-    async def _delete_user(self, client: httpx.AsyncClient, user_id: str):
-        """刪除用戶及其關聯資料"""
-        print(f"  Deleting user {user_id[:8]}...")
+    async def _delete_user_db(self, conn, user_id, email=""):
+        """刪除用戶及其關聯資料（透過 asyncpg 直連 DB）"""
+        print(f"  Deleting user {str(user_id)[:8]}... ({email})")
 
-        headers_rw = {
-            **self.supa_headers,
-            "Content-Type": "application/json",
-            "Prefer": "return=minimal",
-        }
-
-        # 查詢 entity IDs
-        resp = await client.get(
-            f"{self.supabase_url}/rest/v1/user_profiles?id=eq.{user_id}&select=student_id,teacher_id,employee_id",
-            headers=self.supa_headers,
+        # Get entity IDs from profile
+        profile = await conn.fetchrow(
+            "SELECT student_id, teacher_id, employee_id FROM user_profiles WHERE id = $1",
+            user_id
         )
-        entity_ids = {}
-        if resp.status_code == 200 and resp.json():
-            entity_ids = resp.json()[0]
 
-        # 清理 student 關聯（合約明細 → 合約 → bookings）
-        student_id = entity_ids.get("student_id")
+        student_id = profile["student_id"] if profile else None
+        teacher_id = profile["teacher_id"] if profile else None
+        employee_id = profile["employee_id"] if profile else None
+
+        # Clean up student-related data
         if student_id:
-            # student_contract_details → student_contracts
-            sc_resp = await client.get(
-                f"{self.supabase_url}/rest/v1/student_contracts?student_id=eq.{student_id}&select=id",
-                headers=self.supa_headers,
+            # Delete student contract details, teachers, leave records via contracts
+            contracts = await conn.fetch(
+                "SELECT id FROM student_contracts WHERE student_id = $1", student_id
             )
-            if sc_resp.status_code == 200:
-                for sc in sc_resp.json():
-                    await client.delete(
-                        f"{self.supabase_url}/rest/v1/student_contract_details?student_contract_id=eq.{sc['id']}",
-                        headers=headers_rw,
-                    )
-                    await client.delete(
-                        f"{self.supabase_url}/rest/v1/student_contract_teachers?student_contract_id=eq.{sc['id']}",
-                        headers=headers_rw,
-                    )
-                    await client.delete(
-                        f"{self.supabase_url}/rest/v1/student_contract_leave_records?student_contract_id=eq.{sc['id']}",
-                        headers=headers_rw,
-                    )
-                    # bookings referencing this contract
-                    await client.delete(
-                        f"{self.supabase_url}/rest/v1/bookings?student_contract_id=eq.{sc['id']}",
-                        headers=headers_rw,
-                    )
-                await client.delete(
-                    f"{self.supabase_url}/rest/v1/student_contracts?student_id=eq.{student_id}",
-                    headers=headers_rw,
-                )
-            # bookings by student_id (trial students without contract)
-            await client.delete(
-                f"{self.supabase_url}/rest/v1/bookings?student_id=eq.{student_id}",
-                headers=headers_rw,
-            )
+            for sc in contracts:
+                await conn.execute("DELETE FROM student_contract_details WHERE student_contract_id = $1", sc["id"])
+                await conn.execute("DELETE FROM student_contract_teachers WHERE student_contract_id = $1", sc["id"])
+                await conn.execute("DELETE FROM student_contract_leave_records WHERE student_contract_id = $1", sc["id"])
+                await conn.execute("DELETE FROM bookings WHERE student_contract_id = $1", sc["id"])
+            await conn.execute("DELETE FROM student_contracts WHERE student_id = $1", student_id)
+            await conn.execute("DELETE FROM bookings WHERE student_id = $1", student_id)
 
-        # 清理 teacher 關聯
-        teacher_id = entity_ids.get("teacher_id")
+        # Clean up teacher-related data
         if teacher_id:
-            tc_resp = await client.get(
-                f"{self.supabase_url}/rest/v1/teacher_contracts?teacher_id=eq.{teacher_id}&select=id",
-                headers=self.supa_headers,
+            contracts = await conn.fetch(
+                "SELECT id FROM teacher_contracts WHERE teacher_id = $1", teacher_id
             )
-            if tc_resp.status_code == 200:
-                for tc in tc_resp.json():
-                    await client.delete(
-                        f"{self.supabase_url}/rest/v1/teacher_contract_details?teacher_contract_id=eq.{tc['id']}",
-                        headers=headers_rw,
-                    )
-                    await client.delete(
-                        f"{self.supabase_url}/rest/v1/teacher_available_slots?teacher_contract_id=eq.{tc['id']}",
-                        headers=headers_rw,
-                    )
-                await client.delete(
-                    f"{self.supabase_url}/rest/v1/teacher_contracts?teacher_id=eq.{teacher_id}",
-                    headers=headers_rw,
-                )
-            await client.delete(
-                f"{self.supabase_url}/rest/v1/teacher_available_slots?teacher_id=eq.{teacher_id}",
-                headers=headers_rw,
-            )
+            for tc in contracts:
+                await conn.execute("DELETE FROM teacher_contract_details WHERE teacher_contract_id = $1", tc["id"])
+                await conn.execute("DELETE FROM teacher_available_slots WHERE teacher_contract_id = $1", tc["id"])
+            await conn.execute("DELETE FROM teacher_contracts WHERE teacher_id = $1", teacher_id)
+            await conn.execute("DELETE FROM teacher_available_slots WHERE teacher_id = $1", teacher_id)
 
-        # 刪除 line_user_bindings, user_profiles, entity, auth user
-        await client.delete(
-            f"{self.supabase_url}/rest/v1/line_user_bindings?user_id=eq.{user_id}",
-            headers=headers_rw,
-        )
-        await client.delete(
-            f"{self.supabase_url}/rest/v1/user_profiles?id=eq.{user_id}",
-            headers=headers_rw,
-        )
+        # Delete user (CASCADE handles user_profiles, line_user_bindings)
+        await conn.execute("DELETE FROM public.users WHERE id = $1", user_id)
+
+        # Delete entity records (not in CASCADE)
         if student_id:
-            await client.delete(f"{self.supabase_url}/rest/v1/students?id=eq.{student_id}", headers=headers_rw)
+            await conn.execute("DELETE FROM students WHERE id = $1", student_id)
         if teacher_id:
-            await client.delete(f"{self.supabase_url}/rest/v1/teachers?id=eq.{teacher_id}", headers=headers_rw)
-        if entity_ids.get("employee_id"):
-            await client.delete(f"{self.supabase_url}/rest/v1/employees?id=eq.{entity_ids['employee_id']}", headers=headers_rw)
+            await conn.execute("DELETE FROM teachers WHERE id = $1", teacher_id)
+        if employee_id:
+            await conn.execute("DELETE FROM employees WHERE id = $1", employee_id)
 
-        resp = await client.delete(
-            f"{self.supabase_url}/auth/v1/admin/users/{user_id}",
-            headers=self.supa_headers,
-        )
-        status = "✅" if resp.status_code in (200, 204) else "❌"
-        print(f"    {status} User {user_id[:8]}… deleted")
+        print(f"    ✅ User {str(user_id)[:8]}… deleted")
 
 
 async def main():
@@ -647,8 +595,7 @@ async def main():
 
     seeder = LiveSeedTester(
         backend_url=args.backend_url,
-        supabase_url=SUPABASE_URL,
-        service_role_key=SERVICE_ROLE_KEY,
+        database_url=DATABASE_URL,
     )
 
     if args.cleanup_only:

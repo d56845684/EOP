@@ -1,5 +1,6 @@
-// useAuth hook - uses backend API for authentication
-import { useState, useEffect, useCallback } from 'react'
+'use client'
+
+import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react'
 import { authApi } from '../api/auth'
 
 interface User {
@@ -17,67 +18,71 @@ interface UserProfile {
     avatar_url?: string
 }
 
-export function useAuth() {
+interface AuthContextValue {
+    user: User | null
+    profile: UserProfile | null
+    loading: boolean
+    signIn: (email: string, password: string) => Promise<any>
+    signOut: () => Promise<any>
+    refreshUser: () => Promise<void>
+    isAdmin: boolean
+    isTeacher: boolean
+    isStudent: boolean
+    isEmployee: boolean
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [profile, setProfile] = useState<UserProfile | null>(null)
     const [loading, setLoading] = useState(true)
 
     const fetchCurrentUser = useCallback(async () => {
         try {
-            const { user: currentUser, error } = await authApi.getCurrentUser()
-            if (error || !currentUser) {
+            const { user: u, profile: p, error } = await authApi.getCurrentUserAndProfile()
+            if (error || !u) {
                 setUser(null)
                 setProfile(null)
                 return
             }
-
-            setUser(currentUser)
-
-            // Fetch profile
-            const { data: profileData } = await authApi.getUserProfile(currentUser.id)
-            if (profileData) {
-                setProfile(profileData)
-            }
-        } catch (err) {
+            setUser(u)
+            setProfile(p)
+        } catch {
             setUser(null)
             setProfile(null)
         }
     }, [])
 
     useEffect(() => {
-        // Check if user is logged in on mount
         fetchCurrentUser().finally(() => {
             setLoading(false)
         })
     }, [fetchCurrentUser])
 
-    const signIn = async (email: string, password: string) => {
+    const signIn = useCallback(async (email: string, password: string) => {
         setLoading(true)
         const result = await authApi.signIn(email, password)
 
         if (result.data?.user) {
-            setUser(result.data.user as User)
-            // Fetch profile after login
-            const { data: profileData } = await authApi.getUserProfile(result.data.user.id)
-            if (profileData) {
-                setProfile(profileData)
-            }
+            // 登入成功後重新 fetch 一次取得完整資料
+            await fetchCurrentUser()
         }
 
         setLoading(false)
         return result
-    }
+    }, [fetchCurrentUser])
 
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         setLoading(true)
         const result = await authApi.signOut()
         setUser(null)
         setProfile(null)
         setLoading(false)
         return result
-    }
+    }, [])
 
-    return {
+    const value: AuthContextValue = {
         user,
         profile,
         loading,
@@ -89,4 +94,14 @@ export function useAuth() {
         isStudent: profile?.role === 'student',
         isEmployee: profile?.role === 'employee',
     }
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export function useAuth(): AuthContextValue {
+    const ctx = useContext(AuthContext)
+    if (!ctx) {
+        throw new Error('useAuth must be used within an AuthProvider')
+    }
+    return ctx
 }

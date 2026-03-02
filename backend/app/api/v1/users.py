@@ -25,7 +25,7 @@ async def get_profile(
     # 查詢 user_profile
     profiles = await supabase_service.table_select(
         table="user_profiles",
-        columns="*",
+        select="*",
         filters={"id": current_user.user_id},
         use_service_key=True
     )
@@ -38,7 +38,7 @@ async def get_profile(
         if entity_id:
             entities = await supabase_service.table_select(
                 table=table,
-                columns="*",
+                select="*",
                 filters={"id": entity_id},
                 use_service_key=True
             )
@@ -71,7 +71,7 @@ async def list_users(
     # 查詢 user_profiles
     profiles = await supabase_service.table_select(
         table="user_profiles",
-        columns="*",
+        select="*",
         filters=filters if filters else None,
         use_service_key=True
     )

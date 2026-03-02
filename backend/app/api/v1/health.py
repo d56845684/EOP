@@ -19,7 +19,7 @@ async def readiness_check():
     """就緒檢查（含依賴服務）"""
     checks = {
         "redis": False,
-        "supabase": False
+        "database": False
     }
     
     # 檢查 Redis
@@ -33,10 +33,10 @@ async def readiness_check():
     try:
         result = await supabase_service.table_select(
             table="courses",
-            columns="id",
+            select="id",
             use_service_key=True
         )
-        checks["supabase"] = True
+        checks["database"] = True
     except:
         pass
     

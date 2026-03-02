@@ -25,5 +25,5 @@ class TestHealthAPI:
         assert "status" in data
         assert "checks" in data
         assert "redis" in data["checks"]
-        assert "supabase" in data["checks"]
+        assert "database" in data["checks"]
 

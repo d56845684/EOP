@@ -58,26 +58,63 @@ class SessionService:
         
         return session_id, session_data
     
+    ACTIVITY_THROTTLE_SECONDS = 30
+
     async def get_session(self, session_id: str) -> Optional[SessionData]:
         """取得 Session 資料"""
         session_hash = hash_session_id(session_id)
         session_key = f"{self.SESSION_PREFIX}{session_hash}"
-        
+
         data = await self.redis.get_json(session_key)
         if not data:
             return None
-        
+
         return SessionData(**data)
-    
+
+    async def get_session_and_touch(self, session_id: str) -> Optional[SessionData]:
+        """取得 Session 並有條件地更新活動時間（節流 30 秒）
+
+        合併 get_session + update_session_activity，
+        只用 1 次 Redis GET，且僅在距上次更新超過 30 秒才寫入。
+        """
+        session_hash = hash_session_id(session_id)
+        session_key = f"{self.SESSION_PREFIX}{session_hash}"
+
+        data = await self.redis.get_json(session_key)
+        if not data:
+            return None
+
+        # 節流：距上次更新 < 30 秒就跳過寫入
+        now = datetime.now(timezone.utc)
+        last = data.get("last_activity")
+        should_update = True
+        if last:
+            try:
+                last_dt = datetime.fromisoformat(last)
+                if (now - last_dt).total_seconds() < self.ACTIVITY_THROTTLE_SECONDS:
+                    should_update = False
+            except (ValueError, TypeError):
+                pass
+
+        if should_update:
+            data["last_activity"] = now.isoformat()
+            await self.redis.set_json(
+                session_key,
+                data,
+                expire_seconds=settings.SESSION_EXPIRE_MINUTES * 60
+            )
+
+        return SessionData(**data)
+
     async def update_session_activity(self, session_id: str) -> bool:
         """更新 Session 最後活動時間"""
         session_hash = hash_session_id(session_id)
         session_key = f"{self.SESSION_PREFIX}{session_hash}"
-        
+
         data = await self.redis.get_json(session_key)
         if not data:
             return False
-        
+
         data["last_activity"] = datetime.now(timezone.utc).isoformat()
         await self.redis.set_json(
             session_key,
