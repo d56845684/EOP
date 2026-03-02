@@ -134,6 +134,7 @@ export interface StudentContractOption {
     id: string
     contract_no: string
     course_id: string
+    course_ids?: string[]
     course_name?: string
     remaining_lessons: number
 }
@@ -479,6 +480,31 @@ export const bookingsApi = {
             return { success: true, error: null }
         } catch (err) {
             return { success: false, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async getOverlappingCourseOptions(studentId: string, teacherId: string): Promise<{ data: CourseOption[] | null, error: any }> {
+        try {
+            const queryParams = new URLSearchParams()
+            queryParams.set('student_id', studentId)
+            queryParams.set('teacher_id', teacherId)
+
+            const url = `${API_BASE_URL}/api/v1/bookings/options/overlapping-courses?${queryParams.toString()}`
+
+            const response = await fetch(url, {
+                method: 'GET',
+                credentials: 'include',
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得交集課程選項失敗' } }
+            }
+
+            const result = await response.json()
+            return { data: result.data || [], error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
         }
     },
 

@@ -534,6 +534,7 @@ async def get_my_contracts(
                 if c:
                     course_names.append(c[0]["course_name"])
             contract["course_id"] = first_course_id
+            contract["course_ids"] = course_ids
             contract["course_name"] = ", ".join(course_names) if course_names else None
             enriched.append(contract)
 
@@ -647,6 +648,52 @@ async def create_booking(
         if not course:
             raise HTTPException(status_code=400, detail="課程不存在")
 
+        # 驗證課程交集合法性：學生選課 ∩ 教師可教課程
+        # (a) 非 trial 學生：驗證 student_courses 有此 course_id
+        if not is_trial:
+            sc_check = await supabase_service.table_select(
+                table="student_courses",
+                select="id",
+                filters={
+                    "student_id": data.student_id,
+                    "course_id": data.course_id,
+                    "is_deleted": "eq.false"
+                },
+                use_service_key=True
+            )
+            if not sc_check:
+                raise HTTPException(status_code=400, detail="學生未選修此課程")
+
+        # (b) 所有情況：驗證老師有此課程的 course_rate
+        teacher_active_contracts = await supabase_service.table_select(
+            table="teacher_contracts",
+            select="id",
+            filters={
+                "teacher_id": data.teacher_id,
+                "is_deleted": "eq.false",
+                "contract_status": "eq.active"
+            },
+            use_service_key=True
+        )
+        has_course_rate = False
+        for tc in teacher_active_contracts:
+            rate_check = await supabase_service.table_select(
+                table="teacher_contract_details",
+                select="id",
+                filters={
+                    "teacher_contract_id": tc["id"],
+                    "course_id": data.course_id,
+                    "detail_type": "eq.course_rate",
+                    "is_deleted": "eq.false"
+                },
+                use_service_key=True
+            )
+            if rate_check:
+                has_course_rate = True
+                break
+        if not has_course_rate:
+            raise HTTPException(status_code=400, detail="教師無此課程的授課資格")
+
         # 驗證教師等級是否符合學生偏好（主要教師不受等級限制）
         pref = await get_student_teacher_preference(data.student_id, data.course_id)
         if pref:
@@ -694,17 +741,17 @@ async def create_booking(
             # 取得教師時薪（從 teacher_contract_details）
             teacher_rate = await supabase_service.table_select(
                 table="teacher_contract_details",
-                select="hourly_rate,rate_percentage",
+                select="amount",
                 filters={
                     "teacher_contract_id": teacher_contract_id,
                     "course_id": data.course_id,
+                    "detail_type": "eq.course_rate",
                     "is_deleted": "eq.false"
                 },
                 use_service_key=True
             )
             if teacher_rate:
-                hourly_rate = teacher_rate[0].get("hourly_rate", 0)
-                rate_percentage = teacher_rate[0].get("rate_percentage")
+                hourly_rate = teacher_rate[0].get("amount", 0)
 
         # 處理教師時段：如果提供了 slot_id 則驗證，否則自動尋找
         teacher_slot_id = data.teacher_slot_id
@@ -1063,10 +1110,14 @@ async def batch_create_bookings(
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在")
 
+        # 課程 ID：優先使用前端傳入的 course_id
+        course_id = data.course_id
+        if not course_id:
+            raise HTTPException(status_code=400, detail="請提供課程 ID")
+
         # 驗證學生合約存在且有效（試上學生可不提供合約）
         student_contract = None
         remaining_lessons = None
-        course_id = None
 
         if data.student_contract_id:
             student_contract = await supabase_service.table_select(
@@ -1079,26 +1130,55 @@ async def batch_create_bookings(
                 raise HTTPException(status_code=400, detail="學生合約不存在")
 
             remaining_lessons = student_contract[0].get("remaining_lessons", 0)
+        elif not is_trial:
+            raise HTTPException(status_code=400, detail="正式學生必須提供學生合約")
 
-            # 從合約明細取得第一個課程 ID
-            contract_details = await supabase_service.table_select(
-                table="student_contract_details",
-                select="course_id",
+        # 驗證課程交集合法性：學生選課 ∩ 教師可教課程
+        if course_id:
+            # (a) 非 trial 學生：驗證 student_courses 有此 course_id
+            if not is_trial:
+                sc_check = await supabase_service.table_select(
+                    table="student_courses",
+                    select="id",
+                    filters={
+                        "student_id": data.student_id,
+                        "course_id": course_id,
+                        "is_deleted": "eq.false"
+                    },
+                    use_service_key=True
+                )
+                if not sc_check:
+                    raise HTTPException(status_code=400, detail="學生未選修此課程")
+
+            # (b) 所有情況：驗證老師有此課程的 course_rate
+            batch_teacher_contracts = await supabase_service.table_select(
+                table="teacher_contracts",
+                select="id",
                 filters={
-                    "student_contract_id": data.student_contract_id,
-                    "detail_type": "eq.lesson_price",
-                    "is_deleted": "eq.false"
+                    "teacher_id": data.teacher_id,
+                    "is_deleted": "eq.false",
+                    "contract_status": "eq.active"
                 },
                 use_service_key=True
             )
-            course_id = contract_details[0]["course_id"] if contract_details else None
-        elif is_trial:
-            # 試上學生無合約時，使用前端傳入的 course_id
-            course_id = data.course_id
-            if not course_id:
-                raise HTTPException(status_code=400, detail="試上學生無合約時必須提供課程 ID")
-        else:
-            raise HTTPException(status_code=400, detail="正式學生必須提供學生合約")
+            has_course_rate = False
+            for tc in batch_teacher_contracts:
+                rate_check = await supabase_service.table_select(
+                    table="teacher_contract_details",
+                    select="id",
+                    filters={
+                        "teacher_contract_id": tc["id"],
+                        "course_id": course_id,
+                        "detail_type": "eq.course_rate",
+                        "is_deleted": "eq.false"
+                    },
+                    use_service_key=True
+                )
+                if rate_check:
+                    has_course_rate = True
+                    break
+            if not has_course_rate:
+                raise HTTPException(status_code=400, detail="教師無此課程的授課資格")
 
         # 驗證教師等級是否符合學生偏好（主要教師不受等級限制）
         pref = await get_student_teacher_preference(data.student_id, course_id)
@@ -1190,17 +1270,17 @@ async def batch_create_bookings(
         if teacher_contract_id:
             teacher_rate = await supabase_service.table_select(
                 table="teacher_contract_details",
-                select="hourly_rate,rate_percentage",
+                select="amount",
                 filters={
                     "teacher_contract_id": teacher_contract_id,
                     "course_id": course_id,
+                    "detail_type": "eq.course_rate",
                     "is_deleted": "eq.false"
                 },
                 use_service_key=True
             )
             if teacher_rate:
-                hourly_rate = teacher_rate[0].get("hourly_rate", 0)
-                rate_percentage = teacher_rate[0].get("rate_percentage")
+                hourly_rate = teacher_rate[0].get("amount", 0)
 
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -1802,6 +1882,101 @@ async def update_teacher_level(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/options/overlapping-courses", tags=["預約管理"])
+async def get_overlapping_course_options(
+    student_id: str = Query(..., description="學生 ID"),
+    teacher_id: str = Query(..., description="教師 ID"),
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """取得學生與教師的交集課程（學生選課 ∩ 教師可教課程）
+
+    - trial 學生：直接回傳老師的所有可教課程
+    - 正式學生：回傳學生選課與老師可教課程的交集
+    """
+    try:
+        # 1. 查學生類型
+        student = await supabase_service.table_select(
+            table="students",
+            select="id,student_type",
+            filters={"id": student_id, "is_deleted": "eq.false"},
+            use_service_key=True
+        )
+        if not student:
+            raise HTTPException(status_code=400, detail="學生不存在")
+
+        is_trial = student[0].get("student_type") == "trial"
+
+        # 2. 查老師可教課程：teacher_contracts(active) → teacher_contract_details(course_rate)
+        teacher_contracts = await supabase_service.table_select(
+            table="teacher_contracts",
+            select="id",
+            filters={
+                "teacher_id": teacher_id,
+                "is_deleted": "eq.false",
+                "contract_status": "eq.active"
+            },
+            use_service_key=True
+        )
+
+        teacher_course_ids = set()
+        for tc in teacher_contracts:
+            details = await supabase_service.table_select(
+                table="teacher_contract_details",
+                select="course_id",
+                filters={
+                    "teacher_contract_id": tc["id"],
+                    "detail_type": "eq.course_rate",
+                    "is_deleted": "eq.false"
+                },
+                use_service_key=True
+            )
+            for d in details:
+                if d.get("course_id"):
+                    teacher_course_ids.add(d["course_id"])
+
+        if not teacher_course_ids:
+            return {"data": []}
+
+        # 3. 決定最終課程 IDs
+        if is_trial:
+            # trial 學生：直接用老師的課程
+            final_course_ids = teacher_course_ids
+        else:
+            # 正式學生：查 student_courses 取交集
+            student_courses = await supabase_service.table_select(
+                table="student_courses",
+                select="course_id",
+                filters={
+                    "student_id": student_id,
+                    "is_deleted": "eq.false"
+                },
+                use_service_key=True
+            )
+            student_course_ids = set(sc["course_id"] for sc in student_courses if sc.get("course_id"))
+
+            final_course_ids = teacher_course_ids & student_course_ids
+
+        if not final_course_ids:
+            return {"data": []}
+
+        # 4. 查課程資料
+        courses = await supabase_service.table_select(
+            table="courses",
+            select="id,course_code,course_name",
+            filters={"is_deleted": "eq.false", "is_active": "eq.true"},
+            use_service_key=True
+        )
+
+        # 過濾交集課程
+        result = [c for c in courses if c["id"] in final_course_ids]
+
+        return {"data": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/options/courses", tags=["預約管理"])
 async def get_course_options(
     current_user: CurrentUser = Depends(get_current_user)
@@ -1866,6 +2041,7 @@ async def get_student_contract_options(
                 if c:
                     course_names.append(c[0]["course_name"])
             contract["course_id"] = first_course_id
+            contract["course_ids"] = course_ids
             contract["course_name"] = ", ".join(course_names) if course_names else None
             enriched.append(contract)
 
