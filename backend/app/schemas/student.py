@@ -37,6 +37,7 @@ class StudentResponse(BaseModel):
     birth_date: Optional[date] = None
     student_type: Optional[str] = "formal"
     is_active: bool = True
+    email_verified_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

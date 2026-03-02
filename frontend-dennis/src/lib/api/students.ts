@@ -10,6 +10,7 @@ export interface Student {
     birth_date?: string
     student_type?: 'formal' | 'trial'
     is_active: boolean
+    email_verified_at?: string | null
     created_at?: string
     updated_at?: string
 }

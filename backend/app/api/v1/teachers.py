@@ -9,7 +9,7 @@ import math
 
 router = APIRouter(prefix="/teachers", tags=["教師管理"])
 
-TEACHER_SELECT = "id,teacher_no,name,email,phone,address,bio,teacher_level,is_active,created_at,updated_at"
+TEACHER_SELECT = "id,teacher_no,name,email,phone,address,bio,teacher_level,is_active,email_verified_at,created_at,updated_at"
 
 
 @router.get("", response_model=TeacherListResponse)

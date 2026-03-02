@@ -37,6 +37,7 @@ class TeacherResponse(BaseModel):
     bio: Optional[str] = None
     teacher_level: int = 1
     is_active: bool = True
+    email_verified_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

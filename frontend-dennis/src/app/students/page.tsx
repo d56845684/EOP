@@ -5,7 +5,8 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { studentsApi, Student, CreateStudentData, UpdateStudentData } from '@/lib/api/students'
 import { studentTeacherPreferencesApi, StudentTeacherPreference, CreatePreferenceData } from '@/lib/api/studentTeacherPreferences'
 import { bookingsApi, TeacherOption, CourseOption } from '@/lib/api/bookings'
-import { Plus, Pencil, Trash2, Search, X, GraduationCap, CheckCircle, XCircle, Mail, Phone, Star, Settings, ArrowLeft } from 'lucide-react'
+import { invitesApi } from '@/lib/api/invites'
+import { Plus, Pencil, Trash2, Search, X, GraduationCap, CheckCircle, XCircle, Mail, Phone, Star, Settings, ArrowLeft, Link, Copy, Check, UserPlus } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 
 export default function StudentsPage() {
@@ -51,6 +52,13 @@ export default function StudentsPage() {
     const [prefSubmitting, setPrefSubmitting] = useState(false)
     const [prefDeleteConfirm, setPrefDeleteConfirm] = useState<StudentTeacherPreference | null>(null)
     const [prefDeleting, setPrefDeleting] = useState(false)
+
+    // 邀請連結
+    const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+    const [inviteStudent, setInviteStudent] = useState<Student | null>(null)
+    const [inviteLoading, setInviteLoading] = useState(false)
+    const [inviteError, setInviteError] = useState<string | null>(null)
+    const [copied, setCopied] = useState(false)
 
     const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
 
@@ -238,6 +246,49 @@ export default function StudentsPage() {
         setPrefDeleting(false)
     }
 
+    // === 邀請連結 ===
+    const handleGenerateInvite = async (student: Student) => {
+        setInviteStudent(student)
+        setInviteUrl(null)
+        setInviteError(null)
+        setInviteLoading(true)
+        setCopied(false)
+
+        const { data, error } = await invitesApi.generate('student', student.id)
+        if (error) {
+            setInviteError(error.message)
+        } else if (data) {
+            setInviteUrl(data.invite_url)
+        }
+        setInviteLoading(false)
+    }
+
+    const closeInviteModal = () => {
+        setInviteStudent(null)
+        setInviteUrl(null)
+        setInviteError(null)
+        setCopied(false)
+    }
+
+    const handleCopyUrl = async () => {
+        if (!inviteUrl) return
+        try {
+            await navigator.clipboard.writeText(inviteUrl)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        } catch {
+            // fallback
+            const textArea = document.createElement('textarea')
+            textArea.value = inviteUrl
+            document.body.appendChild(textArea)
+            textArea.select()
+            document.execCommand('copy')
+            document.body.removeChild(textArea)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        }
+    }
+
     return (
         <DashboardLayout>
             <div className="py-8">
@@ -312,6 +363,7 @@ export default function StudentsPage() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">聯絡方式</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">類型</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">帳號</th>
                                         {isStaff && <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">操作</th>}
                                     </tr>
                                 </thead>
@@ -342,8 +394,18 @@ export default function StudentsPage() {
                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"><XCircle className="w-3 h-3 mr-1" />已停用</span>
                                                 )}
                                             </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                {student.email_verified_at ? (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />已驗證</span>
+                                                ) : (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><XCircle className="w-3 h-3 mr-1" />未驗證</span>
+                                                )}
+                                            </td>
                                             {isStaff && (
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    {!student.email_verified_at && (
+                                                        <button onClick={() => handleGenerateInvite(student)} className="text-green-600 hover:text-green-900 mr-4" title="產生邀請連結"><UserPlus className="w-5 h-5" /></button>
+                                                    )}
                                                     <button onClick={() => openPreferences(student)} className="text-purple-600 hover:text-purple-900 mr-4" title="教師偏好設定"><Settings className="w-5 h-5" /></button>
                                                     <button onClick={() => openEditModal(student)} className="text-blue-600 hover:text-blue-900 mr-4" title="編輯"><Pencil className="w-5 h-5" /></button>
                                                     <button onClick={() => setDeleteConfirm(student)} className="text-red-600 hover:text-red-900" title="刪除"><Trash2 className="w-5 h-5" /></button>
@@ -625,6 +687,50 @@ export default function StudentsPage() {
                                 <button onClick={handlePrefDelete} className="btn-danger flex-1" disabled={prefDeleting}>
                                     {prefDeleting ? <span className="flex items-center justify-center"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>刪除中...</span> : '確認刪除'}
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 邀請連結 Modal */}
+                {inviteStudent && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-bold text-gray-900">邀請連結</h3>
+                                <button onClick={closeInviteModal} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-4">
+                                學生：<span className="font-medium">{inviteStudent.name}</span>（{inviteStudent.email}）
+                            </p>
+
+                            {inviteLoading && (
+                                <div className="flex justify-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                </div>
+                            )}
+
+                            {inviteError && (
+                                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">{inviteError}</div>
+                            )}
+
+                            {inviteUrl && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">邀請 URL</label>
+                                    <div className="flex gap-2">
+                                        <input type="text" readOnly value={inviteUrl}
+                                            className="input-field flex-1 text-sm bg-gray-50" />
+                                        <button onClick={handleCopyUrl}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1 ${copied ? 'bg-green-100 text-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                                            {copied ? <><Check className="w-4 h-4" />已複製</> : <><Copy className="w-4 h-4" />複製</>}
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">此連結有效期為 7 天，僅可使用一次</p>
+                                </div>
+                            )}
+
+                            <div className="flex gap-3 mt-6">
+                                <button onClick={closeInviteModal} className="btn-secondary flex-1">關閉</button>
                             </div>
                         </div>
                     </div>

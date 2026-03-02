@@ -19,6 +19,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/v1/auth/register",
         "/api/v1/auth/password/reset",
         "/api/v1/auth/refresh",
+        "/api/v1/invites/accept",
         "/docs",
         "/redoc",
         "/openapi.json"

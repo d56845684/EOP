@@ -9,7 +9,7 @@ import math
 
 router = APIRouter(prefix="/students", tags=["學生管理"])
 
-STUDENT_SELECT = "id,student_no,name,email,phone,address,birth_date,student_type,is_active,created_at,updated_at"
+STUDENT_SELECT = "id,student_no,name,email,phone,address,birth_date,student_type,is_active,email_verified_at,created_at,updated_at"
 
 
 @router.get("", response_model=StudentListResponse)
