@@ -5,3 +5,5 @@ frontend/node_modules/
 __pycache__
 secret.md
 .DS_Store
+scripts/notion*
+scripts/setup*

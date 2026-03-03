@@ -112,25 +112,43 @@ async def create_preference(
             if not teacher:
                 raise HTTPException(status_code=400, detail="主要教師不存在")
 
-        # 檢查唯一性（同學生+同課程不能重複）
-        dup_filters = {
-            "student_id": data.student_id,
-            "is_deleted": "eq.false"
-        }
-        if data.course_id:
-            dup_filters["course_id"] = data.course_id
+        # 檢查唯一性
+        if data.primary_teacher_id:
+            # 指定教師模式：同學生+同教師不能重複
+            dup_filters = {
+                "student_id": data.student_id,
+                "primary_teacher_id": data.primary_teacher_id,
+                "is_deleted": "eq.false"
+            }
+            existing = await supabase_service.table_select(
+                table="student_teacher_preferences",
+                select="id",
+                filters=dup_filters,
+                use_service_key=True
+            )
+            if existing:
+                raise HTTPException(status_code=400, detail="此學生已指定該教師，請編輯現有設定")
         else:
-            dup_filters["course_id"] = "is.null"
+            # 等級模式：同學生+同課程（含全域）不能重複
+            dup_filters = {
+                "student_id": data.student_id,
+                "primary_teacher_id": "is.null",
+                "is_deleted": "eq.false"
+            }
+            if data.course_id:
+                dup_filters["course_id"] = data.course_id
+            else:
+                dup_filters["course_id"] = "is.null"
 
-        existing = await supabase_service.table_select(
-            table="student_teacher_preferences",
-            select="id",
-            filters=dup_filters,
-            use_service_key=True
-        )
-        if existing:
-            scope = "全域" if not data.course_id else "該課程"
-            raise HTTPException(status_code=400, detail=f"此學生已有{scope}偏好設定，請編輯現有設定")
+            existing = await supabase_service.table_select(
+                table="student_teacher_preferences",
+                select="id",
+                filters=dup_filters,
+                use_service_key=True
+            )
+            if existing:
+                scope = "全域" if not data.course_id else "該課程"
+                raise HTTPException(status_code=400, detail=f"此學生已有{scope}等級偏好設定，請編輯現有設定")
 
         insert_data = {
             "student_id": data.student_id,
@@ -194,9 +212,10 @@ async def update_preference(
                 raise HTTPException(status_code=400, detail="主要教師不存在")
 
         update_data = {}
-        if data.min_teacher_level is not None:
+        # 使用 model_fields_set 判斷前端是否有明確傳入該欄位（包含 null）
+        if "min_teacher_level" in data.model_fields_set:
             update_data["min_teacher_level"] = data.min_teacher_level
-        if data.primary_teacher_id is not None:
+        if "primary_teacher_id" in data.model_fields_set:
             update_data["primary_teacher_id"] = data.primary_teacher_id
 
         if not update_data:

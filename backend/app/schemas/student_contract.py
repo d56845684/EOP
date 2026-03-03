@@ -60,29 +60,6 @@ class StudentContractDetailResponse(BaseModel):
         from_attributes = True
 
 
-# ========== Contract Teacher Schemas ==========
-
-class StudentContractTeacherAdd(BaseModel):
-    """新增可預約教師"""
-    teacher_id: str = Field(..., description="教師 ID")
-    is_primary: bool = Field(False, description="是否為主要教師")
-
-
-class StudentContractTeacherResponse(BaseModel):
-    """合約可預約教師回應"""
-    id: str
-    student_contract_id: str
-    teacher_id: str
-    teacher_no: Optional[str] = None
-    teacher_name: Optional[str] = None
-    is_primary: bool = False
-    assigned_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-
 # ========== Leave Record Schemas ==========
 
 class StudentContractLeaveRecordCreate(BaseModel):
@@ -154,9 +131,8 @@ class StudentContractResponse(BaseModel):
     contract_file_uploaded_at: Optional[datetime] = None
     # 關聯資料
     student_name: Optional[str] = None
-    # 明細 + 教師 + 請假
+    # 明細 + 請假
     details: list[StudentContractDetailResponse] = []
-    teachers: list[StudentContractTeacherResponse] = []
     leave_records: list[StudentContractLeaveRecordResponse] = []
 
     class Config:

@@ -199,7 +199,10 @@ export default function BookingsPage() {
             ])
             if (studentsRes.data) setStudentOptions(studentsRes.data)
             if (teachersRes.data) {
-                setTeacherOptions(teachersRes.data)
+                // 學生角色不在此設 teacherOptions，等 myStudentInfo 載入後由偏好過濾 useEffect 設定
+                if (!isStudent) {
+                    setTeacherOptions(teachersRes.data)
+                }
                 setAllTeacherOptions(teachersRes.data)
             }
             if (coursesRes.data) setCourseOptions(coursesRes.data)
@@ -325,7 +328,13 @@ export default function BookingsPage() {
     // Refetch teacher options filtered by student preference when student changes
     useEffect(() => {
         const studentId = isStudent && myStudentInfo ? myStudentInfo.id : formStudent
-        if (!studentId) return
+        if (!studentId) {
+            // 沒選學生時回復全部教師（員工篩選用）
+            if (allTeacherOptions.length > 0) {
+                setTeacherOptions(allTeacherOptions)
+            }
+            return
+        }
 
         bookingsApi.getTeacherOptions({ student_id: studentId }).then(res => {
             if (res.data) {
@@ -336,7 +345,7 @@ export default function BookingsPage() {
                 }
             }
         })
-    }, [formStudent, isStudent, myStudentInfo])
+    }, [formStudent, isStudent, myStudentInfo, allTeacherOptions])
 
     // Load teacher contracts when teacher selected
     useEffect(() => {

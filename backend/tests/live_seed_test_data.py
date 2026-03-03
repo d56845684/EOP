@@ -555,7 +555,6 @@ class LiveSeedTester:
             )
             for sc in contracts:
                 await conn.execute("DELETE FROM student_contract_details WHERE student_contract_id = $1", sc["id"])
-                await conn.execute("DELETE FROM student_contract_teachers WHERE student_contract_id = $1", sc["id"])
                 await conn.execute("DELETE FROM student_contract_leave_records WHERE student_contract_id = $1", sc["id"])
                 await conn.execute("DELETE FROM bookings WHERE student_contract_id = $1", sc["id"])
             await conn.execute("DELETE FROM student_contracts WHERE student_id = $1", student_id)

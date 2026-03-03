@@ -49,6 +49,7 @@ export default function StudentsPage() {
     const [prefFormMode, setPrefFormMode] = useState<'create' | 'edit'>('create')
     const [editingPref, setEditingPref] = useState<StudentTeacherPreference | null>(null)
     const [prefFormData, setPrefFormData] = useState({ course_id: '', min_teacher_level: 1, primary_teacher_id: '' })
+    const [prefMode, setPrefMode] = useState<'primary' | 'level'>('primary')
     const [prefFormError, setPrefFormError] = useState<string | null>(null)
     const [prefSubmitting, setPrefSubmitting] = useState(false)
     const [prefDeleteConfirm, setPrefDeleteConfirm] = useState<StudentTeacherPreference | null>(null)
@@ -193,6 +194,7 @@ export default function StudentsPage() {
         setPrefFormMode('create')
         setEditingPref(null)
         setPrefFormData({ course_id: '', min_teacher_level: 1, primary_teacher_id: '' })
+        setPrefMode('primary')
         setPrefFormError(null)
         setShowPrefForm(true)
     }
@@ -205,6 +207,7 @@ export default function StudentsPage() {
             min_teacher_level: pref.min_teacher_level,
             primary_teacher_id: pref.primary_teacher_id || '',
         })
+        setPrefMode(pref.primary_teacher_id ? 'primary' : 'level')
         setPrefFormError(null)
         setShowPrefForm(true)
     }
@@ -216,12 +219,22 @@ export default function StudentsPage() {
         setPrefSubmitting(true)
 
         try {
+            // 根據模式建立互斥資料
+            const isPrimary = prefMode === 'primary'
             if (prefFormMode === 'create') {
                 const createData: CreatePreferenceData = {
                     student_id: prefStudent.id,
-                    min_teacher_level: prefFormData.min_teacher_level,
-                    course_id: prefFormData.course_id || null,
-                    primary_teacher_id: prefFormData.primary_teacher_id || null,
+                    min_teacher_level: isPrimary ? null : prefFormData.min_teacher_level,
+                    course_id: isPrimary ? null : (prefFormData.course_id || null),
+                    primary_teacher_id: isPrimary ? (prefFormData.primary_teacher_id || null) : null,
+                }
+                if (isPrimary && !createData.primary_teacher_id) {
+                    setPrefFormError('請選擇主要教師')
+                    return
+                }
+                if (!isPrimary && createData.min_teacher_level < 1) {
+                    setPrefFormError('最低教師等級須 >= 1')
+                    return
                 }
                 const { error } = await studentTeacherPreferencesApi.create(createData)
                 if (error) { setPrefFormError(error.message) }
@@ -232,8 +245,8 @@ export default function StudentsPage() {
                 }
             } else if (editingPref) {
                 const { error } = await studentTeacherPreferencesApi.update(editingPref.id, {
-                    min_teacher_level: prefFormData.min_teacher_level,
-                    primary_teacher_id: prefFormData.primary_teacher_id || null,
+                    min_teacher_level: isPrimary ? null : prefFormData.min_teacher_level,
+                    primary_teacher_id: isPrimary ? (prefFormData.primary_teacher_id || null) : null,
                 })
                 if (error) { setPrefFormError(error.message) }
                 else {
@@ -615,26 +628,31 @@ export default function StudentsPage() {
                                                                 <div className="flex items-start justify-between">
                                                                     <div className="flex-1">
                                                                         <div className="flex items-center gap-2 mb-2">
-                                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${pref.course_id ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                                                {pref.course_id ? pref.course_name || '指定課程' : '全域預設'}
-                                                                            </span>
-                                                                        </div>
-                                                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                                                            <div>
-                                                                                <span className="text-gray-500">最低教師等級：</span>
-                                                                                <span className="font-medium text-gray-900">Lv.{pref.min_teacher_level}</span>
-                                                                            </div>
-                                                                            <div>
-                                                                                <span className="text-gray-500">主要教師：</span>
-                                                                                <span className="font-medium text-gray-900">
-                                                                                    {pref.primary_teacher_id ? (
-                                                                                        <span className="inline-flex items-center gap-1">
-                                                                                            <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                                                                            {pref.primary_teacher_name || '未知'}
-                                                                                        </span>
-                                                                                    ) : '未指定'}
+                                                                            {pref.primary_teacher_id ? (
+                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                                                                    指定教師
                                                                                 </span>
-                                                                            </div>
+                                                                            ) : (
+                                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${pref.course_id ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                                                    {pref.course_id ? pref.course_name || '指定課程' : '全域預設'}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-sm">
+                                                                            {pref.primary_teacher_id ? (
+                                                                                <div>
+                                                                                    <span className="text-gray-500">主要教師：</span>
+                                                                                    <span className="font-medium text-gray-900 inline-flex items-center gap-1">
+                                                                                        <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                                                                        {pref.primary_teacher_name || '未知'}
+                                                                                    </span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div>
+                                                                                    <span className="text-gray-500">最低教師等級：</span>
+                                                                                    <span className="font-medium text-gray-900">Lv.{pref.min_teacher_level}</span>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex items-center gap-2 ml-4">
@@ -668,43 +686,76 @@ export default function StudentsPage() {
                                                 {prefFormError && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{prefFormError}</div>}
 
                                                 <form onSubmit={handlePrefSubmit} className="space-y-4">
-                                                    {prefFormMode === 'create' && (
+                                                    {/* 偏好類型選擇（互斥） */}
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">偏好類型</label>
+                                                        <div className="flex gap-3">
+                                                            <label className={`flex-1 flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-colors ${prefMode === 'primary' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                                <input type="radio" name="prefMode" checked={prefMode === 'primary'}
+                                                                    onChange={() => { setPrefMode('primary'); setPrefFormData({ ...prefFormData, min_teacher_level: 1, course_id: '' }) }}
+                                                                    className="text-blue-600" />
+                                                                <div>
+                                                                    <div className="text-sm font-medium text-gray-900">指定主要教師</div>
+                                                                    <div className="text-xs text-gray-500">直接指定可預約的教師</div>
+                                                                </div>
+                                                            </label>
+                                                            <label className={`flex-1 flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-colors ${prefMode === 'level' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                                <input type="radio" name="prefMode" checked={prefMode === 'level'}
+                                                                    onChange={() => { setPrefMode('level'); setPrefFormData({ ...prefFormData, primary_teacher_id: '' }) }}
+                                                                    className="text-blue-600" />
+                                                                <div>
+                                                                    <div className="text-sm font-medium text-gray-900">設定最低等級</div>
+                                                                    <div className="text-xs text-gray-500">依教師等級過濾</div>
+                                                                </div>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 指定主要教師模式 */}
+                                                    {prefMode === 'primary' && (
                                                         <div>
-                                                            <label className="block text-sm font-medium text-gray-700 mb-1">適用課程</label>
-                                                            <select value={prefFormData.course_id}
-                                                                onChange={(e) => setPrefFormData({ ...prefFormData, course_id: e.target.value })}
+                                                            <label className="block text-sm font-medium text-gray-700 mb-1">主要教師</label>
+                                                            <select value={prefFormData.primary_teacher_id}
+                                                                onChange={(e) => setPrefFormData({ ...prefFormData, primary_teacher_id: e.target.value })}
                                                                 className="input-field">
-                                                                <option value="">全域預設（所有課程）</option>
-                                                                {courseOptions.map((c) => (
-                                                                    <option key={c.id} value={c.id}>{c.course_name}（{c.course_code}）</option>
+                                                                <option value="">請選擇教師</option>
+                                                                {teacherOptions.map((t) => (
+                                                                    <option key={t.id} value={t.id}>
+                                                                        {t.name}（{t.teacher_no}）Lv.{t.teacher_level || 1}
+                                                                    </option>
                                                                 ))}
                                                             </select>
-                                                            <p className="text-xs text-gray-400 mt-1">選擇「全域預設」表示適用所有課程；選擇特定課程則僅適用於該課程</p>
+                                                            <p className="text-xs text-gray-400 mt-1">該教師可教所有課程，不受等級限制</p>
                                                         </div>
                                                     )}
 
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">最低教師等級</label>
-                                                        <input type="number" min={1} max={10} value={prefFormData.min_teacher_level}
-                                                            onChange={(e) => setPrefFormData({ ...prefFormData, min_teacher_level: parseInt(e.target.value) || 1 })}
-                                                            className="input-field" />
-                                                        <p className="text-xs text-gray-400 mt-1">學生只能預約等級 &ge; 此值的教師</p>
-                                                    </div>
+                                                    {/* 設定最低等級模式 */}
+                                                    {prefMode === 'level' && (
+                                                        <>
+                                                            {prefFormMode === 'create' && (
+                                                                <div>
+                                                                    <label className="block text-sm font-medium text-gray-700 mb-1">適用課程</label>
+                                                                    <select value={prefFormData.course_id}
+                                                                        onChange={(e) => setPrefFormData({ ...prefFormData, course_id: e.target.value })}
+                                                                        className="input-field">
+                                                                        <option value="">全域預設（所有課程）</option>
+                                                                        {courseOptions.map((c) => (
+                                                                            <option key={c.id} value={c.id}>{c.course_name}（{c.course_code}）</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <p className="text-xs text-gray-400 mt-1">選擇「全域預設」表示適用所有課程；選擇特定課程則僅適用於該課程</p>
+                                                                </div>
+                                                            )}
 
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">主要教師</label>
-                                                        <select value={prefFormData.primary_teacher_id}
-                                                            onChange={(e) => setPrefFormData({ ...prefFormData, primary_teacher_id: e.target.value })}
-                                                            className="input-field">
-                                                            <option value="">不指定</option>
-                                                            {teacherOptions.map((t) => (
-                                                                <option key={t.id} value={t.id}>
-                                                                    {t.name}（{t.teacher_no}）Lv.{t.teacher_level || 1}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                        <p className="text-xs text-gray-400 mt-1">主要教師會在預約時優先顯示</p>
-                                                    </div>
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-gray-700 mb-1">最低教師等級</label>
+                                                                <input type="number" min={1} max={10} value={prefFormData.min_teacher_level}
+                                                                    onChange={(e) => setPrefFormData({ ...prefFormData, min_teacher_level: parseInt(e.target.value) || 1 })}
+                                                                    className="input-field" />
+                                                                <p className="text-xs text-gray-400 mt-1">學生只能預約等級 &ge; 此值的教師</p>
+                                                            </div>
+                                                        </>
+                                                    )}
 
                                                     <div className="flex gap-3 pt-4">
                                                         <button type="button" onClick={() => setShowPrefForm(false)} className="btn-secondary flex-1" disabled={prefSubmitting}>取消</button>

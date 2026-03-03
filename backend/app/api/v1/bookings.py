@@ -44,42 +44,100 @@ async def generate_booking_no() -> str:
     return f"{prefix}{str(max_seq + 1).zfill(3)}"
 
 
-async def get_student_teacher_preference(student_id: str, course_id: str | None) -> dict | None:
-    """取得學生的教師偏好設定
+async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None, bool]:
+    """取得學生所有偏好設定的教師聯集
 
-    優先找 course-specific，找不到 fallback 到 global（course_id IS NULL）。
-    都找不到回傳 None（代表無限制）。
+    遍歷所有偏好（is_deleted=false），依情境收集可預約教師 ID：
+      情境 1: primary_teacher_id 有值 → 直接加入該教師
+      情境 2: course_id=NULL + min_teacher_level → 全域等級過濾
+      情境 3: course_id=X  + min_teacher_level → 指定課程等級過濾
+
+    Returns:
+        (allowed_set, has_preferences)
+        - allowed_set: 可預約教師 ID set；若無偏好設定則為 None
+        - has_preferences: 是否有任何偏好設定
     """
-    # 1. 先找 course-specific
-    if course_id:
-        prefs = await supabase_service.table_select(
-            table="student_teacher_preferences",
-            select="id,min_teacher_level,primary_teacher_id",
-            filters={
-                "student_id": student_id,
-                "course_id": course_id,
-                "is_deleted": "eq.false"
-            },
-            use_service_key=True
-        )
-        if prefs:
-            return prefs[0]
-
-    # 2. Fallback 到 global（course_id IS NULL）
-    global_prefs = await supabase_service.table_select(
+    all_prefs = await supabase_service.table_select(
         table="student_teacher_preferences",
-        select="id,min_teacher_level,primary_teacher_id",
+        select="id,min_teacher_level,primary_teacher_id,course_id",
         filters={
             "student_id": student_id,
-            "course_id": "is.null",
             "is_deleted": "eq.false"
         },
         use_service_key=True
     )
-    if global_prefs:
-        return global_prefs[0]
 
-    return None
+    if not all_prefs:
+        # 沒有偏好設定 → 回傳空集合（不可預約任何教師）
+        return set(), False
+
+    allowed: set[str] = set()
+
+    for pref in all_prefs:
+        primary = pref.get("primary_teacher_id")
+        min_level = pref.get("min_teacher_level") or 1
+        pref_course_id = pref.get("course_id")
+
+        if primary:
+            # 情境 1: 指定主要教師 → 直接加入
+            allowed.add(primary)
+        elif pref_course_id:
+            # 情境 3: 指定課程 + 等級過濾
+            # 查有該課程 course_rate 的教師（透過 teacher_contracts → teacher_contract_details）
+            # 先找等級足夠的教師
+            teachers = await supabase_service.table_select(
+                table="teachers",
+                select="id",
+                filters={
+                    "is_deleted": "eq.false",
+                    "is_active": "eq.true",
+                    "teacher_level": f"gte.{min_level}"
+                },
+                use_service_key=True
+            )
+            for t in teachers:
+                # 查該教師是否有 active 合約包含此課程的 course_rate
+                t_contracts = await supabase_service.table_select(
+                    table="teacher_contracts",
+                    select="id",
+                    filters={
+                        "teacher_id": t["id"],
+                        "is_deleted": "eq.false",
+                        "contract_status": "eq.active"
+                    },
+                    use_service_key=True
+                )
+                for tc in t_contracts:
+                    rate_check = await supabase_service.table_select(
+                        table="teacher_contract_details",
+                        select="id",
+                        filters={
+                            "teacher_contract_id": tc["id"],
+                            "course_id": pref_course_id,
+                            "detail_type": "eq.course_rate",
+                            "is_deleted": "eq.false"
+                        },
+                        use_service_key=True
+                    )
+                    if rate_check:
+                        allowed.add(t["id"])
+                        break
+        else:
+            # 情境 2: 全域等級過濾（course_id=NULL, 無 primary）
+            teachers = await supabase_service.table_select(
+                table="teachers",
+                select="id",
+                filters={
+                    "is_deleted": "eq.false",
+                    "is_active": "eq.true",
+                    "teacher_level": f"gte.{min_level}"
+                },
+                use_service_key=True
+            )
+            for t in teachers:
+                allowed.add(t["id"])
+
+    return allowed, True
 
 
 async def check_booking_overlap(
@@ -694,18 +752,13 @@ async def create_booking(
         if not has_course_rate:
             raise HTTPException(status_code=400, detail="教師無此課程的授課資格")
 
-        # 驗證教師等級是否符合學生偏好（主要教師不受等級限制）
-        pref = await get_student_teacher_preference(data.student_id, data.course_id)
-        if pref:
-            is_primary = pref.get("primary_teacher_id") == data.teacher_id
-            if not is_primary:
-                teacher_level = teacher[0].get("teacher_level", 1)
-                min_level = pref.get("min_teacher_level", 1)
-                if teacher_level < min_level:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"教師等級 ({teacher_level}) 低於學生要求的最低等級 ({min_level})"
-                    )
+        # 驗證教師是否在學生偏好的可預約教師白名單內
+        allowed_set, _ = await get_student_allowed_teachers(data.student_id)
+        if data.teacher_id not in allowed_set:
+            raise HTTPException(
+                status_code=400,
+                detail="此教師不在學生的偏好可預約教師範圍內，請先設定教師偏好"
+            )
 
         # 驗證學生合約存在且有效（試上學生可不提供合約）
         student_contract = None
@@ -1798,45 +1851,31 @@ async def get_student_options(
 
 @router.get("/options/teachers", tags=["預約管理"])
 async def get_teacher_options(
-    student_id: Optional[str] = Query(None, description="學生 ID（用於等級過濾）"),
-    course_id: Optional[str] = Query(None, description="課程 ID（用於等級過濾）"),
+    student_id: Optional[str] = Query(None, description="學生 ID（用於偏好過濾）"),
     current_user: CurrentUser = Depends(get_current_user)
 ):
-    """取得教師下拉選單（可依學生偏好過濾等級）"""
+    """取得教師下拉選單（可依學生偏好聯集過濾）"""
     try:
         filters: dict = {"is_deleted": "eq.false", "is_active": "eq.true"}
 
-        # 如果提供了 student_id，查詢偏好設定
-        pref = None
-        primary_teacher_id = None
-        min_level = 0
         if student_id:
-            pref = await get_student_teacher_preference(student_id, course_id)
-            if pref:
-                min_level = pref.get("min_teacher_level", 1)
-                primary_teacher_id = pref.get("primary_teacher_id")
-
-        # 一次撈全部啟用教師，程式端過濾（主要教師不受等級限制）
-        teachers = await supabase_service.table_select(
-            table="teachers",
-            select="id,teacher_no,name,teacher_level",
-            filters=filters,
-            use_service_key=True
-        )
-
-        if pref and min_level > 0:
-            teachers = [
-                t for t in teachers
-                if t.get("teacher_level", 1) >= min_level or t["id"] == primary_teacher_id
-            ]
-
-        # 標記 primary teacher 並排序
-        for t in teachers:
-            t["is_primary"] = (t["id"] == primary_teacher_id) if primary_teacher_id else False
-
-        # primary teacher 排第一
-        if primary_teacher_id:
-            teachers.sort(key=lambda t: (not t["is_primary"], t.get("name", "")))
+            allowed_set, _ = await get_student_allowed_teachers(student_id)
+            # 有傳 student_id → 一律依偏好白名單過濾（無偏好 = 空清單）
+            teachers = await supabase_service.table_select(
+                table="teachers",
+                select="id,teacher_no,name,teacher_level",
+                filters=filters,
+                use_service_key=True
+            )
+            teachers = [t for t in teachers if t["id"] in allowed_set]
+        else:
+            # 未傳 student_id → 回傳全部教師（用於篩選列表等）
+            teachers = await supabase_service.table_select(
+                table="teachers",
+                select="id,teacher_no,name,teacher_level",
+                filters=filters,
+                use_service_key=True
+            )
 
         return {"data": teachers}
     except Exception as e:

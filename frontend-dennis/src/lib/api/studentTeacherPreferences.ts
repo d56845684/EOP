@@ -4,7 +4,7 @@ export interface StudentTeacherPreference {
     id: string
     student_id: string
     course_id: string | null
-    min_teacher_level: number
+    min_teacher_level: number | null
     primary_teacher_id: string | null
     created_at?: string
     updated_at?: string
@@ -16,12 +16,12 @@ export interface StudentTeacherPreference {
 export interface CreatePreferenceData {
     student_id: string
     course_id?: string | null
-    min_teacher_level: number
+    min_teacher_level?: number | null
     primary_teacher_id?: string | null
 }
 
 export interface UpdatePreferenceData {
-    min_teacher_level?: number
+    min_teacher_level?: number | null
     primary_teacher_id?: string | null
 }
 
