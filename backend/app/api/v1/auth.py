@@ -6,7 +6,7 @@ from app.core.dependencies import get_current_user, CurrentUser
 from app.schemas.auth import (
     LoginRequest, LoginResponse, RegisterRequest,
     LogoutRequest, RefreshResponse, PasswordResetRequest,
-    UserInfo, TokenPair
+    PasswordUpdateRequest, UserInfo, TokenPair
 )
 from app.schemas.response import BaseResponse, DataResponse
 from app.schemas.user import UserSessionInfo, UserSessionsResponse
@@ -199,6 +199,9 @@ async def get_current_user_info(
     current_user: CurrentUser = Depends(get_current_user)
 ):
     """取得當前用戶資訊"""
+    # 查詢 must_change_password
+    profile_extra = await auth_service.get_profile_extra(current_user.user_id)
+
     return DataResponse(
         data=UserInfo(
             id=current_user.user_id,
@@ -206,7 +209,8 @@ async def get_current_user_info(
             role=current_user.role,
             email_confirmed=True,
             employee_type=current_user.employee_type,
-            permission_level=current_user.permission_level
+            permission_level=current_user.permission_level,
+            must_change_password=profile_extra.get("must_change_password", False),
         )
     )
 
@@ -264,3 +268,51 @@ async def request_password_reset(data: PasswordResetRequest):
     except:
         # 為了安全，不透露郵箱是否存在
         return BaseResponse(message="如果該郵箱已註冊，您將收到重設密碼郵件")
+
+
+@router.post("/password/change", response_model=BaseResponse)
+async def change_password(
+    data: PasswordUpdateRequest,
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """變更密碼（首次登入或主動變更）
+
+    需要提供當前密碼和新密碼。
+    若 must_change_password 為 True，變更成功後會自動設為 False。
+    """
+    from fastapi import HTTPException
+
+    # 1. 驗證 current_password（透過 sign_in 驗證）
+    try:
+        await supabase_service.sign_in_with_password(
+            email=current_user.email,
+            password=data.current_password
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="當前密碼錯誤")
+
+    # 2. 更新密碼
+    try:
+        result = await supabase_service.admin_update_user(
+            user_id=current_user.user_id,
+            attributes={"password": data.new_password}
+        )
+        if not result:
+            raise HTTPException(status_code=500, detail="密碼更新失敗")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"密碼更新失敗: {str(e)}")
+
+    # 3. 將 must_change_password 設為 False
+    try:
+        await supabase_service.table_update(
+            table="user_profiles",
+            data={"must_change_password": False},
+            filters={"id": current_user.user_id},
+            use_service_key=True
+        )
+    except Exception:
+        pass  # 密碼已更新成功，此步驟失敗不影響
+
+    return BaseResponse(message="密碼變更成功")

@@ -16,12 +16,14 @@ interface UserProfile {
     email: string
     phone?: string
     avatar_url?: string
+    must_change_password?: boolean
 }
 
 interface AuthContextValue {
     user: User | null
     profile: UserProfile | null
     loading: boolean
+    mustChangePassword: boolean
     signIn: (email: string, password: string) => Promise<any>
     signOut: () => Promise<any>
     refreshUser: () => Promise<void>
@@ -86,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         profile,
         loading,
+        mustChangePassword: profile?.must_change_password || false,
         signIn,
         signOut,
         refreshUser: fetchCurrentUser,

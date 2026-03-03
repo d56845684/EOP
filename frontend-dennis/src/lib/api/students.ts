@@ -54,6 +54,37 @@ function parseErrorDetail(detail: unknown): string {
     return ''
 }
 
+export interface ConvertToFormalData {
+    contract_no: string
+    total_lessons: number
+    total_amount: number
+    start_date: string
+    end_date: string
+    teacher_id?: string
+    booking_id?: string
+    notes?: string
+}
+
+export interface ConvertToFormalResponse {
+    success: boolean
+    message: string
+    student: Student
+    contract: {
+        id: string
+        contract_no: string
+        student_id: string
+        contract_status: string
+        start_date: string
+        end_date: string
+        total_lessons: number
+        remaining_lessons: number
+        notes?: string
+        created_at?: string
+    }
+    bonus_recorded: boolean
+    bonus_amount?: number
+}
+
 export const studentsApi = {
     async list(params?: {
         page?: number
@@ -142,6 +173,27 @@ export const studentsApi = {
             return { success: true, error: null }
         } catch (err) {
             return { success: false, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async convertToFormal(studentId: string, data: ConvertToFormalData): Promise<{ data: ConvertToFormalResponse | null, error: any }> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/v1/students/${studentId}/convert-to-formal`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(data),
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '試上轉正失敗' } }
+            }
+
+            const result: ConvertToFormalResponse = await response.json()
+            return { data: result, error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
         }
     },
 }

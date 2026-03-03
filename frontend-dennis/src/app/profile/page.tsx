@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useLine } from '@/lib/hooks/useLine'
-import { User, Link as LinkIcon, Unlink, BookOpen } from 'lucide-react'
+import { User, Link as LinkIcon, Unlink, BookOpen, Save } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { studentCoursesApi, StudentCourse } from '@/lib/api/studentCourses'
+import { teachersApi, TeacherSelfUpdateData } from '@/lib/api/teachers'
 
 export default function ProfilePage() {
   const { user, profile } = useAuth()
@@ -16,6 +17,15 @@ export default function ProfilePage() {
   const [coursesLoading, setCoursesLoading] = useState(false)
 
   const isStudent = profile?.role === 'student'
+  const isTeacher = profile?.role === 'teacher'
+
+  // Teacher self-update state
+  const [teacherBio, setTeacherBio] = useState('')
+  const [teacherPhone, setTeacherPhone] = useState('')
+  const [teacherAddress, setTeacherAddress] = useState('')
+  const [teacherSaving, setTeacherSaving] = useState(false)
+  const [teacherSaveMsg, setTeacherSaveMsg] = useState<string | null>(null)
+  const [teacherSaveError, setTeacherSaveError] = useState<string | null>(null)
 
   // Fetch student's enrolled courses
   const fetchMyCourses = useCallback(async () => {
@@ -42,6 +52,27 @@ export default function ProfilePage() {
     if (confirm('確定要解除 Line 綁定嗎？')) {
       await unbind(channel)
     }
+  }
+
+  const handleTeacherSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setTeacherSaveError(null)
+    setTeacherSaveMsg(null)
+    setTeacherSaving(true)
+
+    const data: TeacherSelfUpdateData = {}
+    if (teacherBio) data.bio = teacherBio
+    if (teacherPhone) data.phone = teacherPhone
+    if (teacherAddress) data.address = teacherAddress
+
+    const { error } = await teachersApi.updateSelf(data)
+    if (error) {
+      setTeacherSaveError(error.message)
+    } else {
+      setTeacherSaveMsg('資料更新成功')
+      setTimeout(() => setTeacherSaveMsg(null), 3000)
+    }
+    setTeacherSaving(false)
   }
 
   const roleLabels: Record<string, string> = {
@@ -115,6 +146,44 @@ export default function ProfilePage() {
               </dl>
             </div>
           </div>
+
+          {/* Teacher Self-Update Card */}
+          {isTeacher && (
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <User className="w-6 h-6 text-purple-600" />
+                <h3 className="text-lg font-semibold">教師資料更新</h3>
+              </div>
+
+              {teacherSaveMsg && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">{teacherSaveMsg}</div>}
+              {teacherSaveError && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{teacherSaveError}</div>}
+
+              <form onSubmit={handleTeacherSave} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">電話</label>
+                  <input type="text" value={teacherPhone}
+                    onChange={(e) => setTeacherPhone(e.target.value)}
+                    className="input-field" placeholder="輸入電話號碼" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">地址</label>
+                  <input type="text" value={teacherAddress}
+                    onChange={(e) => setTeacherAddress(e.target.value)}
+                    className="input-field" placeholder="輸入地址" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">簡介</label>
+                  <textarea value={teacherBio}
+                    onChange={(e) => setTeacherBio(e.target.value)}
+                    className="input-field" rows={3} placeholder="教學經歷、專長等..." />
+                </div>
+                <button type="submit" disabled={teacherSaving} className="btn-primary flex items-center gap-2">
+                  <Save className="w-4 h-4" />
+                  {teacherSaving ? '儲存中...' : '儲存變更'}
+                </button>
+              </form>
+            </div>
+          )}
 
           {/* Student's Enrolled Courses Card */}
           {isStudent && (

@@ -64,7 +64,7 @@ services:
     restart: unless-stopped
 
   frontend-demo:
-    container_name: teaching-platform-frontend
+    container_name: teaching-platform-frontend-demo
     build:
       context: ./frontend-dennis
       dockerfile: Dockerfile

@@ -75,6 +75,10 @@ class UserInfo(BaseModel):
         0,
         description="權限等級"
     )
+    must_change_password: bool = Field(
+        False,
+        description="是否需要強制變更密碼"
+    )
 
 class LoginResponse(BaseModel):
     success: bool = True

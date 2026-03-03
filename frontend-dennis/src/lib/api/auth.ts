@@ -11,6 +11,7 @@ interface AuthResponse {
         email: string
         role: string
         email_confirmed: boolean
+        must_change_password?: boolean
     }
     tokens?: {
         access_token: string
@@ -27,6 +28,7 @@ interface UserProfile {
     email: string
     phone?: string
     avatar_url?: string
+    must_change_password?: boolean
 }
 
 export type RoleType = 'student' | 'teacher' | 'employee'
@@ -168,11 +170,36 @@ export const authApi = {
                 email: userData.email || '',
                 phone: userData.phone,
                 avatar_url: userData.avatar_url,
+                must_change_password: userData.must_change_password || false,
             } : null
 
             return { user, profile, error: null }
         } catch (err) {
             return { user: null, profile: null, error: { message: '無法取得用戶資訊' } }
+        }
+    },
+
+    async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean, error: any }> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/v1/auth/password/change`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                }),
+            })
+
+            const result = await response.json()
+
+            if (!response.ok || !result.success) {
+                return { success: false, error: { message: result.detail || result.message || '密碼變更失敗' } }
+            }
+
+            return { success: true, error: null }
+        } catch (err) {
+            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
         }
     },
 }

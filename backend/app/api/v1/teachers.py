@@ -1,11 +1,15 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+from pydantic import BaseModel, Field
 from app.services.supabase_service import supabase_service
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.services.storage_service import storage_service
+from app.config import settings
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_teacher, get_user_employee_id
 from app.schemas.teacher import TeacherCreate, TeacherUpdate, TeacherResponse, TeacherListResponse
 from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
 from datetime import datetime
 import math
+import uuid
 
 router = APIRouter(prefix="/teachers", tags=["教師管理"])
 
@@ -53,6 +57,53 @@ async def list_teachers(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"取得教師列表失敗: {str(e)}")
+
+
+# ========== 教師自我更新（必須在 /{teacher_id} 之前定義）==========
+
+class TeacherSelfUpdate(BaseModel):
+    """教師自行更新的欄位"""
+    bio: Optional[str] = Field(None, description="簡介")
+    phone: Optional[str] = Field(None, max_length=20, description="電話")
+    address: Optional[str] = Field(None, description="地址")
+
+
+@router.put("/me", response_model=DataResponse[TeacherResponse])
+async def update_teacher_self(
+    data: TeacherSelfUpdate,
+    current_user: CurrentUser = Depends(require_teacher)
+):
+    """教師更新自己的資料（bio/phone/address）"""
+    try:
+        # 從 user_profiles 取得 teacher_id
+        profiles = await supabase_service.table_select(
+            table="user_profiles",
+            select="teacher_id",
+            filters={"id": current_user.user_id},
+            use_service_key=True
+        )
+        if not profiles or not profiles[0].get("teacher_id"):
+            raise HTTPException(status_code=403, detail="找不到對應的教師資料")
+
+        teacher_id = profiles[0]["teacher_id"]
+
+        update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+        if not update_data:
+            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+
+        result = await supabase_service.table_update(
+            table="teachers", data=update_data,
+            filters={"id": teacher_id, "is_deleted": "eq.false"},
+            use_service_key=True
+        )
+        if not result:
+            raise HTTPException(status_code=500, detail="更新教師資料失敗")
+
+        return DataResponse(message="教師資料更新成功", data=TeacherResponse(**result))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新教師資料失敗: {str(e)}")
 
 
 @router.get("/{teacher_id}", response_model=DataResponse[TeacherResponse])
@@ -181,3 +232,89 @@ async def delete_teacher(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"刪除教師失敗: {str(e)}")
+
+
+# ========== 教師頭像上傳 ==========
+
+class AvatarConfirmRequest(BaseModel):
+    """確認頭像上傳請求"""
+    storage_path: str
+    file_name: str
+
+
+@router.post("/{teacher_id}/avatar/upload-url")
+async def get_teacher_avatar_upload_url(
+    teacher_id: str,
+    current_user: CurrentUser = Depends(require_staff)
+):
+    """取得教師頭像的 signed upload URL（僅限員工）"""
+    try:
+        existing = await supabase_service.table_select(
+            table="teachers", select="id",
+            filters={"id": teacher_id, "is_deleted": "eq.false"},
+            use_service_key=True
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="教師不存在")
+
+        await storage_service.ensure_bucket_exists(settings.AWS_S3_BUCKET)
+
+        safe_filename = f"{uuid.uuid4().hex}.jpg"
+        storage_path = f"teachers/{teacher_id}/avatar/{safe_filename}"
+
+        signed = await storage_service.create_signed_upload_url(
+            bucket=settings.AWS_S3_BUCKET,
+            path=storage_path,
+        )
+        if not signed:
+            raise HTTPException(status_code=500, detail="產生上傳連結失敗")
+
+        return {
+            "upload_url": signed["upload_url"],
+            "storage_path": storage_path,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"產生上傳連結失敗: {str(e)}")
+
+
+@router.post("/{teacher_id}/avatar/confirm-upload", response_model=DataResponse[TeacherResponse])
+async def confirm_teacher_avatar_upload(
+    teacher_id: str,
+    body: AvatarConfirmRequest,
+    current_user: CurrentUser = Depends(require_staff)
+):
+    """確認教師頭像上傳完成（僅限員工）"""
+    try:
+        existing = await supabase_service.table_select(
+            table="teachers", select="id",
+            filters={"id": teacher_id, "is_deleted": "eq.false"},
+            use_service_key=True
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="教師不存在")
+
+        # 驗證 S3 檔案存在
+        file_exists = await storage_service.verify_file_exists(
+            bucket=settings.AWS_S3_BUCKET,
+            path=body.storage_path
+        )
+        if not file_exists:
+            raise HTTPException(status_code=400, detail="檔案尚未上傳至 S3")
+
+        # 產生 avatar_url（使用 S3 path）
+        result = await supabase_service.table_update(
+            table="teachers",
+            data={"avatar_url": body.storage_path},
+            filters={"id": teacher_id},
+            use_service_key=True
+        )
+        if not result:
+            raise HTTPException(status_code=500, detail="更新頭像失敗")
+
+        return DataResponse(message="頭像上傳成功", data=TeacherResponse(**result))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"確認頭像上傳失敗: {str(e)}")

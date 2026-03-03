@@ -45,6 +45,12 @@ export interface UpdateTeacherData {
     is_active?: boolean
 }
 
+export interface TeacherSelfUpdateData {
+    bio?: string
+    phone?: string
+    address?: string
+}
+
 function parseErrorDetail(detail: unknown): string {
     if (typeof detail === 'string') return detail
     if (Array.isArray(detail) && detail.length > 0) {
@@ -116,6 +122,27 @@ export const teachersApi = {
             if (!response.ok) {
                 const error = await response.json()
                 return { data: null, error: { message: parseErrorDetail(error.detail) || '更新教師失敗' } }
+            }
+
+            const result = await response.json()
+            return { data: result.data || null, error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async updateSelf(data: TeacherSelfUpdateData): Promise<{ data: Teacher | null, error: any }> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/v1/teachers/me`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(data),
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '更新個人資料失敗' } }
             }
 
             const result = await response.json()
