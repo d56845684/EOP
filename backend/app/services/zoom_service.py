@@ -375,47 +375,31 @@ class ZoomService:
     async def _get_available_accounts(
         self, meeting_date: date, start_time_val: time, end_time_val: time
     ) -> list:
-        """取得候選帳號列表（應用層預篩選，DB constraint 為最終保障）"""
+        """
+        一條 SQL 查出在指定時段無衝突的空閒帳號。
+        用 LEFT JOIN + 時段重疊過濾，避免 N+1 查詢。
+        DB EXCLUSION constraint 仍為最終保障。
+        """
         try:
-            accounts = await supabase_service.table_select(
-                table="zoom_accounts",
-                select="*",
-                filters={"is_active": "eq.true", "is_deleted": "eq.false"},
-                use_service_key=True,
+            sql = """
+                SELECT a.*
+                FROM zoom_accounts a
+                LEFT JOIN zoom_meeting_logs l
+                    ON l.zoom_account_id = a.id
+                    AND l.meeting_date = $1
+                    AND l.is_deleted = FALSE
+                    AND l.meeting_status != 'cancelled'
+                    AND l.start_time < $3
+                    AND l.end_time > $2
+                WHERE a.is_active = TRUE
+                    AND a.is_deleted = FALSE
+                    AND l.id IS NULL
+                ORDER BY a.daily_meeting_count ASC
+            """
+            rows = await supabase_service.pool.fetch(
+                sql, meeting_date, start_time_val, end_time_val
             )
-            if not accounts:
-                return []
-
-            available = []
-            for account in accounts:
-                logs = await supabase_service.table_select(
-                    table="zoom_meeting_logs",
-                    select="id,start_time,end_time",
-                    filters={
-                        "zoom_account_id": account["id"],
-                        "meeting_date": str(meeting_date),
-                        "is_deleted": "eq.false",
-                        "meeting_status": "neq.cancelled",
-                    },
-                    use_service_key=True,
-                )
-
-                has_conflict = False
-                for log in logs:
-                    log_start = log["start_time"]
-                    log_end = log["end_time"]
-                    if isinstance(log_start, str):
-                        log_start = time.fromisoformat(log_start)
-                    if isinstance(log_end, str):
-                        log_end = time.fromisoformat(log_end)
-                    if start_time_val < log_end and end_time_val > log_start:
-                        has_conflict = True
-                        break
-
-                if not has_conflict:
-                    available.append(account)
-
-            return available
+            return [dict(r) for r in rows]
 
         except Exception as e:
             logger.error(f"查詢可用 Zoom 帳號失敗: {e}")
