@@ -19,6 +19,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/v1/auth/register",
         "/api/v1/auth/password/reset",
         "/api/v1/auth/refresh",
+        "/api/v1/invites/accept",
         "/docs",
         "/redoc",
         "/openapi.json"
@@ -34,7 +35,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not is_public:
             # 驗證 Token
             token = get_token_from_request(request)
-            
+
             if token:
                 # 檢查黑名單
                 if await session_service.is_token_blacklisted(token):
@@ -42,12 +43,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
                         status_code=401,
                         content={"detail": "Token 已失效"}
                     )
-                
-                # 解碼並附加到 request.state
+
+                # 解碼並附加到 request.state（供 dependencies 複用，避免重複檢查）
                 payload = decode_token(token)
                 if payload:
                     request.state.user_id = payload.get("sub")
                     request.state.user_role = payload.get("role")
+                    request.state.token_payload = payload
         
         # 執行請求
         response = await call_next(request)

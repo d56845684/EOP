@@ -3,6 +3,29 @@
 -- 整合自多個遷移檔案
 -- ============================================
 
+-- Ensure auth schema and roles exist (for plain PostgreSQL without Supabase)
+CREATE SCHEMA IF NOT EXISTS auth;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        CREATE ROLE authenticated NOLOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        CREATE ROLE anon NOLOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+        CREATE ROLE service_role NOLOGIN;
+    END IF;
+END;
+$$;
+
+-- Stub auth.uid() if not already defined (Supabase provides this natively)
+CREATE OR REPLACE FUNCTION auth.uid()
+RETURNS UUID AS $$
+    SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::UUID;
+$$ LANGUAGE sql STABLE;
+
 -- ============================================
 -- 1. 輔助函數：取得當前用戶資訊
 -- ============================================
@@ -143,7 +166,7 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE;
 -- 透過 email 查找已綁定 Line 的用戶
 CREATE OR REPLACE FUNCTION find_user_by_line_email(p_email VARCHAR)
 RETURNS UUID AS $$
-    SELECT id FROM auth.users
+    SELECT id FROM public.users
     WHERE email = p_email;
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 

@@ -32,11 +32,14 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     SECRET_KEY: str
 
-    # Supabase
-    SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str
-    SUPABASE_SERVICE_ROLE_KEY: str
-    SUPABASE_JWT_SECRET: str
+    # Database
+    DATABASE_URL: str = "postgresql://postgres:password@db:5432/postgres"
+
+    # Supabase (legacy, optional)
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_JWT_SECRET: str = ""
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

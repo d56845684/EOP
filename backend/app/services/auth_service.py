@@ -4,7 +4,7 @@ from app.services.supabase_service import supabase_service
 from app.services.session_service import session_service
 from app.services.redis_service import redis_service
 from app.core.security import (
-    create_token, decode_token, verify_supabase_token,
+    create_token, decode_token,
     set_auth_cookies, clear_auth_cookies, TokenType
 )
 from app.core.exceptions import (
@@ -145,13 +145,6 @@ class AuthService:
         
         # 清除 Cookies
         clear_auth_cookies(response)
-        
-        # Supabase 登出
-        try:
-            if access_token:
-                await self.supabase.sign_out(access_token)
-        except:
-            pass
         
         return True
     

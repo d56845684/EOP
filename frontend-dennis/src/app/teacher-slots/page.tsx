@@ -15,8 +15,9 @@ import {
     TeacherOption,
     TeacherContractOption
 } from '@/lib/api/teacherSlots'
-import { Plus, Pencil, Trash2, Search, X, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Layers, RefreshCw } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Layers, RefreshCw, Star } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
+import { bookingsApi } from '@/lib/api/bookings'
 
 const weekdayLabels = ['週一', '週二', '週三', '週四', '週五', '週六', '週日']
 
@@ -78,6 +79,11 @@ export default function TeacherSlotsPage() {
     const [showSelectedActionModal, setShowSelectedActionModal] = useState(false)
     const [selectedActionMode, setSelectedActionMode] = useState<'delete' | 'update'>('delete')
     const [processingSelected, setProcessingSelected] = useState(false)
+
+    // Teacher level editing
+    const [editingTeacherLevel, setEditingTeacherLevel] = useState(false)
+    const [teacherLevelValue, setTeacherLevelValue] = useState(1)
+    const [savingLevel, setSavingLevel] = useState(false)
 
     const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
     const isTeacher = profile?.role === 'teacher'
@@ -573,14 +579,72 @@ export default function TeacherSlotsPage() {
                                     onChange={(e) => {
                                         setFilterTeacherId(e.target.value)
                                         setPage(1)
+                                        setEditingTeacherLevel(false)
+                                        const t = teacherOptions.find(t => t.id === e.target.value)
+                                        if (t) setTeacherLevelValue(t.teacher_level || 1)
                                     }}
                                     className="input-field"
                                 >
                                     <option value="">全部教師</option>
                                     {teacherOptions.map(t => (
-                                        <option key={t.id} value={t.id}>{t.name} ({t.teacher_no})</option>
+                                        <option key={t.id} value={t.id}>{t.name} ({t.teacher_no}) Lv.{t.teacher_level || 1}</option>
                                     ))}
                                 </select>
+                            )}
+                            {/* Teacher level editor (when a teacher is selected) */}
+                            {isStaff && filterTeacherId && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-gray-600 whitespace-nowrap flex items-center gap-1">
+                                        <Star className="w-4 h-4 text-yellow-500" />
+                                        等級:
+                                    </span>
+                                    {editingTeacherLevel ? (
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={teacherLevelValue}
+                                                onChange={(e) => setTeacherLevelValue(parseInt(e.target.value) || 1)}
+                                                className="input-field w-16 text-sm py-1"
+                                            />
+                                            <button
+                                                onClick={async () => {
+                                                    setSavingLevel(true)
+                                                    const { success, error } = await bookingsApi.updateTeacherLevel(filterTeacherId, teacherLevelValue)
+                                                    if (success) {
+                                                        setTeacherOptions(prev => prev.map(t =>
+                                                            t.id === filterTeacherId ? { ...t, teacher_level: teacherLevelValue } : t
+                                                        ))
+                                                        setEditingTeacherLevel(false)
+                                                    }
+                                                    setSavingLevel(false)
+                                                }}
+                                                className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                                disabled={savingLevel}
+                                            >
+                                                {savingLevel ? '...' : '儲存'}
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingTeacherLevel(false)}
+                                                className="text-xs px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                                            >
+                                                取消
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => {
+                                                const t = teacherOptions.find(t => t.id === filterTeacherId)
+                                                setTeacherLevelValue(t?.teacher_level || 1)
+                                                setEditingTeacherLevel(true)
+                                            }}
+                                            className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                                        >
+                                            Lv.{teacherOptions.find(t => t.id === filterTeacherId)?.teacher_level || 1}
+                                            <Pencil className="w-3 h-3 inline ml-1" />
+                                        </button>
+                                    )}
+                                </div>
                             )}
 
                             {/* Date from */}

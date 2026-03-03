@@ -75,33 +75,32 @@ async def get_current_user(request: Request) -> CurrentUser:
     if not token:
         raise AuthException("未提供認證資訊")
 
-    # 2. 檢查 Token 是否在黑名單
-    if await session_service.is_token_blacklisted(token):
-        raise InvalidTokenException()
+    # 2. 複用 middleware 已驗證的結果（避免重複黑名單檢查 + JWT 解碼）
+    payload = getattr(request.state, "token_payload", None)
+    if not payload:
+        # Fallback：middleware 未處理到的路徑
+        if await session_service.is_token_blacklisted(token):
+            raise InvalidTokenException()
+        payload = decode_token(token)
 
-    # 3. 解碼 Token
-    payload = decode_token(token)
     if not payload:
         raise InvalidTokenException()
 
     if payload.get("type") != TokenType.ACCESS:
         raise InvalidTokenException()
 
-    # 4. 取得 Session
+    # 3. 取得 Session 並更新活動時間（合併為單次操作，含 30 秒節流）
     session_id = request.cookies.get("session_id")
     if not session_id:
         raise SessionExpiredException()
 
-    session_data = await session_service.get_session(session_id)
+    session_data = await session_service.get_session_and_touch(session_id)
     if not session_data:
         raise SessionExpiredException()
 
-    # 5. 驗證 Session 與 Token 匹配
+    # 4. 驗證 Session 與 Token 匹配
     if session_data.user_id != payload.get("sub"):
         raise InvalidTokenException()
-
-    # 6. 更新 Session 活動時間
-    await session_service.update_session_activity(session_id)
 
     # 7. 取得權限等級（從 token 或查詢）
     user_id = payload.get("sub")

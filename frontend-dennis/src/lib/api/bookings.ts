@@ -47,7 +47,7 @@ export interface CreateBookingData {
     student_id: string
     teacher_id: string
     course_id: string
-    student_contract_id: string
+    student_contract_id?: string  // 試上學生可不提供
     teacher_contract_id?: string
     teacher_slot_id?: string  // 可選，不提供則系統自動尋找符合時間的時段
     booking_date: string
@@ -96,7 +96,8 @@ export interface BatchDeleteData {
 
 export interface BatchCreateData {
     student_id: string
-    student_contract_id: string
+    student_contract_id?: string  // 試上學生可不提供
+    course_id?: string  // 試上學生無合約時必填
     teacher_id: string
     teacher_contract_id?: string
     start_date: string
@@ -112,12 +113,15 @@ export interface StudentOption {
     id: string
     student_no: string
     name: string
+    student_type?: 'formal' | 'trial'
 }
 
 export interface TeacherOption {
     id: string
     teacher_no: string
     name: string
+    teacher_level?: number
+    is_primary?: boolean
 }
 
 export interface CourseOption {
@@ -130,6 +134,7 @@ export interface StudentContractOption {
     id: string
     contract_no: string
     course_id: string
+    course_ids?: string[]
     course_name?: string
     remaining_lessons: number
 }
@@ -435,9 +440,15 @@ export const bookingsApi = {
         }
     },
 
-    async getTeacherOptions(): Promise<{ data: TeacherOption[] | null, error: any }> {
+    async getTeacherOptions(params?: { student_id?: string, course_id?: string }): Promise<{ data: TeacherOption[] | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/options/teachers`, {
+            const queryParams = new URLSearchParams()
+            if (params?.student_id) queryParams.set('student_id', params.student_id)
+            if (params?.course_id) queryParams.set('course_id', params.course_id)
+
+            const url = `${API_BASE_URL}/api/v1/bookings/options/teachers${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+
+            const response = await fetch(url, {
                 method: 'GET',
                 credentials: 'include',
             })
@@ -445,6 +456,49 @@ export const bookingsApi = {
             if (!response.ok) {
                 const error = await response.json()
                 return { data: null, error: { message: parseErrorDetail(error.detail) || '取得教師選項失敗' } }
+            }
+
+            const result = await response.json()
+            return { data: result.data || [], error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async updateTeacherLevel(teacherId: string, level: number): Promise<{ success: boolean, error: any }> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/options/teachers/${teacherId}/level?level=${level}`, {
+                method: 'PUT',
+                credentials: 'include',
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                return { success: false, error: { message: parseErrorDetail(error.detail) || '更新教師等級失敗' } }
+            }
+
+            return { success: true, error: null }
+        } catch (err) {
+            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async getOverlappingCourseOptions(studentId: string, teacherId: string): Promise<{ data: CourseOption[] | null, error: any }> {
+        try {
+            const queryParams = new URLSearchParams()
+            queryParams.set('student_id', studentId)
+            queryParams.set('teacher_id', teacherId)
+
+            const url = `${API_BASE_URL}/api/v1/bookings/options/overlapping-courses?${queryParams.toString()}`
+
+            const response = await fetch(url, {
+                method: 'GET',
+                credentials: 'include',
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得交集課程選項失敗' } }
             }
 
             const result = await response.json()

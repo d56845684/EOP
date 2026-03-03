@@ -318,11 +318,14 @@ class LineOAuthService:
             用戶資料 dict，如果不存在則返回 None
         """
         try:
-            users = await supabase_service.admin_list_users()
-            for user in users:
-                # user is a SupabaseUser object, use attribute access
-                if user.email == email:
-                    return {"id": user.id, "email": user.email}
+            result = await supabase_service.table_select(
+                table="users",
+                select="id,email",
+                filters={"email": email},
+                use_service_key=True
+            )
+            if result and len(result) > 0:
+                return result[0]
             return None
         except Exception:
             return None

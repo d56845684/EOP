@@ -137,7 +137,11 @@ export const authApi = {
         }
     },
 
-    async getCurrentUser() {
+    async getCurrentUserAndProfile(): Promise<{
+        user: { id: string; email: string; role: string } | null
+        profile: UserProfile | null
+        error: any
+    }> {
         try {
             const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
                 method: 'GET',
@@ -145,47 +149,30 @@ export const authApi = {
             })
 
             if (!response.ok) {
-                return { user: null, error: { message: '未登入' } }
+                return { user: null, profile: null, error: { message: '未登入' } }
             }
 
             const result = await response.json()
-            return {
-                user: result.user || result,
-                error: null
-            }
-        } catch (err) {
-            return { user: null, error: { message: '無法取得用戶資訊' } }
-        }
-    },
-
-    async getUserProfile(userId: string): Promise<{ data: UserProfile | null, error: any }> {
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
-                method: 'GET',
-                credentials: 'include',
-            })
-
-            if (!response.ok) {
-                return { data: null, error: { message: '無法取得用戶資料' } }
-            }
-
-            const result = await response.json()
-
-            // Map backend response to UserProfile format
-            // API returns { success, message, data: { id, email, role, ... } }
             const userData = result.data || result.user || result
-            const profile: UserProfile = {
-                id: userData?.id || userId,
-                role: userData?.role || 'student',
-                full_name: userData?.name || userData?.full_name || userData?.email || '',
-                email: userData?.email || '',
-                phone: userData?.phone,
-                avatar_url: userData?.avatar_url,
-            }
 
-            return { data: profile, error: null }
+            const user = userData ? {
+                id: userData.id,
+                email: userData.email,
+                role: userData.role,
+            } : null
+
+            const profile: UserProfile | null = userData ? {
+                id: userData.id,
+                role: userData.role || 'student',
+                full_name: userData.name || userData.full_name || userData.email || '',
+                email: userData.email || '',
+                phone: userData.phone,
+                avatar_url: userData.avatar_url,
+            } : null
+
+            return { user, profile, error: null }
         } catch (err) {
-            return { data: null, error: { message: '無法取得用戶資料' } }
+            return { user: null, profile: null, error: { message: '無法取得用戶資訊' } }
         }
     },
 }

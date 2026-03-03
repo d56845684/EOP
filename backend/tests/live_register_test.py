@@ -34,8 +34,7 @@ from dataclasses import dataclass, field
 
 # 設定 (使用 127.0.0.1 避免 IPv6 問題)
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
-SUPABASE_URL = os.getenv("SUPABASE_URL", "http://127.0.0.1:8000")
-SERVICE_ROLE_KEY = os.getenv("SERVICE_ROLE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3NjczMjM3NDcsImV4cCI6MTkyNTAwMzc0N30.h8XFj9oZdc0ZaiczkL83AkQtf6zKDTrdTO3SxtrZVU8")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:2f8b5e9731c472a52f3d3068dc97d0d8@127.0.0.1:5432/postgres")
 
 # 測試用戶前綴
 TEST_EMAIL_PREFIX = "test_reg_"
@@ -67,10 +66,9 @@ class TestContext:
 
 
 class LiveRegisterTester:
-    def __init__(self, backend_url: str, supabase_url: str, service_role_key: str, roles: list[str]):
+    def __init__(self, backend_url: str, database_url: str, roles: list[str]):
         self.backend_url = backend_url.rstrip("/")
-        self.supabase_url = supabase_url.rstrip("/")
-        self.service_role_key = service_role_key
+        self.database_url = database_url
         self.roles = roles
         self.results: list[TestResult] = []
         self.created_user_ids: list[str] = []
@@ -270,79 +268,63 @@ class LiveRegisterTester:
             assert user_role == role, f"Expected role '{role}', got '{user_role}'"
 
     async def _test_verify_entity_fields(self, role: str):
-        """驗證對應實體表中的額外欄位是否正確寫入"""
-        # 查詢 user_profiles 取得 entity ID
-        async with httpx.AsyncClient(**self.client_kwargs) as client:
-            headers = {
-                "Authorization": f"Bearer {self.service_role_key}",
-                "apikey": self.service_role_key
-            }
+        """驗證對應實體表中的額外欄位是否正確寫入（直連 DB）"""
+        import asyncpg
 
+        conn = await asyncpg.connect(self.database_url)
+        try:
             # 取得 user_profile
-            resp = await client.get(
-                f"{self.supabase_url}/rest/v1/user_profiles?id=eq.{self._current_user_id}&select=student_id,teacher_id,employee_id",
-                headers=headers
+            profile = await conn.fetchrow(
+                "SELECT student_id, teacher_id, employee_id FROM user_profiles WHERE id = $1",
+                self._current_user_id
             )
-            assert resp.status_code == 200, f"Query user_profiles failed: {resp.text}"
-            profiles = resp.json()
-            assert len(profiles) > 0, "user_profiles record not found"
-            profile = profiles[0]
+            assert profile, "user_profiles record not found"
 
             if role == "student":
-                entity_id = profile.get("student_id")
+                entity_id = profile["student_id"]
                 assert entity_id, "student_id is null in user_profiles"
 
-                resp = await client.get(
-                    f"{self.supabase_url}/rest/v1/students?id=eq.{entity_id}&select=*",
-                    headers=headers
+                student = await conn.fetchrow(
+                    "SELECT * FROM students WHERE id = $1", entity_id
                 )
-                assert resp.status_code == 200, f"Query students failed: {resp.text}"
-                students = resp.json()
-                assert len(students) > 0, "Student record not found"
-                student = students[0]
+                assert student, "Student record not found"
 
-                assert student.get("name") == "測試學生", f"name mismatch: {student.get('name')}"
-                assert student.get("phone") == "0912345678", f"phone mismatch: {student.get('phone')}"
-                assert student.get("address") == "台北市大安區測試路100號", f"address mismatch: {student.get('address')}"
-                assert student.get("birth_date") == "2005-06-15", f"birth_date mismatch: {student.get('birth_date')}"
-                assert student.get("emergency_contact_name") == "王大明", f"emergency_contact_name mismatch: {student.get('emergency_contact_name')}"
-                assert student.get("emergency_contact_phone") == "0987654321", f"emergency_contact_phone mismatch: {student.get('emergency_contact_phone')}"
+                assert student["name"] == "測試學生", f"name mismatch: {student['name']}"
+                assert student["phone"] == "0912345678", f"phone mismatch: {student['phone']}"
+                assert student["address"] == "台北市大安區測試路100號", f"address mismatch: {student['address']}"
+                assert str(student["birth_date"]) == "2005-06-15", f"birth_date mismatch: {student['birth_date']}"
+                assert student["emergency_contact_name"] == "王大明", f"emergency_contact_name mismatch: {student['emergency_contact_name']}"
+                assert student["emergency_contact_phone"] == "0987654321", f"emergency_contact_phone mismatch: {student['emergency_contact_phone']}"
 
             elif role == "teacher":
-                entity_id = profile.get("teacher_id")
+                entity_id = profile["teacher_id"]
                 assert entity_id, "teacher_id is null in user_profiles"
 
-                resp = await client.get(
-                    f"{self.supabase_url}/rest/v1/teachers?id=eq.{entity_id}&select=*",
-                    headers=headers
+                teacher = await conn.fetchrow(
+                    "SELECT * FROM teachers WHERE id = $1", entity_id
                 )
-                assert resp.status_code == 200, f"Query teachers failed: {resp.text}"
-                teachers = resp.json()
-                assert len(teachers) > 0, "Teacher record not found"
-                teacher = teachers[0]
+                assert teacher, "Teacher record not found"
 
-                assert teacher.get("name") == "測試教師", f"name mismatch: {teacher.get('name')}"
-                assert teacher.get("phone") == "0922333444", f"phone mismatch: {teacher.get('phone')}"
-                assert teacher.get("address") == "台北市信義區教學路200號", f"address mismatch: {teacher.get('address')}"
-                assert teacher.get("bio") == "10年英語教學經驗，擅長互動式教學", f"bio mismatch: {teacher.get('bio')}"
+                assert teacher["name"] == "測試教師", f"name mismatch: {teacher['name']}"
+                assert teacher["phone"] == "0922333444", f"phone mismatch: {teacher['phone']}"
+                assert teacher["address"] == "台北市信義區教學路200號", f"address mismatch: {teacher['address']}"
+                assert teacher["bio"] == "10年英語教學經驗，擅長互動式教學", f"bio mismatch: {teacher['bio']}"
 
             elif role == "employee":
-                entity_id = profile.get("employee_id")
+                entity_id = profile["employee_id"]
                 assert entity_id, "employee_id is null in user_profiles"
 
-                resp = await client.get(
-                    f"{self.supabase_url}/rest/v1/employees?id=eq.{entity_id}&select=*",
-                    headers=headers
+                employee = await conn.fetchrow(
+                    "SELECT * FROM employees WHERE id = $1", entity_id
                 )
-                assert resp.status_code == 200, f"Query employees failed: {resp.text}"
-                employees = resp.json()
-                assert len(employees) > 0, "Employee record not found"
-                employee = employees[0]
+                assert employee, "Employee record not found"
 
-                assert employee.get("name") == "測試員工", f"name mismatch: {employee.get('name')}"
-                assert employee.get("phone") == "0933444555", f"phone mismatch: {employee.get('phone')}"
-                assert employee.get("address") == "台北市中山區辦公路300號", f"address mismatch: {employee.get('address')}"
-                assert employee.get("employee_type") == "intern", f"employee_type mismatch: {employee.get('employee_type')}"
+                assert employee["name"] == "測試員工", f"name mismatch: {employee['name']}"
+                assert employee["phone"] == "0933444555", f"phone mismatch: {employee['phone']}"
+                assert employee["address"] == "台北市中山區辦公路300號", f"address mismatch: {employee['address']}"
+                assert employee["employee_type"] == "intern", f"employee_type mismatch: {employee['employee_type']}"
+        finally:
+            await conn.close()
 
     async def _test_employee_missing_type(self):
         """員工註冊缺少 employee_type 應回傳 422"""
@@ -365,19 +347,21 @@ class LiveRegisterTester:
         if not self.created_user_ids:
             raise Exception("No users created yet, skipping")
 
-        # 查詢第一個 user 的 email
-        async with httpx.AsyncClient(**self.client_kwargs) as client:
-            headers = {
-                "Authorization": f"Bearer {self.service_role_key}",
-                "apikey": self.service_role_key
-            }
-            resp = await client.get(
-                f"{self.supabase_url}/auth/v1/admin/users/{self.created_user_ids[0]}",
-                headers=headers
-            )
-            assert resp.status_code == 200, f"Failed to get user: {resp.text}"
-            existing_email = resp.json().get("email")
+        import asyncpg
 
+        # 查詢第一個 user 的 email
+        conn = await asyncpg.connect(self.database_url)
+        try:
+            row = await conn.fetchrow(
+                "SELECT email FROM public.users WHERE id = $1",
+                self.created_user_ids[0]
+            )
+            assert row, f"User {self.created_user_ids[0]} not found in DB"
+            existing_email = row["email"]
+        finally:
+            await conn.close()
+
+        async with httpx.AsyncClient(**self.client_kwargs) as client:
             resp = await client.post(
                 f"{self.backend_url}/api/v1/auth/register",
                 json={
@@ -442,26 +426,27 @@ class LiveRegisterTester:
             user_id = login_data["user"]["id"]
             self.created_user_ids.append(user_id)
 
-            # 查詢 teacher 實體，確認沒有 birth_date
-            headers = {
-                "Authorization": f"Bearer {self.service_role_key}",
-                "apikey": self.service_role_key
-            }
-            resp = await client.get(
-                f"{self.supabase_url}/rest/v1/user_profiles?id=eq.{user_id}&select=teacher_id",
-                headers=headers
-            )
-            profiles = resp.json()
-            teacher_id = profiles[0].get("teacher_id")
+        # 查詢 teacher 實體，確認沒有 birth_date（直連 DB）
+        import asyncpg
 
-            resp = await client.get(
-                f"{self.supabase_url}/rest/v1/teachers?id=eq.{teacher_id}&select=*",
-                headers=headers
+        conn = await asyncpg.connect(self.database_url)
+        try:
+            profile = await conn.fetchrow(
+                "SELECT teacher_id FROM user_profiles WHERE id = $1", user_id
             )
-            teacher = resp.json()[0]
+            assert profile, "user_profiles record not found"
+            teacher_id = profile["teacher_id"]
+            assert teacher_id, "teacher_id is null in user_profiles"
+
+            teacher = await conn.fetchrow(
+                "SELECT * FROM teachers WHERE id = $1", teacher_id
+            )
+            assert teacher, "Teacher record not found"
 
             # teacher 表沒有 birth_date 欄位，phone 應該正確寫入
-            assert teacher.get("phone") == "0955666777", f"phone should be set: {teacher.get('phone')}"
+            assert teacher["phone"] == "0955666777", f"phone should be set: {teacher['phone']}"
+        finally:
+            await conn.close()
 
     # ========== 摘要與清理 ==========
 
@@ -495,119 +480,63 @@ class LiveRegisterTester:
         print(f"{'='*60}\n")
 
     async def cleanup_test_data(self):
-        """清理所有測試資料"""
+        """清理所有測試資料（直連 PostgreSQL）"""
+        try:
+            import asyncpg
+        except ImportError:
+            print("\n⚠️  asyncpg not installed, skipping cleanup.")
+            return
+
         print(f"\n{'='*60}")
         print("🧹 Cleaning up test data...")
         print(f"{'='*60}\n")
 
-        # 1. 刪除此次建立的用戶
-        for user_id in self.created_user_ids:
-            await self._delete_user_by_id(user_id)
+        try:
+            conn = await asyncpg.connect(self.database_url)
+        except Exception as e:
+            print(f"  ❌ Failed to connect to database: {e}")
+            return
 
-        # 2. 查找並刪除所有 test_reg_ 前綴的用戶
-        await self._cleanup_all_test_users()
-
-        print("\n✅ Cleanup completed\n")
-
-    async def _delete_user_by_id(self, user_id: str):
-        """透過 ID 刪除用戶（包含關聯表）"""
-        print(f"  Deleting user by ID: {user_id[:8]}...")
-
-        async with httpx.AsyncClient(**self.client_kwargs) as client:
-            headers = {
-                "Authorization": f"Bearer {self.service_role_key}",
-                "apikey": self.service_role_key
-            }
-
-            # 查詢 user_profiles 取得關聯 entity IDs
-            entity_ids = {"student_id": None, "teacher_id": None, "employee_id": None}
-            resp = await client.get(
-                f"{self.supabase_url}/rest/v1/user_profiles?id=eq.{user_id}&select=*",
-                headers=headers
+        try:
+            test_users = await conn.fetch(
+                "SELECT id, email FROM public.users WHERE email LIKE $1",
+                f"{TEST_EMAIL_PREFIX}%"
             )
-
-            if resp.status_code == 200:
-                profiles = resp.json()
-                if profiles:
-                    profile = profiles[0]
-                    entity_ids["student_id"] = profile.get("student_id")
-                    entity_ids["teacher_id"] = profile.get("teacher_id")
-                    entity_ids["employee_id"] = profile.get("employee_id")
-
-            # 刪除順序：先刪除有 FK 引用的表
-            # 1. line_user_bindings
-            await self._delete_from_table(client, "line_user_bindings", "user_id", user_id)
-
-            # 2. user_profiles
-            await self._delete_from_table(client, "user_profiles", "id", user_id)
-
-            # 3. 關聯實體
-            if entity_ids["student_id"]:
-                await self._delete_from_table(client, "students", "id", entity_ids["student_id"])
-            if entity_ids["teacher_id"]:
-                await self._delete_from_table(client, "teachers", "id", entity_ids["teacher_id"])
-            if entity_ids["employee_id"]:
-                await self._delete_from_table(client, "employees", "id", entity_ids["employee_id"])
-
-            # 4. auth.users
-            resp = await client.delete(
-                f"{self.supabase_url}/auth/v1/admin/users/{user_id}",
-                headers=headers
-            )
-
-            if resp.status_code in (200, 204):
-                print(f"    ✅ User {user_id[:8]}... deleted")
-            elif resp.status_code == 404:
-                print(f"    ⚠️  User {user_id[:8]}... not found")
-            else:
-                print(f"    ❌ Failed to delete user: {resp.status_code} - {resp.text}")
-
-    async def _delete_from_table(self, client: httpx.AsyncClient, table: str, column: str, value: str):
-        resp = await client.delete(
-            f"{self.supabase_url}/rest/v1/{table}?{column}=eq.{value}",
-            headers={
-                "Authorization": f"Bearer {self.service_role_key}",
-                "apikey": self.service_role_key,
-                "Prefer": "return=minimal"
-            }
-        )
-        if resp.status_code not in (200, 204, 404, 406):
-            print(f"    ⚠️  Failed to delete from {table}: {resp.status_code}")
-
-    async def _cleanup_all_test_users(self):
-        """清理所有 test_reg_ 前綴的用戶"""
-        print(f"  Searching for test users with prefix: {TEST_EMAIL_PREFIX}...")
-
-        async with httpx.AsyncClient(**self.client_kwargs) as client:
-            resp = await client.get(
-                f"{self.supabase_url}/auth/v1/admin/users",
-                headers={
-                    "Authorization": f"Bearer {self.service_role_key}",
-                    "apikey": self.service_role_key
-                },
-                params={"per_page": 1000}
-            )
-
-            if resp.status_code != 200:
-                print(f"    ❌ Failed to list users: {resp.status_code}")
-                return
-
-            data = resp.json()
-            users = data.get("users", [])
-
-            test_users = [
-                u for u in users
-                if u.get("email", "").startswith(TEST_EMAIL_PREFIX)
-            ]
 
             if not test_users:
-                print("    No test users found")
+                print("  No test users found")
                 return
 
-            print(f"    Found {len(test_users)} test user(s)")
+            print(f"  Found {len(test_users)} test user(s)")
 
             for user in test_users:
-                await self._delete_user_by_id(user["id"])
+                user_id = user["id"]
+                email = user["email"]
+                print(f"  Deleting {email} ({str(user_id)[:8]}...)...")
+
+                profile = await conn.fetchrow(
+                    "SELECT student_id, teacher_id, employee_id FROM user_profiles WHERE id = $1",
+                    user_id
+                )
+
+                await conn.execute("DELETE FROM public.users WHERE id = $1", user_id)
+
+                if profile:
+                    if profile["student_id"]:
+                        await conn.execute("DELETE FROM students WHERE id = $1", profile["student_id"])
+                    if profile["teacher_id"]:
+                        await conn.execute("DELETE FROM teachers WHERE id = $1", profile["teacher_id"])
+                    if profile["employee_id"]:
+                        await conn.execute("DELETE FROM employees WHERE id = $1", profile["employee_id"])
+
+                print(f"    ✅ Deleted")
+
+        except Exception as e:
+            print(f"  ❌ Cleanup error: {e}")
+        finally:
+            await conn.close()
+
+        print("\n✅ Cleanup completed\n")
 
 
 async def main():
@@ -653,8 +582,7 @@ async def main():
 
     tester = LiveRegisterTester(
         backend_url=args.backend_url,
-        supabase_url=SUPABASE_URL,
-        service_role_key=SERVICE_ROLE_KEY,
+        database_url=DATABASE_URL,
         roles=args.roles
     )
 

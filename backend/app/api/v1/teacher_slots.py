@@ -175,7 +175,7 @@ async def get_teacher_options(
     try:
         teachers = await supabase_service.table_select(
             table="teachers",
-            select="id,teacher_no,name",
+            select="id,teacher_no,name,teacher_level",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
             use_service_key=True
         )

@@ -29,8 +29,7 @@ from dataclasses import dataclass, field
 
 # 設定 (使用 127.0.0.1 避免 IPv6 問題)
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
-SUPABASE_URL = os.getenv("SUPABASE_URL", "http://127.0.0.1:8000")
-SERVICE_ROLE_KEY = os.getenv("SERVICE_ROLE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3NjczMjM3NDcsImV4cCI6MTkyNTAwMzc0N30.h8XFj9oZdc0ZaiczkL83AkQtf6zKDTrdTO3SxtrZVU8")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:2f8b5e9731c472a52f3d3068dc97d0d8@127.0.0.1:5432/postgres")
 
 # 測試用戶前綴（方便識別和清理）
 TEST_EMAIL_PREFIX = "test_auth_"
@@ -73,10 +72,9 @@ class CreatedAccount:
 
 
 class LiveAuthTester:
-    def __init__(self, backend_url: str, supabase_url: str, service_role_key: str, roles: list[str]):
+    def __init__(self, backend_url: str, database_url: str, roles: list[str]):
         self.backend_url = backend_url.rstrip("/")
-        self.supabase_url = supabase_url.rstrip("/")
-        self.service_role_key = service_role_key
+        self.database_url = database_url
         self.roles = roles
         self.results: list[TestResult] = []
         self.created_user_ids: list[str] = []
@@ -344,141 +342,72 @@ class LiveAuthTester:
         print("    Run with --cleanup-only to remove them later.")
         print(f"{'='*60}\n")
 
-    # ========== 清理功能 ==========
+    # ========== 清理功能 (直連 DB) ==========
 
     async def cleanup_test_data(self):
-        """清理所有測試資料"""
+        """清理所有測試資料（直連 PostgreSQL）"""
+        try:
+            import asyncpg
+        except ImportError:
+            print("\n⚠️  asyncpg not installed, skipping cleanup.")
+            print("    Install with: pip install asyncpg")
+            print("    Or run: --no-cleanup\n")
+            return
+
         print(f"\n{'='*60}")
         print("🧹 Cleaning up test data...")
         print(f"{'='*60}\n")
 
-        # 1. 刪除此次測試建立的用戶
-        for user_id in self.created_user_ids:
-            await self._delete_user_by_id(user_id)
+        try:
+            conn = await asyncpg.connect(self.database_url)
+        except Exception as e:
+            print(f"  ❌ Failed to connect to database: {e}")
+            return
 
-        # 2. 查找並刪除所有測試用戶
-        await self._cleanup_all_test_users()
-
-        print("\n✅ Cleanup completed\n")
-
-    async def _delete_user_by_id(self, user_id: str):
-        """透過 ID 刪除用戶（包含關聯表）"""
-        print(f"  Deleting user by ID: {user_id[:8]}...")
-
-        async with httpx.AsyncClient(**self.client_kwargs) as client:
-            # 先查詢 user_profiles 取得關聯的 entity ID
-            entity_ids = {"student_id": None, "teacher_id": None, "employee_id": None}
-            profile_resp = await client.get(
-                f"{self.supabase_url}/rest/v1/user_profiles?id=eq.{user_id}&select=*",
-                headers={
-                    "Authorization": f"Bearer {self.service_role_key}",
-                    "apikey": self.service_role_key
-                }
+        try:
+            # 查找所有測試用戶
+            test_users = await conn.fetch(
+                "SELECT id, email FROM public.users WHERE email LIKE $1",
+                f"{TEST_EMAIL_PREFIX}%"
             )
-
-            if profile_resp.status_code == 200:
-                profiles = profile_resp.json()
-                if profiles:
-                    profile = profiles[0]
-                    entity_ids["student_id"] = profile.get("student_id")
-                    entity_ids["teacher_id"] = profile.get("teacher_id")
-                    entity_ids["employee_id"] = profile.get("employee_id")
-
-            # 刪除順序很重要：先刪除有外鍵引用的表，再刪除被引用的表
-            # 1. 刪除 line_user_bindings (使用 user_id)
-            await self._delete_from_table_by_column(client, "line_user_bindings", "user_id", user_id)
-
-            # 2. 刪除 user_profiles (使用 id) - 這會移除對 students/teachers/employees 的 FK 引用
-            await self._delete_from_table_by_column(client, "user_profiles", "id", user_id)
-
-            # 3. 刪除關聯的實體記錄
-            if entity_ids["student_id"]:
-                await self._delete_entity(client, "students", entity_ids["student_id"])
-            if entity_ids["teacher_id"]:
-                await self._delete_entity(client, "teachers", entity_ids["teacher_id"])
-            if entity_ids["employee_id"]:
-                await self._delete_entity(client, "employees", entity_ids["employee_id"])
-
-            # 4. 最後刪除 auth.users
-            resp = await client.delete(
-                f"{self.supabase_url}/auth/v1/admin/users/{user_id}",
-                headers={
-                    "Authorization": f"Bearer {self.service_role_key}",
-                    "apikey": self.service_role_key
-                }
-            )
-
-            if resp.status_code in (200, 204):
-                print(f"    ✅ User {user_id[:8]}... deleted")
-            elif resp.status_code == 404:
-                print(f"    ⚠️  User {user_id[:8]}... not found")
-            else:
-                print(f"    ❌ Failed to delete user: {resp.status_code} - {resp.text}")
-
-    async def _delete_entity(self, client: httpx.AsyncClient, table: str, entity_id: str):
-        """刪除實體記錄（students/teachers/employees）"""
-        resp = await client.delete(
-            f"{self.supabase_url}/rest/v1/{table}?id=eq.{entity_id}",
-            headers={
-                "Authorization": f"Bearer {self.service_role_key}",
-                "apikey": self.service_role_key,
-                "Prefer": "return=minimal"
-            }
-        )
-
-        if resp.status_code not in (200, 204, 404):
-            print(f"    ⚠️  Failed to delete from {table}: {resp.status_code}")
-
-    async def _delete_from_table_by_column(self, client: httpx.AsyncClient, table: str, column: str, value: str):
-        """從指定表按指定欄位刪除資料"""
-        resp = await client.delete(
-            f"{self.supabase_url}/rest/v1/{table}?{column}=eq.{value}",
-            headers={
-                "Authorization": f"Bearer {self.service_role_key}",
-                "apikey": self.service_role_key,
-                "Prefer": "return=minimal"
-            }
-        )
-
-        if resp.status_code not in (200, 204, 404):
-            # 只在真正錯誤時顯示
-            if resp.status_code not in (406,):  # 406 可能是沒有匹配的記錄
-                print(f"    ⚠️  Failed to delete from {table}: {resp.status_code}")
-
-    async def _cleanup_all_test_users(self):
-        """清理所有測試用戶"""
-        print(f"  Searching for test users with prefix: {TEST_EMAIL_PREFIX}...")
-
-        async with httpx.AsyncClient(**self.client_kwargs) as client:
-            resp = await client.get(
-                f"{self.supabase_url}/auth/v1/admin/users",
-                headers={
-                    "Authorization": f"Bearer {self.service_role_key}",
-                    "apikey": self.service_role_key
-                },
-                params={"per_page": 1000}
-            )
-
-            if resp.status_code != 200:
-                print(f"    ❌ Failed to list users: {resp.status_code}")
-                return
-
-            data = resp.json()
-            users = data.get("users", [])
-
-            test_users = [
-                u for u in users
-                if u.get("email", "").startswith(TEST_EMAIL_PREFIX)
-            ]
 
             if not test_users:
-                print("    No test users found")
+                print("  No test users found")
                 return
 
-            print(f"    Found {len(test_users)} test user(s)")
+            print(f"  Found {len(test_users)} test user(s)")
 
             for user in test_users:
-                await self._delete_user_by_id(user["id"])
+                user_id = user["id"]
+                email = user["email"]
+                print(f"  Deleting {email} ({str(user_id)[:8]}...)...")
+
+                # 1. 查詢 user_profiles 取得關聯的 entity ID
+                profile = await conn.fetchrow(
+                    "SELECT student_id, teacher_id, employee_id FROM user_profiles WHERE id = $1",
+                    user_id
+                )
+
+                # 2. 刪除 users (CASCADE 自動刪除 user_profiles, line_user_bindings, line_notification_logs)
+                await conn.execute("DELETE FROM public.users WHERE id = $1", user_id)
+
+                # 3. 刪除關聯的實體記錄（不在 CASCADE 範圍內）
+                if profile:
+                    if profile["student_id"]:
+                        await conn.execute("DELETE FROM students WHERE id = $1", profile["student_id"])
+                    if profile["teacher_id"]:
+                        await conn.execute("DELETE FROM teachers WHERE id = $1", profile["teacher_id"])
+                    if profile["employee_id"]:
+                        await conn.execute("DELETE FROM employees WHERE id = $1", profile["employee_id"])
+
+                print(f"    ✅ Deleted")
+
+        except Exception as e:
+            print(f"  ❌ Cleanup error: {e}")
+        finally:
+            await conn.close()
+
+        print("\n✅ Cleanup completed\n")
 
 
 async def main():
@@ -510,8 +439,7 @@ async def main():
 
     tester = LiveAuthTester(
         backend_url=args.backend_url,
-        supabase_url=SUPABASE_URL,
-        service_role_key=SERVICE_ROLE_KEY,
+        database_url=DATABASE_URL,
         roles=args.roles
     )
 
