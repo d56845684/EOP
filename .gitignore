@@ -3,3 +3,4 @@ volumes/db/data/*
 node_modules/
 frontend/node_modules/
 __pycache__
+secret.md

@@ -57,19 +57,6 @@ def decode_token(token: str) -> Optional[dict]:
     except JWTError:
         return None
 
-def verify_supabase_token(token: str) -> Optional[dict]:
-    """驗證 Supabase JWT Token"""
-    try:
-        payload = jwt.decode(
-            token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            audience="authenticated"
-        )
-        return payload
-    except JWTError:
-        return None
-
 def generate_session_id() -> str:
     """生成安全的 Session ID"""
     return secrets.token_urlsafe(32)

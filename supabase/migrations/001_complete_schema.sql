@@ -1,6 +1,6 @@
 -- ============================================
 -- 教育管理系統 完整資料庫架構
--- Database: PostgreSQL (Supabase)
+-- Database: PostgreSQL
 -- 整合自多個遷移檔案
 -- ============================================
 
@@ -9,6 +9,19 @@
 -- ============================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+-- ============================================
+-- 1.5 用戶認證表 (public.users)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    encrypted_password TEXT NOT NULL,
+    email_confirmed_at TIMESTAMPTZ,
+    raw_user_meta_data JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
 -- ============================================
 -- 2. 枚舉類型定義
@@ -566,7 +579,7 @@ CREATE INDEX idx_leave_approver ON leave_records(approver_id) WHERE is_deleted =
 -- 21. 用戶資料對照表 (user_profiles)
 -- ============================================
 CREATE TABLE user_profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
     role user_role NOT NULL,
     employee_id UUID REFERENCES employees(id),
     teacher_id UUID REFERENCES teachers(id),
@@ -611,7 +624,7 @@ INSERT INTO employee_permission_levels (employee_type, permission_level, descrip
 -- ============================================
 CREATE TABLE line_user_bindings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
     line_user_id VARCHAR(50) NOT NULL,
     line_display_name VARCHAR(100),
     line_picture_url TEXT,
@@ -648,7 +661,7 @@ CREATE INDEX idx_line_bindings_channel_type ON line_user_bindings(channel_type);
 -- ============================================
 CREATE TABLE line_notification_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
     line_user_id VARCHAR(50) NOT NULL,
     channel_type line_channel_type NOT NULL DEFAULT 'student',
     notification_type notification_type NOT NULL,
@@ -777,8 +790,8 @@ BEGIN
             INSERT INTO students (student_no, name, email, is_active)
             VALUES (
                 'S' || UPPER(SUBSTRING(NEW.id::text, 1, 8)),
-                COALESCE((SELECT raw_user_meta_data->>'name' FROM auth.users WHERE id = NEW.id), 'New Student'),
-                (SELECT email FROM auth.users WHERE id = NEW.id),
+                COALESCE((SELECT raw_user_meta_data->>'name' FROM public.users WHERE id = NEW.id), 'New Student'),
+                (SELECT email FROM public.users WHERE id = NEW.id),
                 TRUE
             )
             RETURNING id INTO v_entity_id;
@@ -788,8 +801,8 @@ BEGIN
             INSERT INTO teachers (teacher_no, name, email, is_active)
             VALUES (
                 'T' || UPPER(SUBSTRING(NEW.id::text, 1, 8)),
-                COALESCE((SELECT raw_user_meta_data->>'name' FROM auth.users WHERE id = NEW.id), 'New Teacher'),
-                (SELECT email FROM auth.users WHERE id = NEW.id),
+                COALESCE((SELECT raw_user_meta_data->>'name' FROM public.users WHERE id = NEW.id), 'New Teacher'),
+                (SELECT email FROM public.users WHERE id = NEW.id),
                 TRUE
             )
             RETURNING id INTO v_entity_id;
@@ -799,8 +812,8 @@ BEGIN
             INSERT INTO employees (employee_no, name, email, employee_type, hire_date, is_active)
             VALUES (
                 'E' || UPPER(SUBSTRING(NEW.id::text, 1, 8)),
-                COALESCE((SELECT raw_user_meta_data->>'name' FROM auth.users WHERE id = NEW.id), 'New Employee'),
-                (SELECT email FROM auth.users WHERE id = NEW.id),
+                COALESCE((SELECT raw_user_meta_data->>'name' FROM public.users WHERE id = NEW.id), 'New Employee'),
+                (SELECT email FROM public.users WHERE id = NEW.id),
                 CASE
                     WHEN NEW.role = 'admin' THEN 'admin'::employee_type
                     ELSE COALESCE(NEW.employee_subtype, 'intern'::employee_type)
@@ -1038,7 +1051,7 @@ SELECT
     lb.notify_booking_reminder,
     lb.notify_status_update,
     lb.binding_status
-FROM auth.users u
+FROM public.users u
 LEFT JOIN line_user_bindings lb ON u.id = lb.user_id;
 
 -- 員工權限視圖

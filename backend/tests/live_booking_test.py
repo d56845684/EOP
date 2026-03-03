@@ -23,8 +23,7 @@ from dataclasses import dataclass, field
 
 # 設定 (使用 127.0.0.1 避免 IPv6 問題)
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
-SUPABASE_URL = os.getenv("SUPABASE_URL", "http://127.0.0.1:8000")
-SERVICE_ROLE_KEY = os.getenv("SERVICE_ROLE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3NjczMjM3NDcsImV4cCI6MTkyNTAwMzc0N30.h8XFj9oZdc0ZaiczkL83AkQtf6zKDTrdTO3SxtrZVU8")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:2f8b5e9731c472a52f3d3068dc97d0d8@127.0.0.1:5432/postgres")
 
 # 測試標記 — cleanup 用此字串篩選
 TEST_NOTES = "live_booking_test"
@@ -70,10 +69,9 @@ class TestContext:
 
 
 class LiveBookingTester:
-    def __init__(self, backend_url: str, supabase_url: str, service_role_key: str):
+    def __init__(self, backend_url: str, database_url: str):
         self.backend_url = backend_url.rstrip("/")
-        self.supabase_url = supabase_url.rstrip("/")
-        self.service_role_key = service_role_key
+        self.database_url = database_url
         self.results: list[TestResult] = []
 
         self.client_kwargs = {
@@ -727,72 +725,66 @@ class LiveBookingTester:
 
             assert resp.status_code == 200, f"Logout failed: {resp.text}"
 
-    # ========== 清理功能 ==========
+    # ========== 清理功能 (直連 DB) ==========
 
     async def cleanup_test_bookings(self):
-        """清理所有測試預約和測試 teacher slots（透過 Supabase service role）"""
+        """清理所有測試預約和測試 teacher slots（直連 PostgreSQL）"""
+        try:
+            import asyncpg
+        except ImportError:
+            print("\n⚠️  asyncpg not installed, skipping cleanup.")
+            print("    Install with: pip install asyncpg")
+            return
+
         print(f"\n{'='*60}")
         print("🧹 Cleaning up test data...")
         print(f"{'='*60}\n")
 
-        headers_ro = {
-            "Authorization": f"Bearer {self.service_role_key}",
-            "apikey": self.service_role_key,
-        }
-        headers_rw = {
-            **headers_ro,
-            "Content-Type": "application/json",
-            "Prefer": "return=minimal",
-        }
+        try:
+            conn = await asyncpg.connect(self.database_url)
+        except Exception as e:
+            print(f"  ❌ Failed to connect to database: {e}")
+            return
 
-        async with httpx.AsyncClient(**self.client_kwargs) as client:
-            # --- 清理測試 bookings ---
-            resp = await client.get(
-                f"{self.supabase_url}/rest/v1/bookings"
-                f"?notes=like.*{TEST_NOTES}*&select=id,booking_no",
-                headers=headers_ro,
+        try:
+            # --- 清理測試 bookings (soft delete) ---
+            bookings = await conn.fetch(
+                "SELECT id, booking_no FROM bookings WHERE notes LIKE $1 AND is_deleted = false",
+                f"%{TEST_NOTES}%"
             )
 
-            if resp.status_code == 200:
-                bookings = resp.json()
-                if bookings:
-                    print(f"  Found {len(bookings)} test booking(s)")
-                    for b in bookings:
-                        del_resp = await client.patch(
-                            f"{self.supabase_url}/rest/v1/bookings?id=eq.{b['id']}",
-                            headers=headers_rw,
-                            json={"is_deleted": True},
-                        )
-                        status = "✅" if del_resp.status_code in (200, 204) else "❌"
-                        print(f"    {status} Deleted booking {b.get('booking_no', b['id'])}")
-                else:
-                    print("  No test bookings found")
+            if bookings:
+                print(f"  Found {len(bookings)} test booking(s)")
+                result = await conn.execute(
+                    "UPDATE bookings SET is_deleted = true WHERE notes LIKE $1",
+                    f"%{TEST_NOTES}%"
+                )
+                for b in bookings:
+                    print(f"    ✅ Deleted booking {b.get('booking_no') or b['id']}")
             else:
-                print(f"  ❌ Failed to query bookings: {resp.status_code}")
+                print("  No test bookings found")
 
-            # --- 清理測試 teacher slots ---
-            resp = await client.get(
-                f"{self.supabase_url}/rest/v1/teacher_available_slots"
-                f"?notes=like.*{TEST_NOTES}*&select=id",
-                headers=headers_ro,
+            # --- 清理測試 teacher slots (soft delete) ---
+            slots = await conn.fetch(
+                "SELECT id FROM teacher_available_slots WHERE notes LIKE $1 AND is_deleted = false",
+                f"%{TEST_NOTES}%"
             )
 
-            if resp.status_code == 200:
-                slots = resp.json()
-                if slots:
-                    print(f"  Found {len(slots)} test slot(s)")
-                    for s in slots:
-                        del_resp = await client.patch(
-                            f"{self.supabase_url}/rest/v1/teacher_available_slots?id=eq.{s['id']}",
-                            headers=headers_rw,
-                            json={"is_deleted": True},
-                        )
-                        status = "✅" if del_resp.status_code in (200, 204) else "❌"
-                        print(f"    {status} Deleted slot {s['id']}")
-                else:
-                    print("  No test slots found")
+            if slots:
+                print(f"  Found {len(slots)} test slot(s)")
+                result = await conn.execute(
+                    "UPDATE teacher_available_slots SET is_deleted = true WHERE notes LIKE $1",
+                    f"%{TEST_NOTES}%"
+                )
+                for s in slots:
+                    print(f"    ✅ Deleted slot {s['id']}")
             else:
-                print(f"  ❌ Failed to query slots: {resp.status_code}")
+                print("  No test slots found")
+
+        except Exception as e:
+            print(f"  ❌ Cleanup error: {e}")
+        finally:
+            await conn.close()
 
         print("\n✅ Cleanup completed\n")
 
@@ -824,8 +816,7 @@ async def main():
 
     tester = LiveBookingTester(
         backend_url=args.backend_url,
-        supabase_url=SUPABASE_URL,
-        service_role_key=SERVICE_ROLE_KEY,
+        database_url=DATABASE_URL,
     )
 
     if args.cleanup_only:

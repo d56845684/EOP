@@ -22,12 +22,20 @@ async def lifespan(app: FastAPI):
     # 啟動時
     logger.info("🚀 啟動應用...")
     
+    # 連接 Database
+    from app.services.supabase_service import supabase_service
+    try:
+        await supabase_service.connect(settings.DATABASE_URL)
+        logger.info("Database connected")
+    except Exception as e:
+        logger.error(f"Database connection failed: {e}")
+
     # 連接 Redis
     try:
         await redis_service.connect()
-        logger.info("✅ Redis 連接成功")
+        logger.info("Redis connected")
     except Exception as e:
-        logger.error(f"❌ Redis 連接失敗: {e}")
+        logger.error(f"Redis connection failed: {e}")
     
     yield
     
@@ -35,8 +43,7 @@ async def lifespan(app: FastAPI):
     logger.info("🛑 關閉應用...")
     await redis_service.disconnect()
     
-    # 關閉 Supabase httpx client
-    from app.services.supabase_service import supabase_service
+    # 關閉 DB pool
     await supabase_service.close()
 
 # 建立 FastAPI 應用
@@ -51,22 +58,25 @@ app = FastAPI(
 
 # ========== 中間件 ==========
 
-# CORS
+# CORS — 從 FRONTEND_URL 環境變數動態組合，支援逗號分隔多個 origin
+_default_origins = [
+    "http://localhost:3000",
+    "http://localhost:4173",
+    "http://localhost:5173",
+]
+_extra_origins = [o.strip() for o in settings.FRONTEND_URL.split(",") if o.strip()]
+_all_origins = list(dict.fromkeys(_default_origins + _extra_origins))  # 去重保序
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:4173",
-        "http://localhost:5173",
-        "https://your-frontend-domain.com"
-    ],
+    allow_origins=_all_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # 速率限制
-app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=300)
 
 # 認證中間件
 app.add_middleware(AuthMiddleware)
