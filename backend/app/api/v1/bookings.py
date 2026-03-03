@@ -9,6 +9,8 @@ from app.schemas.booking import (
 from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
 from datetime import date, datetime, time
+import asyncio
+import logging
 import math
 
 router = APIRouter(prefix="/bookings", tags=["預約管理"])
@@ -1007,8 +1009,38 @@ async def update_booking(
         if not result:
             raise HTTPException(status_code=500, detail="更新預約失敗")
 
-        # 如果狀態變更為取消，恢復堂數
+        # Zoom 整合：狀態變更時觸發
         new_status = update_data.get("booking_status")
+        if new_status == "confirmed" and old_status != "confirmed":
+            # 非阻塞建立 Zoom 會議
+            try:
+                from app.services.zoom_service import zoom_service
+                from app.config import settings as app_settings
+                if app_settings.zoom_enabled:
+                    booking_date_val = existing[0].get("booking_date") or result.get("booking_date")
+                    start_time_val = existing[0].get("start_time") or result.get("start_time")
+                    end_time_val = existing[0].get("end_time") or result.get("end_time")
+                    teacher_id_val = existing[0].get("teacher_id")
+                    if booking_date_val and start_time_val and end_time_val and teacher_id_val:
+                        if isinstance(booking_date_val, str):
+                            booking_date_val = date.fromisoformat(booking_date_val)
+                        if isinstance(start_time_val, str):
+                            start_time_val = time.fromisoformat(start_time_val)
+                        if isinstance(end_time_val, str):
+                            end_time_val = time.fromisoformat(end_time_val)
+                        asyncio.create_task(
+                            zoom_service.create_meeting_for_booking(
+                                booking_id=booking_id,
+                                teacher_id=teacher_id_val,
+                                booking_date=booking_date_val,
+                                start_time_val=start_time_val,
+                                end_time_val=end_time_val,
+                            )
+                        )
+            except Exception as zoom_err:
+                logging.getLogger(__name__).warning(f"Zoom 會議建立觸發失敗: {zoom_err}")
+
+        # 如果狀態變更為取消，恢復堂數
         if new_status == "cancelled" and old_status != "cancelled":
             # 恢復學生合約剩餘堂數
             contract = await supabase_service.table_select(
@@ -1028,6 +1060,17 @@ async def update_booking(
             # 更新 slot 預約已滿狀態
             if existing[0].get("teacher_slot_id"):
                 await update_slot_booked_status(existing[0]["teacher_slot_id"])
+
+            # 取消 Zoom 會議
+            try:
+                from app.services.zoom_service import zoom_service
+                from app.config import settings as app_settings
+                if app_settings.zoom_enabled:
+                    asyncio.create_task(
+                        zoom_service.cancel_meeting_for_booking(booking_id)
+                    )
+            except Exception:
+                pass
 
         # 添加關聯名稱
         enriched = await enrich_booking_with_relations(result)

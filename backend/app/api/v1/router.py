@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, health, line_auth, line_notifications, courses, bookings, student_contracts, teacher_contracts, teacher_slots, student_courses, student_teacher_preferences, students, teachers, teacher_details, invites, teacher_bonus
+from app.api.v1 import auth, users, health, line_auth, line_notifications, courses, bookings, student_contracts, teacher_contracts, teacher_slots, student_courses, student_teacher_preferences, students, teachers, teacher_details, invites, teacher_bonus, zoom
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -20,3 +20,4 @@ api_router.include_router(teachers.router)
 api_router.include_router(teacher_details.router)
 api_router.include_router(invites.router)
 api_router.include_router(teacher_bonus.router)
+api_router.include_router(zoom.router)

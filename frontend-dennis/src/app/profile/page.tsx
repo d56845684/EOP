@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useLine } from '@/lib/hooks/useLine'
-import { User, Link as LinkIcon, Unlink, BookOpen, Save } from 'lucide-react'
+import { User, Link as LinkIcon, Unlink, BookOpen, Save, Video } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { studentCoursesApi, StudentCourse } from '@/lib/api/studentCourses'
 import { teachersApi, TeacherSelfUpdateData } from '@/lib/api/teachers'
+import { zoomApi, ZoomTeacherLinkStatus } from '@/lib/api/zoom'
 
 export default function ProfilePage() {
   const { user, profile } = useAuth()
@@ -26,6 +27,54 @@ export default function ProfilePage() {
   const [teacherSaving, setTeacherSaving] = useState(false)
   const [teacherSaveMsg, setTeacherSaveMsg] = useState<string | null>(null)
   const [teacherSaveError, setTeacherSaveError] = useState<string | null>(null)
+
+  // Zoom binding state (teacher only)
+  const [zoomStatus, setZoomStatus] = useState<ZoomTeacherLinkStatus | null>(null)
+  const [zoomLoading, setZoomLoading] = useState(false)
+  const [zoomUnlinking, setZoomUnlinking] = useState(false)
+
+  // Fetch Zoom binding status
+  const fetchZoomStatus = useCallback(async () => {
+    if (!isTeacher) return
+    setZoomLoading(true)
+    const { data } = await zoomApi.getOAuthStatus()
+    if (data) setZoomStatus(data)
+    setZoomLoading(false)
+  }, [isTeacher])
+
+  useEffect(() => {
+    if (user && isTeacher) fetchZoomStatus()
+  }, [user, isTeacher, fetchZoomStatus])
+
+  // Check URL for zoom=linked callback
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('zoom') === 'linked') {
+        fetchZoomStatus()
+        window.history.replaceState({}, '', '/profile')
+      }
+    }
+  }, [fetchZoomStatus])
+
+  const handleBindZoom = async () => {
+    const { data, error } = await zoomApi.getOAuthUrl()
+    if (data?.authorize_url) {
+      window.location.href = data.authorize_url
+    } else if (error) {
+      alert(error.message)
+    }
+  }
+
+  const handleUnbindZoom = async () => {
+    if (!confirm('確定要解除 Zoom 綁定嗎？')) return
+    setZoomUnlinking(true)
+    const { error } = await zoomApi.unlinkZoom()
+    if (!error) {
+      setZoomStatus({ success: true, is_linked: false })
+    }
+    setZoomUnlinking(false)
+  }
 
   // Fetch student's enrolled courses
   const fetchMyCourses = useCallback(async () => {
@@ -221,6 +270,69 @@ export default function ProfilePage() {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Zoom Binding Card (Teacher Only) */}
+          {isTeacher && (
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <Video className="w-6 h-6 text-blue-600" />
+                <h3 className="text-lg font-semibold">Zoom 帳號綁定</h3>
+              </div>
+
+              {zoomLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+              ) : zoomStatus?.is_linked ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center">
+                        <Video className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{zoomStatus.zoom_email}</p>
+                        <p className="text-sm text-gray-500">Zoom 帳號已綁定</p>
+                        {zoomStatus.linked_at && (
+                          <p className="text-xs text-gray-400">
+                            綁定於 {new Date(zoomStatus.linked_at).toLocaleDateString('zh-TW')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleUnbindZoom}
+                      disabled={zoomUnlinking}
+                      className="btn-danger flex items-center gap-1 text-sm py-1.5 px-3"
+                    >
+                      <Unlink className="w-4 h-4" />
+                      {zoomUnlinking ? '解除中...' : '解除綁定'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    綁定後，30 分鐘以內的課程預約將優先使用您的 Zoom 帳號建立會議。
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                    <Video className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 mb-4">尚未綁定 Zoom 帳號</p>
+                  <p className="text-sm text-gray-400 mb-6">
+                    綁定後，30 分鐘以內的課程預約將優先使用您的 Zoom 帳號建立會議
+                  </p>
+                  <button
+                    onClick={handleBindZoom}
+                    className="btn-primary flex items-center justify-center gap-2 mx-auto"
+                  >
+                    <LinkIcon className="w-4 h-4" />
+                    綁定 Zoom 帳號
+                  </button>
                 </div>
               )}
             </div>

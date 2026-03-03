@@ -81,6 +81,15 @@ class Settings(BaseSettings):
     AWS_REGION: str = "ap-northeast-1"
     AWS_S3_BUCKET: str = "teaching-platform-contracts"
 
+    # Zoom OAuth 2.0（教師自用綁定）
+    ZOOM_OAUTH_CLIENT_ID: str = ""
+    ZOOM_OAUTH_CLIENT_SECRET: str = ""
+    ZOOM_OAUTH_REDIRECT_URI: str = "http://localhost:8001/api/v1/zoom/oauth/callback"
+    # Zoom Webhook
+    ZOOM_WEBHOOK_SECRET_TOKEN: str = ""
+    # Feature toggle
+    ZOOM_ENABLED: bool = False
+
     # Frontend URL (for OAuth redirects)
     FRONTEND_URL: str = "http://localhost:4173"
 
@@ -137,6 +146,16 @@ class Settings(BaseSettings):
     def line_enabled(self) -> bool:
         """檢查是否有 Line 功能已設定（向後相容）"""
         return self.line_login_enabled
+
+    @property
+    def zoom_enabled(self) -> bool:
+        """檢查 Zoom 功能是否啟用"""
+        return self.ZOOM_ENABLED
+
+    @property
+    def zoom_oauth_configured(self) -> bool:
+        """檢查 Zoom OAuth（教師綁定）是否已設定"""
+        return bool(self.ZOOM_OAUTH_CLIENT_ID and self.ZOOM_OAUTH_CLIENT_SECRET)
 
     @property
     def line_messaging_enabled(self) -> bool:
