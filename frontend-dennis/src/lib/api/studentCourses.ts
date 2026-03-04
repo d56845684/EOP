@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export interface StudentCourse {
@@ -53,9 +55,8 @@ export const studentCoursesApi = {
 
             const url = `${API_BASE_URL}/api/v1/student-courses${queryParams.toString() ? '?' + queryParams.toString() : ''}`
 
-            const response = await fetch(url, {
+            const response = await fetchWithAuth(url, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -72,9 +73,8 @@ export const studentCoursesApi = {
 
     async getByStudent(studentId: string): Promise<{ data: StudentCourse[], error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-courses/by-student/${studentId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-courses/by-student/${studentId}`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -91,10 +91,9 @@ export const studentCoursesApi = {
 
     async create(data: CreateStudentCourseData): Promise<{ data: StudentCourse | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-courses`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-courses`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -112,9 +111,8 @@ export const studentCoursesApi = {
 
     async delete(enrollmentId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-courses/${enrollmentId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-courses/${enrollmentId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -130,9 +128,8 @@ export const studentCoursesApi = {
 
     async getStudentOptions(): Promise<{ data: StudentOption[], error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-courses/options/students`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-courses/options/students`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -149,9 +146,8 @@ export const studentCoursesApi = {
 
     async getCourseOptions(): Promise<{ data: CourseOption[], error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-courses/options/courses`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-courses/options/courses`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {

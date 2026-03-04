@@ -87,6 +87,7 @@ export default function StudentContractsPage() {
         remaining_lessons: 10,
         total_amount: 0,
         total_leave_allowed: 20,
+        is_recurring: false,
         notes: '',
     })
     const [formError, setFormError] = useState<string | null>(null)
@@ -220,6 +221,7 @@ export default function StudentContractsPage() {
             remaining_lessons: 10,
             total_amount: 0,
             total_leave_allowed: 20,
+            is_recurring: false,
             notes: '',
         })
         setFormError(null)
@@ -240,6 +242,7 @@ export default function StudentContractsPage() {
             remaining_lessons: contract.remaining_lessons,
             total_amount: contract.total_amount ?? 0,
             total_leave_allowed: contract.total_leave_allowed,
+            is_recurring: contract.is_recurring,
             notes: contract.notes || '',
         })
         setDetails(contract.details || [])
@@ -299,6 +302,7 @@ export default function StudentContractsPage() {
                 if (formData.remaining_lessons !== editingContract.remaining_lessons) updateData.remaining_lessons = formData.remaining_lessons
                 if (formData.total_amount !== (editingContract.total_amount ?? 0)) updateData.total_amount = formData.total_amount
                 if ((formData.total_leave_allowed ?? 0) !== editingContract.total_leave_allowed) updateData.total_leave_allowed = formData.total_leave_allowed
+                if ((formData.is_recurring ?? false) !== editingContract.is_recurring) updateData.is_recurring = formData.is_recurring
                 if (formData.notes !== (editingContract.notes || '')) updateData.notes = formData.notes
 
                 const { data, error } = await studentContractsApi.update(editingContract.id, updateData)
@@ -606,6 +610,9 @@ export default function StudentContractsPage() {
                                                 狀態
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                帶狀
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 合約期間
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -644,6 +651,11 @@ export default function StudentContractsPage() {
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[contract.contract_status].bg} ${statusColors[contract.contract_status].text}`}>
                                                         {statusIcons[contract.contract_status]}
                                                         {statusLabels[contract.contract_status]}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${contract.is_recurring ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                        {contract.is_recurring ? '是' : '否'}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -835,6 +847,19 @@ export default function StudentContractsPage() {
                                                 <option value="expired">已過期</option>
                                                 <option value="terminated">已終止</option>
                                             </select>
+                                        </div>
+
+                                        <div className="flex items-center">
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.is_recurring ?? false}
+                                                    onChange={(e) => setFormData({ ...formData, is_recurring: e.target.checked })}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                                <span className="ml-2 text-sm font-medium text-gray-700">帶狀學生</span>
+                                            </label>
                                         </div>
 
                                         <div>

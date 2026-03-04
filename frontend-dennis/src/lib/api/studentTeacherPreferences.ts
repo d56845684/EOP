@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export interface StudentTeacherPreference {
@@ -37,9 +39,8 @@ function parseErrorDetail(detail: unknown): string {
 export const studentTeacherPreferencesApi = {
     async list(studentId: string): Promise<{ data: StudentTeacherPreference[] | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-teacher-preferences?student_id=${studentId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-teacher-preferences?student_id=${studentId}`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -56,10 +57,9 @@ export const studentTeacherPreferencesApi = {
 
     async create(data: CreatePreferenceData): Promise<{ data: StudentTeacherPreference | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-teacher-preferences`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-teacher-preferences`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -77,10 +77,9 @@ export const studentTeacherPreferencesApi = {
 
     async update(preferenceId: string, data: UpdatePreferenceData): Promise<{ data: StudentTeacherPreference | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-teacher-preferences/${preferenceId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-teacher-preferences/${preferenceId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -98,9 +97,8 @@ export const studentTeacherPreferencesApi = {
 
     async delete(preferenceId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-teacher-preferences/${preferenceId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-teacher-preferences/${preferenceId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {

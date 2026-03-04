@@ -1,6 +1,8 @@
 // Use backend API for authentication instead of direct Supabase calls
 // This avoids CORS issues with the Supabase client
 
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 interface AuthResponse {
@@ -54,12 +56,6 @@ export const authApi = {
                 }
             }
 
-            // Store tokens in localStorage for the app to use
-            if (result.tokens) {
-                localStorage.setItem('access_token', result.tokens.access_token)
-                localStorage.setItem('refresh_token', result.tokens.refresh_token)
-            }
-
             return {
                 data: {
                     user: result.user,
@@ -82,19 +78,12 @@ export const authApi = {
                 credentials: 'include',
             })
 
-            // Clear local storage
-            localStorage.removeItem('access_token')
-            localStorage.removeItem('refresh_token')
-
             if (!response.ok) {
                 return { error: { message: '登出失敗' } }
             }
 
             return { error: null }
         } catch (err) {
-            // Still clear storage on error
-            localStorage.removeItem('access_token')
-            localStorage.removeItem('refresh_token')
             return { error: null }
         }
     },
@@ -105,9 +94,8 @@ export const authApi = {
         error: any
     }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/auth/me`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -141,10 +129,9 @@ export const authApi = {
 
     async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/auth/password/change`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/auth/password/change`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({
                     current_password: currentPassword,
                     new_password: newPassword,

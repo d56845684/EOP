@@ -91,6 +91,7 @@ class StudentContractBase(BaseModel):
     remaining_lessons: int = Field(..., ge=0, description="剩餘堂數")
     total_amount: float = Field(..., ge=0, description="合約總金額")
     total_leave_allowed: Optional[int] = Field(None, ge=0, description="可請假次數（預設 = total_lessons * 2）")
+    is_recurring: bool = Field(False, description="是否為帶狀學生（固定時間/課程/老師）")
     notes: Optional[str] = Field(None, description="備註")
 
 
@@ -109,6 +110,7 @@ class StudentContractUpdate(BaseModel):
     remaining_lessons: Optional[int] = Field(None, ge=0, description="剩餘堂數")
     total_amount: Optional[float] = Field(None, ge=0, description="合約總金額")
     total_leave_allowed: Optional[int] = Field(None, ge=0, description="可請假次數")
+    is_recurring: Optional[bool] = Field(None, description="是否為帶狀學生")
     notes: Optional[str] = Field(None, description="備註")
 
 
@@ -125,6 +127,7 @@ class StudentContractResponse(BaseModel):
     total_amount: Optional[float] = None
     total_leave_allowed: int = 0
     used_leave_count: int = 0
+    is_recurring: bool = False
     notes: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

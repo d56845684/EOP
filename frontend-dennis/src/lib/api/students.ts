@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export interface Student {
@@ -102,7 +104,7 @@ export const studentsApi = {
             if (params?.student_type) queryParams.set('student_type', params.student_type)
 
             const url = `${API_BASE_URL}/api/v1/students${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-            const response = await fetch(url, { method: 'GET', credentials: 'include' })
+            const response = await fetchWithAuth(url, { method: 'GET' })
 
             if (!response.ok) {
                 const error = await response.json()
@@ -118,10 +120,9 @@ export const studentsApi = {
 
     async create(data: CreateStudentData): Promise<{ data: Student | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/students`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -139,10 +140,9 @@ export const studentsApi = {
 
     async update(studentId: string, data: UpdateStudentData): Promise<{ data: Student | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/students/${studentId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students/${studentId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -160,9 +160,8 @@ export const studentsApi = {
 
     async delete(studentId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/students/${studentId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students/${studentId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -178,10 +177,9 @@ export const studentsApi = {
 
     async convertToFormal(studentId: string, data: ConvertToFormalData): Promise<{ data: ConvertToFormalResponse | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/students/${studentId}/convert-to-formal`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students/${studentId}/convert-to-formal`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 

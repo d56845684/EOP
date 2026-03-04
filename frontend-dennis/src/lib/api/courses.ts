@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export interface Course {
@@ -58,9 +60,8 @@ export const coursesApi = {
 
             const url = `${API_BASE_URL}/api/v1/courses${queryParams.toString() ? '?' + queryParams.toString() : ''}`
 
-            const response = await fetch(url, {
+            const response = await fetchWithAuth(url, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -77,9 +78,8 @@ export const coursesApi = {
 
     async get(courseId: string): Promise<{ data: Course | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/courses/${courseId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/courses/${courseId}`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -96,12 +96,11 @@ export const coursesApi = {
 
     async create(data: CreateCourseData): Promise<{ data: Course | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/courses`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/courses`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -119,12 +118,11 @@ export const coursesApi = {
 
     async update(courseId: string, data: UpdateCourseData): Promise<{ data: Course | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/courses/${courseId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/courses/${courseId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -142,9 +140,8 @@ export const coursesApi = {
 
     async delete(courseId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/courses/${courseId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/courses/${courseId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {

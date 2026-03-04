@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export type BonusType = 'trial_to_formal' | 'performance' | 'substitute' | 'referral' | 'other'
@@ -91,7 +93,7 @@ export const teacherBonusApi = {
             if (params?.date_to) queryParams.set('date_to', params.date_to)
 
             const url = `${API_BASE_URL}/api/v1/teacher-bonus${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-            const response = await fetch(url, { method: 'GET', credentials: 'include' })
+            const response = await fetchWithAuth(url, { method: 'GET' })
 
             if (!response.ok) {
                 const error = await response.json()
@@ -107,10 +109,9 @@ export const teacherBonusApi = {
 
     async create(data: CreateTeacherBonusData): Promise<{ data: TeacherBonus | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-bonus`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-bonus`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -128,10 +129,9 @@ export const teacherBonusApi = {
 
     async update(bonusId: string, data: UpdateTeacherBonusData): Promise<{ data: TeacherBonus | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-bonus/${bonusId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-bonus/${bonusId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -149,9 +149,8 @@ export const teacherBonusApi = {
 
     async delete(bonusId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-bonus/${bonusId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-bonus/${bonusId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -167,9 +166,8 @@ export const teacherBonusApi = {
 
     async getTeacherOptions(): Promise<{ data: TeacherOption[], error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-bonus/options/teachers`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-bonus/options/teachers`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {

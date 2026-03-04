@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 // ============================================
@@ -123,7 +125,7 @@ export const zoomApi = {
             if (params?.is_active !== undefined) queryParams.set('is_active', params.is_active.toString())
 
             const url = `${API_BASE_URL}/api/v1/zoom/accounts${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-            const response = await fetch(url, { method: 'GET', credentials: 'include' })
+            const response = await fetchWithAuth(url, { method: 'GET' })
 
             if (!response.ok) {
                 const error = await response.json()
@@ -139,10 +141,9 @@ export const zoomApi = {
 
     async createAccount(data: CreateZoomAccountData): Promise<{ data: ZoomAccount | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/zoom/accounts`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/zoom/accounts`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -160,10 +161,9 @@ export const zoomApi = {
 
     async updateAccount(accountId: string, data: UpdateZoomAccountData): Promise<{ data: ZoomAccount | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/zoom/accounts/${accountId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/zoom/accounts/${accountId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -181,9 +181,8 @@ export const zoomApi = {
 
     async deleteAccount(accountId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/zoom/accounts/${accountId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/zoom/accounts/${accountId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -199,9 +198,8 @@ export const zoomApi = {
 
     async testAccount(accountId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/zoom/accounts/${accountId}/test`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/zoom/accounts/${accountId}/test`, {
                 method: 'POST',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -233,7 +231,7 @@ export const zoomApi = {
             if (params?.date_to) queryParams.set('date_to', params.date_to)
 
             const url = `${API_BASE_URL}/api/v1/zoom/meetings${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-            const response = await fetch(url, { method: 'GET', credentials: 'include' })
+            const response = await fetchWithAuth(url, { method: 'GET' })
 
             if (!response.ok) {
                 const error = await response.json()
@@ -249,9 +247,8 @@ export const zoomApi = {
 
     async getMeetingByBooking(bookingId: string): Promise<{ data: ZoomMeetingLog | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/zoom/meetings/${bookingId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/zoom/meetings/${bookingId}`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -271,10 +268,9 @@ export const zoomApi = {
 
     async createMeeting(bookingId: string): Promise<{ data: ZoomMeetingLog | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/zoom/meetings/create`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/zoom/meetings/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ booking_id: bookingId }),
             })
 
@@ -294,9 +290,8 @@ export const zoomApi = {
 
     async getOAuthStatus(): Promise<{ data: ZoomTeacherLinkStatus | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/zoom/oauth/status`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/zoom/oauth/status`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -313,9 +308,8 @@ export const zoomApi = {
 
     async getOAuthUrl(): Promise<{ data: { authorize_url: string } | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/zoom/oauth/authorize`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/zoom/oauth/authorize`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -332,9 +326,8 @@ export const zoomApi = {
 
     async unlinkZoom(): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/zoom/oauth/unlink`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/zoom/oauth/unlink`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {

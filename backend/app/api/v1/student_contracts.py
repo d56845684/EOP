@@ -19,7 +19,7 @@ import re
 
 router = APIRouter(prefix="/student-contracts", tags=["學生合約管理"])
 
-CONTRACT_SELECT = "id,contract_no,student_id,contract_status,start_date,end_date,total_lessons,remaining_lessons,total_amount,total_leave_allowed,used_leave_count,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
+CONTRACT_SELECT = "id,contract_no,student_id,contract_status,start_date,end_date,total_lessons,remaining_lessons,total_amount,total_leave_allowed,used_leave_count,is_recurring,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
 
 
 async def get_user_student_id(user_id: str) -> Optional[str]:

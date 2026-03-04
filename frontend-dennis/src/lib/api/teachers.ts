@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export interface Teacher {
@@ -75,7 +77,7 @@ export const teachersApi = {
             if (params?.is_active !== undefined) queryParams.set('is_active', params.is_active.toString())
 
             const url = `${API_BASE_URL}/api/v1/teachers${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-            const response = await fetch(url, { method: 'GET', credentials: 'include' })
+            const response = await fetchWithAuth(url, { method: 'GET' })
 
             if (!response.ok) {
                 const error = await response.json()
@@ -91,10 +93,9 @@ export const teachersApi = {
 
     async create(data: CreateTeacherData): Promise<{ data: Teacher | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teachers`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -112,10 +113,9 @@ export const teachersApi = {
 
     async update(teacherId: string, data: UpdateTeacherData): Promise<{ data: Teacher | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teachers/${teacherId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -133,10 +133,9 @@ export const teachersApi = {
 
     async updateSelf(data: TeacherSelfUpdateData): Promise<{ data: Teacher | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teachers/me`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/me`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -154,9 +153,8 @@ export const teachersApi = {
 
     async delete(teacherId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teachers/${teacherId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {

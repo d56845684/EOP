@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export type ContractStatus = 'pending' | 'active' | 'expired' | 'terminated'
@@ -36,6 +38,7 @@ export interface StudentContract {
     total_amount?: number
     total_leave_allowed: number
     used_leave_count: number
+    is_recurring: boolean
     notes?: string
     created_at?: string
     updated_at?: string
@@ -71,6 +74,7 @@ export interface CreateStudentContractData {
     remaining_lessons: number
     total_amount: number
     total_leave_allowed?: number
+    is_recurring?: boolean
     notes?: string
 }
 
@@ -83,6 +87,7 @@ export interface UpdateStudentContractData {
     remaining_lessons?: number
     total_amount?: number
     total_leave_allowed?: number
+    is_recurring?: boolean
     notes?: string
 }
 
@@ -135,9 +140,8 @@ export const studentContractsApi = {
 
             const url = `${API_BASE_URL}/api/v1/student-contracts${queryParams.toString() ? '?' + queryParams.toString() : ''}`
 
-            const response = await fetch(url, {
+            const response = await fetchWithAuth(url, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -154,9 +158,8 @@ export const studentContractsApi = {
 
     async get(contractId: string): Promise<{ data: StudentContract | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -173,12 +176,11 @@ export const studentContractsApi = {
 
     async create(data: CreateStudentContractData): Promise<{ data: StudentContract | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -196,12 +198,11 @@ export const studentContractsApi = {
 
     async update(contractId: string, data: UpdateStudentContractData): Promise<{ data: StudentContract | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -219,9 +220,8 @@ export const studentContractsApi = {
 
     async delete(contractId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -238,9 +238,8 @@ export const studentContractsApi = {
     async uploadFile(contractId: string, file: File): Promise<{ data: StudentContract | null, error: any }> {
         try {
             // 1. 從 backend 取得 S3 presigned upload URL
-            const urlRes = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/upload-url`, {
+            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/upload-url`, {
                 method: 'POST',
-                credentials: 'include',
             })
             if (!urlRes.ok) {
                 const error = await urlRes.json()
@@ -262,10 +261,9 @@ export const studentContractsApi = {
             }
 
             // 3. 通知 backend 確認上傳完成
-            const confirmRes = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/confirm-upload`, {
+            const confirmRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/confirm-upload`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ storage_path, file_name: file.name }),
             })
             if (!confirmRes.ok) {
@@ -282,9 +280,8 @@ export const studentContractsApi = {
 
     async downloadFile(contractId: string): Promise<{ url: string | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/download-url`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/download-url`, {
                 method: 'GET',
-                credentials: 'include',
             })
             if (!response.ok) {
                 const error = await response.json()
@@ -299,9 +296,8 @@ export const studentContractsApi = {
 
     async getStudentOptions(): Promise<{ data: StudentOption[], error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/options/students`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/options/students`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -323,9 +319,8 @@ export const studentContractsApi = {
 
             const url = `${API_BASE_URL}/api/v1/student-contracts/options/courses${queryParams.toString() ? '?' + queryParams.toString() : ''}`
 
-            const response = await fetch(url, {
+            const response = await fetchWithAuth(url, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -344,9 +339,8 @@ export const studentContractsApi = {
 
     async listDetails(contractId: string): Promise<{ data: StudentContractDetail[], error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/details`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/details`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -363,10 +357,9 @@ export const studentContractsApi = {
 
     async createDetail(contractId: string, data: CreateDetailData): Promise<{ data: StudentContractDetail | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/details`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/details`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -384,10 +377,9 @@ export const studentContractsApi = {
 
     async updateDetail(contractId: string, detailId: string, data: UpdateDetailData): Promise<{ data: StudentContractDetail | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/details/${detailId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/details/${detailId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -405,9 +397,8 @@ export const studentContractsApi = {
 
     async deleteDetail(contractId: string, detailId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/details/${detailId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/details/${detailId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -425,9 +416,8 @@ export const studentContractsApi = {
 
     async listLeaveRecords(contractId: string): Promise<{ data: StudentContractLeaveRecord[], error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/leave-records`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/leave-records`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -444,10 +434,9 @@ export const studentContractsApi = {
 
     async createLeaveRecord(contractId: string, data: CreateLeaveRecordData): Promise<{ data: StudentContractLeaveRecord | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/leave-records`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/leave-records`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -465,9 +454,8 @@ export const studentContractsApi = {
 
     async deleteLeaveRecord(contractId: string, recordId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/leave-records/${recordId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/leave-records/${recordId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {

@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 /**
  * Line 綁定 API
  */
@@ -36,11 +38,10 @@ export const lineApi = {
    * 取得 Line 登入 URL（新用戶註冊用）
    */
   async getLoginUrl(channel: string = 'student'): Promise<LineLoginUrlResponse> {
-    const response = await fetch(
+    const response = await fetchWithAuth(
       `${API_BASE_URL}/api/v1/auth/line/login?channel=${channel}`,
       {
         method: 'GET',
-        credentials: 'include',
       }
     )
 
@@ -56,11 +57,10 @@ export const lineApi = {
    */
   async getBindUrl(channel?: string): Promise<LineBindingResponse> {
     const params = channel ? `?channel=${channel}` : ''
-    const response = await fetch(
+    const response = await fetchWithAuth(
       `${API_BASE_URL}/api/v1/auth/line/bind${params}`,
       {
         method: 'POST',
-        credentials: 'include',
       }
     )
 
@@ -77,11 +77,10 @@ export const lineApi = {
    */
   async getBindingStatus(channel?: string): Promise<LineBindingResponse> {
     const params = channel ? `?channel=${channel}` : ''
-    const response = await fetch(
+    const response = await fetchWithAuth(
       `${API_BASE_URL}/api/v1/auth/line/status${params}`,
       {
         method: 'GET',
-        credentials: 'include',
       }
     )
 
@@ -96,11 +95,10 @@ export const lineApi = {
    * 取得所有頻道的 Line 綁定狀態
    */
   async getAllBindings(): Promise<LineBindingsListResponse> {
-    const response = await fetch(
+    const response = await fetchWithAuth(
       `${API_BASE_URL}/api/v1/auth/line/bindings`,
       {
         method: 'GET',
-        credentials: 'include',
       }
     )
 
@@ -116,11 +114,10 @@ export const lineApi = {
    */
   async unbind(channel?: string): Promise<{ success: boolean; message: string }> {
     const params = channel ? `?channel=${channel}` : ''
-    const response = await fetch(
+    const response = await fetchWithAuth(
       `${API_BASE_URL}/api/v1/auth/line/unbind${params}`,
       {
         method: 'DELETE',
-        credentials: 'include',
       }
     )
 

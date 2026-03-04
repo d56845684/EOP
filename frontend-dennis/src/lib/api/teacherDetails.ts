@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export type TeacherDetailType = 'qualification' | 'certificate' | 'video' | 'experience'
@@ -54,7 +56,7 @@ export const teacherDetailsApi = {
     async list(teacherId: string): Promise<{ data: TeacherDetailListResponse | null, error: any }> {
         try {
             const url = `${API_BASE_URL}/api/v1/teacher-details?teacher_id=${teacherId}`
-            const response = await fetch(url, { method: 'GET', credentials: 'include' })
+            const response = await fetchWithAuth(url, { method: 'GET' })
 
             if (!response.ok) {
                 const error = await response.json()
@@ -70,10 +72,9 @@ export const teacherDetailsApi = {
 
     async create(data: CreateTeacherDetailData): Promise<{ data: TeacherDetail | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-details`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-details`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -91,10 +92,9 @@ export const teacherDetailsApi = {
 
     async update(detailId: string, data: UpdateTeacherDetailData): Promise<{ data: TeacherDetail | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-details/${detailId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-details/${detailId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -112,9 +112,8 @@ export const teacherDetailsApi = {
 
     async delete(detailId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-details/${detailId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-details/${detailId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -130,9 +129,8 @@ export const teacherDetailsApi = {
 
     async getUploadUrl(detailId: string): Promise<{ data: { upload_url: string, storage_path: string } | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-details/${detailId}/upload-url`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-details/${detailId}/upload-url`, {
                 method: 'POST',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -149,10 +147,9 @@ export const teacherDetailsApi = {
 
     async confirmUpload(detailId: string, storagePath: string, fileName: string): Promise<{ data: TeacherDetail | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-details/${detailId}/confirm-upload`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-details/${detailId}/confirm-upload`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ storage_path: storagePath, file_name: fileName }),
             })
 
@@ -170,9 +167,8 @@ export const teacherDetailsApi = {
 
     async getDownloadUrl(detailId: string): Promise<{ data: { download_url: string, file_name: string } | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-details/${detailId}/download-url`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-details/${detailId}/download-url`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
