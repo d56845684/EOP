@@ -90,6 +90,9 @@ class Settings(BaseSettings):
     # Feature toggle
     ZOOM_ENABLED: bool = False
 
+    # Service Account API Key（留空 = 停用）
+    SERVICE_API_KEY: str = ""
+
     # Frontend URL (for OAuth redirects)
     FRONTEND_URL: str = "http://localhost:4173"
 

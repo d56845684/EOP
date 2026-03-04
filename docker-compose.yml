@@ -36,6 +36,7 @@ services:
       AWS_REGION: ${AWS_REGION:-ap-northeast-1}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET:-teaching-platform-contracts}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:4173}
+      SERVICE_API_KEY: ${SERVICE_API_KEY:-}
     ports:
       - ${BACKEND_PORT:-8001}:8000
 
