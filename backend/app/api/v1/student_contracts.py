@@ -8,7 +8,6 @@ from app.schemas.student_contract import (
     StudentContractCreate, StudentContractUpdate, StudentContractResponse,
     StudentContractListResponse, ContractStatus,
     StudentContractDetailCreate, StudentContractDetailUpdate, StudentContractDetailResponse,
-    StudentContractTeacherAdd, StudentContractTeacherResponse,
     StudentContractLeaveRecordCreate, StudentContractLeaveRecordResponse
 )
 from app.schemas.response import BaseResponse, DataResponse
@@ -20,7 +19,7 @@ import re
 
 router = APIRouter(prefix="/student-contracts", tags=["學生合約管理"])
 
-CONTRACT_SELECT = "id,contract_no,student_id,contract_status,start_date,end_date,total_lessons,remaining_lessons,total_leave_allowed,used_leave_count,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
+CONTRACT_SELECT = "id,contract_no,student_id,contract_status,start_date,end_date,total_lessons,remaining_lessons,total_amount,total_leave_allowed,used_leave_count,is_recurring,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
 
 
 async def get_user_student_id(user_id: str) -> Optional[str]:
@@ -122,33 +121,6 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
         enriched_details.append(detail)
 
     contract["details"] = enriched_details
-
-    # 取得可預約教師
-    teacher_bindings = await supabase_service.table_select(
-        table="student_contract_teachers",
-        select="id,student_contract_id,teacher_id,is_primary,assigned_at,created_at",
-        filters={
-            "student_contract_id": f"eq.{contract['id']}",
-            "is_deleted": "eq.false"
-        },
-        use_service_key=True
-    )
-
-    enriched_teachers = []
-    for binding in teacher_bindings:
-        if binding.get("teacher_id"):
-            teacher = await supabase_service.table_select(
-                table="teachers",
-                select="teacher_no,name",
-                filters={"id": binding["teacher_id"]},
-                use_service_key=True
-            )
-            if teacher:
-                binding["teacher_no"] = teacher[0].get("teacher_no")
-                binding["teacher_name"] = teacher[0].get("name")
-        enriched_teachers.append(binding)
-
-    contract["teachers"] = enriched_teachers
 
     # 取得請假紀錄
     leave_records = await supabase_service.table_select(
@@ -442,6 +414,7 @@ async def create_student_contract(
             "end_date": data.end_date.isoformat(),
             "total_lessons": data.total_lessons,
             "remaining_lessons": data.remaining_lessons,
+            "total_amount": data.total_amount,
             "total_leave_allowed": total_leave_allowed,
             "used_leave_count": 0,
             "notes": data.notes,
@@ -595,30 +568,6 @@ async def delete_student_contract(
                 table="student_contract_details",
                 data=detail_update,
                 filters={"id": detail["id"]},
-                use_service_key=True
-            )
-
-        # 軟刪除相關教師綁定
-        teacher_bindings = await supabase_service.table_select(
-            table="student_contract_teachers",
-            select="id",
-            filters={
-                "student_contract_id": f"eq.{contract_id}",
-                "is_deleted": "eq.false"
-            },
-            use_service_key=True
-        )
-        for binding in teacher_bindings:
-            binding_update = {
-                "is_deleted": True,
-                "deleted_at": now
-            }
-            if employee_id:
-                binding_update["deleted_by"] = employee_id
-            await supabase_service.table_update(
-                table="student_contract_teachers",
-                data=binding_update,
-                filters={"id": binding["id"]},
                 use_service_key=True
             )
 
@@ -799,6 +748,23 @@ async def create_contract_detail(
         if not result:
             raise HTTPException(status_code=500, detail="新增合約明細失敗")
 
+        # 補償堂數連動 remaining_lessons
+        if data.detail_type.value == "compensation":
+            contract_data = await supabase_service.table_select(
+                table="student_contracts",
+                select="remaining_lessons",
+                filters={"id": contract_id},
+                use_service_key=True
+            )
+            if contract_data:
+                new_remaining = contract_data[0]["remaining_lessons"] + int(data.amount)
+                await supabase_service.table_update(
+                    table="student_contracts",
+                    data={"remaining_lessons": new_remaining},
+                    filters={"id": contract_id},
+                    use_service_key=True
+                )
+
         # enrich course_name
         if result.get("course_id"):
             course = await supabase_service.table_select(
@@ -832,7 +798,7 @@ async def update_contract_detail(
         # 確認明細存在且屬於此合約
         existing = await supabase_service.table_select(
             table="student_contract_details",
-            select="id,student_contract_id",
+            select="id,student_contract_id,detail_type,amount",
             filters={
                 "id": detail_id,
                 "student_contract_id": f"eq.{contract_id}",
@@ -864,6 +830,27 @@ async def update_contract_detail(
 
         if not result:
             raise HTTPException(status_code=500, detail="更新合約明細失敗")
+
+        # 補償堂數連動 remaining_lessons
+        if existing[0].get("detail_type") == "compensation" and data.amount is not None:
+            old_amount = int(existing[0]["amount"])
+            new_amount = int(data.amount)
+            diff = new_amount - old_amount
+            if diff != 0:
+                contract_data = await supabase_service.table_select(
+                    table="student_contracts",
+                    select="remaining_lessons",
+                    filters={"id": contract_id},
+                    use_service_key=True
+                )
+                if contract_data:
+                    new_remaining = contract_data[0]["remaining_lessons"] + diff
+                    await supabase_service.table_update(
+                        table="student_contracts",
+                        data={"remaining_lessons": new_remaining},
+                        filters={"id": contract_id},
+                        use_service_key=True
+                    )
 
         # enrich course_name
         if result.get("course_id"):
@@ -897,7 +884,7 @@ async def delete_contract_detail(
         # 確認明細存在且屬於此合約
         existing = await supabase_service.table_select(
             table="student_contract_details",
-            select="id,student_contract_id",
+            select="id,student_contract_id,detail_type,amount",
             filters={
                 "id": detail_id,
                 "student_contract_id": f"eq.{contract_id}",
@@ -927,199 +914,30 @@ async def delete_contract_detail(
         if not result:
             raise HTTPException(status_code=500, detail="刪除合約明細失敗")
 
+        # 補償堂數連動 remaining_lessons
+        if existing[0].get("detail_type") == "compensation":
+            compensation_amount = int(existing[0]["amount"])
+            contract_data = await supabase_service.table_select(
+                table="student_contracts",
+                select="remaining_lessons",
+                filters={"id": contract_id},
+                use_service_key=True
+            )
+            if contract_data:
+                new_remaining = contract_data[0]["remaining_lessons"] - compensation_amount
+                await supabase_service.table_update(
+                    table="student_contracts",
+                    data={"remaining_lessons": max(0, new_remaining)},
+                    filters={"id": contract_id},
+                    use_service_key=True
+                )
+
         return BaseResponse(message="合約明細刪除成功")
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"刪除合約明細失敗: {str(e)}")
-
-
-# ========== Contract Teachers CRUD ==========
-
-@router.get("/{contract_id}/teachers")
-async def list_contract_teachers(
-    contract_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
-):
-    """取得合約可預約教師列表"""
-    try:
-        # 教師無權
-        if current_user.is_teacher():
-            raise HTTPException(status_code=403, detail="教師無權查看學生合約教師")
-
-        # 確認合約存在
-        contract = await supabase_service.table_select(
-            table="student_contracts",
-            select="id,student_id",
-            filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
-        )
-        if not contract:
-            raise HTTPException(status_code=404, detail="學生合約不存在")
-
-        # 學生只能看自己的合約教師
-        if current_user.is_student():
-            user_student_id = await get_user_student_id(current_user.user_id)
-            if contract[0].get("student_id") != user_student_id:
-                raise HTTPException(status_code=403, detail="無權查看此合約教師")
-
-        bindings = await supabase_service.table_select(
-            table="student_contract_teachers",
-            select="id,student_contract_id,teacher_id,is_primary,assigned_at,created_at",
-            filters={
-                "student_contract_id": f"eq.{contract_id}",
-                "is_deleted": "eq.false"
-            },
-            use_service_key=True
-        )
-
-        # enrich teacher info
-        enriched = []
-        for b in bindings:
-            if b.get("teacher_id"):
-                teacher = await supabase_service.table_select(
-                    table="teachers",
-                    select="teacher_no,name",
-                    filters={"id": b["teacher_id"]},
-                    use_service_key=True
-                )
-                if teacher:
-                    b["teacher_no"] = teacher[0].get("teacher_no")
-                    b["teacher_name"] = teacher[0].get("name")
-            enriched.append(b)
-
-        return {"data": [StudentContractTeacherResponse(**b) for b in enriched]}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得合約教師失敗: {str(e)}")
-
-
-@router.post("/{contract_id}/teachers")
-async def add_contract_teacher(
-    contract_id: str,
-    data: StudentContractTeacherAdd,
-    current_user: CurrentUser = Depends(require_staff)
-):
-    """新增可預約教師（僅限員工）"""
-    try:
-        # 確認合約存在
-        contract = await supabase_service.table_select(
-            table="student_contracts",
-            select="id",
-            filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
-        )
-        if not contract:
-            raise HTTPException(status_code=404, detail="學生合約不存在")
-
-        # 驗證教師存在
-        teacher = await supabase_service.table_select(
-            table="teachers",
-            select="id,teacher_no,name",
-            filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
-        )
-        if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在")
-
-        # 檢查是否已存在（未刪除）
-        existing = await supabase_service.table_select(
-            table="student_contract_teachers",
-            select="id",
-            filters={
-                "student_contract_id": f"eq.{contract_id}",
-                "teacher_id": f"eq.{data.teacher_id}",
-                "is_deleted": "eq.false"
-            },
-            use_service_key=True
-        )
-        if existing:
-            raise HTTPException(status_code=400, detail="此教師已在合約中")
-
-        binding_data = {
-            "student_contract_id": contract_id,
-            "teacher_id": data.teacher_id,
-            "is_primary": data.is_primary,
-        }
-
-        employee_id = await get_user_employee_id(current_user.user_id)
-        if employee_id:
-            binding_data["created_by"] = employee_id
-
-        result = await supabase_service.table_insert(
-            table="student_contract_teachers",
-            data=binding_data,
-            use_service_key=True
-        )
-
-        if not result:
-            raise HTTPException(status_code=500, detail="新增可預約教師失敗")
-
-        # enrich teacher info
-        result["teacher_no"] = teacher[0].get("teacher_no")
-        result["teacher_name"] = teacher[0].get("name")
-
-        return DataResponse(
-            message="可預約教師新增成功",
-            data=StudentContractTeacherResponse(**result)
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"新增可預約教師失敗: {str(e)}")
-
-
-@router.delete("/{contract_id}/teachers/{binding_id}", response_model=BaseResponse)
-async def remove_contract_teacher(
-    contract_id: str,
-    binding_id: str,
-    current_user: CurrentUser = Depends(require_staff)
-):
-    """移除可預約教師（軟刪除，僅限員工）"""
-    try:
-        # 確認綁定存在且屬於此合約
-        existing = await supabase_service.table_select(
-            table="student_contract_teachers",
-            select="id,student_contract_id",
-            filters={
-                "id": binding_id,
-                "student_contract_id": f"eq.{contract_id}",
-                "is_deleted": "eq.false"
-            },
-            use_service_key=True
-        )
-        if not existing:
-            raise HTTPException(status_code=404, detail="教師綁定不存在")
-
-        delete_data = {
-            "is_deleted": True,
-            "deleted_at": datetime.utcnow().isoformat()
-        }
-
-        employee_id = await get_user_employee_id(current_user.user_id)
-        if employee_id:
-            delete_data["deleted_by"] = employee_id
-
-        result = await supabase_service.table_update(
-            table="student_contract_teachers",
-            data=delete_data,
-            filters={"id": binding_id},
-            use_service_key=True
-        )
-
-        if not result:
-            raise HTTPException(status_code=500, detail="移除可預約教師失敗")
-
-        return BaseResponse(message="可預約教師移除成功")
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"移除可預約教師失敗: {str(e)}")
 
 
 # ========== Leave Records CRUD ==========

@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export type ContractStatus = 'pending' | 'active' | 'expired' | 'terminated'
@@ -118,9 +120,8 @@ export const teacherContractsApi = {
 
             const url = `${API_BASE_URL}/api/v1/teacher-contracts${queryParams.toString() ? '?' + queryParams.toString() : ''}`
 
-            const response = await fetch(url, {
+            const response = await fetchWithAuth(url, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -137,9 +138,8 @@ export const teacherContractsApi = {
 
     async get(contractId: string): Promise<{ data: TeacherContract | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -156,12 +156,11 @@ export const teacherContractsApi = {
 
     async create(data: CreateTeacherContractData): Promise<{ data: TeacherContract | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -179,12 +178,11 @@ export const teacherContractsApi = {
 
     async update(contractId: string, data: UpdateTeacherContractData): Promise<{ data: TeacherContract | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -202,9 +200,8 @@ export const teacherContractsApi = {
 
     async delete(contractId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -221,9 +218,8 @@ export const teacherContractsApi = {
     async uploadFile(contractId: string, file: File): Promise<{ data: TeacherContract | null, error: any }> {
         try {
             // 1. 從 backend 取得 S3 presigned upload URL
-            const urlRes = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/upload-url`, {
+            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/upload-url`, {
                 method: 'POST',
-                credentials: 'include',
             })
             if (!urlRes.ok) {
                 const error = await urlRes.json()
@@ -245,10 +241,9 @@ export const teacherContractsApi = {
             }
 
             // 3. 通知 backend 確認上傳完成
-            const confirmRes = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/confirm-upload`, {
+            const confirmRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/confirm-upload`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ storage_path, file_name: file.name }),
             })
             if (!confirmRes.ok) {
@@ -265,9 +260,8 @@ export const teacherContractsApi = {
 
     async downloadFile(contractId: string): Promise<{ url: string | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/download-url`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/download-url`, {
                 method: 'GET',
-                credentials: 'include',
             })
             if (!response.ok) {
                 const error = await response.json()
@@ -282,9 +276,8 @@ export const teacherContractsApi = {
 
     async getTeacherOptions(): Promise<{ data: TeacherOption[], error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/options/teachers`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/options/teachers`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -301,9 +294,8 @@ export const teacherContractsApi = {
 
     async getCourseOptions(): Promise<{ data: CourseOption[], error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/options/courses`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/options/courses`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -320,9 +312,8 @@ export const teacherContractsApi = {
 
     async listDetails(contractId: string): Promise<{ data: TeacherContractDetail[], error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -339,10 +330,9 @@ export const teacherContractsApi = {
 
     async createDetail(contractId: string, data: CreateDetailData): Promise<{ data: TeacherContractDetail | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -360,10 +350,9 @@ export const teacherContractsApi = {
 
     async updateDetail(contractId: string, detailId: string, data: UpdateDetailData): Promise<{ data: TeacherContractDetail | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details/${detailId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details/${detailId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -381,9 +370,8 @@ export const teacherContractsApi = {
 
     async deleteDetail(contractId: string, detailId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details/${detailId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details/${detailId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {

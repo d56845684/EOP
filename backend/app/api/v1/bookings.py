@@ -9,6 +9,8 @@ from app.schemas.booking import (
 from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
 from datetime import date, datetime, time
+import asyncio
+import logging
 import math
 
 router = APIRouter(prefix="/bookings", tags=["預約管理"])
@@ -44,42 +46,100 @@ async def generate_booking_no() -> str:
     return f"{prefix}{str(max_seq + 1).zfill(3)}"
 
 
-async def get_student_teacher_preference(student_id: str, course_id: str | None) -> dict | None:
-    """取得學生的教師偏好設定
+async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None, bool]:
+    """取得學生所有偏好設定的教師聯集
 
-    優先找 course-specific，找不到 fallback 到 global（course_id IS NULL）。
-    都找不到回傳 None（代表無限制）。
+    遍歷所有偏好（is_deleted=false），依情境收集可預約教師 ID：
+      情境 1: primary_teacher_id 有值 → 直接加入該教師
+      情境 2: course_id=NULL + min_teacher_level → 全域等級過濾
+      情境 3: course_id=X  + min_teacher_level → 指定課程等級過濾
+
+    Returns:
+        (allowed_set, has_preferences)
+        - allowed_set: 可預約教師 ID set；若無偏好設定則為 None
+        - has_preferences: 是否有任何偏好設定
     """
-    # 1. 先找 course-specific
-    if course_id:
-        prefs = await supabase_service.table_select(
-            table="student_teacher_preferences",
-            select="id,min_teacher_level,primary_teacher_id",
-            filters={
-                "student_id": student_id,
-                "course_id": course_id,
-                "is_deleted": "eq.false"
-            },
-            use_service_key=True
-        )
-        if prefs:
-            return prefs[0]
-
-    # 2. Fallback 到 global（course_id IS NULL）
-    global_prefs = await supabase_service.table_select(
+    all_prefs = await supabase_service.table_select(
         table="student_teacher_preferences",
-        select="id,min_teacher_level,primary_teacher_id",
+        select="id,min_teacher_level,primary_teacher_id,course_id",
         filters={
             "student_id": student_id,
-            "course_id": "is.null",
             "is_deleted": "eq.false"
         },
         use_service_key=True
     )
-    if global_prefs:
-        return global_prefs[0]
 
-    return None
+    if not all_prefs:
+        # 沒有偏好設定 → 回傳空集合（不可預約任何教師）
+        return set(), False
+
+    allowed: set[str] = set()
+
+    for pref in all_prefs:
+        primary = pref.get("primary_teacher_id")
+        min_level = pref.get("min_teacher_level") or 1
+        pref_course_id = pref.get("course_id")
+
+        if primary:
+            # 情境 1: 指定主要教師 → 直接加入
+            allowed.add(primary)
+        elif pref_course_id:
+            # 情境 3: 指定課程 + 等級過濾
+            # 查有該課程 course_rate 的教師（透過 teacher_contracts → teacher_contract_details）
+            # 先找等級足夠的教師
+            teachers = await supabase_service.table_select(
+                table="teachers",
+                select="id",
+                filters={
+                    "is_deleted": "eq.false",
+                    "is_active": "eq.true",
+                    "teacher_level": f"gte.{min_level}"
+                },
+                use_service_key=True
+            )
+            for t in teachers:
+                # 查該教師是否有 active 合約包含此課程的 course_rate
+                t_contracts = await supabase_service.table_select(
+                    table="teacher_contracts",
+                    select="id",
+                    filters={
+                        "teacher_id": t["id"],
+                        "is_deleted": "eq.false",
+                        "contract_status": "eq.active"
+                    },
+                    use_service_key=True
+                )
+                for tc in t_contracts:
+                    rate_check = await supabase_service.table_select(
+                        table="teacher_contract_details",
+                        select="id",
+                        filters={
+                            "teacher_contract_id": tc["id"],
+                            "course_id": pref_course_id,
+                            "detail_type": "eq.course_rate",
+                            "is_deleted": "eq.false"
+                        },
+                        use_service_key=True
+                    )
+                    if rate_check:
+                        allowed.add(t["id"])
+                        break
+        else:
+            # 情境 2: 全域等級過濾（course_id=NULL, 無 primary）
+            teachers = await supabase_service.table_select(
+                table="teachers",
+                select="id",
+                filters={
+                    "is_deleted": "eq.false",
+                    "is_active": "eq.true",
+                    "teacher_level": f"gte.{min_level}"
+                },
+                use_service_key=True
+            )
+            for t in teachers:
+                allowed.add(t["id"])
+
+    return allowed, True
 
 
 async def check_booking_overlap(
@@ -694,18 +754,13 @@ async def create_booking(
         if not has_course_rate:
             raise HTTPException(status_code=400, detail="教師無此課程的授課資格")
 
-        # 驗證教師等級是否符合學生偏好（主要教師不受等級限制）
-        pref = await get_student_teacher_preference(data.student_id, data.course_id)
-        if pref:
-            is_primary = pref.get("primary_teacher_id") == data.teacher_id
-            if not is_primary:
-                teacher_level = teacher[0].get("teacher_level", 1)
-                min_level = pref.get("min_teacher_level", 1)
-                if teacher_level < min_level:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"教師等級 ({teacher_level}) 低於學生要求的最低等級 ({min_level})"
-                    )
+        # 驗證教師是否在學生偏好的可預約教師白名單內
+        allowed_set, _ = await get_student_allowed_teachers(data.student_id)
+        if data.teacher_id not in allowed_set:
+            raise HTTPException(
+                status_code=400,
+                detail="此教師不在學生的偏好可預約教師範圍內，請先設定教師偏好"
+            )
 
         # 驗證學生合約存在且有效（試上學生可不提供合約）
         student_contract = None
@@ -897,6 +952,118 @@ async def create_booking(
         raise HTTPException(status_code=500, detail=f"建立預約失敗: {str(e)}")
 
 
+@router.put("/batch", response_model=BaseResponse)
+async def batch_update_bookings(
+    data: BookingBatchUpdate,
+    current_user: CurrentUser = Depends(require_staff)
+):
+    """批次更新預約狀態（週期性篩選，僅限員工）"""
+    try:
+        # 查詢符合條件的預約
+        filters = {"is_deleted": "eq.false"}
+
+        if data.student_id:
+            filters["student_id"] = f"eq.{data.student_id}"
+        if data.teacher_id:
+            filters["teacher_id"] = f"eq.{data.teacher_id}"
+        if data.course_id:
+            filters["course_id"] = f"eq.{data.course_id}"
+        if data.filter_status:
+            filters["booking_status"] = f"eq.{data.filter_status.value}"
+
+        all_bookings = await supabase_service.table_select(
+            table="bookings",
+            select="id,booking_date,booking_status,teacher_slot_id,student_contract_id",
+            filters=filters,
+            use_service_key=True
+        )
+
+        # 在 Python 中進行更精細的過濾
+        bookings_to_update = []
+        for booking in all_bookings:
+            booking_date_str = booking.get("booking_date", "")
+            booking_date_obj = date.fromisoformat(booking_date_str) if booking_date_str else None
+
+            if not booking_date_obj:
+                continue
+
+            # 檢查日期範圍
+            if booking_date_obj < data.start_date or booking_date_obj > data.end_date:
+                continue
+
+            # 檢查星期幾
+            if data.weekdays is not None and booking_date_obj.weekday() not in data.weekdays:
+                continue
+
+            bookings_to_update.append(booking)
+
+        if not bookings_to_update:
+            return BaseResponse(message="沒有符合條件的預約可更新")
+
+        # 批次更新
+        updated_count = 0
+        restored_contracts = []
+        affected_slot_ids = set()
+
+        for booking in bookings_to_update:
+            old_status = booking.get("booking_status")
+
+            # 已取消的預約不可修改
+            if old_status == "cancelled":
+                continue
+
+            # 準備更新資料
+            update_data = {"booking_status": data.new_status.value}
+            if data.notes is not None:
+                update_data["notes"] = data.notes
+
+            result = await supabase_service.table_update(
+                table="bookings",
+                data=update_data,
+                filters={"id": booking["id"]},
+                use_service_key=True
+            )
+
+            if result:
+                updated_count += 1
+
+                # 如果狀態變更為取消，恢復堂數
+                if data.new_status.value == "cancelled" and old_status != "cancelled":
+                    # 恢復學生合約剩餘堂數
+                    contract = await supabase_service.table_select(
+                        table="student_contracts",
+                        select="remaining_lessons",
+                        filters={"id": booking["student_contract_id"]},
+                        use_service_key=True
+                    )
+                    if contract:
+                        await supabase_service.table_update(
+                            table="student_contracts",
+                            data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
+                            filters={"id": booking["student_contract_id"]},
+                            use_service_key=True
+                        )
+                        restored_contracts.append(booking["student_contract_id"])
+
+                    if booking.get("teacher_slot_id"):
+                        affected_slot_ids.add(booking["teacher_slot_id"])
+
+        # 更新所有受影響 slot 的預約已滿狀態
+        for sid in affected_slot_ids:
+            await update_slot_booked_status(sid)
+
+        message = f"已更新 {updated_count} 筆預約"
+        if restored_contracts:
+            message += f"，恢復 {len(restored_contracts)} 份合約堂數"
+
+        return BaseResponse(message=message)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"批次更新預約失敗: {str(e)}")
+
+
 @router.put("/{booking_id}", response_model=DataResponse[BookingResponse])
 async def update_booking(
     booking_id: str,
@@ -954,8 +1121,38 @@ async def update_booking(
         if not result:
             raise HTTPException(status_code=500, detail="更新預約失敗")
 
-        # 如果狀態變更為取消，恢復堂數
+        # Zoom 整合：狀態變更時觸發
         new_status = update_data.get("booking_status")
+        if new_status == "confirmed" and old_status != "confirmed":
+            # 非阻塞建立 Zoom 會議
+            try:
+                from app.services.zoom_service import zoom_service
+                from app.config import settings as app_settings
+                if app_settings.zoom_enabled:
+                    booking_date_val = existing[0].get("booking_date") or result.get("booking_date")
+                    start_time_val = existing[0].get("start_time") or result.get("start_time")
+                    end_time_val = existing[0].get("end_time") or result.get("end_time")
+                    teacher_id_val = existing[0].get("teacher_id")
+                    if booking_date_val and start_time_val and end_time_val and teacher_id_val:
+                        if isinstance(booking_date_val, str):
+                            booking_date_val = date.fromisoformat(booking_date_val)
+                        if isinstance(start_time_val, str):
+                            start_time_val = time.fromisoformat(start_time_val)
+                        if isinstance(end_time_val, str):
+                            end_time_val = time.fromisoformat(end_time_val)
+                        asyncio.create_task(
+                            zoom_service.create_meeting_for_booking(
+                                booking_id=booking_id,
+                                teacher_id=teacher_id_val,
+                                booking_date=booking_date_val,
+                                start_time_val=start_time_val,
+                                end_time_val=end_time_val,
+                            )
+                        )
+            except Exception as zoom_err:
+                logging.getLogger(__name__).warning(f"Zoom 會議建立觸發失敗: {zoom_err}")
+
+        # 如果狀態變更為取消，恢復堂數
         if new_status == "cancelled" and old_status != "cancelled":
             # 恢復學生合約剩餘堂數
             contract = await supabase_service.table_select(
@@ -976,6 +1173,17 @@ async def update_booking(
             if existing[0].get("teacher_slot_id"):
                 await update_slot_booked_status(existing[0]["teacher_slot_id"])
 
+            # 取消 Zoom 會議
+            try:
+                from app.services.zoom_service import zoom_service
+                from app.config import settings as app_settings
+                if app_settings.zoom_enabled:
+                    asyncio.create_task(
+                        zoom_service.cancel_meeting_for_booking(booking_id)
+                    )
+            except Exception:
+                pass
+
         # 添加關聯名稱
         enriched = await enrich_booking_with_relations(result)
 
@@ -988,6 +1196,131 @@ async def update_booking(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"更新預約失敗: {str(e)}")
+
+
+@router.delete("/batch", response_model=BaseResponse)
+async def batch_delete_bookings(
+    data: BookingBatchDelete,
+    current_user: CurrentUser = Depends(require_staff)
+):
+    """批次刪除預約（週期性篩選，僅限員工）"""
+    try:
+        # 查詢符合條件的預約
+        filters = {"is_deleted": "eq.false"}
+
+        if data.student_id:
+            filters["student_id"] = f"eq.{data.student_id}"
+        if data.teacher_id:
+            filters["teacher_id"] = f"eq.{data.teacher_id}"
+        if data.course_id:
+            filters["course_id"] = f"eq.{data.course_id}"
+        if data.filter_status:
+            filters["booking_status"] = f"eq.{data.filter_status.value}"
+
+        all_bookings = await supabase_service.table_select(
+            table="bookings",
+            select="id,booking_date,booking_status,teacher_slot_id,student_contract_id",
+            filters=filters,
+            use_service_key=True
+        )
+
+        # 在 Python 中進行更精細的過濾
+        bookings_to_delete = []
+        skipped_confirmed = 0
+        for booking in all_bookings:
+            booking_date_str = booking.get("booking_date", "")
+            booking_date_obj = date.fromisoformat(booking_date_str) if booking_date_str else None
+
+            if not booking_date_obj:
+                continue
+
+            # 檢查日期範圍
+            if booking_date_obj < data.start_date or booking_date_obj > data.end_date:
+                continue
+
+            # 檢查星期幾
+            if data.weekdays is not None and booking_date_obj.weekday() not in data.weekdays:
+                continue
+
+            # 只有待確認或已取消的預約才可刪除
+            if booking.get("booking_status") not in ("pending", "cancelled"):
+                skipped_confirmed += 1
+                continue
+
+            bookings_to_delete.append(booking)
+
+        if not bookings_to_delete:
+            msg = "沒有符合條件的預約可刪除"
+            if skipped_confirmed:
+                msg += f"（{skipped_confirmed} 筆不可刪除的預約已跳過）"
+            return BaseResponse(message=msg)
+
+        # 取得操作者的 employee_id
+        employee_id = await get_user_employee_id(current_user.user_id)
+
+        # 批次刪除
+        deleted_count = 0
+        restored_contracts = []
+        affected_slot_ids = set()
+        delete_time = datetime.utcnow().isoformat()
+        delete_data_base = {
+            "is_deleted": True,
+            "deleted_at": delete_time,
+        }
+        if employee_id:
+            delete_data_base["deleted_by"] = employee_id
+
+        for booking in bookings_to_delete:
+            old_status = booking.get("booking_status")
+
+            # 軟刪除
+            result = await supabase_service.table_update(
+                table="bookings",
+                data=delete_data_base,
+                filters={"id": booking["id"]},
+                use_service_key=True
+            )
+
+            if result:
+                deleted_count += 1
+
+                if booking.get("teacher_slot_id"):
+                    affected_slot_ids.add(booking["teacher_slot_id"])
+
+                # 如果預約尚未取消或完成，恢復堂數
+                if old_status not in ["cancelled", "completed"]:
+                    # 恢復學生合約剩餘堂數
+                    contract = await supabase_service.table_select(
+                        table="student_contracts",
+                        select="remaining_lessons",
+                        filters={"id": booking["student_contract_id"]},
+                        use_service_key=True
+                    )
+                    if contract:
+                        await supabase_service.table_update(
+                            table="student_contracts",
+                            data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
+                            filters={"id": booking["student_contract_id"]},
+                            use_service_key=True
+                        )
+                        restored_contracts.append(booking["student_contract_id"])
+
+        # 更新所有受影響 slot 的預約已滿狀態
+        for sid in affected_slot_ids:
+            await update_slot_booked_status(sid)
+
+        message = f"已刪除 {deleted_count} 筆預約"
+        if skipped_confirmed:
+            message += f"，跳過 {skipped_confirmed} 筆不可刪除的預約"
+        if restored_contracts:
+            message += f"，恢復 {len(restored_contracts)} 份合約堂數"
+
+        return BaseResponse(message=message)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"批次刪除預約失敗: {str(e)}")
 
 
 @router.delete("/{booking_id}", response_model=BaseResponse)
@@ -1181,7 +1514,17 @@ async def batch_create_bookings(
                 raise HTTPException(status_code=400, detail="教師無此課程的授課資格")
 
         # 驗證教師等級是否符合學生偏好（主要教師不受等級限制）
-        pref = await get_student_teacher_preference(data.student_id, course_id)
+        pref_list = await supabase_service.table_select(
+            table="student_teacher_preferences",
+            select="id,primary_teacher_id,min_teacher_level",
+            filters={
+                "student_id": data.student_id,
+                "course_id": f"eq.{course_id}",
+                "is_deleted": "eq.false"
+            },
+            use_service_key=True
+        )
+        pref = pref_list[0] if pref_list else None
         if pref:
             is_primary = pref.get("primary_teacher_id") == data.teacher_id
             if not is_primary:
@@ -1236,26 +1579,27 @@ async def batch_create_bookings(
             if slot_date_obj.weekday() not in data.weekdays:
                 continue
 
-            # 檢查時間範圍（如果有指定）
+            # 檢查時間範圍（如果有指定）— slot 時段必須包含請求的時間範圍
+            slot_start = slot.get("start_time", "")[:5]
+            slot_end = slot.get("end_time", "")[:5]
+
             if data.start_time is not None:
-                slot_start = slot.get("start_time", "")
-                if slot_start and slot_start[:5] != data.start_time.isoformat()[:5]:
+                if slot_start and slot_start > data.start_time.isoformat()[:5]:
                     continue
 
             if data.end_time is not None:
-                slot_end = slot.get("end_time", "")
-                if slot_end and slot_end[:5] != data.end_time.isoformat()[:5]:
+                if slot_end and slot_end < data.end_time.isoformat()[:5]:
                     continue
 
-            # 檢查時間是否有重疊（整個 slot 時間）
-            slot_start_str = slot.get("start_time", "")[:5]
-            slot_end_str = slot.get("end_time", "")[:5]
-            overlapping = await check_booking_overlap(slot["id"], slot_start_str, slot_end_str)
+            # 檢查時間是否有重疊（使用請求的時間範圍，若未指定則用 slot 完整時間）
+            booking_start = data.start_time.isoformat()[:5] if data.start_time else slot_start
+            booking_end = data.end_time.isoformat()[:5] if data.end_time else slot_end
+            overlapping = await check_booking_overlap(slot["id"], booking_start, booking_end)
             if not overlapping:
                 matching_slots.append(slot)
 
         if not matching_slots:
-            return BaseResponse(message="沒有符合條件的可用時段")
+            return BaseResponse(success=False, message="沒有符合條件的可用時段")
 
         # 檢查剩餘堂數是否足夠（試上學生無合約則跳過）
         if remaining_lessons is not None and remaining_lessons < len(matching_slots):
@@ -1310,8 +1654,8 @@ async def batch_create_bookings(
                     "teacher_rate_percentage": rate_percentage,
                     "booking_status": "pending",
                     "booking_date": slot["slot_date"],
-                    "start_time": slot["start_time"],
-                    "end_time": slot["end_time"],
+                    "start_time": data.start_time.isoformat() if data.start_time else slot["start_time"],
+                    "end_time": data.end_time.isoformat() if data.end_time else slot["end_time"],
                     "notes": data.notes,
                 }
                 if employee_id:
@@ -1538,243 +1882,6 @@ async def batch_delete_bookings_by_ids(
         raise HTTPException(status_code=500, detail=f"批次刪除預約失敗: {str(e)}")
 
 
-@router.put("/batch", response_model=BaseResponse)
-async def batch_update_bookings(
-    data: BookingBatchUpdate,
-    current_user: CurrentUser = Depends(require_staff)
-):
-    """批次更新預約狀態（週期性篩選，僅限員工）"""
-    try:
-        # 查詢符合條件的預約
-        filters = {"is_deleted": "eq.false"}
-
-        if data.student_id:
-            filters["student_id"] = f"eq.{data.student_id}"
-        if data.teacher_id:
-            filters["teacher_id"] = f"eq.{data.teacher_id}"
-        if data.course_id:
-            filters["course_id"] = f"eq.{data.course_id}"
-        if data.filter_status:
-            filters["booking_status"] = f"eq.{data.filter_status.value}"
-
-        all_bookings = await supabase_service.table_select(
-            table="bookings",
-            select="id,booking_date,booking_status,teacher_slot_id,student_contract_id",
-            filters=filters,
-            use_service_key=True
-        )
-
-        # 在 Python 中進行更精細的過濾
-        bookings_to_update = []
-        for booking in all_bookings:
-            booking_date_str = booking.get("booking_date", "")
-            booking_date_obj = date.fromisoformat(booking_date_str) if booking_date_str else None
-
-            if not booking_date_obj:
-                continue
-
-            # 檢查日期範圍
-            if booking_date_obj < data.start_date or booking_date_obj > data.end_date:
-                continue
-
-            # 檢查星期幾
-            if data.weekdays is not None and booking_date_obj.weekday() not in data.weekdays:
-                continue
-
-            bookings_to_update.append(booking)
-
-        if not bookings_to_update:
-            return BaseResponse(message="沒有符合條件的預約可更新")
-
-        # 批次更新
-        updated_count = 0
-        restored_contracts = []
-        affected_slot_ids = set()
-
-        for booking in bookings_to_update:
-            old_status = booking.get("booking_status")
-
-            # 已取消的預約不可修改
-            if old_status == "cancelled":
-                continue
-
-            # 準備更新資料
-            update_data = {"booking_status": data.new_status.value}
-            if data.notes is not None:
-                update_data["notes"] = data.notes
-
-            result = await supabase_service.table_update(
-                table="bookings",
-                data=update_data,
-                filters={"id": booking["id"]},
-                use_service_key=True
-            )
-
-            if result:
-                updated_count += 1
-
-                # 如果狀態變更為取消，恢復堂數
-                if data.new_status.value == "cancelled" and old_status != "cancelled":
-                    # 恢復學生合約剩餘堂數
-                    contract = await supabase_service.table_select(
-                        table="student_contracts",
-                        select="remaining_lessons",
-                        filters={"id": booking["student_contract_id"]},
-                        use_service_key=True
-                    )
-                    if contract:
-                        await supabase_service.table_update(
-                            table="student_contracts",
-                            data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
-                            filters={"id": booking["student_contract_id"]},
-                            use_service_key=True
-                        )
-                        restored_contracts.append(booking["student_contract_id"])
-
-                    if booking.get("teacher_slot_id"):
-                        affected_slot_ids.add(booking["teacher_slot_id"])
-
-        # 更新所有受影響 slot 的預約已滿狀態
-        for sid in affected_slot_ids:
-            await update_slot_booked_status(sid)
-
-        message = f"已更新 {updated_count} 筆預約"
-        if restored_contracts:
-            message += f"，恢復 {len(restored_contracts)} 份合約堂數"
-
-        return BaseResponse(message=message)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次更新預約失敗: {str(e)}")
-
-
-@router.delete("/batch", response_model=BaseResponse)
-async def batch_delete_bookings(
-    data: BookingBatchDelete,
-    current_user: CurrentUser = Depends(require_staff)
-):
-    """批次刪除預約（週期性篩選，僅限員工）"""
-    try:
-        # 查詢符合條件的預約
-        filters = {"is_deleted": "eq.false"}
-
-        if data.student_id:
-            filters["student_id"] = f"eq.{data.student_id}"
-        if data.teacher_id:
-            filters["teacher_id"] = f"eq.{data.teacher_id}"
-        if data.course_id:
-            filters["course_id"] = f"eq.{data.course_id}"
-        if data.filter_status:
-            filters["booking_status"] = f"eq.{data.filter_status.value}"
-
-        all_bookings = await supabase_service.table_select(
-            table="bookings",
-            select="id,booking_date,booking_status,teacher_slot_id,student_contract_id",
-            filters=filters,
-            use_service_key=True
-        )
-
-        # 在 Python 中進行更精細的過濾
-        bookings_to_delete = []
-        skipped_confirmed = 0
-        for booking in all_bookings:
-            booking_date_str = booking.get("booking_date", "")
-            booking_date_obj = date.fromisoformat(booking_date_str) if booking_date_str else None
-
-            if not booking_date_obj:
-                continue
-
-            # 檢查日期範圍
-            if booking_date_obj < data.start_date or booking_date_obj > data.end_date:
-                continue
-
-            # 檢查星期幾
-            if data.weekdays is not None and booking_date_obj.weekday() not in data.weekdays:
-                continue
-
-            # 只有待確認或已取消的預約才可刪除
-            if booking.get("booking_status") not in ("pending", "cancelled"):
-                skipped_confirmed += 1
-                continue
-
-            bookings_to_delete.append(booking)
-
-        if not bookings_to_delete:
-            msg = "沒有符合條件的預約可刪除"
-            if skipped_confirmed:
-                msg += f"（{skipped_confirmed} 筆不可刪除的預約已跳過）"
-            return BaseResponse(message=msg)
-
-        # 取得操作者的 employee_id
-        employee_id = await get_user_employee_id(current_user.user_id)
-
-        # 批次刪除
-        deleted_count = 0
-        restored_contracts = []
-        affected_slot_ids = set()
-        delete_time = datetime.utcnow().isoformat()
-        delete_data_base = {
-            "is_deleted": True,
-            "deleted_at": delete_time,
-        }
-        if employee_id:
-            delete_data_base["deleted_by"] = employee_id
-
-        for booking in bookings_to_delete:
-            old_status = booking.get("booking_status")
-
-            # 軟刪除
-            result = await supabase_service.table_update(
-                table="bookings",
-                data=delete_data_base,
-                filters={"id": booking["id"]},
-                use_service_key=True
-            )
-
-            if result:
-                deleted_count += 1
-
-                if booking.get("teacher_slot_id"):
-                    affected_slot_ids.add(booking["teacher_slot_id"])
-
-                # 如果預約尚未取消或完成，恢復堂數
-                if old_status not in ["cancelled", "completed"]:
-                    # 恢復學生合約剩餘堂數
-                    contract = await supabase_service.table_select(
-                        table="student_contracts",
-                        select="remaining_lessons",
-                        filters={"id": booking["student_contract_id"]},
-                        use_service_key=True
-                    )
-                    if contract:
-                        await supabase_service.table_update(
-                            table="student_contracts",
-                            data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
-                            filters={"id": booking["student_contract_id"]},
-                            use_service_key=True
-                        )
-                        restored_contracts.append(booking["student_contract_id"])
-
-        # 更新所有受影響 slot 的預約已滿狀態
-        for sid in affected_slot_ids:
-            await update_slot_booked_status(sid)
-
-        message = f"已刪除 {deleted_count} 筆預約"
-        if skipped_confirmed:
-            message += f"，跳過 {skipped_confirmed} 筆不可刪除的預約"
-        if restored_contracts:
-            message += f"，恢復 {len(restored_contracts)} 份合約堂數"
-
-        return BaseResponse(message=message)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次刪除預約失敗: {str(e)}")
-
-
 # ============================================
 # 輔助 API：取得下拉選單資料
 # ============================================
@@ -1798,45 +1905,31 @@ async def get_student_options(
 
 @router.get("/options/teachers", tags=["預約管理"])
 async def get_teacher_options(
-    student_id: Optional[str] = Query(None, description="學生 ID（用於等級過濾）"),
-    course_id: Optional[str] = Query(None, description="課程 ID（用於等級過濾）"),
+    student_id: Optional[str] = Query(None, description="學生 ID（用於偏好過濾）"),
     current_user: CurrentUser = Depends(get_current_user)
 ):
-    """取得教師下拉選單（可依學生偏好過濾等級）"""
+    """取得教師下拉選單（可依學生偏好聯集過濾）"""
     try:
         filters: dict = {"is_deleted": "eq.false", "is_active": "eq.true"}
 
-        # 如果提供了 student_id，查詢偏好設定
-        pref = None
-        primary_teacher_id = None
-        min_level = 0
         if student_id:
-            pref = await get_student_teacher_preference(student_id, course_id)
-            if pref:
-                min_level = pref.get("min_teacher_level", 1)
-                primary_teacher_id = pref.get("primary_teacher_id")
-
-        # 一次撈全部啟用教師，程式端過濾（主要教師不受等級限制）
-        teachers = await supabase_service.table_select(
-            table="teachers",
-            select="id,teacher_no,name,teacher_level",
-            filters=filters,
-            use_service_key=True
-        )
-
-        if pref and min_level > 0:
-            teachers = [
-                t for t in teachers
-                if t.get("teacher_level", 1) >= min_level or t["id"] == primary_teacher_id
-            ]
-
-        # 標記 primary teacher 並排序
-        for t in teachers:
-            t["is_primary"] = (t["id"] == primary_teacher_id) if primary_teacher_id else False
-
-        # primary teacher 排第一
-        if primary_teacher_id:
-            teachers.sort(key=lambda t: (not t["is_primary"], t.get("name", "")))
+            allowed_set, _ = await get_student_allowed_teachers(student_id)
+            # 有傳 student_id → 一律依偏好白名單過濾（無偏好 = 空清單）
+            teachers = await supabase_service.table_select(
+                table="teachers",
+                select="id,teacher_no,name,teacher_level",
+                filters=filters,
+                use_service_key=True
+            )
+            teachers = [t for t in teachers if t["id"] in allowed_set]
+        else:
+            # 未傳 student_id → 回傳全部教師（用於篩選列表等）
+            teachers = await supabase_service.table_select(
+                table="teachers",
+                select="id,teacher_no,name,teacher_level",
+                filters=filters,
+                use_service_key=True
+            )
 
         return {"data": teachers}
     except Exception as e:

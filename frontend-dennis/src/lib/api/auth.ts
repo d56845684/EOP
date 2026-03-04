@@ -1,6 +1,8 @@
 // Use backend API for authentication instead of direct Supabase calls
 // This avoids CORS issues with the Supabase client
 
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 interface AuthResponse {
@@ -11,6 +13,7 @@ interface AuthResponse {
         email: string
         role: string
         email_confirmed: boolean
+        must_change_password?: boolean
     }
     tokens?: {
         access_token: string
@@ -27,50 +30,11 @@ interface UserProfile {
     email: string
     phone?: string
     avatar_url?: string
-}
-
-export type RoleType = 'student' | 'teacher' | 'employee'
-export type EmployeeType = 'admin' | 'full_time' | 'part_time' | 'intern'
-
-export interface RegisterData {
-    email: string
-    password: string
-    name: string
-    role: RoleType
-    phone?: string
-    address?: string
-    // Student fields
-    birth_date?: string
-    emergency_contact_name?: string
-    emergency_contact_phone?: string
-    // Teacher fields
-    bio?: string
-    // Employee fields
-    employee_type?: EmployeeType
+    must_change_password?: boolean
 }
 
 export const authApi = {
-    async register(data: RegisterData): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-
-            const result = await response.json()
-
-            if (!response.ok || !result.success) {
-                return { success: false, error: { message: result.message || '註冊失敗' } }
-            }
-
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    // 公開註冊已關閉，所有帳號建立請走 invite 流程（/accept-invite）
 
     async signIn(email: string, password: string) {
         try {
@@ -90,12 +54,6 @@ export const authApi = {
                     data: null,
                     error: { message: result.message || '登入失敗' }
                 }
-            }
-
-            // Store tokens in localStorage for the app to use
-            if (result.tokens) {
-                localStorage.setItem('access_token', result.tokens.access_token)
-                localStorage.setItem('refresh_token', result.tokens.refresh_token)
             }
 
             return {
@@ -120,19 +78,12 @@ export const authApi = {
                 credentials: 'include',
             })
 
-            // Clear local storage
-            localStorage.removeItem('access_token')
-            localStorage.removeItem('refresh_token')
-
             if (!response.ok) {
                 return { error: { message: '登出失敗' } }
             }
 
             return { error: null }
         } catch (err) {
-            // Still clear storage on error
-            localStorage.removeItem('access_token')
-            localStorage.removeItem('refresh_token')
             return { error: null }
         }
     },
@@ -143,9 +94,8 @@ export const authApi = {
         error: any
     }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/auth/me`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -168,11 +118,35 @@ export const authApi = {
                 email: userData.email || '',
                 phone: userData.phone,
                 avatar_url: userData.avatar_url,
+                must_change_password: userData.must_change_password || false,
             } : null
 
             return { user, profile, error: null }
         } catch (err) {
             return { user: null, profile: null, error: { message: '無法取得用戶資訊' } }
+        }
+    },
+
+    async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/auth/password/change`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                }),
+            })
+
+            const result = await response.json()
+
+            if (!response.ok || !result.success) {
+                return { success: false, error: { message: result.detail || result.message || '密碼變更失敗' } }
+            }
+
+            return { success: true, error: null }
+        } catch (err) {
+            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
         }
     },
 }

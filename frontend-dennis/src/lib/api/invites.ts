@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export interface GenerateInviteResponse {
@@ -22,10 +24,9 @@ function parseErrorDetail(detail: unknown): string {
 export const invitesApi = {
     async generate(entityType: 'student' | 'teacher', entityId: string): Promise<{ data: GenerateInviteResponse | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/invites/generate`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/invites/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ entity_type: entityType, entity_id: entityId }),
             })
 

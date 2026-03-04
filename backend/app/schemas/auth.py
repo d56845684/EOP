@@ -12,11 +12,15 @@ class LoginRequest(BaseModel):
     password: str
 
 
+# 公開註冊允許的角色（employee 只能透過 invite 流程建立）
+PublicRoleType = Literal["student", "teacher"]
+
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     name: str
-    role: RoleType = "student"
+    role: PublicRoleType = "student"
 
     # 共用欄位
     phone: Optional[str] = Field(None, description="聯絡電話")
@@ -30,17 +34,8 @@ class RegisterRequest(BaseModel):
     # 教師專用欄位
     bio: Optional[str] = Field(None, description="教師簡介（僅教師）")
 
-    # 員工專用欄位
-    employee_type: Optional[EmployeeType] = Field(
-        None,
-        description="員工類型（僅 role 為 employee 時必填）"
-    )
-
     @model_validator(mode="after")
     def validate_role_fields(self):
-        if self.role == "employee" and not self.employee_type:
-            raise ValueError("員工註冊必須指定 employee_type")
-
         # 清除不屬於該角色的欄位
         if self.role != "student":
             self.birth_date = None
@@ -48,8 +43,6 @@ class RegisterRequest(BaseModel):
             self.emergency_contact_phone = None
         if self.role != "teacher":
             self.bio = None
-        if self.role != "employee":
-            self.employee_type = None
 
         return self
 
@@ -74,6 +67,10 @@ class UserInfo(BaseModel):
     permission_level: int = Field(
         0,
         description="權限等級"
+    )
+    must_change_password: bool = Field(
+        False,
+        description="是否需要強制變更密碼"
     )
 
 class LoginResponse(BaseModel):

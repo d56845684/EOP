@@ -6,21 +6,18 @@ import {
     studentContractsApi,
     StudentContract,
     StudentContractDetail,
-    StudentContractTeacher,
     StudentContractLeaveRecord,
     CreateStudentContractData,
     UpdateStudentContractData,
     CreateDetailData,
     UpdateDetailData,
-    AddTeacherData,
     CreateLeaveRecordData,
     ContractStatus,
     DetailType,
     StudentOption,
     CourseOption,
-    TeacherOption
 } from '@/lib/api/studentContracts'
-import { Plus, Pencil, Trash2, Search, X, FileText, Calendar, CheckCircle, Clock, XCircle, AlertCircle, Upload, Download, Users } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, FileText, Calendar, CheckCircle, Clock, XCircle, AlertCircle, Upload, Download } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 
 const statusLabels: Record<ContractStatus, string> = {
@@ -70,7 +67,6 @@ export default function StudentContractsPage() {
     // Options for dropdowns
     const [studentOptions, setStudentOptions] = useState<StudentOption[]>([])
     const [courseOptions, setCourseOptions] = useState<CourseOption[]>([])
-    const [teacherOptions, setTeacherOptions] = useState<TeacherOption[]>([])
 
     // Pagination
     const [page, setPage] = useState(1)
@@ -89,7 +85,9 @@ export default function StudentContractsPage() {
         end_date: '',
         total_lessons: 10,
         remaining_lessons: 10,
+        total_amount: 0,
         total_leave_allowed: 20,
+        is_recurring: false,
         notes: '',
     })
     const [formError, setFormError] = useState<string | null>(null)
@@ -112,16 +110,6 @@ export default function StudentContractsPage() {
     // Filtered course options for lesson_price detail (only student's enrolled courses)
     const [filteredCourseOptions, setFilteredCourseOptions] = useState<CourseOption[]>([])
 
-    // Teachers state (for edit modal)
-    const [contractTeachers, setContractTeachers] = useState<StudentContractTeacher[]>([])
-    const [teachersLoading, setTeachersLoading] = useState(false)
-    const [addTeacherData, setAddTeacherData] = useState<AddTeacherData>({
-        teacher_id: '',
-        is_primary: false,
-    })
-    const [teacherFormError, setTeacherFormError] = useState<string | null>(null)
-    const [teacherSubmitting, setTeacherSubmitting] = useState(false)
-
     // Leave records state (for edit modal)
     const [leaveRecords, setLeaveRecords] = useState<StudentContractLeaveRecord[]>([])
     const [leaveRecordsLoading, setLeaveRecordsLoading] = useState(false)
@@ -141,15 +129,13 @@ export default function StudentContractsPage() {
 
     // Fetch options
     const fetchOptions = useCallback(async () => {
-        const [studentsResult, coursesResult, teachersResult] = await Promise.all([
+        const [studentsResult, coursesResult] = await Promise.all([
             studentContractsApi.getStudentOptions(),
             studentContractsApi.getCourseOptions(),
-            studentContractsApi.getTeacherOptions(),
         ])
 
         if (studentsResult.data) setStudentOptions(studentsResult.data)
         if (coursesResult.data) setCourseOptions(coursesResult.data)
-        if (teachersResult.data) setTeacherOptions(teachersResult.data)
     }, [])
 
     // Fetch contracts
@@ -200,15 +186,6 @@ export default function StudentContractsPage() {
         setDetailsLoading(false)
     }, [])
 
-    // Fetch teachers for edit modal
-    const fetchTeachers = useCallback(async (contractId: string) => {
-        setTeachersLoading(true)
-        const { data, error } = await studentContractsApi.listTeachers(contractId)
-        if (data) setContractTeachers(data)
-        if (error) setError(error.message)
-        setTeachersLoading(false)
-    }, [])
-
     // Fetch leave records for edit modal
     const fetchLeaveRecords = useCallback(async (contractId: string) => {
         setLeaveRecordsLoading(true)
@@ -229,7 +206,6 @@ export default function StudentContractsPage() {
         setModalMode('create')
         setEditingContract(null)
         setDetails([])
-        setContractTeachers([])
         setLeaveRecords([])
         const today = new Date().toISOString().split('T')[0]
         const nextYear = new Date()
@@ -243,7 +219,9 @@ export default function StudentContractsPage() {
             end_date: endDate,
             total_lessons: 10,
             remaining_lessons: 10,
+            total_amount: 0,
             total_leave_allowed: 20,
+            is_recurring: false,
             notes: '',
         })
         setFormError(null)
@@ -262,22 +240,21 @@ export default function StudentContractsPage() {
             end_date: contract.end_date,
             total_lessons: contract.total_lessons,
             remaining_lessons: contract.remaining_lessons,
+            total_amount: contract.total_amount ?? 0,
             total_leave_allowed: contract.total_leave_allowed,
+            is_recurring: contract.is_recurring,
             notes: contract.notes || '',
         })
         setDetails(contract.details || [])
-        setContractTeachers(contract.teachers || [])
         setLeaveRecords(contract.leave_records || [])
         setFormError(null)
         setShowDetailForm(false)
         setEditingDetail(null)
-        setAddTeacherData({ teacher_id: '', is_primary: false })
         setLeaveFormData({ leave_date: '', reason: '' })
         setLeaveFormError(null)
         setShowModal(true)
         // Refresh from server
         fetchDetails(contract.id)
-        fetchTeachers(contract.id)
         fetchLeaveRecords(contract.id)
         // Fetch filtered courses for this student
         if (contract.student_id) {
@@ -323,7 +300,9 @@ export default function StudentContractsPage() {
                 if (formData.end_date !== editingContract.end_date) updateData.end_date = formData.end_date
                 if (formData.total_lessons !== editingContract.total_lessons) updateData.total_lessons = formData.total_lessons
                 if (formData.remaining_lessons !== editingContract.remaining_lessons) updateData.remaining_lessons = formData.remaining_lessons
+                if (formData.total_amount !== (editingContract.total_amount ?? 0)) updateData.total_amount = formData.total_amount
                 if ((formData.total_leave_allowed ?? 0) !== editingContract.total_leave_allowed) updateData.total_leave_allowed = formData.total_leave_allowed
+                if ((formData.is_recurring ?? false) !== editingContract.is_recurring) updateData.is_recurring = formData.is_recurring
                 if (formData.notes !== (editingContract.notes || '')) updateData.notes = formData.notes
 
                 const { data, error } = await studentContractsApi.update(editingContract.id, updateData)
@@ -398,7 +377,14 @@ export default function StudentContractsPage() {
             setShowDetailForm(false)
             setEditingDetail(null)
             await fetchDetails(editingContract.id)
-            fetchContracts()
+            await fetchContracts()
+
+            // 補償堂數連動：重新取得合約以更新 remaining_lessons
+            const { data: refreshed } = await studentContractsApi.get(editingContract.id)
+            if (refreshed) {
+                setEditingContract(refreshed)
+                setFormData(prev => ({ ...prev, remaining_lessons: refreshed.remaining_lessons }))
+            }
         } finally {
             setDetailSubmitting(false)
         }
@@ -411,40 +397,14 @@ export default function StudentContractsPage() {
             setError(error.message)
         } else {
             await fetchDetails(editingContract.id)
-            fetchContracts()
-        }
-    }
+            await fetchContracts()
 
-    // Teacher handlers
-    const handleAddTeacher = async () => {
-        if (!editingContract || !addTeacherData.teacher_id) return
-        setTeacherFormError(null)
-        setTeacherSubmitting(true)
-
-        try {
-            const { error } = await studentContractsApi.addTeacher(
-                editingContract.id, addTeacherData
-            )
-            if (error) {
-                setTeacherFormError(error.message)
-                return
+            // 補償堂數連動：重新取得合約以更新 remaining_lessons
+            const { data: refreshed } = await studentContractsApi.get(editingContract.id)
+            if (refreshed) {
+                setEditingContract(refreshed)
+                setFormData(prev => ({ ...prev, remaining_lessons: refreshed.remaining_lessons }))
             }
-            setAddTeacherData({ teacher_id: '', is_primary: false })
-            await fetchTeachers(editingContract.id)
-            fetchContracts()
-        } finally {
-            setTeacherSubmitting(false)
-        }
-    }
-
-    const handleRemoveTeacher = async (bindingId: string) => {
-        if (!editingContract) return
-        const { error } = await studentContractsApi.removeTeacher(editingContract.id, bindingId)
-        if (error) {
-            setError(error.message)
-        } else {
-            await fetchTeachers(editingContract.id)
-            fetchContracts()
         }
     }
 
@@ -529,11 +489,6 @@ export default function StudentContractsPage() {
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(amount)
     }
-
-    // Filter out already-added teachers for dropdown
-    const availableTeachers = teacherOptions.filter(
-        t => !contractTeachers.some(ct => ct.teacher_id === t.id)
-    )
 
     return (
         <DashboardLayout>
@@ -655,10 +610,16 @@ export default function StudentContractsPage() {
                                                 狀態
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                帶狀
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 合約期間
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 堂數
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                總金額
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 請假
@@ -693,6 +654,11 @@ export default function StudentContractsPage() {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${contract.is_recurring ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                        {contract.is_recurring ? '是' : '否'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center text-sm text-gray-600">
                                                         <Calendar className="w-4 h-4 mr-1" />
                                                         {formatDate(contract.start_date)} ~ {formatDate(contract.end_date)}
@@ -701,6 +667,11 @@ export default function StudentContractsPage() {
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className="text-gray-900">
                                                         {contract.remaining_lessons} / {contract.total_lessons}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className="text-gray-900">
+                                                        {contract.total_amount != null ? formatCurrency(contract.total_amount) : '-'}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -878,6 +849,19 @@ export default function StudentContractsPage() {
                                             </select>
                                         </div>
 
+                                        <div className="flex items-center">
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.is_recurring ?? false}
+                                                    onChange={(e) => setFormData({ ...formData, is_recurring: e.target.checked })}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                                <span className="ml-2 text-sm font-medium text-gray-700">帶狀學生</span>
+                                            </label>
+                                        </div>
+
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                                 開始日期 <span className="text-red-500">*</span>
@@ -928,6 +912,21 @@ export default function StudentContractsPage() {
                                                 onChange={(e) => setFormData({ ...formData, remaining_lessons: parseInt(e.target.value) || 0 })}
                                                 className="input-field"
                                                 min={0}
+                                                required
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                合約總金額 <span className="text-red-500">*</span>
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={formData.total_amount}
+                                                onChange={(e) => setFormData({ ...formData, total_amount: parseFloat(e.target.value) || 0 })}
+                                                className="input-field"
+                                                min={0}
+                                                step={1}
                                                 required
                                             />
                                         </div>
@@ -1138,90 +1137,6 @@ export default function StudentContractsPage() {
                                                                     <Trash2 className="w-4 h-4" />
                                                                 </button>
                                                             </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Contract Teachers Section (edit mode only) */}
-                                    {modalMode === 'edit' && editingContract && (
-                                        <div className="border-t pt-4 mt-4">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                                                    <Users className="w-5 h-5" />
-                                                    可預約教師
-                                                </h3>
-                                            </div>
-
-                                            {/* Add Teacher Form */}
-                                            <div className="mb-4 flex items-end gap-3">
-                                                <div className="flex-1">
-                                                    <label className="block text-xs font-medium text-gray-600 mb-1">選擇教師</label>
-                                                    <select
-                                                        value={addTeacherData.teacher_id}
-                                                        onChange={(e) => setAddTeacherData({ ...addTeacherData, teacher_id: e.target.value })}
-                                                        className="input-field text-sm"
-                                                    >
-                                                        <option value="">請選擇教師</option>
-                                                        {availableTeachers.map((t) => (
-                                                            <option key={t.id} value={t.id}>{t.teacher_no} - {t.name}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <label className="flex items-center gap-2 text-sm text-gray-700 pb-2">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={addTeacherData.is_primary}
-                                                        onChange={(e) => setAddTeacherData({ ...addTeacherData, is_primary: e.target.checked })}
-                                                        className="rounded"
-                                                    />
-                                                    主要教師
-                                                </label>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleAddTeacher}
-                                                    disabled={!addTeacherData.teacher_id || teacherSubmitting}
-                                                    className="btn-primary text-sm px-3 py-2 disabled:opacity-50"
-                                                >
-                                                    {teacherSubmitting ? '...' : '新增'}
-                                                </button>
-                                            </div>
-                                            {teacherFormError && (
-                                                <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
-                                                    {teacherFormError}
-                                                </div>
-                                            )}
-
-                                            {/* Teachers List */}
-                                            {teachersLoading ? (
-                                                <div className="text-center py-4">
-                                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mx-auto"></div>
-                                                </div>
-                                            ) : contractTeachers.length === 0 ? (
-                                                <p className="text-sm text-gray-500 py-2">尚未指定可預約教師</p>
-                                            ) : (
-                                                <div className="space-y-2">
-                                                    {contractTeachers.map((ct) => (
-                                                        <div key={ct.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                            <div className="flex items-center gap-3">
-                                                                <span className="font-mono text-xs text-gray-500">{ct.teacher_no}</span>
-                                                                <span className="text-sm font-medium text-gray-900">{ct.teacher_name}</span>
-                                                                {ct.is_primary && (
-                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                                                        主要教師
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveTeacher(ct.id)}
-                                                                className="text-red-600 hover:text-red-800 p-1"
-                                                                title="移除"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
                                                         </div>
                                                     ))}
                                                 </div>

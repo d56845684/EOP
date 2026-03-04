@@ -66,7 +66,8 @@ class AuthService:
         
         # 2. 取得用戶角色 (從 user_profiles 表)
         user_role = await self._get_user_role(user.id)
-        
+        profile_extra = await self.get_profile_extra(user.id)
+
         # 3. 建立 Session
         session_id, session_data = await self.session.create_session(
             user_id=user.id,
@@ -99,7 +100,8 @@ class AuthService:
             email=user.email,
             role=user_role,
             email_confirmed=user.email_confirmed_at is not None,
-            created_at=user.created_at
+            created_at=user.created_at,
+            must_change_password=profile_extra.get("must_change_password", False),
         )
         await self._cache_user_profile(user.id, user_info.model_dump())
         
@@ -291,13 +293,30 @@ class AuthService:
                 filters={"id": user_id},
                 use_service_key=True
             )
-            
+
             if result and len(result) > 0:
                 return result[0].get("role", "student")
         except:
             pass
-        
+
         return "student"  # 預設角色
+
+    async def get_profile_extra(self, user_id: str) -> dict:
+        """從資料庫取得用戶 profile 額外資訊（must_change_password 等）"""
+        try:
+            result = await self.supabase.table_select(
+                table="user_profiles",
+                select="must_change_password",
+                filters={"id": user_id},
+                use_service_key=True
+            )
+            if result and len(result) > 0:
+                return {
+                    "must_change_password": result[0].get("must_change_password", False) or False,
+                }
+        except:
+            pass
+        return {"must_change_password": False}
 
 # 單例
 auth_service = AuthService()

@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export interface Student {
@@ -54,6 +56,37 @@ function parseErrorDetail(detail: unknown): string {
     return ''
 }
 
+export interface ConvertToFormalData {
+    contract_no: string
+    total_lessons: number
+    total_amount: number
+    start_date: string
+    end_date: string
+    teacher_id?: string
+    booking_id?: string
+    notes?: string
+}
+
+export interface ConvertToFormalResponse {
+    success: boolean
+    message: string
+    student: Student
+    contract: {
+        id: string
+        contract_no: string
+        student_id: string
+        contract_status: string
+        start_date: string
+        end_date: string
+        total_lessons: number
+        remaining_lessons: number
+        notes?: string
+        created_at?: string
+    }
+    bonus_recorded: boolean
+    bonus_amount?: number
+}
+
 export const studentsApi = {
     async list(params?: {
         page?: number
@@ -71,7 +104,7 @@ export const studentsApi = {
             if (params?.student_type) queryParams.set('student_type', params.student_type)
 
             const url = `${API_BASE_URL}/api/v1/students${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-            const response = await fetch(url, { method: 'GET', credentials: 'include' })
+            const response = await fetchWithAuth(url, { method: 'GET' })
 
             if (!response.ok) {
                 const error = await response.json()
@@ -87,10 +120,9 @@ export const studentsApi = {
 
     async create(data: CreateStudentData): Promise<{ data: Student | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/students`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -108,10 +140,9 @@ export const studentsApi = {
 
     async update(studentId: string, data: UpdateStudentData): Promise<{ data: Student | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/students/${studentId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students/${studentId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -129,9 +160,8 @@ export const studentsApi = {
 
     async delete(studentId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/students/${studentId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students/${studentId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -142,6 +172,26 @@ export const studentsApi = {
             return { success: true, error: null }
         } catch (err) {
             return { success: false, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async convertToFormal(studentId: string, data: ConvertToFormalData): Promise<{ data: ConvertToFormalResponse | null, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students/${studentId}/convert-to-formal`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '試上轉正失敗' } }
+            }
+
+            const result: ConvertToFormalResponse = await response.json()
+            return { data: result, error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
         }
     },
 }

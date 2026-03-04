@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { User, BookOpen, Home, Settings, LogOut, Calendar, FileText, Users, Clock, GraduationCap } from 'lucide-react'
+import { User, BookOpen, Home, Settings, LogOut, Calendar, FileText, Users, Clock, GraduationCap, DollarSign, Video } from 'lucide-react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 
@@ -25,8 +25,10 @@ const navItems: NavItemWithRoles[] = [
   { href: '/student-courses', label: '學生選課', icon: <BookOpen className="w-5 h-5" />, roles: ['admin', 'employee'] },
   { href: '/student-contracts', label: '學生合約', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'employee'] },
   { href: '/teacher-contracts', label: '教師合約', icon: <Users className="w-5 h-5" />, roles: ['admin', 'employee'] },
+  { href: '/teacher-bonus', label: '教師獎金', icon: <DollarSign className="w-5 h-5" />, roles: ['admin', 'employee', 'teacher'] },
   { href: '/students', label: '學生管理', icon: <GraduationCap className="w-5 h-5" />, roles: ['admin', 'employee'] },
   { href: '/teachers', label: '教師管理', icon: <Users className="w-5 h-5" />, roles: ['admin', 'employee'] },
+  { href: '/zoom-accounts', label: 'Zoom 帳號', icon: <Video className="w-5 h-5" />, roles: ['admin', 'employee'] },
 ]
 
 export default function Sidebar() {

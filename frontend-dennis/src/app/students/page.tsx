@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
-import { studentsApi, Student, CreateStudentData, UpdateStudentData } from '@/lib/api/students'
+import { studentsApi, Student, CreateStudentData, UpdateStudentData, ConvertToFormalData } from '@/lib/api/students'
+import { Booking } from '@/lib/api/bookings'
 import { studentTeacherPreferencesApi, StudentTeacherPreference, CreatePreferenceData } from '@/lib/api/studentTeacherPreferences'
 import { bookingsApi, TeacherOption, CourseOption } from '@/lib/api/bookings'
 import { invitesApi } from '@/lib/api/invites'
-import { Plus, Pencil, Trash2, Search, X, GraduationCap, CheckCircle, XCircle, Mail, Phone, Star, Settings, ArrowLeft, Link, Copy, Check, UserPlus } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, GraduationCap, CheckCircle, XCircle, Mail, Phone, Star, Settings, ArrowLeft, Link, Copy, Check, UserPlus, ArrowUpCircle } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 
 export default function StudentsPage() {
@@ -48,6 +49,7 @@ export default function StudentsPage() {
     const [prefFormMode, setPrefFormMode] = useState<'create' | 'edit'>('create')
     const [editingPref, setEditingPref] = useState<StudentTeacherPreference | null>(null)
     const [prefFormData, setPrefFormData] = useState({ course_id: '', min_teacher_level: 1, primary_teacher_id: '' })
+    const [prefMode, setPrefMode] = useState<'primary' | 'level'>('primary')
     const [prefFormError, setPrefFormError] = useState<string | null>(null)
     const [prefSubmitting, setPrefSubmitting] = useState(false)
     const [prefDeleteConfirm, setPrefDeleteConfirm] = useState<StudentTeacherPreference | null>(null)
@@ -59,6 +61,17 @@ export default function StudentsPage() {
     const [inviteLoading, setInviteLoading] = useState(false)
     const [inviteError, setInviteError] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
+
+    // 試上轉正
+    const [convertStudent, setConvertStudent] = useState<Student | null>(null)
+    const [convertFormData, setConvertFormData] = useState<ConvertToFormalData>({
+        contract_no: '', total_lessons: 1, total_amount: 0,
+        start_date: '', end_date: '',
+    })
+    const [convertError, setConvertError] = useState<string | null>(null)
+    const [convertSubmitting, setConvertSubmitting] = useState(false)
+    const [convertBookings, setConvertBookings] = useState<Booking[]>([])
+    const [convertBookingsLoading, setConvertBookingsLoading] = useState(false)
 
     const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
 
@@ -181,6 +194,7 @@ export default function StudentsPage() {
         setPrefFormMode('create')
         setEditingPref(null)
         setPrefFormData({ course_id: '', min_teacher_level: 1, primary_teacher_id: '' })
+        setPrefMode('primary')
         setPrefFormError(null)
         setShowPrefForm(true)
     }
@@ -193,6 +207,7 @@ export default function StudentsPage() {
             min_teacher_level: pref.min_teacher_level,
             primary_teacher_id: pref.primary_teacher_id || '',
         })
+        setPrefMode(pref.primary_teacher_id ? 'primary' : 'level')
         setPrefFormError(null)
         setShowPrefForm(true)
     }
@@ -204,12 +219,22 @@ export default function StudentsPage() {
         setPrefSubmitting(true)
 
         try {
+            // 根據模式建立互斥資料
+            const isPrimary = prefMode === 'primary'
             if (prefFormMode === 'create') {
                 const createData: CreatePreferenceData = {
                     student_id: prefStudent.id,
-                    min_teacher_level: prefFormData.min_teacher_level,
-                    course_id: prefFormData.course_id || null,
-                    primary_teacher_id: prefFormData.primary_teacher_id || null,
+                    min_teacher_level: isPrimary ? null : prefFormData.min_teacher_level,
+                    course_id: isPrimary ? null : (prefFormData.course_id || null),
+                    primary_teacher_id: isPrimary ? (prefFormData.primary_teacher_id || null) : null,
+                }
+                if (isPrimary && !createData.primary_teacher_id) {
+                    setPrefFormError('請選擇主要教師')
+                    return
+                }
+                if (!isPrimary && createData.min_teacher_level < 1) {
+                    setPrefFormError('最低教師等級須 >= 1')
+                    return
                 }
                 const { error } = await studentTeacherPreferencesApi.create(createData)
                 if (error) { setPrefFormError(error.message) }
@@ -220,8 +245,8 @@ export default function StudentsPage() {
                 }
             } else if (editingPref) {
                 const { error } = await studentTeacherPreferencesApi.update(editingPref.id, {
-                    min_teacher_level: prefFormData.min_teacher_level,
-                    primary_teacher_id: prefFormData.primary_teacher_id || null,
+                    min_teacher_level: isPrimary ? null : prefFormData.min_teacher_level,
+                    primary_teacher_id: isPrimary ? (prefFormData.primary_teacher_id || null) : null,
                 })
                 if (error) { setPrefFormError(error.message) }
                 else {
@@ -244,6 +269,39 @@ export default function StudentsPage() {
             setPreferences(data || [])
         }
         setPrefDeleting(false)
+    }
+
+    // === 試上轉正 ===
+    const openConvertModal = async (student: Student) => {
+        setConvertStudent(student)
+        setConvertFormData({
+            contract_no: '', total_lessons: 1, total_amount: 0,
+            start_date: '', end_date: '',
+        })
+        setConvertError(null)
+        setConvertBookings([])
+        setConvertBookingsLoading(true)
+        try {
+            const { data } = await bookingsApi.list({ student_id: student.id, per_page: 100 })
+            if (data) setConvertBookings(data.data)
+        } catch {}
+        setConvertBookingsLoading(false)
+    }
+
+    const handleConvert = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!convertStudent) return
+        setConvertError(null)
+        setConvertSubmitting(true)
+
+        const { data, error } = await studentsApi.convertToFormal(convertStudent.id, convertFormData)
+        if (error) {
+            setConvertError(error.message)
+        } else {
+            setConvertStudent(null)
+            fetchStudents()
+        }
+        setConvertSubmitting(false)
     }
 
     // === 邀請連結 ===
@@ -406,6 +464,9 @@ export default function StudentsPage() {
                                                     {!student.email_verified_at && (
                                                         <button onClick={() => handleGenerateInvite(student)} className="text-green-600 hover:text-green-900 mr-4" title="產生邀請連結"><UserPlus className="w-5 h-5" /></button>
                                                     )}
+                                                    {student.student_type === 'trial' && (
+                                                        <button onClick={() => openConvertModal(student)} className="text-amber-600 hover:text-amber-900 mr-4" title="試上轉正"><ArrowUpCircle className="w-5 h-5" /></button>
+                                                    )}
                                                     <button onClick={() => openPreferences(student)} className="text-purple-600 hover:text-purple-900 mr-4" title="教師偏好設定"><Settings className="w-5 h-5" /></button>
                                                     <button onClick={() => openEditModal(student)} className="text-blue-600 hover:text-blue-900 mr-4" title="編輯"><Pencil className="w-5 h-5" /></button>
                                                     <button onClick={() => setDeleteConfirm(student)} className="text-red-600 hover:text-red-900" title="刪除"><Trash2 className="w-5 h-5" /></button>
@@ -567,26 +628,31 @@ export default function StudentsPage() {
                                                                 <div className="flex items-start justify-between">
                                                                     <div className="flex-1">
                                                                         <div className="flex items-center gap-2 mb-2">
-                                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${pref.course_id ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                                                {pref.course_id ? pref.course_name || '指定課程' : '全域預設'}
-                                                                            </span>
-                                                                        </div>
-                                                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                                                            <div>
-                                                                                <span className="text-gray-500">最低教師等級：</span>
-                                                                                <span className="font-medium text-gray-900">Lv.{pref.min_teacher_level}</span>
-                                                                            </div>
-                                                                            <div>
-                                                                                <span className="text-gray-500">主要教師：</span>
-                                                                                <span className="font-medium text-gray-900">
-                                                                                    {pref.primary_teacher_id ? (
-                                                                                        <span className="inline-flex items-center gap-1">
-                                                                                            <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                                                                            {pref.primary_teacher_name || '未知'}
-                                                                                        </span>
-                                                                                    ) : '未指定'}
+                                                                            {pref.primary_teacher_id ? (
+                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                                                                    指定教師
                                                                                 </span>
-                                                                            </div>
+                                                                            ) : (
+                                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${pref.course_id ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                                                    {pref.course_id ? pref.course_name || '指定課程' : '全域預設'}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-sm">
+                                                                            {pref.primary_teacher_id ? (
+                                                                                <div>
+                                                                                    <span className="text-gray-500">主要教師：</span>
+                                                                                    <span className="font-medium text-gray-900 inline-flex items-center gap-1">
+                                                                                        <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                                                                        {pref.primary_teacher_name || '未知'}
+                                                                                    </span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div>
+                                                                                    <span className="text-gray-500">最低教師等級：</span>
+                                                                                    <span className="font-medium text-gray-900">Lv.{pref.min_teacher_level}</span>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex items-center gap-2 ml-4">
@@ -620,43 +686,76 @@ export default function StudentsPage() {
                                                 {prefFormError && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{prefFormError}</div>}
 
                                                 <form onSubmit={handlePrefSubmit} className="space-y-4">
-                                                    {prefFormMode === 'create' && (
+                                                    {/* 偏好類型選擇（互斥） */}
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">偏好類型</label>
+                                                        <div className="flex gap-3">
+                                                            <label className={`flex-1 flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-colors ${prefMode === 'primary' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                                <input type="radio" name="prefMode" checked={prefMode === 'primary'}
+                                                                    onChange={() => { setPrefMode('primary'); setPrefFormData({ ...prefFormData, min_teacher_level: 1, course_id: '' }) }}
+                                                                    className="text-blue-600" />
+                                                                <div>
+                                                                    <div className="text-sm font-medium text-gray-900">指定主要教師</div>
+                                                                    <div className="text-xs text-gray-500">直接指定可預約的教師</div>
+                                                                </div>
+                                                            </label>
+                                                            <label className={`flex-1 flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-colors ${prefMode === 'level' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                                <input type="radio" name="prefMode" checked={prefMode === 'level'}
+                                                                    onChange={() => { setPrefMode('level'); setPrefFormData({ ...prefFormData, primary_teacher_id: '' }) }}
+                                                                    className="text-blue-600" />
+                                                                <div>
+                                                                    <div className="text-sm font-medium text-gray-900">設定最低等級</div>
+                                                                    <div className="text-xs text-gray-500">依教師等級過濾</div>
+                                                                </div>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 指定主要教師模式 */}
+                                                    {prefMode === 'primary' && (
                                                         <div>
-                                                            <label className="block text-sm font-medium text-gray-700 mb-1">適用課程</label>
-                                                            <select value={prefFormData.course_id}
-                                                                onChange={(e) => setPrefFormData({ ...prefFormData, course_id: e.target.value })}
+                                                            <label className="block text-sm font-medium text-gray-700 mb-1">主要教師</label>
+                                                            <select value={prefFormData.primary_teacher_id}
+                                                                onChange={(e) => setPrefFormData({ ...prefFormData, primary_teacher_id: e.target.value })}
                                                                 className="input-field">
-                                                                <option value="">全域預設（所有課程）</option>
-                                                                {courseOptions.map((c) => (
-                                                                    <option key={c.id} value={c.id}>{c.course_name}（{c.course_code}）</option>
+                                                                <option value="">請選擇教師</option>
+                                                                {teacherOptions.map((t) => (
+                                                                    <option key={t.id} value={t.id}>
+                                                                        {t.name}（{t.teacher_no}）Lv.{t.teacher_level || 1}
+                                                                    </option>
                                                                 ))}
                                                             </select>
-                                                            <p className="text-xs text-gray-400 mt-1">選擇「全域預設」表示適用所有課程；選擇特定課程則僅適用於該課程</p>
+                                                            <p className="text-xs text-gray-400 mt-1">該教師可教所有課程，不受等級限制</p>
                                                         </div>
                                                     )}
 
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">最低教師等級</label>
-                                                        <input type="number" min={1} max={10} value={prefFormData.min_teacher_level}
-                                                            onChange={(e) => setPrefFormData({ ...prefFormData, min_teacher_level: parseInt(e.target.value) || 1 })}
-                                                            className="input-field" />
-                                                        <p className="text-xs text-gray-400 mt-1">學生只能預約等級 &ge; 此值的教師</p>
-                                                    </div>
+                                                    {/* 設定最低等級模式 */}
+                                                    {prefMode === 'level' && (
+                                                        <>
+                                                            {prefFormMode === 'create' && (
+                                                                <div>
+                                                                    <label className="block text-sm font-medium text-gray-700 mb-1">適用課程</label>
+                                                                    <select value={prefFormData.course_id}
+                                                                        onChange={(e) => setPrefFormData({ ...prefFormData, course_id: e.target.value })}
+                                                                        className="input-field">
+                                                                        <option value="">全域預設（所有課程）</option>
+                                                                        {courseOptions.map((c) => (
+                                                                            <option key={c.id} value={c.id}>{c.course_name}（{c.course_code}）</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <p className="text-xs text-gray-400 mt-1">選擇「全域預設」表示適用所有課程；選擇特定課程則僅適用於該課程</p>
+                                                                </div>
+                                                            )}
 
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">主要教師</label>
-                                                        <select value={prefFormData.primary_teacher_id}
-                                                            onChange={(e) => setPrefFormData({ ...prefFormData, primary_teacher_id: e.target.value })}
-                                                            className="input-field">
-                                                            <option value="">不指定</option>
-                                                            {teacherOptions.map((t) => (
-                                                                <option key={t.id} value={t.id}>
-                                                                    {t.name}（{t.teacher_no}）Lv.{t.teacher_level || 1}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                        <p className="text-xs text-gray-400 mt-1">主要教師會在預約時優先顯示</p>
-                                                    </div>
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-gray-700 mb-1">最低教師等級</label>
+                                                                <input type="number" min={1} max={10} value={prefFormData.min_teacher_level}
+                                                                    onChange={(e) => setPrefFormData({ ...prefFormData, min_teacher_level: parseInt(e.target.value) || 1 })}
+                                                                    className="input-field" />
+                                                                <p className="text-xs text-gray-400 mt-1">學生只能預約等級 &ge; 此值的教師</p>
+                                                            </div>
+                                                        </>
+                                                    )}
 
                                                     <div className="flex gap-3 pt-4">
                                                         <button type="button" onClick={() => setShowPrefForm(false)} className="btn-secondary flex-1" disabled={prefSubmitting}>取消</button>
@@ -687,6 +786,116 @@ export default function StudentsPage() {
                                 <button onClick={handlePrefDelete} className="btn-danger flex-1" disabled={prefDeleting}>
                                     {prefDeleting ? <span className="flex items-center justify-center"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>刪除中...</span> : '確認刪除'}
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 試上轉正 Modal */}
+                {convertStudent && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+                            <div className="p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-900">試上轉正</h2>
+                                        <p className="text-sm text-gray-500">{convertStudent.name}（{convertStudent.student_no}）</p>
+                                    </div>
+                                    <button onClick={() => setConvertStudent(null)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
+                                </div>
+
+                                {convertError && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{convertError}</div>}
+
+                                <form onSubmit={handleConvert} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">合約編號 <span className="text-red-500">*</span></label>
+                                        <input type="text" value={convertFormData.contract_no}
+                                            onChange={(e) => setConvertFormData({ ...convertFormData, contract_no: e.target.value })}
+                                            className="input-field" placeholder="例如：SC20260303001" required />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">總堂數 <span className="text-red-500">*</span></label>
+                                            <input type="number" min={1} value={convertFormData.total_lessons}
+                                                onChange={(e) => setConvertFormData({ ...convertFormData, total_lessons: parseInt(e.target.value) || 1 })}
+                                                className="input-field" required />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">合約總金額 <span className="text-red-500">*</span></label>
+                                            <input type="number" min={0} step={1} value={convertFormData.total_amount}
+                                                onChange={(e) => setConvertFormData({ ...convertFormData, total_amount: parseFloat(e.target.value) || 0 })}
+                                                className="input-field" required />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">開始日期 <span className="text-red-500">*</span></label>
+                                            <input type="date" value={convertFormData.start_date}
+                                                onChange={(e) => setConvertFormData({ ...convertFormData, start_date: e.target.value })}
+                                                className="input-field" required />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">結束日期 <span className="text-red-500">*</span></label>
+                                            <input type="date" value={convertFormData.end_date}
+                                                onChange={(e) => setConvertFormData({ ...convertFormData, end_date: e.target.value })}
+                                                className="input-field" required />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">關聯試上預約（選填）</label>
+                                        {convertBookingsLoading ? (
+                                            <div className="text-sm text-gray-400">載入預約中...</div>
+                                        ) : convertBookings.length > 0 ? (
+                                            <select
+                                                value={convertFormData.booking_id || ''}
+                                                onChange={(e) => {
+                                                    const bookingId = e.target.value || undefined
+                                                    const selectedBooking = convertBookings.find(b => b.id === bookingId)
+                                                    setConvertFormData({
+                                                        ...convertFormData,
+                                                        booking_id: bookingId,
+                                                        teacher_id: selectedBooking?.teacher_id || convertFormData.teacher_id,
+                                                    })
+                                                }}
+                                                className="input-field"
+                                            >
+                                                <option value="">不選擇</option>
+                                                {convertBookings.map(b => (
+                                                    <option key={b.id} value={b.id}>
+                                                        {b.booking_date} {b.start_time}-{b.end_time} [{b.teacher_name || b.teacher_id}]
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="text-sm text-gray-400">無預約紀錄</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">指定教師（選填，計算轉正獎金）</label>
+                                        <select
+                                            value={convertFormData.teacher_id || ''}
+                                            onChange={(e) => setConvertFormData({ ...convertFormData, teacher_id: e.target.value || undefined })}
+                                            className="input-field"
+                                        >
+                                            <option value="">不選擇</option>
+                                            {teacherOptions.map(t => (
+                                                <option key={t.id} value={t.id}>{t.name}（{t.teacher_no}）</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
+                                        <textarea value={convertFormData.notes || ''}
+                                            onChange={(e) => setConvertFormData({ ...convertFormData, notes: e.target.value || undefined })}
+                                            className="input-field" rows={2} />
+                                    </div>
+                                    <div className="flex gap-3 pt-4">
+                                        <button type="button" onClick={() => setConvertStudent(null)} className="btn-secondary flex-1" disabled={convertSubmitting}>取消</button>
+                                        <button type="submit" className="btn-primary flex-1" disabled={convertSubmitting}>
+                                            {convertSubmitting ? <span className="flex items-center justify-center"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>處理中...</span> : '確認轉正'}
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>

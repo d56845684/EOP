@@ -115,10 +115,7 @@ export default function LoginPage() {
         </button>
 
         <p className="text-center text-sm text-gray-500 mt-6">
-          還沒有帳號？{' '}
-          <a href="/register" className="text-blue-600 hover:underline">
-            立即註冊
-          </a>
+          需要帳號？請聯繫管理員取得邀請連結
         </p>
       </div>
     </div>

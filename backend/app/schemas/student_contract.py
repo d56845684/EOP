@@ -60,29 +60,6 @@ class StudentContractDetailResponse(BaseModel):
         from_attributes = True
 
 
-# ========== Contract Teacher Schemas ==========
-
-class StudentContractTeacherAdd(BaseModel):
-    """新增可預約教師"""
-    teacher_id: str = Field(..., description="教師 ID")
-    is_primary: bool = Field(False, description="是否為主要教師")
-
-
-class StudentContractTeacherResponse(BaseModel):
-    """合約可預約教師回應"""
-    id: str
-    student_contract_id: str
-    teacher_id: str
-    teacher_no: Optional[str] = None
-    teacher_name: Optional[str] = None
-    is_primary: bool = False
-    assigned_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-
 # ========== Leave Record Schemas ==========
 
 class StudentContractLeaveRecordCreate(BaseModel):
@@ -112,7 +89,9 @@ class StudentContractBase(BaseModel):
     end_date: date = Field(..., description="合約結束日期")
     total_lessons: int = Field(..., ge=1, description="總堂數")
     remaining_lessons: int = Field(..., ge=0, description="剩餘堂數")
+    total_amount: float = Field(..., ge=0, description="合約總金額")
     total_leave_allowed: Optional[int] = Field(None, ge=0, description="可請假次數（預設 = total_lessons * 2）")
+    is_recurring: bool = Field(False, description="是否為帶狀學生（固定時間/課程/老師）")
     notes: Optional[str] = Field(None, description="備註")
 
 
@@ -129,7 +108,9 @@ class StudentContractUpdate(BaseModel):
     end_date: Optional[date] = Field(None, description="合約結束日期")
     total_lessons: Optional[int] = Field(None, ge=1, description="總堂數")
     remaining_lessons: Optional[int] = Field(None, ge=0, description="剩餘堂數")
+    total_amount: Optional[float] = Field(None, ge=0, description="合約總金額")
     total_leave_allowed: Optional[int] = Field(None, ge=0, description="可請假次數")
+    is_recurring: Optional[bool] = Field(None, description="是否為帶狀學生")
     notes: Optional[str] = Field(None, description="備註")
 
 
@@ -143,8 +124,10 @@ class StudentContractResponse(BaseModel):
     end_date: date
     total_lessons: int
     remaining_lessons: int
+    total_amount: Optional[float] = None
     total_leave_allowed: int = 0
     used_leave_count: int = 0
+    is_recurring: bool = False
     notes: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -154,9 +137,8 @@ class StudentContractResponse(BaseModel):
     contract_file_uploaded_at: Optional[datetime] = None
     # 關聯資料
     student_name: Optional[str] = None
-    # 明細 + 教師 + 請假
+    # 明細 + 請假
     details: list[StudentContractDetailResponse] = []
-    teachers: list[StudentContractTeacherResponse] = []
     leave_records: list[StudentContractLeaveRecordResponse] = []
 
     class Config:

@@ -22,9 +22,10 @@ import {
     SlotAvailabilityResponse,
     TimeBlock
 } from '@/lib/api/bookings'
-import { Plus, Pencil, Trash2, Search, X, Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, GraduationCap, Settings, List, Star } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, GraduationCap, Settings, List, Star, Video, ExternalLink, Film } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { studentTeacherPreferencesApi, StudentTeacherPreference, CreatePreferenceData, UpdatePreferenceData } from '@/lib/api/studentTeacherPreferences'
+import { zoomApi, ZoomMeetingLog } from '@/lib/api/zoom'
 
 const statusConfig: Record<BookingStatus, { label: string; color: string; bgColor: string }> = {
     pending: { label: '待確認', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
@@ -160,6 +161,10 @@ export default function BookingsPage() {
     // All teachers (unfiltered) for pref form dropdown
     const [allTeacherOptions, setAllTeacherOptions] = useState<TeacherOption[]>([])
 
+    // Zoom meeting info
+    const [zoomMeetings, setZoomMeetings] = useState<Record<string, ZoomMeetingLog>>({})
+    const [creatingZoomFor, setCreatingZoomFor] = useState<string | null>(null)
+
     const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
     const isStudent = profile?.role === 'student'
     const isTeacher = profile?.role === 'teacher'
@@ -199,7 +204,10 @@ export default function BookingsPage() {
             ])
             if (studentsRes.data) setStudentOptions(studentsRes.data)
             if (teachersRes.data) {
-                setTeacherOptions(teachersRes.data)
+                // 學生角色不在此設 teacherOptions，等 myStudentInfo 載入後由偏好過濾 useEffect 設定
+                if (!isStudent) {
+                    setTeacherOptions(teachersRes.data)
+                }
                 setAllTeacherOptions(teachersRes.data)
             }
             if (coursesRes.data) setCourseOptions(coursesRes.data)
@@ -255,6 +263,35 @@ export default function BookingsPage() {
             fetchBookings()
         }
     }, [user, fetchBookings])
+
+    // Fetch Zoom meeting info for confirmed bookings
+    useEffect(() => {
+        const fetchZoomForBookings = async () => {
+            const confirmedBookings = bookings.filter(b => b.booking_status === 'confirmed' || b.booking_status === 'completed')
+            for (const booking of confirmedBookings) {
+                if (!zoomMeetings[booking.id]) {
+                    const { data } = await zoomApi.getMeetingByBooking(booking.id)
+                    if (data) {
+                        setZoomMeetings(prev => ({ ...prev, [booking.id]: data }))
+                    }
+                }
+            }
+        }
+        if (bookings.length > 0) {
+            fetchZoomForBookings()
+        }
+    }, [bookings])
+
+    const handleCreateZoomMeeting = async (bookingId: string) => {
+        setCreatingZoomFor(bookingId)
+        const { data, error } = await zoomApi.createMeeting(bookingId)
+        if (data) {
+            setZoomMeetings(prev => ({ ...prev, [bookingId]: data }))
+        } else if (error) {
+            setError(error.message)
+        }
+        setCreatingZoomFor(null)
+    }
 
     // Search with debounce
     useEffect(() => {
@@ -325,7 +362,13 @@ export default function BookingsPage() {
     // Refetch teacher options filtered by student preference when student changes
     useEffect(() => {
         const studentId = isStudent && myStudentInfo ? myStudentInfo.id : formStudent
-        if (!studentId) return
+        if (!studentId) {
+            // 沒選學生時回復全部教師（員工篩選用）
+            if (allTeacherOptions.length > 0) {
+                setTeacherOptions(allTeacherOptions)
+            }
+            return
+        }
 
         bookingsApi.getTeacherOptions({ student_id: studentId }).then(res => {
             if (res.data) {
@@ -336,7 +379,7 @@ export default function BookingsPage() {
                 }
             }
         })
-    }, [formStudent, isStudent, myStudentInfo])
+    }, [formStudent, isStudent, myStudentInfo, allTeacherOptions])
 
     // Load teacher contracts when teacher selected
     useEffect(() => {
@@ -932,6 +975,9 @@ export default function BookingsPage() {
         if (error) {
             setBatchError(error.message)
         } else {
+            if (message) {
+                alert(message)
+            }
             closeBatchModal()
             fetchBookings()
         }
@@ -1306,6 +1352,9 @@ export default function BookingsPage() {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 狀態
                                             </th>
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Zoom
+                                            </th>
                                             {(isStaff || isTeacher) && (
                                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                     操作
@@ -1368,6 +1417,58 @@ export default function BookingsPage() {
                                                             {booking.booking_status === 'cancelled' && <XCircle className="w-3 h-3 mr-1" />}
                                                             {status.label}
                                                         </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                                        {(() => {
+                                                            const zoom = zoomMeetings[booking.id]
+                                                            if (zoom) {
+                                                                return (
+                                                                    <div className="flex flex-col items-center gap-1">
+                                                                        <a
+                                                                            href={zoom.join_url}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100"
+                                                                        >
+                                                                            <Video className="w-3 h-3" />
+                                                                            加入會議
+                                                                            <ExternalLink className="w-3 h-3" />
+                                                                        </a>
+                                                                        {zoom.passcode && (
+                                                                            <span className="text-xs text-gray-500">密碼: {zoom.passcode}</span>
+                                                                        )}
+                                                                        {zoom.recording_url && (
+                                                                            <a
+                                                                                href={zoom.recording_url}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800"
+                                                                            >
+                                                                                <Film className="w-3 h-3" />
+                                                                                錄影
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
+                                                                )
+                                                            }
+                                                            if ((booking.booking_status === 'confirmed' || booking.booking_status === 'pending') && isStaff) {
+                                                                return (
+                                                                    <button
+                                                                        onClick={() => handleCreateZoomMeeting(booking.id)}
+                                                                        disabled={creatingZoomFor === booking.id}
+                                                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50"
+                                                                    >
+                                                                        {creatingZoomFor === booking.id ? (
+                                                                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                                                                        ) : (
+                                                                            <Video className="w-3 h-3" />
+                                                                        )}
+                                                                        建立會議
+                                                                    </button>
+                                                                )
+                                                            }
+                                                            return <span className="text-xs text-gray-400">-</span>
+                                                        })()}
                                                     </td>
                                                     {isStaff && (
                                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

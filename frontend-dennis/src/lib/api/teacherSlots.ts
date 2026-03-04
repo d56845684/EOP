@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export interface TeacherSlot {
@@ -144,9 +146,8 @@ export const teacherSlotsApi = {
 
             const url = `${API_BASE_URL}/api/v1/teacher-slots${queryParams.toString() ? '?' + queryParams.toString() : ''}`
 
-            const response = await fetch(url, {
+            const response = await fetchWithAuth(url, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -163,9 +164,8 @@ export const teacherSlotsApi = {
 
     async get(slotId: string): Promise<{ data: TeacherSlot | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-slots/${slotId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-slots/${slotId}`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -182,12 +182,11 @@ export const teacherSlotsApi = {
 
     async create(data: CreateTeacherSlotData): Promise<{ data: TeacherSlot | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-slots`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-slots`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -205,12 +204,11 @@ export const teacherSlotsApi = {
 
     async createBatch(data: BatchCreateTeacherSlotData): Promise<{ success: boolean, message?: string, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-slots/batch`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-slots/batch`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -228,12 +226,11 @@ export const teacherSlotsApi = {
 
     async deleteBatch(data: BatchDeleteTeacherSlotData): Promise<{ success: boolean, message?: string, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-slots/batch`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-slots/batch`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -251,12 +248,11 @@ export const teacherSlotsApi = {
 
     async updateBatch(data: BatchUpdateTeacherSlotData): Promise<{ success: boolean, message?: string, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-slots/batch`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-slots/batch`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -274,12 +270,11 @@ export const teacherSlotsApi = {
 
     async deleteByIds(data: BatchDeleteByIdsData): Promise<{ success: boolean, message?: string, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-slots/batch-by-ids/delete`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-slots/batch-by-ids/delete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -297,12 +292,11 @@ export const teacherSlotsApi = {
 
     async updateByIds(data: BatchUpdateByIdsData): Promise<{ success: boolean, message?: string, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-slots/batch-by-ids/update`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-slots/batch-by-ids/update`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -320,12 +314,11 @@ export const teacherSlotsApi = {
 
     async update(slotId: string, data: UpdateTeacherSlotData): Promise<{ data: TeacherSlot | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-slots/${slotId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-slots/${slotId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -343,9 +336,8 @@ export const teacherSlotsApi = {
 
     async delete(slotId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-slots/${slotId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-slots/${slotId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -362,9 +354,8 @@ export const teacherSlotsApi = {
     // 取得下拉選單選項（僅限員工）
     async getTeacherOptions(): Promise<{ data: TeacherOption[] | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-slots/options/teachers`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-slots/options/teachers`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -382,9 +373,8 @@ export const teacherSlotsApi = {
     // 取得當前教師的合約
     async getMyContracts(): Promise<{ data: TeacherContractOption[] | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/teacher-slots/my-contracts`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-slots/my-contracts`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {

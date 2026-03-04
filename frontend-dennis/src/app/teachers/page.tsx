@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { teachersApi, Teacher, CreateTeacherData, UpdateTeacherData } from '@/lib/api/teachers'
 import { invitesApi } from '@/lib/api/invites'
-import { Plus, Pencil, Trash2, Search, X, Users, CheckCircle, XCircle, Mail, Phone, Star, Copy, Check, UserPlus } from 'lucide-react'
+import { teacherDetailsApi, TeacherDetail, TeacherDetailType, CreateTeacherDetailData, UpdateTeacherDetailData, DETAIL_TYPE_LABELS } from '@/lib/api/teacherDetails'
+import { Plus, Pencil, Trash2, Search, X, Users, CheckCircle, XCircle, Mail, Phone, Star, Copy, Check, UserPlus, FileText, Upload, Download } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 
 export default function TeachersPage() {
@@ -40,6 +41,20 @@ export default function TeachersPage() {
     const [inviteLoading, setInviteLoading] = useState(false)
     const [inviteError, setInviteError] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
+
+    // 教師明細
+    const [detailTeacher, setDetailTeacher] = useState<Teacher | null>(null)
+    const [details, setDetails] = useState<TeacherDetail[]>([])
+    const [detailsLoading, setDetailsLoading] = useState(false)
+    const [detailsError, setDetailsError] = useState<string | null>(null)
+    const [showDetailForm, setShowDetailForm] = useState(false)
+    const [editingDetail, setEditingDetail] = useState<TeacherDetail | null>(null)
+    const [detailFormData, setDetailFormData] = useState<CreateTeacherDetailData>({
+        teacher_id: '', detail_type: 'qualification', content: '', issue_date: '', expiry_date: '',
+    })
+    const [detailFormError, setDetailFormError] = useState<string | null>(null)
+    const [detailSubmitting, setDetailSubmitting] = useState(false)
+    const [uploadingDetailId, setUploadingDetailId] = useState<string | null>(null)
 
     const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
 
@@ -170,6 +185,142 @@ export default function TeachersPage() {
         }
     }
 
+    // === 教師明細 ===
+    const openDetailsModal = async (teacher: Teacher) => {
+        setDetailTeacher(teacher)
+        setDetailsError(null)
+        setShowDetailForm(false)
+        setEditingDetail(null)
+        setDetailsLoading(true)
+        const { data, error } = await teacherDetailsApi.list(teacher.id)
+        if (error) {
+            setDetailsError(error.message)
+        } else if (data) {
+            setDetails(data.data)
+        }
+        setDetailsLoading(false)
+    }
+
+    const closeDetailsModal = () => {
+        setDetailTeacher(null)
+        setDetails([])
+        setDetailsError(null)
+        setShowDetailForm(false)
+        setEditingDetail(null)
+    }
+
+    const openDetailCreateForm = () => {
+        if (!detailTeacher) return
+        setEditingDetail(null)
+        setDetailFormData({
+            teacher_id: detailTeacher.id,
+            detail_type: 'qualification',
+            content: '',
+            issue_date: '',
+            expiry_date: '',
+        })
+        setDetailFormError(null)
+        setShowDetailForm(true)
+    }
+
+    const openDetailEditForm = (detail: TeacherDetail) => {
+        if (!detailTeacher) return
+        setEditingDetail(detail)
+        setDetailFormData({
+            teacher_id: detailTeacher.id,
+            detail_type: detail.detail_type as TeacherDetailType,
+            content: detail.content || '',
+            issue_date: detail.issue_date || '',
+            expiry_date: detail.expiry_date || '',
+        })
+        setDetailFormError(null)
+        setShowDetailForm(true)
+    }
+
+    const handleDetailSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setDetailFormError(null)
+        setDetailSubmitting(true)
+        try {
+            if (editingDetail) {
+                const updateData: UpdateTeacherDetailData = {}
+                if (detailFormData.content) updateData.content = detailFormData.content
+                if (detailFormData.issue_date) updateData.issue_date = detailFormData.issue_date
+                if (detailFormData.expiry_date) updateData.expiry_date = detailFormData.expiry_date
+                const { error } = await teacherDetailsApi.update(editingDetail.id, updateData)
+                if (error) { setDetailFormError(error.message) } else {
+                    setShowDetailForm(false)
+                    if (detailTeacher) await openDetailsModal(detailTeacher)
+                }
+            } else {
+                const createData: CreateTeacherDetailData = {
+                    teacher_id: detailFormData.teacher_id,
+                    detail_type: detailFormData.detail_type,
+                }
+                if (detailFormData.content) createData.content = detailFormData.content
+                if (detailFormData.issue_date) createData.issue_date = detailFormData.issue_date
+                if (detailFormData.expiry_date) createData.expiry_date = detailFormData.expiry_date
+                const { error } = await teacherDetailsApi.create(createData)
+                if (error) { setDetailFormError(error.message) } else {
+                    setShowDetailForm(false)
+                    if (detailTeacher) await openDetailsModal(detailTeacher)
+                }
+            }
+        } finally { setDetailSubmitting(false) }
+    }
+
+    const handleDetailDelete = async (detailId: string) => {
+        if (!confirm('確定要刪除此明細嗎？')) return
+        const { error } = await teacherDetailsApi.delete(detailId)
+        if (error) {
+            setDetailsError(error.message)
+        } else if (detailTeacher) {
+            await openDetailsModal(detailTeacher)
+        }
+    }
+
+    const handleFileUpload = async (detail: TeacherDetail, file: File) => {
+        setUploadingDetailId(detail.id)
+        try {
+            const { data: urlData, error: urlError } = await teacherDetailsApi.getUploadUrl(detail.id)
+            if (urlError || !urlData) {
+                setDetailsError(urlError?.message || '取得上傳連結失敗')
+                return
+            }
+
+            const uploadRes = await fetch(urlData.upload_url, {
+                method: 'PUT',
+                body: file,
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            })
+            if (!uploadRes.ok) {
+                setDetailsError('檔案上傳失敗')
+                return
+            }
+
+            const { error: confirmError } = await teacherDetailsApi.confirmUpload(detail.id, urlData.storage_path, file.name)
+            if (confirmError) {
+                setDetailsError(confirmError.message)
+                return
+            }
+
+            if (detailTeacher) await openDetailsModal(detailTeacher)
+        } catch {
+            setDetailsError('檔案上傳過程發生錯誤')
+        } finally {
+            setUploadingDetailId(null)
+        }
+    }
+
+    const handleFileDownload = async (detail: TeacherDetail) => {
+        const { data, error } = await teacherDetailsApi.getDownloadUrl(detail.id)
+        if (error || !data) {
+            setDetailsError(error?.message || '取得下載連結失敗')
+            return
+        }
+        window.open(data.download_url, '_blank')
+    }
+
     return (
         <DashboardLayout>
             <div className="py-8">
@@ -278,6 +429,7 @@ export default function TeachersPage() {
                                             </td>
                                             {isStaff && (
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <button onClick={() => openDetailsModal(teacher)} className="text-purple-600 hover:text-purple-900 mr-4" title="明細管理"><FileText className="w-5 h-5" /></button>
                                                     {!teacher.email_verified_at && (
                                                         <button onClick={() => handleGenerateInvite(teacher)} className="text-green-600 hover:text-green-900 mr-4" title="產生邀請連結"><UserPlus className="w-5 h-5" /></button>
                                                     )}
@@ -379,6 +531,152 @@ export default function TeachersPage() {
                                 <button onClick={handleDelete} className="btn-danger flex-1" disabled={deleting}>
                                     {deleting ? <span className="flex items-center justify-center"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>刪除中...</span> : '確認刪除'}
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 教師明細 Modal */}
+                {detailTeacher && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                            <div className="p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-900">教師明細</h2>
+                                        <p className="text-sm text-gray-500">{detailTeacher.name}（{detailTeacher.teacher_no}）</p>
+                                    </div>
+                                    <button onClick={closeDetailsModal} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
+                                </div>
+
+                                {detailsError && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{detailsError}</div>}
+
+                                {detailsLoading ? (
+                                    <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
+                                ) : (
+                                    <>
+                                        {isStaff && !showDetailForm && (
+                                            <button onClick={openDetailCreateForm} className="btn-primary flex items-center gap-2 mb-4 text-sm">
+                                                <Plus className="w-4 h-4" /> 新增明細
+                                            </button>
+                                        )}
+
+                                        {showDetailForm && (
+                                            <div className="mb-4 p-4 bg-gray-50 rounded-lg border">
+                                                <h3 className="text-sm font-medium mb-3">{editingDetail ? '編輯明細' : '新增明細'}</h3>
+                                                {detailFormError && <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-xs">{detailFormError}</div>}
+                                                <form onSubmit={handleDetailSubmit} className="space-y-3">
+                                                    {!editingDetail && (
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-700 mb-1">類型 <span className="text-red-500">*</span></label>
+                                                            <select value={detailFormData.detail_type}
+                                                                onChange={(e) => setDetailFormData({ ...detailFormData, detail_type: e.target.value as TeacherDetailType })}
+                                                                className="input-field text-sm">
+                                                                {(Object.keys(DETAIL_TYPE_LABELS) as TeacherDetailType[]).map((type) => (
+                                                                    <option key={type} value={type}>{DETAIL_TYPE_LABELS[type]}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <label className="block text-xs font-medium text-gray-700 mb-1">內容</label>
+                                                        <textarea value={detailFormData.content}
+                                                            onChange={(e) => setDetailFormData({ ...detailFormData, content: e.target.value })}
+                                                            className="input-field text-sm" rows={2} placeholder="描述..." />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-700 mb-1">發證日期</label>
+                                                            <input type="date" value={detailFormData.issue_date}
+                                                                onChange={(e) => setDetailFormData({ ...detailFormData, issue_date: e.target.value })}
+                                                                className="input-field text-sm" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-700 mb-1">到期日期</label>
+                                                            <input type="date" value={detailFormData.expiry_date}
+                                                                onChange={(e) => setDetailFormData({ ...detailFormData, expiry_date: e.target.value })}
+                                                                className="input-field text-sm" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2 pt-2">
+                                                        <button type="button" onClick={() => setShowDetailForm(false)} className="btn-secondary text-sm flex-1" disabled={detailSubmitting}>取消</button>
+                                                        <button type="submit" className="btn-primary text-sm flex-1" disabled={detailSubmitting}>
+                                                            {detailSubmitting ? '處理中...' : editingDetail ? '儲存' : '新增'}
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        )}
+
+                                        {details.length === 0 ? (
+                                            <div className="text-center py-8">
+                                                <FileText className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                                                <p className="text-gray-500 text-sm">尚無明細資料</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {details.map((detail) => (
+                                                    <div key={detail.id} className="p-4 border rounded-lg hover:bg-gray-50">
+                                                        <div className="flex items-start justify-between">
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                                                        {DETAIL_TYPE_LABELS[detail.detail_type as TeacherDetailType] || detail.detail_type}
+                                                                    </span>
+                                                                    {detail.file_name && (
+                                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                                                            <FileText className="w-3 h-3 mr-1" />有附件
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {detail.content && <p className="text-sm text-gray-700 mb-1">{detail.content}</p>}
+                                                                <div className="flex gap-4 text-xs text-gray-400">
+                                                                    {detail.issue_date && <span>發證：{detail.issue_date}</span>}
+                                                                    {detail.expiry_date && <span>到期：{detail.expiry_date}</span>}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 ml-4">
+                                                                {detail.file_name && (
+                                                                    <button onClick={() => handleFileDownload(detail)} className="text-blue-600 hover:text-blue-800 p-1" title="下載檔案">
+                                                                        <Download className="w-4 h-4" />
+                                                                    </button>
+                                                                )}
+                                                                {isStaff && (
+                                                                    <>
+                                                                        <label className="text-green-600 hover:text-green-800 p-1 cursor-pointer" title="上傳檔案">
+                                                                            {uploadingDetailId === detail.id ? (
+                                                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                                                                            ) : (
+                                                                                <Upload className="w-4 h-4" />
+                                                                            )}
+                                                                            <input type="file" className="hidden"
+                                                                                onChange={(e) => {
+                                                                                    const file = e.target.files?.[0]
+                                                                                    if (file) handleFileUpload(detail, file)
+                                                                                    e.target.value = ''
+                                                                                }}
+                                                                                disabled={uploadingDetailId === detail.id} />
+                                                                        </label>
+                                                                        <button onClick={() => openDetailEditForm(detail)} className="text-blue-600 hover:text-blue-800 p-1" title="編輯">
+                                                                            <Pencil className="w-4 h-4" />
+                                                                        </button>
+                                                                        <button onClick={() => handleDetailDelete(detail.id)} className="text-red-600 hover:text-red-800 p-1" title="刪除">
+                                                                            <Trash2 className="w-4 h-4" />
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                <div className="flex gap-3 mt-6">
+                                    <button onClick={closeDetailsModal} className="btn-secondary flex-1">關閉</button>
+                                </div>
                             </div>
                         </div>
                     </div>

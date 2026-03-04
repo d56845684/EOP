@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './fetchWithAuth'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled'
@@ -204,9 +206,8 @@ export const bookingsApi = {
 
             const url = `${API_BASE_URL}/api/v1/bookings${queryParams.toString() ? '?' + queryParams.toString() : ''}`
 
-            const response = await fetch(url, {
+            const response = await fetchWithAuth(url, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -223,9 +224,8 @@ export const bookingsApi = {
 
     async get(bookingId: string): Promise<{ data: Booking | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/${bookingId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/${bookingId}`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -242,12 +242,11 @@ export const bookingsApi = {
 
     async create(data: CreateBookingData): Promise<{ data: Booking | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -265,12 +264,11 @@ export const bookingsApi = {
 
     async update(bookingId: string, data: UpdateBookingData): Promise<{ data: Booking | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/${bookingId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/${bookingId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -288,9 +286,8 @@ export const bookingsApi = {
 
     async delete(bookingId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/${bookingId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/${bookingId}`, {
                 method: 'DELETE',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -307,12 +304,11 @@ export const bookingsApi = {
     // 批次操作 API
     async createBatch(data: BatchCreateData): Promise<{ success: boolean, message?: string, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/batch`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/batch`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -322,6 +318,9 @@ export const bookingsApi = {
             }
 
             const result = await response.json()
+            if (result.success === false) {
+                return { success: false, message: result.message, error: { message: result.message || '批次建立預約失敗' } }
+            }
             return { success: true, message: result.message, error: null }
         } catch (err) {
             return { success: false, error: { message: '網路錯誤，請稍後再試' } }
@@ -330,12 +329,11 @@ export const bookingsApi = {
 
     async updateByIds(data: BatchUpdateByIdsData): Promise<{ success: boolean, message?: string, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/batch-by-ids/update`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/batch-by-ids/update`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -353,12 +351,11 @@ export const bookingsApi = {
 
     async deleteByIds(data: BatchDeleteByIdsData): Promise<{ success: boolean, message?: string, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/batch-by-ids/delete`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/batch-by-ids/delete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -376,12 +373,11 @@ export const bookingsApi = {
 
     async updateBatch(data: BatchUpdateData): Promise<{ success: boolean, message?: string, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/batch`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/batch`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -399,12 +395,11 @@ export const bookingsApi = {
 
     async deleteBatch(data: BatchDeleteData): Promise<{ success: boolean, message?: string, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/batch`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/batch`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             })
 
@@ -423,9 +418,8 @@ export const bookingsApi = {
     // 取得下拉選單選項
     async getStudentOptions(): Promise<{ data: StudentOption[] | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/options/students`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/students`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -448,9 +442,8 @@ export const bookingsApi = {
 
             const url = `${API_BASE_URL}/api/v1/bookings/options/teachers${queryParams.toString() ? '?' + queryParams.toString() : ''}`
 
-            const response = await fetch(url, {
+            const response = await fetchWithAuth(url, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -467,9 +460,8 @@ export const bookingsApi = {
 
     async updateTeacherLevel(teacherId: string, level: number): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/options/teachers/${teacherId}/level?level=${level}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/teachers/${teacherId}/level?level=${level}`, {
                 method: 'PUT',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -491,9 +483,8 @@ export const bookingsApi = {
 
             const url = `${API_BASE_URL}/api/v1/bookings/options/overlapping-courses?${queryParams.toString()}`
 
-            const response = await fetch(url, {
+            const response = await fetchWithAuth(url, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -510,9 +501,8 @@ export const bookingsApi = {
 
     async getCourseOptions(): Promise<{ data: CourseOption[] | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/options/courses`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/courses`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -529,9 +519,8 @@ export const bookingsApi = {
 
     async getStudentContractOptions(studentId: string): Promise<{ data: StudentContractOption[] | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/options/student-contracts/${studentId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/student-contracts/${studentId}`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -548,9 +537,8 @@ export const bookingsApi = {
 
     async getTeacherContractOptions(teacherId: string): Promise<{ data: TeacherContractOption[] | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/options/teacher-contracts/${teacherId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/teacher-contracts/${teacherId}`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -573,9 +561,8 @@ export const bookingsApi = {
 
             const url = `${API_BASE_URL}/api/v1/bookings/options/teacher-slots/${teacherId}${queryParams.toString() ? '?' + queryParams.toString() : ''}`
 
-            const response = await fetch(url, {
+            const response = await fetchWithAuth(url, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -593,9 +580,8 @@ export const bookingsApi = {
     // 取得當前學生的資料（學生用）
     async getMyStudentInfo(): Promise<{ data: StudentOption | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/my-student-info`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/my-student-info`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -613,9 +599,8 @@ export const bookingsApi = {
     // 取得時段的 30 分鐘區塊可用狀態
     async getSlotAvailability(slotId: string): Promise<{ data: SlotAvailabilityResponse | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/slot-availability/${slotId}`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/slot-availability/${slotId}`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
@@ -633,9 +618,8 @@ export const bookingsApi = {
     // 取得當前學生的合約（學生用）
     async getMyContracts(): Promise<{ data: StudentContractOption[] | null, error: any }> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/bookings/my-contracts`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/my-contracts`, {
                 method: 'GET',
-                credentials: 'include',
             })
 
             if (!response.ok) {
