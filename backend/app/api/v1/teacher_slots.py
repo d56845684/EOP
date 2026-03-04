@@ -23,7 +23,6 @@ async def slot_has_active_bookings(slot_id: str) -> bool:
             "teacher_slot_id": f"eq.{slot_id}",
             "is_deleted": "eq.false",
         },
-        use_service_key=True
     )
     # 過濾掉已取消的
     active = [b for b in bookings if b.get("booking_status") != "cancelled"]
@@ -38,7 +37,6 @@ async def enrich_slot_with_relations(slot: dict) -> dict:
             table="teachers",
             select="name,teacher_no",
             filters={"id": slot["teacher_id"]},
-            use_service_key=True
         )
         if teacher:
             slot["teacher_name"] = teacher[0]["name"]
@@ -50,7 +48,6 @@ async def enrich_slot_with_relations(slot: dict) -> dict:
             table="teacher_contracts",
             select="contract_no",
             filters={"id": slot["teacher_contract_id"]},
-            use_service_key=True
         )
         slot["teacher_contract_no"] = contract[0]["contract_no"] if contract else None
 
@@ -63,7 +60,6 @@ async def get_user_teacher_id(user_id: str) -> Optional[str]:
         table="user_profiles",
         select="teacher_id",
         filters={"id": user_id},
-        use_service_key=True
     )
     if profile and profile[0].get("teacher_id"):
         return profile[0]["teacher_id"]
@@ -117,7 +113,6 @@ async def list_teacher_slots(
             table="teacher_available_slots",
             select="id",
             filters=filters,
-            use_service_key=True
         )
 
         # 如果有結束日期，在結果中篩選
@@ -142,7 +137,6 @@ async def list_teacher_slots(
             order_by="slot_date.asc,start_time.asc",
             limit=per_page,
             offset=offset,
-            use_service_key=True
         )
 
         # 如果有結束日期，在結果中篩選
@@ -177,7 +171,6 @@ async def get_teacher_options(
             table="teachers",
             select="id,teacher_no,name,teacher_level",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
         return {"data": teachers}
     except Exception as e:
@@ -203,7 +196,6 @@ async def get_my_contracts(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
         return {"data": contracts}
     except Exception as e:
@@ -221,7 +213,6 @@ async def get_teacher_slot(
             table="teacher_available_slots",
             select="id,teacher_id,teacher_contract_id,slot_date,start_time,end_time,is_available,is_booked,notes,created_at,updated_at",
             filters={"id": slot_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not result:
@@ -271,7 +262,6 @@ async def create_teacher_slot(
             table="teachers",
             select="id,name",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在")
@@ -282,7 +272,6 @@ async def create_teacher_slot(
                 table="teacher_contracts",
                 select="id",
                 filters={"id": data.teacher_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not contract:
                 raise HTTPException(status_code=400, detail="教師合約不存在")
@@ -306,7 +295,6 @@ async def create_teacher_slot(
         result = await supabase_service.table_insert(
             table="teacher_available_slots",
             data=slot_data,
-            use_service_key=True
         )
 
         if not result:
@@ -348,7 +336,6 @@ async def create_teacher_slots_batch(
             table="teachers",
             select="id,name",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在")
@@ -359,7 +346,6 @@ async def create_teacher_slots_batch(
                 table="teacher_contracts",
                 select="id",
                 filters={"id": data.teacher_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not contract:
                 raise HTTPException(status_code=400, detail="教師合約不存在")
@@ -396,7 +382,6 @@ async def create_teacher_slots_batch(
             result = await supabase_service.table_insert(
                 table="teacher_available_slots",
                 data=slot_data,
-                use_service_key=True
             )
             if result:
                 created_count += 1
@@ -437,7 +422,6 @@ async def delete_teacher_slots_batch(
             table="teacher_available_slots",
             select="id,slot_date,start_time,end_time",
             filters=filters,
-            use_service_key=True
         )
 
         # 在 Python 中進行更精細的過濾
@@ -500,7 +484,6 @@ async def delete_teacher_slots_batch(
                 table="teacher_available_slots",
                 data=delete_data,
                 filters={"id": slot_id},
-                use_service_key=True
             )
             if result:
                 deleted_count += 1
@@ -561,7 +544,6 @@ async def update_teacher_slots_batch(
             table="teacher_available_slots",
             select="id,slot_date,start_time,end_time",
             filters=filters,
-            use_service_key=True
         )
 
         # 在 Python 中進行更精細的過濾
@@ -613,7 +595,6 @@ async def update_teacher_slots_batch(
                 table="teacher_available_slots",
                 data=update_fields,
                 filters={"id": slot_id},
-                use_service_key=True
             )
             if result:
                 updated_count += 1
@@ -656,7 +637,6 @@ async def delete_teacher_slots_by_ids(
                 table="teacher_available_slots",
                 select="id,teacher_id",
                 filters={"id": slot_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
 
             if not existing:
@@ -691,7 +671,6 @@ async def delete_teacher_slots_by_ids(
                 table="teacher_available_slots",
                 data=delete_data,
                 filters={"id": slot_id},
-                use_service_key=True
             )
             if result:
                 deleted_count += 1
@@ -745,7 +724,6 @@ async def update_teacher_slots_by_ids(
                 table="teacher_available_slots",
                 select="id,teacher_id",
                 filters={"id": slot_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
 
             if not existing:
@@ -773,7 +751,6 @@ async def update_teacher_slots_by_ids(
                 table="teacher_available_slots",
                 data=update_fields,
                 filters={"id": slot_id},
-                use_service_key=True
             )
             if result:
                 updated_count += 1
@@ -803,7 +780,6 @@ async def update_teacher_slot(
             table="teacher_available_slots",
             select="id,teacher_id",
             filters={"id": slot_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -843,7 +819,6 @@ async def update_teacher_slot(
             table="teacher_available_slots",
             data=update_data,
             filters={"id": slot_id},
-            use_service_key=True
         )
 
         if not result:
@@ -875,7 +850,6 @@ async def delete_teacher_slot(
             table="teacher_available_slots",
             select="id,teacher_id",
             filters={"id": slot_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -911,7 +885,6 @@ async def delete_teacher_slot(
             table="teacher_available_slots",
             data=delete_data,
             filters={"id": slot_id},
-            use_service_key=True
         )
 
         if not result:

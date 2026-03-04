@@ -183,7 +183,6 @@ async def change_password(
             table="user_profiles",
             data={"must_change_password": False},
             filters={"id": current_user.user_id},
-            use_service_key=True
         )
     except Exception:
         pass  # 密碼已更新成功，此步驟失敗不影響

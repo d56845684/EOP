@@ -67,7 +67,6 @@ class PermissionService:
                 table="user_profiles",
                 select="employee_subtype",
                 filters={"id": f"eq.{user_id}"},
-                use_service_key=True
             )
 
             if result and len(result) > 0:
@@ -105,7 +104,6 @@ class PermissionService:
                 table="user_profiles",
                 select="employee_subtype",
                 filters={"id": f"eq.{user_id}"},
-                use_service_key=True
             )
 
             if result and len(result) > 0:

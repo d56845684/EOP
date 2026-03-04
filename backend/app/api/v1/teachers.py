@@ -31,7 +31,7 @@ async def list_teachers(
             filters["is_active"] = f"eq.{str(is_active).lower()}"
 
         all_teachers = await supabase_service.table_select(
-            table="teachers", select="id", filters=filters, use_service_key=True
+            table="teachers", select="id", filters=filters
         )
         total = len(all_teachers)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
@@ -39,7 +39,7 @@ async def list_teachers(
 
         teachers = await supabase_service.table_select_with_pagination(
             table="teachers", select=TEACHER_SELECT, filters=filters,
-            order_by="created_at.desc", limit=per_page, offset=offset, use_service_key=True
+            order_by="created_at.desc", limit=per_page, offset=offset
         )
 
         if search:
@@ -80,7 +80,6 @@ async def update_teacher_self(
             table="user_profiles",
             select="teacher_id",
             filters={"id": current_user.user_id},
-            use_service_key=True
         )
         if not profiles or not profiles[0].get("teacher_id"):
             raise HTTPException(status_code=403, detail="找不到對應的教師資料")
@@ -94,7 +93,6 @@ async def update_teacher_self(
         result = await supabase_service.table_update(
             table="teachers", data=update_data,
             filters={"id": teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新教師資料失敗")
@@ -115,7 +113,7 @@ async def get_teacher(
     try:
         result = await supabase_service.table_select(
             table="teachers", select=TEACHER_SELECT,
-            filters={"id": teacher_id, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"id": teacher_id, "is_deleted": "eq.false"}
         )
         if not result:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -135,14 +133,14 @@ async def create_teacher(
     try:
         existing = await supabase_service.table_select(
             table="teachers", select="id",
-            filters={"teacher_no": data.teacher_no, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"teacher_no": data.teacher_no, "is_deleted": "eq.false"}
         )
         if existing:
             raise HTTPException(status_code=400, detail="教師編號已存在")
 
         existing_email = await supabase_service.table_select(
             table="teachers", select="id",
-            filters={"email": data.email, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if existing_email:
             raise HTTPException(status_code=400, detail="Email 已存在")
@@ -153,7 +151,7 @@ async def create_teacher(
             teacher_data["created_by"] = employee_id
 
         result = await supabase_service.table_insert(
-            table="teachers", data=teacher_data, use_service_key=True
+            table="teachers", data=teacher_data
         )
         if not result:
             raise HTTPException(status_code=500, detail="建立教師失敗")
@@ -175,7 +173,7 @@ async def update_teacher(
     try:
         existing = await supabase_service.table_select(
             table="teachers", select="id,teacher_no,email",
-            filters={"id": teacher_id, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"id": teacher_id, "is_deleted": "eq.false"}
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -183,7 +181,7 @@ async def update_teacher(
         if data.email and data.email != existing[0]["email"]:
             dup = await supabase_service.table_select(
                 table="teachers", select="id",
-                filters={"email": data.email, "is_deleted": "eq.false"}, use_service_key=True
+                filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup:
                 raise HTTPException(status_code=400, detail="Email 已存在")
@@ -193,7 +191,7 @@ async def update_teacher(
             raise HTTPException(status_code=400, detail="沒有要更新的資料")
 
         result = await supabase_service.table_update(
-            table="teachers", data=update_data, filters={"id": teacher_id}, use_service_key=True
+            table="teachers", data=update_data, filters={"id": teacher_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新教師失敗")
@@ -214,7 +212,7 @@ async def delete_teacher(
     try:
         existing = await supabase_service.table_select(
             table="teachers", select="id",
-            filters={"id": teacher_id, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"id": teacher_id, "is_deleted": "eq.false"}
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -222,7 +220,7 @@ async def delete_teacher(
         result = await supabase_service.table_update(
             table="teachers",
             data={"is_deleted": True, "deleted_at": datetime.utcnow().isoformat()},
-            filters={"id": teacher_id}, use_service_key=True
+            filters={"id": teacher_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="刪除教師失敗")
@@ -252,7 +250,6 @@ async def get_teacher_avatar_upload_url(
         existing = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"id": teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -290,7 +287,6 @@ async def confirm_teacher_avatar_upload(
         existing = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"id": teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -308,7 +304,6 @@ async def confirm_teacher_avatar_upload(
             table="teachers",
             data={"avatar_url": body.storage_path},
             filters={"id": teacher_id},
-            use_service_key=True
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新頭像失敗")

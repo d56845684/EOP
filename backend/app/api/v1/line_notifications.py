@@ -195,7 +195,6 @@ async def get_notification_history(
             table="line_notification_logs",
             select="id",
             filters=filters,
-            use_service_key=True
         )
         total = len(count_result) if count_result else 0
 
@@ -207,7 +206,6 @@ async def get_notification_history(
             order="created_at.desc",
             limit=page_size,
             offset=offset,
-            use_service_key=True
         )
 
         items = [

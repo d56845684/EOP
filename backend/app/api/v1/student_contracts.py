@@ -28,7 +28,6 @@ async def get_user_student_id(user_id: str) -> Optional[str]:
         table="user_profiles",
         select="student_id",
         filters={"id": user_id},
-        use_service_key=True
     )
     if result and result[0].get("student_id"):
         return result[0]["student_id"]
@@ -45,7 +44,6 @@ async def generate_contract_no() -> str:
         table="student_contracts",
         select="contract_no",
         filters={"contract_no": f"like.{prefix}%"},
-        use_service_key=True
     )
 
     if not result:
@@ -75,7 +73,6 @@ async def check_student_active_conflict(student_id: str, exclude_contract_id: st
             "contract_status": "eq.active",
             "is_deleted": "eq.false"
         },
-        use_service_key=True
     )
     for contract in result:
         if exclude_contract_id and contract["id"] == exclude_contract_id:
@@ -92,7 +89,6 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
             table="students",
             select="name",
             filters={"id": contract["student_id"]},
-            use_service_key=True
         )
         contract["student_name"] = student[0]["name"] if student else None
 
@@ -104,7 +100,6 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
             "student_contract_id": f"eq.{contract['id']}",
             "is_deleted": "eq.false"
         },
-        use_service_key=True
     )
 
     # 為 lesson_price 明細加上 course_name
@@ -115,7 +110,6 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
                 table="courses",
                 select="course_name",
                 filters={"id": detail["course_id"]},
-                use_service_key=True
             )
             detail["course_name"] = course[0]["course_name"] if course else None
         enriched_details.append(detail)
@@ -130,7 +124,6 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
             "student_contract_id": f"eq.{contract['id']}",
             "is_deleted": "eq.false"
         },
-        use_service_key=True
     )
     contract["leave_records"] = leave_records
 
@@ -149,7 +142,6 @@ async def get_student_options(
             table="students",
             select="id,student_no,name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
         return {"data": students}
     except Exception as e:
@@ -176,7 +168,6 @@ async def get_course_options(
                     "student_id": f"eq.{student_id}",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             if not enrollments:
                 return {"data": []}
@@ -190,7 +181,6 @@ async def get_course_options(
                     table="courses",
                     select="id,course_code,course_name",
                     filters={"id": cid, "is_deleted": "eq.false", "is_active": "eq.true"},
-                    use_service_key=True
                 )
                 if course:
                     courses.append(course[0])
@@ -201,7 +191,6 @@ async def get_course_options(
                 table="courses",
                 select="id,course_code,course_name",
                 filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-                use_service_key=True
             )
             return {"data": courses}
     except Exception as e:
@@ -218,7 +207,6 @@ async def get_teacher_options(
             table="teachers",
             select="id,teacher_no,name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
         return {"data": teachers}
     except Exception as e:
@@ -284,7 +272,6 @@ async def list_student_contracts(
             table="student_contracts",
             select="id",
             filters=filters,
-            use_service_key=True
         )
         total = len(all_contracts)
 
@@ -300,7 +287,6 @@ async def list_student_contracts(
             order_by="created_at.desc",
             limit=per_page,
             offset=offset,
-            use_service_key=True
         )
 
         # 如果有搜尋關鍵字，在結果中篩選
@@ -350,7 +336,6 @@ async def get_student_contract(
             table="student_contracts",
             select=CONTRACT_SELECT,
             filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not result:
@@ -385,7 +370,6 @@ async def create_student_contract(
             table="students",
             select="id,name",
             filters={"id": data.student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not student:
             raise HTTPException(status_code=400, detail="學生不存在")
@@ -427,7 +411,6 @@ async def create_student_contract(
         result = await supabase_service.table_insert(
             table="student_contracts",
             data=contract_data,
-            use_service_key=True
         )
 
         if not result:
@@ -460,7 +443,6 @@ async def update_student_contract(
             table="student_contracts",
             select="id,student_id",
             filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -483,7 +465,6 @@ async def update_student_contract(
                 table="students",
                 select="id",
                 filters={"id": data.student_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not student:
                 raise HTTPException(status_code=400, detail="學生不存在")
@@ -506,7 +487,6 @@ async def update_student_contract(
             table="student_contracts",
             data=update_data,
             filters={"id": contract_id},
-            use_service_key=True
         )
 
         if not result:
@@ -538,7 +518,6 @@ async def delete_student_contract(
             table="student_contracts",
             select="id",
             filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -555,7 +534,6 @@ async def delete_student_contract(
                 "student_contract_id": f"eq.{contract_id}",
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
         for detail in details:
             detail_update = {
@@ -568,7 +546,6 @@ async def delete_student_contract(
                 table="student_contract_details",
                 data=detail_update,
                 filters={"id": detail["id"]},
-                use_service_key=True
             )
 
         # 軟刪除相關請假紀錄
@@ -579,7 +556,6 @@ async def delete_student_contract(
                 "student_contract_id": f"eq.{contract_id}",
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
         for record in leave_records:
             record_update = {
@@ -592,7 +568,6 @@ async def delete_student_contract(
                 table="student_contract_leave_records",
                 data=record_update,
                 filters={"id": record["id"]},
-                use_service_key=True
             )
 
         # 軟刪除合約
@@ -607,7 +582,6 @@ async def delete_student_contract(
             table="student_contracts",
             data=delete_data,
             filters={"id": contract_id},
-            use_service_key=True
         )
 
         if not result:
@@ -639,7 +613,6 @@ async def list_contract_details(
             table="student_contracts",
             select="id,student_id",
             filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not contract:
             raise HTTPException(status_code=404, detail="學生合約不存在")
@@ -657,7 +630,6 @@ async def list_contract_details(
                 "student_contract_id": f"eq.{contract_id}",
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
 
         # enrich course_name
@@ -668,7 +640,6 @@ async def list_contract_details(
                     table="courses",
                     select="course_name",
                     filters={"id": d["course_id"]},
-                    use_service_key=True
                 )
                 d["course_name"] = course[0]["course_name"] if course else None
             enriched.append(d)
@@ -694,7 +665,6 @@ async def create_contract_detail(
             table="student_contracts",
             select="id,student_id",
             filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not contract:
             raise HTTPException(status_code=404, detail="學生合約不存在")
@@ -705,7 +675,6 @@ async def create_contract_detail(
                 table="courses",
                 select="id,course_name",
                 filters={"id": data.course_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not course:
                 raise HTTPException(status_code=400, detail="課程不存在")
@@ -721,7 +690,6 @@ async def create_contract_detail(
                         "course_id": f"eq.{data.course_id}",
                         "is_deleted": "eq.false"
                     },
-                    use_service_key=True
                 )
                 if not enrollment:
                     raise HTTPException(status_code=400, detail="此學生尚未選修此課程，請先在「學生選課」中新增")
@@ -742,7 +710,6 @@ async def create_contract_detail(
         result = await supabase_service.table_insert(
             table="student_contract_details",
             data=detail_data,
-            use_service_key=True
         )
 
         if not result:
@@ -754,7 +721,6 @@ async def create_contract_detail(
                 table="student_contracts",
                 select="remaining_lessons",
                 filters={"id": contract_id},
-                use_service_key=True
             )
             if contract_data:
                 new_remaining = contract_data[0]["remaining_lessons"] + int(data.amount)
@@ -762,7 +728,6 @@ async def create_contract_detail(
                     table="student_contracts",
                     data={"remaining_lessons": new_remaining},
                     filters={"id": contract_id},
-                    use_service_key=True
                 )
 
         # enrich course_name
@@ -771,7 +736,6 @@ async def create_contract_detail(
                 table="courses",
                 select="course_name",
                 filters={"id": result["course_id"]},
-                use_service_key=True
             )
             result["course_name"] = course[0]["course_name"] if course else None
 
@@ -804,7 +768,6 @@ async def update_contract_detail(
                 "student_contract_id": f"eq.{contract_id}",
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="合約明細不存在")
@@ -825,7 +788,6 @@ async def update_contract_detail(
             table="student_contract_details",
             data=update_data,
             filters={"id": detail_id},
-            use_service_key=True
         )
 
         if not result:
@@ -841,7 +803,6 @@ async def update_contract_detail(
                     table="student_contracts",
                     select="remaining_lessons",
                     filters={"id": contract_id},
-                    use_service_key=True
                 )
                 if contract_data:
                     new_remaining = contract_data[0]["remaining_lessons"] + diff
@@ -849,7 +810,6 @@ async def update_contract_detail(
                         table="student_contracts",
                         data={"remaining_lessons": new_remaining},
                         filters={"id": contract_id},
-                        use_service_key=True
                     )
 
         # enrich course_name
@@ -858,7 +818,6 @@ async def update_contract_detail(
                 table="courses",
                 select="course_name",
                 filters={"id": result["course_id"]},
-                use_service_key=True
             )
             result["course_name"] = course[0]["course_name"] if course else None
 
@@ -890,7 +849,6 @@ async def delete_contract_detail(
                 "student_contract_id": f"eq.{contract_id}",
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="合約明細不存在")
@@ -908,7 +866,6 @@ async def delete_contract_detail(
             table="student_contract_details",
             data=delete_data,
             filters={"id": detail_id},
-            use_service_key=True
         )
 
         if not result:
@@ -921,7 +878,6 @@ async def delete_contract_detail(
                 table="student_contracts",
                 select="remaining_lessons",
                 filters={"id": contract_id},
-                use_service_key=True
             )
             if contract_data:
                 new_remaining = contract_data[0]["remaining_lessons"] - compensation_amount
@@ -929,7 +885,6 @@ async def delete_contract_detail(
                     table="student_contracts",
                     data={"remaining_lessons": max(0, new_remaining)},
                     filters={"id": contract_id},
-                    use_service_key=True
                 )
 
         return BaseResponse(message="合約明細刪除成功")
@@ -957,7 +912,6 @@ async def list_leave_records(
             table="student_contracts",
             select="id,student_id",
             filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not contract:
             raise HTTPException(status_code=404, detail="學生合約不存在")
@@ -975,7 +929,6 @@ async def list_leave_records(
                 "student_contract_id": f"eq.{contract_id}",
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
 
         return {"data": [StudentContractLeaveRecordResponse(**r) for r in records]}
@@ -999,7 +952,6 @@ async def create_leave_record(
             table="student_contracts",
             select="id,used_leave_count,total_leave_allowed",
             filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not contract:
             raise HTTPException(status_code=404, detail="學生合約不存在")
@@ -1023,7 +975,6 @@ async def create_leave_record(
         result = await supabase_service.table_insert(
             table="student_contract_leave_records",
             data=record_data,
-            use_service_key=True
         )
 
         if not result:
@@ -1034,7 +985,6 @@ async def create_leave_record(
             table="student_contracts",
             data={"used_leave_count": current_used + 1},
             filters={"id": contract_id},
-            use_service_key=True
         )
 
         return DataResponse(
@@ -1065,7 +1015,6 @@ async def delete_leave_record(
                 "student_contract_id": f"eq.{contract_id}",
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="請假紀錄不存在")
@@ -1083,7 +1032,6 @@ async def delete_leave_record(
             table="student_contract_leave_records",
             data=delete_data,
             filters={"id": record_id},
-            use_service_key=True
         )
 
         if not result:
@@ -1094,7 +1042,6 @@ async def delete_leave_record(
             table="student_contracts",
             select="id,used_leave_count",
             filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if contract:
             current_used = contract[0].get("used_leave_count", 0)
@@ -1103,7 +1050,6 @@ async def delete_leave_record(
                 table="student_contracts",
                 data={"used_leave_count": new_used},
                 filters={"id": contract_id},
-                use_service_key=True
             )
 
         return BaseResponse(message="請假紀錄刪除成功")
@@ -1137,7 +1083,6 @@ async def get_student_contract_upload_url(
             table="student_contracts",
             select="id",
             filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="學生合約不存在")
@@ -1184,7 +1129,6 @@ async def confirm_student_contract_upload(
             table="student_contracts",
             select="id,student_id",
             filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="學生合約不存在")
@@ -1228,7 +1172,6 @@ async def confirm_student_contract_upload(
             table="student_contracts",
             data=update_data,
             filters={"id": contract_id},
-            use_service_key=True
         )
 
         if not result:
@@ -1268,7 +1211,6 @@ async def get_student_contract_download_url(
             table="student_contracts",
             select="id,student_id,contract_file_path,contract_file_name",
             filters={"id": contract_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not result:

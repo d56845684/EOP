@@ -110,7 +110,6 @@ class ZoomService:
                 table="teacher_zoom_accounts",
                 select="zoom_refresh_token,zoom_token_expires_at",
                 filters={"teacher_id": teacher_id, "is_deleted": "eq.false"},
-                use_service_key=True,
             )
             if not records or not records[0].get("zoom_refresh_token"):
                 return None
@@ -154,7 +153,6 @@ class ZoomService:
                     "zoom_token_expires_at": expires_at.isoformat(),
                 },
                 filters={"teacher_id": teacher_id, "is_deleted": "eq.false"},
-                use_service_key=True,
             )
 
             return new_access
@@ -172,7 +170,6 @@ class ZoomService:
                 table="teacher_zoom_accounts",
                 select="zoom_access_token,zoom_refresh_token,zoom_token_expires_at",
                 filters={"teacher_id": teacher_id, "is_deleted": "eq.false"},
-                use_service_key=True,
             )
             if not records:
                 return None
@@ -295,7 +292,6 @@ class ZoomService:
                 "is_deleted": "eq.false",
                 "meeting_status": "neq.cancelled",
             },
-            use_service_key=True,
         )
         if existing:
             logger.info(f"Booking {booking_id} 已有 Zoom 會議")
@@ -452,7 +448,6 @@ class ZoomService:
             result = await supabase_service.table_insert(
                 table="zoom_meeting_logs",
                 data=log_data,
-                use_service_key=True,
             )
 
             # 同步更新 booking_details 的 zoom 欄位
@@ -488,7 +483,6 @@ class ZoomService:
                 table="booking_details",
                 select="id",
                 filters={"booking_id": booking_id, "is_deleted": "eq.false"},
-                use_service_key=True,
             )
             if existing:
                 await supabase_service.table_update(
@@ -499,7 +493,6 @@ class ZoomService:
                         "zoom_password": passcode,
                     },
                     filters={"booking_id": booking_id},
-                    use_service_key=True,
                 )
         except Exception as e:
             logger.error(f"更新 booking_details zoom 欄位失敗: {e}")
@@ -511,7 +504,6 @@ class ZoomService:
                 table="zoom_accounts",
                 select="daily_meeting_count,daily_count_reset_at",
                 filters={"id": zoom_account_id},
-                use_service_key=True,
             )
             if account:
                 today = date.today()
@@ -528,7 +520,6 @@ class ZoomService:
                         "daily_count_reset_at": str(today),
                     },
                     filters={"id": zoom_account_id},
-                    use_service_key=True,
                 )
         except Exception as e:
             logger.error(f"更新 Zoom 帳號每日用量失敗: {e}")
@@ -609,7 +600,6 @@ class ZoomService:
                 table="zoom_meeting_logs",
                 data=update_data,
                 filters={"zoom_meeting_id": meeting_id, "is_deleted": "eq.false"},
-                use_service_key=True,
             )
 
             # 同步更新 booking_details
@@ -618,7 +608,6 @@ class ZoomService:
                     table="zoom_meeting_logs",
                     select="booking_id",
                     filters={"zoom_meeting_id": meeting_id, "is_deleted": "eq.false"},
-                    use_service_key=True,
                 )
                 if logs:
                     booking_id = logs[0]["booking_id"]
@@ -630,7 +619,6 @@ class ZoomService:
                                 "recording_duration_seconds": update_data.get("recording_duration_seconds"),
                             },
                             filters={"booking_id": booking_id},
-                            use_service_key=True,
                         )
                     except Exception:
                         pass
@@ -658,7 +646,6 @@ class ZoomService:
                 table="zoom_meeting_logs",
                 data={"meeting_status": "ended"},
                 filters={"zoom_meeting_id": meeting_id, "is_deleted": "eq.false"},
-                use_service_key=True,
             )
 
             logger.info(f"meeting.ended 處理完成: meeting_id={meeting_id}")
@@ -684,7 +671,6 @@ class ZoomService:
                 table="zoom_meeting_logs",
                 data={"meeting_status": "started"},
                 filters={"zoom_meeting_id": meeting_id, "is_deleted": "eq.false"},
-                use_service_key=True,
             )
 
             logger.info(f"meeting.started 處理完成: meeting_id={meeting_id}")
@@ -778,7 +764,6 @@ class ZoomService:
                     "is_deleted": "eq.false",
                     "meeting_status": "scheduled",
                 },
-                use_service_key=True,
             )
             logger.info(f"Booking {booking_id}: Zoom 會議已取消")
             return True

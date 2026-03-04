@@ -291,7 +291,6 @@ class AuthService:
                 table="user_profiles",
                 select="role",
                 filters={"id": user_id},
-                use_service_key=True
             )
 
             if result and len(result) > 0:
@@ -308,7 +307,6 @@ class AuthService:
                 table="user_profiles",
                 select="must_change_password",
                 filters={"id": user_id},
-                use_service_key=True
             )
             if result and len(result) > 0:
                 return {

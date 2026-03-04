@@ -50,7 +50,7 @@ async def list_zoom_accounts(
         # 計算 total
         all_records = await supabase_service.table_select(
             table="zoom_accounts", select="id",
-            filters=filters, use_service_key=True,
+            filters=filters,
         )
         total = len(all_records)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
@@ -62,7 +62,6 @@ async def list_zoom_accounts(
             order_by="created_at.desc",
             limit=per_page,
             offset=(page - 1) * per_page,
-            use_service_key=True,
         )
 
         return ZoomAccountListResponse(
@@ -94,7 +93,6 @@ async def create_zoom_account(
         result = await supabase_service.table_insert(
             table="zoom_accounts",
             data=insert_data,
-            use_service_key=True,
         )
 
         if not result:
@@ -123,7 +121,6 @@ async def update_zoom_account(
             table="zoom_accounts",
             select="id",
             filters={"id": account_id, "is_deleted": "eq.false"},
-            use_service_key=True,
         )
         if not existing:
             raise HTTPException(status_code=404, detail="Zoom 帳號不存在")
@@ -140,7 +137,6 @@ async def update_zoom_account(
             table="zoom_accounts",
             data=update_data,
             filters={"id": account_id},
-            use_service_key=True,
         )
 
         if not result:
@@ -166,7 +162,6 @@ async def delete_zoom_account(
             table="zoom_accounts",
             select="id",
             filters={"id": account_id, "is_deleted": "eq.false"},
-            use_service_key=True,
         )
         if not existing:
             raise HTTPException(status_code=404, detail="Zoom 帳號不存在")
@@ -184,7 +179,6 @@ async def delete_zoom_account(
             table="zoom_accounts",
             data=delete_data,
             filters={"id": account_id},
-            use_service_key=True,
         )
 
         return BaseResponse(message="Zoom 帳號刪除成功")
@@ -206,7 +200,6 @@ async def test_zoom_account(
             table="zoom_accounts",
             select="*",
             filters={"id": account_id, "is_deleted": "eq.false"},
-            use_service_key=True,
         )
         if not accounts:
             raise HTTPException(status_code=404, detail="Zoom 帳號不存在")
@@ -241,7 +234,6 @@ async def create_zoom_meeting(
             table="bookings",
             select="id,teacher_id,booking_date,start_time,end_time,booking_status",
             filters={"id": data.booking_id, "is_deleted": "eq.false"},
-            use_service_key=True,
         )
         if not bookings:
             raise HTTPException(status_code=404, detail="預約不存在")
@@ -307,7 +299,7 @@ async def list_zoom_meetings(
         # 計算 total
         all_records = await supabase_service.table_select(
             table="zoom_meeting_logs", select="id",
-            filters=filters, use_service_key=True,
+            filters=filters,
         )
         total = len(all_records)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
@@ -319,7 +311,6 @@ async def list_zoom_meetings(
             order_by="meeting_date.desc,start_time.desc",
             limit=per_page,
             offset=(page - 1) * per_page,
-            use_service_key=True,
         )
 
         enriched_items = []
@@ -352,7 +343,6 @@ async def get_meeting_by_booking(
                 table="bookings",
                 select="id,teacher_id,student_id",
                 filters={"id": booking_id, "is_deleted": "eq.false"},
-                use_service_key=True,
             )
             if not bookings:
                 raise HTTPException(status_code=404, detail="預約不存在")
@@ -369,7 +359,6 @@ async def get_meeting_by_booking(
                     table="students",
                     select="id",
                     filters={"email": current_user.email},
-                    use_service_key=True,
                 )
                 student_id = students[0]["id"] if students else None
                 if booking.get("student_id") != student_id:
@@ -384,7 +373,6 @@ async def get_meeting_by_booking(
                 "is_deleted": "eq.false",
                 "meeting_status": "neq.cancelled",
             },
-            use_service_key=True,
         )
 
         if not logs:
@@ -448,7 +436,6 @@ async def oauth_callback(
         table="users_profile",
         select="email",
         filters={"user_id": state},
-        use_service_key=True,
     )
     if not users_profile:
         raise HTTPException(status_code=404, detail="找不到使用者")
@@ -457,7 +444,6 @@ async def oauth_callback(
         table="teachers",
         select="id",
         filters={"email": users_profile[0]["email"]},
-        use_service_key=True,
     )
     if not teachers:
         raise HTTPException(status_code=404, detail="找不到對應的教師紀錄")
@@ -480,7 +466,6 @@ async def oauth_callback(
         table="teacher_zoom_accounts",
         select="id",
         filters={"teacher_id": teacher_id},
-        use_service_key=True,
     )
     if existing:
         zoom_data["is_deleted"] = False
@@ -488,14 +473,12 @@ async def oauth_callback(
             table="teacher_zoom_accounts",
             data=zoom_data,
             filters={"teacher_id": teacher_id},
-            use_service_key=True,
         )
     else:
         zoom_data["teacher_id"] = teacher_id
         await supabase_service.table_insert(
             table="teacher_zoom_accounts",
             data=zoom_data,
-            use_service_key=True,
         )
 
     # 重導到前端
@@ -512,7 +495,6 @@ async def unlink_zoom(
         table="teachers",
         select="id",
         filters={"email": current_user.email},
-        use_service_key=True,
     )
     if not teachers:
         raise HTTPException(status_code=404, detail="找不到教師紀錄")
@@ -527,7 +509,6 @@ async def unlink_zoom(
             "zoom_token_expires_at": None,
         },
         filters={"teacher_id": teachers[0]["id"], "is_deleted": "eq.false"},
-        use_service_key=True,
     )
 
     return BaseResponse(message="Zoom 綁定已解除")
@@ -542,7 +523,6 @@ async def get_zoom_link_status(
         table="teachers",
         select="id",
         filters={"email": current_user.email},
-        use_service_key=True,
     )
 
     if not teachers:
@@ -552,7 +532,6 @@ async def get_zoom_link_status(
         table="teacher_zoom_accounts",
         select="zoom_user_id,zoom_email,zoom_linked_at",
         filters={"teacher_id": teachers[0]["id"], "is_deleted": "eq.false"},
-        use_service_key=True,
     )
 
     if not records or not records[0].get("zoom_user_id"):
@@ -636,7 +615,6 @@ async def enrich_meeting_log(record: dict) -> dict:
                 table="zoom_accounts",
                 select="account_name",
                 filters={"id": record["zoom_account_id"]},
-                use_service_key=True,
             )
             if accounts:
                 record["account_name"] = accounts[0].get("account_name")
@@ -649,7 +627,6 @@ async def enrich_meeting_log(record: dict) -> dict:
                 table="teachers",
                 select="name",
                 filters={"id": record["teacher_id"]},
-                use_service_key=True,
             )
             if teachers:
                 record["teacher_name"] = teachers[0].get("name")

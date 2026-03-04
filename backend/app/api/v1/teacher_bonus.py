@@ -22,7 +22,6 @@ async def enrich_bonus(record: dict) -> dict:
         teachers = await supabase_service.table_select(
             table="teachers", select="name",
             filters={"id": record["teacher_id"]},
-            use_service_key=True
         )
         if teachers:
             record["teacher_name"] = teachers[0].get("name")
@@ -34,7 +33,6 @@ async def enrich_bonus(record: dict) -> dict:
             students = await supabase_service.table_select(
                 table="students", select="name",
                 filters={"id": record["related_student_id"]},
-                use_service_key=True
             )
             if students:
                 record["student_name"] = students[0].get("name")
@@ -64,7 +62,6 @@ async def list_teacher_bonus(
             profiles = await supabase_service.table_select(
                 table="user_profiles", select="teacher_id",
                 filters={"id": current_user.user_id},
-                use_service_key=True
             )
             if profiles and profiles[0].get("teacher_id"):
                 filters["teacher_id"] = f"eq.{profiles[0]['teacher_id']}"
@@ -93,7 +90,7 @@ async def list_teacher_bonus(
         # 取 total
         all_records = await supabase_service.table_select(
             table="teacher_bonus_records", select="id",
-            filters=filters, use_service_key=True
+            filters=filters
         )
 
         # 若有 date_to 且同時有 date_from，在 python 端過濾
@@ -109,7 +106,7 @@ async def list_teacher_bonus(
             filters_count["bonus_date"] = f"gte.{date_from}"
             all_gte = await supabase_service.table_select(
                 table="teacher_bonus_records", select="id,bonus_date",
-                filters=filters_count, use_service_key=True
+                filters=filters_count
             )
             all_records = [r for r in all_gte if r.get("bonus_date", "") <= date_to]
             filters = filters_count
@@ -121,7 +118,7 @@ async def list_teacher_bonus(
         records = await supabase_service.table_select_with_pagination(
             table="teacher_bonus_records", select=BONUS_SELECT,
             filters=filters, order_by="bonus_date.desc,created_at.desc",
-            limit=per_page, offset=offset, use_service_key=True
+            limit=per_page, offset=offset
         )
 
         # python-side date_to filter
@@ -151,7 +148,6 @@ async def get_teacher_bonus(
         result = await supabase_service.table_select(
             table="teacher_bonus_records", select=BONUS_SELECT,
             filters={"id": bonus_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not result:
             raise HTTPException(status_code=404, detail="獎金紀錄不存在")
@@ -174,7 +170,6 @@ async def create_teacher_bonus(
         teachers = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teachers:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -199,7 +194,7 @@ async def create_teacher_bonus(
             bonus_data["created_by"] = employee_id
 
         result = await supabase_service.table_insert(
-            table="teacher_bonus_records", data=bonus_data, use_service_key=True
+            table="teacher_bonus_records", data=bonus_data
         )
         if not result:
             raise HTTPException(status_code=500, detail="新增教師獎金失敗")
@@ -223,7 +218,6 @@ async def update_teacher_bonus(
         existing = await supabase_service.table_select(
             table="teacher_bonus_records", select="id",
             filters={"id": bonus_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="獎金紀錄不存在")
@@ -253,7 +247,7 @@ async def update_teacher_bonus(
 
         result = await supabase_service.table_update(
             table="teacher_bonus_records", data=update_data,
-            filters={"id": bonus_id}, use_service_key=True
+            filters={"id": bonus_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新教師獎金失敗")
@@ -276,7 +270,6 @@ async def delete_teacher_bonus(
         existing = await supabase_service.table_select(
             table="teacher_bonus_records", select="id",
             filters={"id": bonus_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="獎金紀錄不存在")
@@ -291,7 +284,7 @@ async def delete_teacher_bonus(
 
         result = await supabase_service.table_update(
             table="teacher_bonus_records", data=delete_data,
-            filters={"id": bonus_id}, use_service_key=True
+            filters={"id": bonus_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="刪除教師獎金失敗")
@@ -314,7 +307,6 @@ async def get_teacher_options(
         teachers = await supabase_service.table_select(
             table="teachers", select="id,teacher_no,name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
         return {"data": teachers}
     except Exception as e:

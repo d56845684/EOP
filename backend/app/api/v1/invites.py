@@ -28,7 +28,6 @@ async def generate_invite(
             table=table,
             select="id,email,name,email_verified_at,is_deleted",
             filters={"id": data.entity_id, "is_deleted": "eq.false"},
-            use_service_key=True,
         )
         if not entities:
             raise HTTPException(status_code=404, detail=f"{data.entity_type} 不存在")
@@ -46,7 +45,6 @@ async def generate_invite(
             table="users",
             select="id",
             filters={"email": entity["email"]},
-            use_service_key=True,
         )
         if existing_users:
             raise HTTPException(status_code=400, detail="此 email 已有登入帳號")
@@ -90,7 +88,6 @@ async def accept_invite(data: AcceptInviteRequest):
             table=table,
             select="id,email,email_verified_at,is_deleted",
             filters={"id": entity_id, "is_deleted": "eq.false"},
-            use_service_key=True,
         )
         if not entities:
             raise HTTPException(status_code=400, detail="資料不存在或已被刪除")
@@ -123,7 +120,6 @@ async def accept_invite(data: AcceptInviteRequest):
             await supabase_service.table_insert(
                 table="user_profiles",
                 data=profile_data,
-                use_service_key=True,
             )
         except Exception as profile_err:
             # rollback：刪除 public.users
@@ -136,7 +132,6 @@ async def accept_invite(data: AcceptInviteRequest):
             table=table,
             data={"email_verified_at": "now()"},
             filters={"id": entity_id},
-            use_service_key=True,
         )
 
         return AcceptInviteResponse(message="帳號建立成功，請使用 email 和密碼登入")

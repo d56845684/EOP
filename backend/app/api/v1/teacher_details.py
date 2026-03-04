@@ -28,7 +28,6 @@ async def list_teacher_details(
             table="teacher_details",
             select=DETAIL_SELECT,
             filters={"teacher_id": teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         return TeacherDetailListResponse(
             data=[TeacherDetailResponse(**d) for d in details]
@@ -48,7 +47,6 @@ async def create_teacher_detail(
         teachers = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teachers:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -68,7 +66,7 @@ async def create_teacher_detail(
             detail_data["created_by"] = employee_id
 
         result = await supabase_service.table_insert(
-            table="teacher_details", data=detail_data, use_service_key=True
+            table="teacher_details", data=detail_data
         )
         if not result:
             raise HTTPException(status_code=500, detail="新增教師明細失敗")
@@ -91,7 +89,6 @@ async def update_teacher_detail(
         existing = await supabase_service.table_select(
             table="teacher_details", select="id",
             filters={"id": detail_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師明細不存在")
@@ -113,7 +110,7 @@ async def update_teacher_detail(
 
         result = await supabase_service.table_update(
             table="teacher_details", data=update_data,
-            filters={"id": detail_id}, use_service_key=True
+            filters={"id": detail_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新教師明細失敗")
@@ -135,7 +132,6 @@ async def delete_teacher_detail(
         existing = await supabase_service.table_select(
             table="teacher_details", select="id",
             filters={"id": detail_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師明細不存在")
@@ -150,7 +146,7 @@ async def delete_teacher_detail(
 
         result = await supabase_service.table_update(
             table="teacher_details", data=delete_data,
-            filters={"id": detail_id}, use_service_key=True
+            filters={"id": detail_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="刪除教師明細失敗")
@@ -184,7 +180,6 @@ async def get_teacher_detail_upload_url(
             table="teacher_details",
             select="id,teacher_id,detail_type",
             filters={"id": detail_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師明細不存在")
@@ -227,7 +222,6 @@ async def confirm_teacher_detail_upload(
         existing = await supabase_service.table_select(
             table="teacher_details", select="id",
             filters={"id": detail_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師明細不存在")
@@ -248,7 +242,7 @@ async def confirm_teacher_detail_upload(
 
         result = await supabase_service.table_update(
             table="teacher_details", data=update_data,
-            filters={"id": detail_id}, use_service_key=True
+            filters={"id": detail_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新檔案資訊失敗")
@@ -274,7 +268,6 @@ async def get_teacher_detail_download_url(
             table="teacher_details",
             select="id,file_path,file_name",
             filters={"id": detail_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not result:
             raise HTTPException(status_code=404, detail="教師明細不存在")

@@ -465,8 +465,6 @@ class SupabaseService:
         table: str,
         select: str = "*",
         filters: dict = None,
-        use_service_key: bool = False,
-        access_token: str = None
     ) -> list[dict]:
         """Query table"""
         tbl = self._sanitize_identifier(table)
@@ -493,8 +491,6 @@ class SupabaseService:
         order_by: str = None,
         limit: int = 20,
         offset: int = 0,
-        use_service_key: bool = False,
-        access_token: str = None
     ) -> list[dict]:
         """Query table with pagination and ordering"""
         tbl = self._sanitize_identifier(table)
@@ -525,7 +521,6 @@ class SupabaseService:
         self,
         table: str,
         data: dict,
-        use_service_key: bool = False
     ) -> Optional[dict]:
         """Insert data"""
         tbl = self._sanitize_identifier(table)
@@ -556,7 +551,6 @@ class SupabaseService:
         table: str,
         data: dict,
         filters: dict,
-        use_service_key: bool = False
     ) -> Optional[dict]:
         """Update data"""
         tbl = self._sanitize_identifier(table)
@@ -589,7 +583,6 @@ class SupabaseService:
         self,
         table: str,
         filters: dict,
-        use_service_key: bool = False
     ) -> bool:
         """Delete data"""
         tbl = self._sanitize_identifier(table)

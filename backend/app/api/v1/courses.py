@@ -32,7 +32,6 @@ async def list_courses(
             table="courses",
             select="id",
             filters=filters,
-            use_service_key=True
         )
         total = len(all_courses)
 
@@ -48,7 +47,6 @@ async def list_courses(
             order_by="created_at.desc",
             limit=per_page,
             offset=offset,
-            use_service_key=True
         )
 
         # 如果有搜尋關鍵字，在結果中篩選（PostgREST 的 or 較複雜，這裡簡化處理）
@@ -83,7 +81,6 @@ async def get_course(
             table="courses",
             select="id,course_code,course_name,description,duration_minutes,is_active,created_at,updated_at",
             filters={"id": course_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not result:
@@ -109,7 +106,6 @@ async def create_course(
             table="courses",
             select="id",
             filters={"course_code": data.course_code, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if existing:
@@ -125,7 +121,6 @@ async def create_course(
         result = await supabase_service.table_insert(
             table="courses",
             data=course_data,
-            use_service_key=True
         )
 
         if not result:
@@ -156,7 +151,6 @@ async def update_course(
             table="courses",
             select="id,course_code",
             filters={"id": course_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -168,7 +162,6 @@ async def update_course(
                 table="courses",
                 select="id",
                 filters={"course_code": data.course_code, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if duplicate:
                 raise HTTPException(status_code=400, detail="課程代碼已存在")
@@ -183,7 +176,6 @@ async def update_course(
             table="courses",
             data=update_data,
             filters={"id": course_id},
-            use_service_key=True
         )
 
         if not result:
@@ -213,7 +205,6 @@ async def delete_course(
             table="courses",
             select="id",
             filters={"id": course_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -228,7 +219,6 @@ async def delete_course(
                 "deleted_at": datetime.utcnow().isoformat()
             },
             filters={"id": course_id},
-            use_service_key=True
         )
 
         if not result:

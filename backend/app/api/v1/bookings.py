@@ -26,7 +26,6 @@ async def generate_booking_no() -> str:
         table="bookings",
         select="booking_no",
         filters={"booking_no": f"like.{prefix}%"},
-        use_service_key=True
     )
 
     if not result:
@@ -66,7 +65,6 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
             "student_id": student_id,
             "is_deleted": "eq.false"
         },
-        use_service_key=True
     )
 
     if not all_prefs:
@@ -95,7 +93,6 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
                     "is_active": "eq.true",
                     "teacher_level": f"gte.{min_level}"
                 },
-                use_service_key=True
             )
             for t in teachers:
                 # 查該教師是否有 active 合約包含此課程的 course_rate
@@ -107,7 +104,6 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
                         "is_deleted": "eq.false",
                         "contract_status": "eq.active"
                     },
-                    use_service_key=True
                 )
                 for tc in t_contracts:
                     rate_check = await supabase_service.table_select(
@@ -119,7 +115,6 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
                             "detail_type": "eq.course_rate",
                             "is_deleted": "eq.false"
                         },
-                        use_service_key=True
                     )
                     if rate_check:
                         allowed.add(t["id"])
@@ -134,7 +129,6 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
                     "is_active": "eq.true",
                     "teacher_level": f"gte.{min_level}"
                 },
-                use_service_key=True
             )
             for t in teachers:
                 allowed.add(t["id"])
@@ -160,7 +154,6 @@ async def check_booking_overlap(
             "teacher_slot_id": f"eq.{teacher_slot_id}",
             "is_deleted": "eq.false",
         },
-        use_service_key=True
     )
 
     overlapping = []
@@ -221,7 +214,6 @@ async def update_slot_booked_status(slot_id: str):
         table="teacher_available_slots",
         select="id,start_time,end_time",
         filters={"id": slot_id, "is_deleted": "eq.false"},
-        use_service_key=True
     )
     if not slot:
         return
@@ -242,7 +234,6 @@ async def update_slot_booked_status(slot_id: str):
             "teacher_slot_id": f"eq.{slot_id}",
             "is_deleted": "eq.false",
         },
-        use_service_key=True
     )
 
     active_bookings = [
@@ -273,7 +264,6 @@ async def update_slot_booked_status(slot_id: str):
         table="teacher_available_slots",
         data={"is_booked": all_booked},
         filters={"id": slot_id},
-        use_service_key=True
     )
 
 
@@ -285,7 +275,6 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             table="students",
             select="name",
             filters={"id": booking["student_id"]},
-            use_service_key=True
         )
         booking["student_name"] = student[0]["name"] if student else None
 
@@ -295,7 +284,6 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             table="teachers",
             select="name",
             filters={"id": booking["teacher_id"]},
-            use_service_key=True
         )
         booking["teacher_name"] = teacher[0]["name"] if teacher else None
 
@@ -305,7 +293,6 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             table="courses",
             select="course_name",
             filters={"id": booking["course_id"]},
-            use_service_key=True
         )
         booking["course_name"] = course[0]["course_name"] if course else None
 
@@ -315,7 +302,6 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             table="student_contracts",
             select="contract_no",
             filters={"id": booking["student_contract_id"]},
-            use_service_key=True
         )
         booking["student_contract_no"] = contract[0]["contract_no"] if contract else None
 
@@ -325,7 +311,6 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             table="teacher_contracts",
             select="contract_no",
             filters={"id": booking["teacher_contract_id"]},
-            use_service_key=True
         )
         booking["teacher_contract_no"] = contract[0]["contract_no"] if contract else None
 
@@ -389,7 +374,6 @@ async def list_bookings(
             table="bookings",
             select="id",
             filters=filters,
-            use_service_key=True
         )
         total = len(all_bookings)
 
@@ -405,7 +389,6 @@ async def list_bookings(
             order_by="booking_date.desc,start_time.desc",
             limit=per_page,
             offset=offset,
-            use_service_key=True
         )
 
         # 如果有搜尋關鍵字，在結果中篩選
@@ -446,7 +429,6 @@ async def get_slot_availability(
             table="teacher_available_slots",
             select="id,slot_date,start_time,end_time,is_available",
             filters={"id": teacher_slot_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not slot:
@@ -467,7 +449,6 @@ async def get_slot_availability(
                 "teacher_slot_id": f"eq.{teacher_slot_id}",
                 "is_deleted": "eq.false",
             },
-            use_service_key=True
         )
 
         # 過濾掉已取消的
@@ -532,7 +513,6 @@ async def get_my_student_info(
             table="students",
             select="id,student_no,name,student_type",
             filters={"id": user_student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not student:
@@ -562,7 +542,6 @@ async def get_my_contracts(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
 
         # 按 created_at 降序排列（最新的在前）
@@ -579,7 +558,6 @@ async def get_my_contracts(
                     "detail_type": "eq.lesson_price",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             course_ids = list(set(d["course_id"] for d in details if d.get("course_id")))
             course_names = []
@@ -589,7 +567,6 @@ async def get_my_contracts(
                     table="courses",
                     select="course_name",
                     filters={"id": cid},
-                    use_service_key=True
                 )
                 if c:
                     course_names.append(c[0]["course_name"])
@@ -614,7 +591,6 @@ async def get_booking(
             table="bookings",
             select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_date,start_time,end_time,notes,created_at,updated_at",
             filters={"id": booking_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not result:
@@ -635,7 +611,6 @@ async def get_user_student_id(user_id: str) -> str | None:
         table="user_profiles",
         select="student_id",
         filters={"id": user_id},
-        use_service_key=True
     )
     if profile and profile[0].get("student_id"):
         return profile[0]["student_id"]
@@ -648,7 +623,6 @@ async def get_user_teacher_id(user_id: str) -> str | None:
         table="user_profiles",
         select="teacher_id",
         filters={"id": user_id},
-        use_service_key=True
     )
     if profile and profile[0].get("teacher_id"):
         return profile[0]["teacher_id"]
@@ -681,7 +655,6 @@ async def create_booking(
             table="students",
             select="id,name,student_type",
             filters={"id": data.student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not student:
             raise HTTPException(status_code=400, detail="學生不存在")
@@ -693,7 +666,6 @@ async def create_booking(
             table="teachers",
             select="id,name,teacher_level",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在")
@@ -703,7 +675,6 @@ async def create_booking(
             table="courses",
             select="id,course_name",
             filters={"id": data.course_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not course:
             raise HTTPException(status_code=400, detail="課程不存在")
@@ -719,7 +690,6 @@ async def create_booking(
                     "course_id": data.course_id,
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             if not sc_check:
                 raise HTTPException(status_code=400, detail="學生未選修此課程")
@@ -733,7 +703,6 @@ async def create_booking(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
         has_course_rate = False
         for tc in teacher_active_contracts:
@@ -746,7 +715,6 @@ async def create_booking(
                     "detail_type": "eq.course_rate",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             if rate_check:
                 has_course_rate = True
@@ -769,7 +737,6 @@ async def create_booking(
                 table="student_contracts",
                 select="id,contract_no,remaining_lessons",
                 filters={"id": data.student_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not student_contract:
                 raise HTTPException(status_code=400, detail="學生合約不存在")
@@ -788,7 +755,6 @@ async def create_booking(
                 table="teacher_contracts",
                 select="id,contract_no",
                 filters={"id": teacher_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not teacher_contract:
                 raise HTTPException(status_code=400, detail="教師合約不存在")
@@ -803,7 +769,6 @@ async def create_booking(
                     "detail_type": "eq.course_rate",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             if teacher_rate:
                 hourly_rate = teacher_rate[0].get("amount", 0)
@@ -819,7 +784,6 @@ async def create_booking(
                 table="teacher_available_slots",
                 select="id,slot_date,start_time,end_time,is_available,teacher_contract_id",
                 filters={"id": teacher_slot_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not teacher_slot:
                 raise HTTPException(status_code=400, detail="教師時段不存在")
@@ -862,7 +826,6 @@ async def create_booking(
                     "is_deleted": "eq.false",
                     "is_available": "eq.true",
                 },
-                use_service_key=True
             )
 
             # 找出包含預約時間區間的時段，並檢查無重疊
@@ -920,7 +883,6 @@ async def create_booking(
         result = await supabase_service.table_insert(
             table="bookings",
             data=booking_data,
-            use_service_key=True
         )
 
         if not result:
@@ -932,7 +894,6 @@ async def create_booking(
                 table="student_contracts",
                 data={"remaining_lessons": student_contract[0]["remaining_lessons"] - 1},
                 filters={"id": data.student_contract_id},
-                use_service_key=True
             )
 
         # 更新 slot 預約已滿狀態
@@ -975,7 +936,6 @@ async def batch_update_bookings(
             table="bookings",
             select="id,booking_date,booking_status,teacher_slot_id,student_contract_id",
             filters=filters,
-            use_service_key=True
         )
 
         # 在 Python 中進行更精細的過濾
@@ -1021,7 +981,6 @@ async def batch_update_bookings(
                 table="bookings",
                 data=update_data,
                 filters={"id": booking["id"]},
-                use_service_key=True
             )
 
             if result:
@@ -1034,14 +993,12 @@ async def batch_update_bookings(
                         table="student_contracts",
                         select="remaining_lessons",
                         filters={"id": booking["student_contract_id"]},
-                        use_service_key=True
                     )
                     if contract:
                         await supabase_service.table_update(
                             table="student_contracts",
                             data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
                             filters={"id": booking["student_contract_id"]},
-                            use_service_key=True
                         )
                         restored_contracts.append(booking["student_contract_id"])
 
@@ -1077,7 +1034,6 @@ async def update_booking(
             table="bookings",
             select="id,booking_status,teacher_slot_id,student_contract_id,teacher_id",
             filters={"id": booking_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -1115,7 +1071,6 @@ async def update_booking(
             table="bookings",
             data=update_data,
             filters={"id": booking_id},
-            use_service_key=True
         )
 
         if not result:
@@ -1159,14 +1114,12 @@ async def update_booking(
                 table="student_contracts",
                 select="remaining_lessons",
                 filters={"id": existing[0]["student_contract_id"]},
-                use_service_key=True
             )
             if contract:
                 await supabase_service.table_update(
                     table="student_contracts",
                     data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
                     filters={"id": existing[0]["student_contract_id"]},
-                    use_service_key=True
                 )
 
             # 更新 slot 預約已滿狀態
@@ -1221,7 +1174,6 @@ async def batch_delete_bookings(
             table="bookings",
             select="id,booking_date,booking_status,teacher_slot_id,student_contract_id",
             filters=filters,
-            use_service_key=True
         )
 
         # 在 Python 中進行更精細的過濾
@@ -1278,7 +1230,6 @@ async def batch_delete_bookings(
                 table="bookings",
                 data=delete_data_base,
                 filters={"id": booking["id"]},
-                use_service_key=True
             )
 
             if result:
@@ -1294,14 +1245,12 @@ async def batch_delete_bookings(
                         table="student_contracts",
                         select="remaining_lessons",
                         filters={"id": booking["student_contract_id"]},
-                        use_service_key=True
                     )
                     if contract:
                         await supabase_service.table_update(
                             table="student_contracts",
                             data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
                             filters={"id": booking["student_contract_id"]},
-                            use_service_key=True
                         )
                         restored_contracts.append(booking["student_contract_id"])
 
@@ -1335,7 +1284,6 @@ async def delete_booking(
             table="bookings",
             select="id,booking_status,teacher_slot_id,student_contract_id",
             filters={"id": booking_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -1362,7 +1310,6 @@ async def delete_booking(
             table="bookings",
             data=delete_data,
             filters={"id": booking_id},
-            use_service_key=True
         )
 
         if not result:
@@ -1375,14 +1322,12 @@ async def delete_booking(
                 table="student_contracts",
                 select="remaining_lessons",
                 filters={"id": existing[0]["student_contract_id"]},
-                use_service_key=True
             )
             if contract:
                 await supabase_service.table_update(
                     table="student_contracts",
                     data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
                     filters={"id": existing[0]["student_contract_id"]},
-                    use_service_key=True
                 )
 
         # 更新 slot 預約已滿狀態
@@ -1426,7 +1371,6 @@ async def batch_create_bookings(
             table="students",
             select="id,name,student_type",
             filters={"id": data.student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not student:
             raise HTTPException(status_code=400, detail="學生不存在")
@@ -1438,7 +1382,6 @@ async def batch_create_bookings(
             table="teachers",
             select="id,name,teacher_level",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在")
@@ -1457,7 +1400,6 @@ async def batch_create_bookings(
                 table="student_contracts",
                 select="id,contract_no,remaining_lessons",
                 filters={"id": data.student_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not student_contract:
                 raise HTTPException(status_code=400, detail="學生合約不存在")
@@ -1478,7 +1420,6 @@ async def batch_create_bookings(
                         "course_id": course_id,
                         "is_deleted": "eq.false"
                     },
-                    use_service_key=True
                 )
                 if not sc_check:
                     raise HTTPException(status_code=400, detail="學生未選修此課程")
@@ -1492,7 +1433,6 @@ async def batch_create_bookings(
                     "is_deleted": "eq.false",
                     "contract_status": "eq.active"
                 },
-                use_service_key=True
             )
             has_course_rate = False
             for tc in batch_teacher_contracts:
@@ -1505,7 +1445,6 @@ async def batch_create_bookings(
                         "detail_type": "eq.course_rate",
                         "is_deleted": "eq.false"
                     },
-                    use_service_key=True
                 )
                 if rate_check:
                     has_course_rate = True
@@ -1522,7 +1461,6 @@ async def batch_create_bookings(
                 "course_id": f"eq.{course_id}",
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
         pref = pref_list[0] if pref_list else None
         if pref:
@@ -1543,7 +1481,6 @@ async def batch_create_bookings(
                 table="teacher_contracts",
                 select="id,contract_no",
                 filters={"id": teacher_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not teacher_contract:
                 raise HTTPException(status_code=400, detail="教師合約不存在")
@@ -1559,7 +1496,6 @@ async def batch_create_bookings(
             table="teacher_available_slots",
             select="id,slot_date,start_time,end_time,teacher_contract_id",
             filters=slot_filters,
-            use_service_key=True
         )
 
         # 篩選符合條件的時段
@@ -1621,7 +1557,6 @@ async def batch_create_bookings(
                     "detail_type": "eq.course_rate",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             if teacher_rate:
                 hourly_rate = teacher_rate[0].get("amount", 0)
@@ -1664,7 +1599,6 @@ async def batch_create_bookings(
                 result = await supabase_service.table_insert(
                     table="bookings",
                     data=booking_data,
-                    use_service_key=True
                 )
 
                 if result:
@@ -1682,7 +1616,6 @@ async def batch_create_bookings(
                 table="student_contracts",
                 data={"remaining_lessons": new_remaining},
                 filters={"id": data.student_contract_id},
-                use_service_key=True
             )
 
         # 更新所有受影響 slot 的預約已滿狀態
@@ -1722,7 +1655,6 @@ async def batch_update_bookings_by_ids(
                 table="bookings",
                 select="id,booking_status,teacher_slot_id,student_contract_id",
                 filters={"id": booking_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
 
             if not existing:
@@ -1744,7 +1676,6 @@ async def batch_update_bookings_by_ids(
                 table="bookings",
                 data=update_data,
                 filters={"id": booking_id},
-                use_service_key=True
             )
 
             if result:
@@ -1757,14 +1688,12 @@ async def batch_update_bookings_by_ids(
                         table="student_contracts",
                         select="remaining_lessons",
                         filters={"id": existing[0]["student_contract_id"]},
-                        use_service_key=True
                     )
                     if contract:
                         await supabase_service.table_update(
                             table="student_contracts",
                             data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
                             filters={"id": existing[0]["student_contract_id"]},
-                            use_service_key=True
                         )
                         restored_contracts.append(existing[0]["student_contract_id"])
 
@@ -1812,7 +1741,6 @@ async def batch_delete_bookings_by_ids(
                 table="bookings",
                 select="id,booking_status,teacher_slot_id,student_contract_id",
                 filters={"id": booking_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
 
             if not existing:
@@ -1837,7 +1765,6 @@ async def batch_delete_bookings_by_ids(
                 table="bookings",
                 data=delete_data,
                 filters={"id": booking_id},
-                use_service_key=True
             )
 
             if result:
@@ -1853,14 +1780,12 @@ async def batch_delete_bookings_by_ids(
                         table="student_contracts",
                         select="remaining_lessons",
                         filters={"id": existing[0]["student_contract_id"]},
-                        use_service_key=True
                     )
                     if contract:
                         await supabase_service.table_update(
                             table="student_contracts",
                             data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
                             filters={"id": existing[0]["student_contract_id"]},
-                            use_service_key=True
                         )
                         restored_contracts.append(existing[0]["student_contract_id"])
 
@@ -1896,7 +1821,6 @@ async def get_student_options(
             table="students",
             select="id,student_no,name,student_type",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
         return {"data": students}
     except Exception as e:
@@ -1919,7 +1843,6 @@ async def get_teacher_options(
                 table="teachers",
                 select="id,teacher_no,name,teacher_level",
                 filters=filters,
-                use_service_key=True
             )
             teachers = [t for t in teachers if t["id"] in allowed_set]
         else:
@@ -1928,7 +1851,6 @@ async def get_teacher_options(
                 table="teachers",
                 select="id,teacher_no,name,teacher_level",
                 filters=filters,
-                use_service_key=True
             )
 
         return {"data": teachers}
@@ -1949,7 +1871,6 @@ async def update_teacher_level(
         teacher = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"id": teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teacher:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -1962,7 +1883,6 @@ async def update_teacher_level(
             table="teachers",
             data=update_data,
             filters={"id": teacher_id},
-            use_service_key=True
         )
 
         if not result:
@@ -1992,7 +1912,6 @@ async def get_overlapping_course_options(
             table="students",
             select="id,student_type",
             filters={"id": student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not student:
             raise HTTPException(status_code=400, detail="學生不存在")
@@ -2008,7 +1927,6 @@ async def get_overlapping_course_options(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
 
         teacher_course_ids = set()
@@ -2021,7 +1939,6 @@ async def get_overlapping_course_options(
                     "detail_type": "eq.course_rate",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             for d in details:
                 if d.get("course_id"):
@@ -2043,7 +1960,6 @@ async def get_overlapping_course_options(
                     "student_id": student_id,
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             student_course_ids = set(sc["course_id"] for sc in student_courses if sc.get("course_id"))
 
@@ -2057,7 +1973,6 @@ async def get_overlapping_course_options(
             table="courses",
             select="id,course_code,course_name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
 
         # 過濾交集課程
@@ -2080,7 +1995,6 @@ async def get_course_options(
             table="courses",
             select="id,course_code,course_name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
         return {"data": courses}
     except Exception as e:
@@ -2102,7 +2016,6 @@ async def get_student_contract_options(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
 
         # 按 created_at 降序排列（最新的在前）
@@ -2119,7 +2032,6 @@ async def get_student_contract_options(
                     "detail_type": "eq.lesson_price",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             course_ids = list(set(d["course_id"] for d in details if d.get("course_id")))
             course_names = []
@@ -2129,7 +2041,6 @@ async def get_student_contract_options(
                     table="courses",
                     select="course_name",
                     filters={"id": cid},
-                    use_service_key=True
                 )
                 if c:
                     course_names.append(c[0]["course_name"])
@@ -2158,7 +2069,6 @@ async def get_teacher_contract_options(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
         return {"data": contracts}
     except Exception as e:
@@ -2187,7 +2097,6 @@ async def get_teacher_slot_options(
             table="teacher_available_slots",
             select="id,slot_date,start_time,end_time,teacher_contract_id,is_booked",
             filters=filters,
-            use_service_key=True
         )
 
         # 如果有結束日期，在結果中篩選

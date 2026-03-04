@@ -27,7 +27,6 @@ async def get_profile(
         table="user_profiles",
         select="*",
         filters={"id": current_user.user_id},
-        use_service_key=True
     )
     
     entity_data = {}
@@ -40,7 +39,6 @@ async def get_profile(
                 table=table,
                 select="*",
                 filters={"id": entity_id},
-                use_service_key=True
             )
             if entities:
                 entity_data = entities[0]
@@ -73,7 +71,6 @@ async def list_users(
         table="user_profiles",
         select="*",
         filters=filters if filters else None,
-        use_service_key=True
     )
     
     # 分頁處理

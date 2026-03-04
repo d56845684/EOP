@@ -18,10 +18,11 @@ class CurrentUser:
         user_id: str,
         email: str,
         role: str,
-        session_id: str,
-        session_data: SessionData,
+        session_id: Optional[str] = None,
+        session_data: Optional[SessionData] = None,
         employee_type: Optional[str] = None,
-        permission_level: int = 0
+        permission_level: int = 0,
+        is_service_account: bool = False
     ):
         self.user_id = user_id
         self.email = email
@@ -30,6 +31,7 @@ class CurrentUser:
         self.session_data = session_data
         self.employee_type = employee_type
         self.permission_level = permission_level
+        self.is_service_account = is_service_account
 
     def is_admin(self) -> bool:
         """檢查是否為管理員（權限等級 100）"""
@@ -70,6 +72,17 @@ class CurrentUser:
 
 async def get_current_user(request: Request) -> CurrentUser:
     """取得當前已認證的用戶"""
+    # Service Account：由 middleware 驗證 API Key 後標記
+    if getattr(request.state, "is_service_account", False):
+        return CurrentUser(
+            user_id="service-account",
+            email="service@system.internal",
+            role="employee",
+            is_service_account=True,
+            employee_type="admin",
+            permission_level=100
+        )
+
     # 1. 取得 Token
     token = get_token_from_request(request)
     if not token:
@@ -192,7 +205,6 @@ async def get_user_employee_id(user_id: str) -> Optional[str]:
         table="user_profiles",
         select="employee_id",
         filters={"id": user_id},
-        use_service_key=True
     )
     if profile and profile[0].get("employee_id"):
         return profile[0]["employee_id"]

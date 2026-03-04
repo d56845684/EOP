@@ -32,8 +32,10 @@ export async function fetchWithAuth(
             // 重試原始請求
             response = await fetch(url, options)
         } else {
-            // refresh 也失敗 → 導向登入頁
-            window.location.href = '/login'
+            // refresh 也失敗 → 導向登入頁（避免在 /login 頁面無限迴圈）
+            if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+                window.location.href = '/login'
+            }
         }
     }
 
