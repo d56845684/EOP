@@ -33,6 +33,7 @@ export interface StudentContract {
     end_date: string
     total_lessons: number
     remaining_lessons: number
+    total_amount?: number
     total_leave_allowed: number
     used_leave_count: number
     notes?: string
@@ -68,6 +69,7 @@ export interface CreateStudentContractData {
     end_date: string
     total_lessons: number
     remaining_lessons: number
+    total_amount: number
     total_leave_allowed?: number
     notes?: string
 }
@@ -79,6 +81,7 @@ export interface UpdateStudentContractData {
     end_date?: string
     total_lessons?: number
     remaining_lessons?: number
+    total_amount?: number
     total_leave_allowed?: number
     notes?: string
 }

@@ -975,6 +975,9 @@ export default function BookingsPage() {
         if (error) {
             setBatchError(error.message)
         } else {
+            if (message) {
+                alert(message)
+            }
             closeBatchModal()
             fetchBookings()
         }

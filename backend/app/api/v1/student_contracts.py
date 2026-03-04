@@ -19,7 +19,7 @@ import re
 
 router = APIRouter(prefix="/student-contracts", tags=["學生合約管理"])
 
-CONTRACT_SELECT = "id,contract_no,student_id,contract_status,start_date,end_date,total_lessons,remaining_lessons,total_leave_allowed,used_leave_count,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
+CONTRACT_SELECT = "id,contract_no,student_id,contract_status,start_date,end_date,total_lessons,remaining_lessons,total_amount,total_leave_allowed,used_leave_count,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
 
 
 async def get_user_student_id(user_id: str) -> Optional[str]:
@@ -414,6 +414,7 @@ async def create_student_contract(
             "end_date": data.end_date.isoformat(),
             "total_lessons": data.total_lessons,
             "remaining_lessons": data.remaining_lessons,
+            "total_amount": data.total_amount,
             "total_leave_allowed": total_leave_allowed,
             "used_leave_count": 0,
             "notes": data.notes,
@@ -747,6 +748,23 @@ async def create_contract_detail(
         if not result:
             raise HTTPException(status_code=500, detail="新增合約明細失敗")
 
+        # 補償堂數連動 remaining_lessons
+        if data.detail_type.value == "compensation":
+            contract_data = await supabase_service.table_select(
+                table="student_contracts",
+                select="remaining_lessons",
+                filters={"id": contract_id},
+                use_service_key=True
+            )
+            if contract_data:
+                new_remaining = contract_data[0]["remaining_lessons"] + int(data.amount)
+                await supabase_service.table_update(
+                    table="student_contracts",
+                    data={"remaining_lessons": new_remaining},
+                    filters={"id": contract_id},
+                    use_service_key=True
+                )
+
         # enrich course_name
         if result.get("course_id"):
             course = await supabase_service.table_select(
@@ -780,7 +798,7 @@ async def update_contract_detail(
         # 確認明細存在且屬於此合約
         existing = await supabase_service.table_select(
             table="student_contract_details",
-            select="id,student_contract_id",
+            select="id,student_contract_id,detail_type,amount",
             filters={
                 "id": detail_id,
                 "student_contract_id": f"eq.{contract_id}",
@@ -812,6 +830,27 @@ async def update_contract_detail(
 
         if not result:
             raise HTTPException(status_code=500, detail="更新合約明細失敗")
+
+        # 補償堂數連動 remaining_lessons
+        if existing[0].get("detail_type") == "compensation" and data.amount is not None:
+            old_amount = int(existing[0]["amount"])
+            new_amount = int(data.amount)
+            diff = new_amount - old_amount
+            if diff != 0:
+                contract_data = await supabase_service.table_select(
+                    table="student_contracts",
+                    select="remaining_lessons",
+                    filters={"id": contract_id},
+                    use_service_key=True
+                )
+                if contract_data:
+                    new_remaining = contract_data[0]["remaining_lessons"] + diff
+                    await supabase_service.table_update(
+                        table="student_contracts",
+                        data={"remaining_lessons": new_remaining},
+                        filters={"id": contract_id},
+                        use_service_key=True
+                    )
 
         # enrich course_name
         if result.get("course_id"):
@@ -845,7 +884,7 @@ async def delete_contract_detail(
         # 確認明細存在且屬於此合約
         existing = await supabase_service.table_select(
             table="student_contract_details",
-            select="id,student_contract_id",
+            select="id,student_contract_id,detail_type,amount",
             filters={
                 "id": detail_id,
                 "student_contract_id": f"eq.{contract_id}",
@@ -874,6 +913,24 @@ async def delete_contract_detail(
 
         if not result:
             raise HTTPException(status_code=500, detail="刪除合約明細失敗")
+
+        # 補償堂數連動 remaining_lessons
+        if existing[0].get("detail_type") == "compensation":
+            compensation_amount = int(existing[0]["amount"])
+            contract_data = await supabase_service.table_select(
+                table="student_contracts",
+                select="remaining_lessons",
+                filters={"id": contract_id},
+                use_service_key=True
+            )
+            if contract_data:
+                new_remaining = contract_data[0]["remaining_lessons"] - compensation_amount
+                await supabase_service.table_update(
+                    table="student_contracts",
+                    data={"remaining_lessons": max(0, new_remaining)},
+                    filters={"id": contract_id},
+                    use_service_key=True
+                )
 
         return BaseResponse(message="合約明細刪除成功")
 

@@ -85,6 +85,7 @@ export default function StudentContractsPage() {
         end_date: '',
         total_lessons: 10,
         remaining_lessons: 10,
+        total_amount: 0,
         total_leave_allowed: 20,
         notes: '',
     })
@@ -217,6 +218,7 @@ export default function StudentContractsPage() {
             end_date: endDate,
             total_lessons: 10,
             remaining_lessons: 10,
+            total_amount: 0,
             total_leave_allowed: 20,
             notes: '',
         })
@@ -236,6 +238,7 @@ export default function StudentContractsPage() {
             end_date: contract.end_date,
             total_lessons: contract.total_lessons,
             remaining_lessons: contract.remaining_lessons,
+            total_amount: contract.total_amount ?? 0,
             total_leave_allowed: contract.total_leave_allowed,
             notes: contract.notes || '',
         })
@@ -294,6 +297,7 @@ export default function StudentContractsPage() {
                 if (formData.end_date !== editingContract.end_date) updateData.end_date = formData.end_date
                 if (formData.total_lessons !== editingContract.total_lessons) updateData.total_lessons = formData.total_lessons
                 if (formData.remaining_lessons !== editingContract.remaining_lessons) updateData.remaining_lessons = formData.remaining_lessons
+                if (formData.total_amount !== (editingContract.total_amount ?? 0)) updateData.total_amount = formData.total_amount
                 if ((formData.total_leave_allowed ?? 0) !== editingContract.total_leave_allowed) updateData.total_leave_allowed = formData.total_leave_allowed
                 if (formData.notes !== (editingContract.notes || '')) updateData.notes = formData.notes
 
@@ -369,7 +373,14 @@ export default function StudentContractsPage() {
             setShowDetailForm(false)
             setEditingDetail(null)
             await fetchDetails(editingContract.id)
-            fetchContracts()
+            await fetchContracts()
+
+            // 補償堂數連動：重新取得合約以更新 remaining_lessons
+            const { data: refreshed } = await studentContractsApi.get(editingContract.id)
+            if (refreshed) {
+                setEditingContract(refreshed)
+                setFormData(prev => ({ ...prev, remaining_lessons: refreshed.remaining_lessons }))
+            }
         } finally {
             setDetailSubmitting(false)
         }
@@ -382,7 +393,14 @@ export default function StudentContractsPage() {
             setError(error.message)
         } else {
             await fetchDetails(editingContract.id)
-            fetchContracts()
+            await fetchContracts()
+
+            // 補償堂數連動：重新取得合約以更新 remaining_lessons
+            const { data: refreshed } = await studentContractsApi.get(editingContract.id)
+            if (refreshed) {
+                setEditingContract(refreshed)
+                setFormData(prev => ({ ...prev, remaining_lessons: refreshed.remaining_lessons }))
+            }
         }
     }
 
@@ -594,6 +612,9 @@ export default function StudentContractsPage() {
                                                 堂數
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                總金額
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 請假
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -634,6 +655,11 @@ export default function StudentContractsPage() {
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className="text-gray-900">
                                                         {contract.remaining_lessons} / {contract.total_lessons}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className="text-gray-900">
+                                                        {contract.total_amount != null ? formatCurrency(contract.total_amount) : '-'}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -861,6 +887,21 @@ export default function StudentContractsPage() {
                                                 onChange={(e) => setFormData({ ...formData, remaining_lessons: parseInt(e.target.value) || 0 })}
                                                 className="input-field"
                                                 min={0}
+                                                required
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                合約總金額 <span className="text-red-500">*</span>
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={formData.total_amount}
+                                                onChange={(e) => setFormData({ ...formData, total_amount: parseFloat(e.target.value) || 0 })}
+                                                className="input-field"
+                                                min={0}
+                                                step={1}
                                                 required
                                             />
                                         </div>

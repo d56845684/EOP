@@ -322,6 +322,9 @@ export const bookingsApi = {
             }
 
             const result = await response.json()
+            if (result.success === false) {
+                return { success: false, message: result.message, error: { message: result.message || '批次建立預約失敗' } }
+            }
             return { success: true, message: result.message, error: null }
         } catch (err) {
             return { success: false, error: { message: '網路錯誤，請稍後再試' } }

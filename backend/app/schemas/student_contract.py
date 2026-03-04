@@ -89,6 +89,7 @@ class StudentContractBase(BaseModel):
     end_date: date = Field(..., description="合約結束日期")
     total_lessons: int = Field(..., ge=1, description="總堂數")
     remaining_lessons: int = Field(..., ge=0, description="剩餘堂數")
+    total_amount: float = Field(..., ge=0, description="合約總金額")
     total_leave_allowed: Optional[int] = Field(None, ge=0, description="可請假次數（預設 = total_lessons * 2）")
     notes: Optional[str] = Field(None, description="備註")
 
@@ -106,6 +107,7 @@ class StudentContractUpdate(BaseModel):
     end_date: Optional[date] = Field(None, description="合約結束日期")
     total_lessons: Optional[int] = Field(None, ge=1, description="總堂數")
     remaining_lessons: Optional[int] = Field(None, ge=0, description="剩餘堂數")
+    total_amount: Optional[float] = Field(None, ge=0, description="合約總金額")
     total_leave_allowed: Optional[int] = Field(None, ge=0, description="可請假次數")
     notes: Optional[str] = Field(None, description="備註")
 
@@ -120,6 +122,7 @@ class StudentContractResponse(BaseModel):
     end_date: date
     total_lessons: int
     remaining_lessons: int
+    total_amount: Optional[float] = None
     total_leave_allowed: int = 0
     used_leave_count: int = 0
     notes: Optional[str] = None
