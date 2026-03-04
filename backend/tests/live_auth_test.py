@@ -123,9 +123,11 @@ class LiveAuthTester:
         ctx = self._create_context(role)
         print(f"Test Email: {ctx.test_email}\n")
 
+        # 公開註冊已關閉，所有角色透過 DB 建帳 + 驗證 API 被擋
         tests = [
             ("Health Check", self._test_health_check),
-            ("User Registration", self._test_register),
+            ("Public Register Blocked", self._test_register_blocked),
+            ("DB Account Setup", self._test_db_setup),
             ("User Login", self._test_login),
             ("Get Current User", self._test_get_me),
             ("Verify Role", self._test_verify_role),
@@ -210,33 +212,97 @@ class LiveAuthTester:
             resp = await client.get(f"{self.backend_url}/api/v1/health")
             assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
 
-    async def _test_register(self, ctx: TestContext):
-        """測試用戶註冊"""
+    async def _test_register_blocked(self, ctx: TestContext):
+        """驗證公開註冊 API 已關閉（所有角色都應走 invite 流程）"""
         async with httpx.AsyncClient(**self.client_kwargs) as client:
-            # 建立註冊資料
-            register_data = {
-                "email": ctx.test_email,
-                "password": ctx.test_password,
-                "name": ctx.test_name,
-                "role": ctx.test_role
-            }
-
-            # 如果是 employee 角色，需要指定 employee_type
-            if ctx.test_role == "employee":
-                register_data["employee_type"] = "intern"  # 預設為工讀生
-
             resp = await client.post(
                 f"{self.backend_url}/api/v1/auth/register",
-                json=register_data
+                json={
+                    "email": ctx.test_email,
+                    "password": ctx.test_password,
+                    "name": ctx.test_name,
+                    "role": ctx.test_role,
+                }
+            )
+            # endpoint 已移除，應回 404 或 405
+            assert resp.status_code in (404, 405, 422), (
+                f"Expected register to be disabled, got {resp.status_code}"
             )
 
-            data = resp.json()
-            if resp.status_code == 200 and data.get("success"):
-                return
-            elif "already registered" in data.get("message", "").lower():
-                return
-            else:
-                assert False, f"Registration failed: {data}"
+    async def _test_db_setup(self, ctx: TestContext):
+        """直接透過 DB 建立帳號（模擬 invite 流程 / 管理員操作）"""
+        try:
+            import asyncpg
+            import bcrypt as _bcrypt
+            import json
+        except ImportError:
+            raise AssertionError("asyncpg or bcrypt not installed")
+
+        conn = await asyncpg.connect(self.database_url)
+        try:
+            # 1. 建立 public.users
+            hashed_pw = _bcrypt.hashpw(
+                ctx.test_password.encode("utf-8"),
+                _bcrypt.gensalt(rounds=10),
+            ).decode("utf-8")
+            meta = json.dumps({"name": ctx.test_name, "role": ctx.test_role})
+            row = await conn.fetchrow(
+                """
+                INSERT INTO public.users (email, encrypted_password, email_confirmed_at, raw_user_meta_data)
+                VALUES ($1, $2, NOW(), $3::jsonb)
+                RETURNING id
+                """,
+                ctx.test_email, hashed_pw, meta,
+            )
+            assert row, "Failed to insert user"
+            user_id = row["id"]
+
+            # 2. 建立角色實體 + user_profiles（編號格式同 trigger）
+            uid_prefix = str(user_id).replace("-", "").upper()[:8]
+
+            if ctx.test_role == "student":
+                student_no = "S" + uid_prefix
+                entity_row = await conn.fetchrow(
+                    "INSERT INTO students (student_no, name, email, is_active) VALUES ($1, $2, $3, true) RETURNING id",
+                    student_no, ctx.test_name, ctx.test_email,
+                )
+                assert entity_row, "Failed to insert student"
+                await conn.execute(
+                    "INSERT INTO user_profiles (id, role, student_id) VALUES ($1, 'student', $2)",
+                    user_id, entity_row["id"],
+                )
+
+            elif ctx.test_role == "teacher":
+                teacher_no = "T" + uid_prefix
+                entity_row = await conn.fetchrow(
+                    "INSERT INTO teachers (teacher_no, name, email, is_active) VALUES ($1, $2, $3, true) RETURNING id",
+                    teacher_no, ctx.test_name, ctx.test_email,
+                )
+                assert entity_row, "Failed to insert teacher"
+                await conn.execute(
+                    "INSERT INTO user_profiles (id, role, teacher_id) VALUES ($1, 'teacher', $2)",
+                    user_id, entity_row["id"],
+                )
+
+            elif ctx.test_role == "employee":
+                employee_no = "E" + str(user_id).replace("-", "").upper()[:8]
+                entity_row = await conn.fetchrow(
+                    """
+                    INSERT INTO employees (employee_no, name, email, employee_type, hire_date, is_active)
+                    VALUES ($1, $2, $3, 'intern', CURRENT_DATE, true)
+                    RETURNING id
+                    """,
+                    employee_no, ctx.test_name, ctx.test_email,
+                )
+                assert entity_row, "Failed to insert employee"
+                await conn.execute(
+                    "INSERT INTO user_profiles (id, role, employee_id, employee_subtype) VALUES ($1, 'employee', $2, 'intern')",
+                    user_id, entity_row["id"],
+                )
+
+            ctx.user_id = str(user_id)
+        finally:
+            await conn.close()
 
     async def _test_login(self, ctx: TestContext):
         """測試用戶登入"""

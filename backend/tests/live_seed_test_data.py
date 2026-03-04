@@ -20,6 +20,7 @@ import asyncio
 import argparse
 import sys
 import os
+import json
 from datetime import datetime, date, timedelta
 from dataclasses import dataclass, field
 from typing import Optional
@@ -137,10 +138,10 @@ class LiveSeedTester:
         print(f"{'='*60}\n")
 
         try:
-            await self._step("1. 註冊員工帳號（用於後續 CRUD 操作）", self._seed_employee)
-            await self._step("2. 註冊教師帳號", self._seed_teachers)
-            await self._step("3. 註冊正式學生帳號", self._seed_formal_students)
-            await self._step("4. 註冊試上學生帳號", self._seed_trial_students)
+            await self._step("1. 建立員工帳號（用於後續 CRUD 操作）", self._seed_employee)
+            await self._step("2. 建立教師帳號", self._seed_teachers)
+            await self._step("3. 建立正式學生帳號", self._seed_formal_students)
+            await self._step("4. 建立試上學生帳號", self._seed_trial_students)
             await self._step("5. 建立課程", self._seed_courses)
             await self._step("6. 學生選課", self._seed_student_courses)
             await self._step("7. 建立學生合約（正式學生）", self._seed_student_contracts)
@@ -159,43 +160,121 @@ class LiveSeedTester:
         print(f"{'─'*60}")
         await fn()
 
-    # ========== 註冊帳號 ==========
+    # ========== 建立帳號（直接 DB，模擬 invite 流程） ==========
 
-    async def _register_and_get_entity(self, register_data: dict, role: str) -> tuple[str, str, dict]:
-        """註冊帳號，回傳 (user_id, entity_id, cookies)"""
-        async with httpx.AsyncClient(**self.client_kwargs) as client:
-            # 註冊
-            resp = await client.post(
-                f"{self.backend_url}/api/v1/auth/register",
-                json=register_data,
+    async def _create_account_via_db(
+        self, email: str, name: str, role: str, extra_fields: dict = None,
+    ) -> tuple[str, str]:
+        """
+        透過 DB 直接建立帳號，回傳 (user_id, entity_id)。
+        帳號建立後即視為 email 驗證完成（email_verified_at = NOW()）。
+        """
+        import asyncpg
+        import bcrypt as _bcrypt
+
+        conn = await asyncpg.connect(self.database_url)
+        try:
+            # 1. 建立 public.users
+            hashed_pw = _bcrypt.hashpw(
+                TEST_PASSWORD.encode("utf-8"),
+                _bcrypt.gensalt(rounds=10),
+            ).decode("utf-8")
+            meta = json.dumps({"name": name, "role": role})
+            row = await conn.fetchrow(
+                """
+                INSERT INTO public.users (email, encrypted_password, email_confirmed_at, raw_user_meta_data)
+                VALUES ($1, $2, NOW(), $3::jsonb)
+                RETURNING id
+                """,
+                email, hashed_pw, meta,
             )
-            data = resp.json()
-            if resp.status_code != 200 or not data.get("success"):
-                raise Exception(f"註冊失敗: {data}")
+            if not row:
+                raise Exception(f"Failed to insert user: {email}")
+            user_id = row["id"]
+            uid_prefix = str(user_id).replace("-", "").upper()[:8]
 
-            # 登入取得 user_id
+            # 2. 建立角色實體（含 email_verified_at）+ user_profiles
+            extra = extra_fields or {}
+
+            if role == "student":
+                student_no = "S" + uid_prefix
+                birth_date_val = None
+                if extra.get("birth_date"):
+                    birth_date_val = date.fromisoformat(extra["birth_date"])
+                entity_row = await conn.fetchrow(
+                    """
+                    INSERT INTO students (student_no, name, email, phone, address,
+                        birth_date, emergency_contact_name, emergency_contact_phone,
+                        is_active, email_verified_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW())
+                    RETURNING id
+                    """,
+                    student_no, name, email,
+                    extra.get("phone"), extra.get("address"),
+                    birth_date_val, extra.get("emergency_contact_name"),
+                    extra.get("emergency_contact_phone"),
+                )
+                if not entity_row:
+                    raise Exception(f"Failed to insert student: {email}")
+                await conn.execute(
+                    "INSERT INTO user_profiles (id, role, student_id) VALUES ($1, 'student', $2)",
+                    user_id, entity_row["id"],
+                )
+
+            elif role == "teacher":
+                teacher_no = "T" + uid_prefix
+                entity_row = await conn.fetchrow(
+                    """
+                    INSERT INTO teachers (teacher_no, name, email, phone, address, bio,
+                        is_active, email_verified_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, true, NOW())
+                    RETURNING id
+                    """,
+                    teacher_no, name, email,
+                    extra.get("phone"), extra.get("address"), extra.get("bio"),
+                )
+                if not entity_row:
+                    raise Exception(f"Failed to insert teacher: {email}")
+                await conn.execute(
+                    "INSERT INTO user_profiles (id, role, teacher_id) VALUES ($1, 'teacher', $2)",
+                    user_id, entity_row["id"],
+                )
+
+            elif role == "employee":
+                employee_no = "E" + uid_prefix
+                emp_type = extra.get("employee_type", "full_time")
+                entity_row = await conn.fetchrow(
+                    """
+                    INSERT INTO employees (employee_no, name, email, phone, address,
+                        employee_type, hire_date, is_active)
+                    VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, true)
+                    RETURNING id
+                    """,
+                    employee_no, name, email,
+                    extra.get("phone"), extra.get("address"), emp_type,
+                )
+                if not entity_row:
+                    raise Exception(f"Failed to insert employee: {email}")
+                await conn.execute(
+                    "INSERT INTO user_profiles (id, role, employee_id, employee_subtype) VALUES ($1, 'employee', $2, $3)",
+                    user_id, entity_row["id"], emp_type,
+                )
+
+            entity_id = str(entity_row["id"])
+            return str(user_id), entity_id
+        finally:
+            await conn.close()
+
+    async def _login_and_get_cookies(self, email: str) -> dict:
+        """登入取得 cookies"""
+        async with httpx.AsyncClient(**self.client_kwargs) as client:
             resp = await client.post(
                 f"{self.backend_url}/api/v1/auth/login",
-                json={"email": register_data["email"], "password": TEST_PASSWORD},
+                json={"email": email, "password": TEST_PASSWORD},
             )
-            assert resp.status_code == 200, f"Login failed: {resp.text}"
-            login_data = resp.json()
-            user_id = login_data["user"]["id"]
-
-            # Query entity ID via asyncpg
-            import asyncpg
-            conn = await asyncpg.connect(self.database_url)
-            try:
-                profile = await conn.fetchrow(
-                    "SELECT student_id, teacher_id, employee_id FROM user_profiles WHERE id = $1::uuid",
-                    user_id
-                )
-                entity_key = f"{role}_id" if role != "employee" else "employee_id"
-                entity_id = str(profile[entity_key]) if profile and profile[entity_key] else None
-            finally:
-                await conn.close()
-
-            return user_id, entity_id, dict(resp.cookies)
+            if resp.status_code != 200:
+                raise Exception(f"Login failed for {email}: {resp.status_code} {resp.text}")
+            return dict(resp.cookies)
 
     def _gen_email(self, role: str, index: int) -> str:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -203,16 +282,12 @@ class LiveSeedTester:
 
     async def _seed_employee(self):
         email = self._gen_email("employee", 0)
-        register_data = {
-            "email": email,
-            "password": TEST_PASSWORD,
-            "name": EMPLOYEE["name"],
-            "role": "employee",
-            "phone": EMPLOYEE["phone"],
-            "address": EMPLOYEE["address"],
-            "employee_type": EMPLOYEE["employee_type"],
-        }
-        user_id, entity_id, cookies = await self._register_and_get_entity(register_data, "employee")
+        user_id, entity_id = await self._create_account_via_db(
+            email=email, name=EMPLOYEE["name"], role="employee",
+            extra_fields={"phone": EMPLOYEE["phone"], "address": EMPLOYEE["address"],
+                          "employee_type": EMPLOYEE["employee_type"]},
+        )
+        cookies = await self._login_and_get_cookies(email)
         self.data.employee_user_id = user_id
         self.data.employee_id = entity_id
         self.data.employee_cookies = cookies
@@ -223,16 +298,10 @@ class LiveSeedTester:
     async def _seed_teachers(self):
         for i, t in enumerate(TEACHERS):
             email = self._gen_email("teacher", i)
-            register_data = {
-                "email": email,
-                "password": TEST_PASSWORD,
-                "name": t["name"],
-                "role": "teacher",
-                "phone": t["phone"],
-                "address": t["address"],
-                "bio": t["bio"],
-            }
-            user_id, entity_id, _ = await self._register_and_get_entity(register_data, "teacher")
+            user_id, entity_id = await self._create_account_via_db(
+                email=email, name=t["name"], role="teacher",
+                extra_fields={"phone": t["phone"], "address": t["address"], "bio": t["bio"]},
+            )
             self.data.teacher_user_ids.append(user_id)
             self.data.teacher_entity_ids.append(entity_id)
             self.all_user_ids.append(user_id)
@@ -242,18 +311,15 @@ class LiveSeedTester:
     async def _seed_formal_students(self):
         for i, s in enumerate(STUDENTS_FORMAL):
             email = self._gen_email("student", i)
-            register_data = {
-                "email": email,
-                "password": TEST_PASSWORD,
-                "name": s["name"],
-                "role": "student",
-                "phone": s["phone"],
-                "address": s["address"],
-                "birth_date": s["birth_date"],
-                "emergency_contact_name": s["emergency_contact_name"],
-                "emergency_contact_phone": s["emergency_contact_phone"],
-            }
-            user_id, entity_id, _ = await self._register_and_get_entity(register_data, "student")
+            user_id, entity_id = await self._create_account_via_db(
+                email=email, name=s["name"], role="student",
+                extra_fields={
+                    "phone": s["phone"], "address": s["address"],
+                    "birth_date": s["birth_date"],
+                    "emergency_contact_name": s["emergency_contact_name"],
+                    "emergency_contact_phone": s["emergency_contact_phone"],
+                },
+            )
             self.data.student_user_ids.append(user_id)
             self.data.student_entity_ids.append(entity_id)
             self.all_user_ids.append(user_id)
@@ -263,18 +329,15 @@ class LiveSeedTester:
     async def _seed_trial_students(self):
         for i, s in enumerate(STUDENTS_TRIAL):
             email = self._gen_email("trial", i)
-            register_data = {
-                "email": email,
-                "password": TEST_PASSWORD,
-                "name": s["name"],
-                "role": "student",
-                "phone": s["phone"],
-                "address": s["address"],
-                "birth_date": s["birth_date"],
-                "emergency_contact_name": s["emergency_contact_name"],
-                "emergency_contact_phone": s["emergency_contact_phone"],
-            }
-            user_id, entity_id, _ = await self._register_and_get_entity(register_data, "student")
+            user_id, entity_id = await self._create_account_via_db(
+                email=email, name=s["name"], role="student",
+                extra_fields={
+                    "phone": s["phone"], "address": s["address"],
+                    "birth_date": s["birth_date"],
+                    "emergency_contact_name": s["emergency_contact_name"],
+                    "emergency_contact_phone": s["emergency_contact_phone"],
+                },
+            )
             self.data.trial_student_user_ids.append(user_id)
             self.data.trial_student_entity_ids.append(entity_id)
             self.all_user_ids.append(user_id)

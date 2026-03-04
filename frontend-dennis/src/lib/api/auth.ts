@@ -31,48 +31,8 @@ interface UserProfile {
     must_change_password?: boolean
 }
 
-export type RoleType = 'student' | 'teacher' | 'employee'
-export type EmployeeType = 'admin' | 'full_time' | 'part_time' | 'intern'
-
-export interface RegisterData {
-    email: string
-    password: string
-    name: string
-    role: RoleType
-    phone?: string
-    address?: string
-    // Student fields
-    birth_date?: string
-    emergency_contact_name?: string
-    emergency_contact_phone?: string
-    // Teacher fields
-    bio?: string
-    // Employee fields
-    employee_type?: EmployeeType
-}
-
 export const authApi = {
-    async register(data: RegisterData): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-
-            const result = await response.json()
-
-            if (!response.ok || !result.success) {
-                return { success: false, error: { message: result.message || '註冊失敗' } }
-            }
-
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    // 公開註冊已關閉，所有帳號建立請走 invite 流程（/accept-invite）
 
     async signIn(email: string, password: string) {
         try {

@@ -112,7 +112,6 @@ async def accept_invite(data: AcceptInviteRequest):
         profile_data = {
             "id": user_id,
             "role": entity_type,
-            "full_name": name,
             "must_change_password": True,
         }
         if entity_type == "student":

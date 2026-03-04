@@ -7,3 +7,5 @@ secret.md
 .DS_Store
 scripts/notion*
 scripts/setup*
+.env.prod
+deploy/.rds-endpoint
