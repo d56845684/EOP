@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react'
 import { authApi } from '../api/auth'
+import { permissionsApi } from '../api/permissions'
 
 interface User {
     id: string
@@ -31,6 +32,8 @@ interface AuthContextValue {
     isTeacher: boolean
     isStudent: boolean
     isEmployee: boolean
+    pageKeys: string[]
+    hasPage: (key: string) => boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -39,6 +42,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [profile, setProfile] = useState<UserProfile | null>(null)
     const [loading, setLoading] = useState(true)
+    const [pageKeys, setPageKeys] = useState<string[]>([])
+
+    const fetchPermissions = useCallback(async () => {
+        try {
+            const { data, error } = await permissionsApi.getMyPermissions()
+            if (!error && data) {
+                setPageKeys(data.page_keys)
+            }
+        } catch {
+            // 權限取得失敗不影響登入流程
+        }
+    }, [])
 
     const fetchCurrentUser = useCallback(async () => {
         try {
@@ -46,15 +61,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (error || !u) {
                 setUser(null)
                 setProfile(null)
+                setPageKeys([])
                 return
             }
             setUser(u)
             setProfile(p)
+            await fetchPermissions()
         } catch {
             setUser(null)
             setProfile(null)
+            setPageKeys([])
         }
-    }, [])
+    }, [fetchPermissions])
 
     useEffect(() => {
         fetchCurrentUser().finally(() => {
@@ -80,9 +98,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const result = await authApi.signOut()
         setUser(null)
         setProfile(null)
+        setPageKeys([])
         setLoading(false)
         return result
     }, [])
+
+    const hasPage = useCallback((key: string) => pageKeys.includes(key), [pageKeys])
 
     const value: AuthContextValue = {
         user,
@@ -96,6 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isTeacher: profile?.role === 'teacher',
         isStudent: profile?.role === 'student',
         isEmployee: profile?.role === 'employee',
+        pageKeys,
+        hasPage,
     }
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

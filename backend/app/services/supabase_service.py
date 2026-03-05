@@ -405,10 +405,18 @@ class SupabaseService:
         return result
 
     async def admin_delete_user(self, user_id: str) -> bool:
-        """Admin delete user"""
+        """Admin delete user (respects is_protected flag)"""
+        uid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+
+        # 檢查 is_protected
+        row = await self.pool.fetchrow(
+            "SELECT is_protected FROM user_profiles WHERE id = $1", uid
+        )
+        if row and row["is_protected"]:
+            raise Exception("此帳號受保護，無法刪除")
+
         result = await self.pool.execute(
-            "DELETE FROM public.users WHERE id = $1",
-            uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+            "DELETE FROM public.users WHERE id = $1", uid
         )
         return result == "DELETE 1"
 

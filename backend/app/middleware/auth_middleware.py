@@ -3,11 +3,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from app.services.session_service import session_service
 from app.core.security import get_token_from_request, decode_token
+from app.core.logging import get_logger, user_id_var
 from app.config import settings
-import time
-import logging
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class AuthMiddleware(BaseHTTPMiddleware):
     """認證中間件：處理 Token 驗證和 Session 追蹤"""
@@ -25,18 +24,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
     ]
     
     async def dispatch(self, request: Request, call_next) -> Response:
-        start_time = time.time()
-        
         # 檢查是否為公開路徑
         path = request.url.path
         is_public = any(path.startswith(p) for p in self.PUBLIC_PATHS)
-        
+
         if not is_public:
             # 優先檢查 Service Account API Key
             api_key = request.headers.get("X-API-Key")
             if api_key:
                 if settings.SERVICE_API_KEY and api_key == settings.SERVICE_API_KEY:
                     request.state.is_service_account = True
+                    user_id_var.set("service_account")
                 else:
                     return JSONResponse(
                         status_code=401,
@@ -60,15 +58,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
                         request.state.user_id = payload.get("sub")
                         request.state.user_role = payload.get("role")
                         request.state.token_payload = payload
-        
-        # 執行請求
-        response = await call_next(request)
-        
-        # 記錄請求時間
-        process_time = time.time() - start_time
-        response.headers["X-Process-Time"] = str(process_time)
-        
-        return response
+                        # 寫入 contextvars 供 logger 使用
+                        user_id_var.set(payload.get("sub", ""))
+
+        return await call_next(request)
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """速率限制中間件"""
