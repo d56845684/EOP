@@ -16,6 +16,8 @@ export interface Booking {
     teacher_hourly_rate: number
     teacher_rate_percentage?: number
     booking_status: BookingStatus
+    booking_type?: 'trial' | 'regular'
+    is_trial_to_formal?: boolean
     booking_date: string
     start_time: string
     end_time: string

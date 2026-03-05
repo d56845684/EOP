@@ -377,7 +377,7 @@ async def list_bookings(
 
         # 取得總數
         all_bookings = await supabase_service.table_select(
-            table="bookings",
+            table="bookings_view",
             select="id",
             filters=filters,
         )
@@ -389,8 +389,8 @@ async def list_bookings(
 
         # 取得分頁資料
         bookings = await supabase_service.table_select_with_pagination(
-            table="bookings",
-            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_date,start_time,end_time,notes,created_at,updated_at",
+            table="bookings_view",
+            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_type,is_trial_to_formal,booking_date,start_time,end_time,notes,created_at,updated_at",
             filters=filters,
             order_by="booking_date.desc,start_time.desc",
             limit=per_page,
@@ -594,8 +594,8 @@ async def get_booking(
     """取得單一預約"""
     try:
         result = await supabase_service.table_select(
-            table="bookings",
-            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_date,start_time,end_time,notes,created_at,updated_at",
+            table="bookings_view",
+            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_type,is_trial_to_formal,booking_date,start_time,end_time,notes,created_at,updated_at",
             filters={"id": booking_id, "is_deleted": "eq.false"},
         )
 
@@ -893,6 +893,7 @@ async def create_booking(
             "booking_date": data.booking_date.isoformat(),
             "start_time": data.start_time.isoformat(),
             "end_time": data.end_time.isoformat(),
+            "booking_type": "trial" if is_trial else "regular",
             "lessons_used": lessons_used,
             "notes": data.notes,
         }
@@ -1696,6 +1697,7 @@ async def batch_create_bookings(
                     "booking_date": slot["slot_date"],
                     "start_time": data.start_time.isoformat() if data.start_time else slot["start_time"],
                     "end_time": data.end_time.isoformat() if data.end_time else slot["end_time"],
+                    "booking_type": "trial" if is_trial else "regular",
                     "lessons_used": slot_lessons_used,
                     "notes": data.notes,
                 }

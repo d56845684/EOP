@@ -82,6 +82,8 @@ class BookingResponse(BaseModel):
     booking_date: date
     start_time: time
     end_time: time
+    booking_type: str = "regular"
+    is_trial_to_formal: bool = False
     lessons_used: int = 1
     notes: Optional[str] = None
     created_at: Optional[datetime] = None
