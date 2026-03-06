@@ -29,6 +29,7 @@ export default {
         type: 'Type',
         lastUpdated: 'Last Updated',
         name: 'Name',
+        active: 'Active'
     },
     menu: {
         dashboard: 'Dashboard',
@@ -133,6 +134,17 @@ export default {
         description: 'Description',
         cover: 'Cover',
         upload: 'Click to Upload',
+        courseCode: 'Course Code',
+        courseName: 'Course Name',
+        searchPlaceholder: 'Search course code or name',
+        filterActiveOnly: 'Show active only',
+        btnSearch: 'Search',
+        btnReset: 'Reset',
+        labelStatus: 'Status',
+        placeholderStatus: 'Please select status',
+        statusAll: 'All',
+        statusActive: 'Active',
+        statusInactive: 'Inactive',
     },
     salary: {
         title: 'Salary Reports',

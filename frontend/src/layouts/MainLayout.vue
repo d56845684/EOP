@@ -125,9 +125,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { useMockStore, SYSTEM_MODULES, type SystemModule } from '../stores/mockStore';
+import { useMockStore, type SystemModule } from '../stores/mockStore';
+import { usePermissionStore } from '../stores/permission';
 import { useI18n } from 'vue-i18n';
 import { ArrowDown } from '@element-plus/icons-vue';
+
+const permissionStore = usePermissionStore();
 
 // i18n
 const { locale } = useI18n();
@@ -175,42 +178,15 @@ const currentUser = computed(() => store.currentUser);
 
 // --- Permission Logic ---
 
-const hasPermission = (permissionId: string) => {
-    if (!currentUser.value) return false;
-    // Remove super_admin bypass to enforce granular permissions for portals
-    // if (currentUser.value.role === 'super_admin') return true;
-    
-    // Logic: A page (Level 2) is visible if `page_id:view` is in list.
-    const viewPermission = `${permissionId}:view`;
-    
-    // Use copied permissions from Login
-    const perms = currentUser.value.permissions || [];
-    return perms.includes(viewPermission);
-};
-
-const hasPagePermission = (page: SystemModule) => {
-   // Page is visible if user has 'view' permission for it
-   // Page children are [View, Edit].
-   // We check if `page.children` contains a 'view' node, and if user has it.
-   // Or we strictly follow naming convention `page.id + ':view'`.
-   
-   // Let's use the convention for robustness as structure dictates.
-   return hasPermission(page.id);
+const hasPagePermission = (_page: SystemModule) => {
+   // TODO: Revert this bypass when backend RBAC is ready
+   return true; // TEMPORARY BYPASS FOR DEVELOPMENT
 };
 
 // Filter modules that should be visible
 const visibleModules = computed(() => {
-    return SYSTEM_MODULES.filter(module => {
-        // Module is visible if ANY child page is visible
-        if (module.children && module.children.length > 0) {
-            return module.children.some(page => {
-               // Check if page (Level 2) is visible
-               // Page is visible if it has 'view' action permission
-               return hasPagePermission(page);
-            });
-        }
-        return false;
-    });
+    // Read directly from the unfiltered permission store menu modules
+    return permissionStore.menuModules;
 });
 
 const hasAnyChildPermission = (module: SystemModule) => {

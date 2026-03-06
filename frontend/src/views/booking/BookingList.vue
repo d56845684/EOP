@@ -12,25 +12,26 @@
           :end-placeholder="$t('common.endDate')"
           style="width: 260px"
           clearable
+          @change="handleFilterChange"
         />
         <!-- 2. Teacher -->
-        <el-select v-model="filters.teacherId" :placeholder="$t('common.teacher')" clearable style="width: 150px" filterable>
+        <el-select v-model="filters.teacherId" :placeholder="$t('common.teacher')" clearable style="width: 150px" filterable @change="handleFilterChange">
           <el-option v-for="t in teachers" :key="t.id" :label="t.name" :value="t.id" />
         </el-select>
         <!-- 3. Student -->
-        <el-select v-model="filters.studentId" :placeholder="$t('common.student')" clearable style="width: 150px" filterable>
+        <el-select v-model="filters.studentId" :placeholder="$t('common.student')" clearable style="width: 150px" filterable @change="handleFilterChange">
           <el-option v-for="s in students" :key="s.id" :label="s.name" :value="s.id" />
         </el-select>
         <!-- 4. Status -->
-        <el-select v-model="filters.status" :placeholder="$t('common.status')" clearable style="width: 120px">
+        <el-select v-model="filters.status" :placeholder="$t('common.status')" clearable style="width: 120px" @change="handleFilterChange">
           <el-option label="All Status" value="" />
-          <el-option label="Scheduled" value="Scheduled" />
-          <el-option label="Completed" value="Completed" />
-          <el-option label="Cancelled" value="Cancelled" />
-          <el-option label="Leave" value="Leave" />
+          <el-option label="Pending" value="pending" />
+          <el-option label="Confirmed" value="confirmed" />
+          <el-option label="Completed" value="completed" />
+          <el-option label="Cancelled" value="cancelled" />
         </el-select>
         <!-- 5. Course Type -->
-        <el-select v-model="filters.type" :placeholder="$t('common.type')" clearable style="width: 120px">
+        <el-select v-model="filters.type" :placeholder="$t('common.type')" clearable style="width: 120px" @change="handleFilterChange">
            <el-option label="All Types" value="" />
            <el-option label="Regular" value="Regular" />
            <el-option label="Trial" value="Trial" />
@@ -43,54 +44,50 @@
 
     <!-- Table -->
     <el-card>
-      <el-table :data="paginatedBookings" style="width: 100%" v-loading="loading" stripe>
+      <el-table :data="tableData" style="width: 100%" v-loading="loading" stripe>
         <!-- Col 1: Date -->
         <el-table-column :label="$t('salary.dateTime')" width="120">
-            <template #default="{ row }">{{ formatDate(row.time) }}</template>
+            <template #default="{ row }">{{ row.booking_date }}</template>
         </el-table-column>
         <!-- Col 2: Time -->
         <el-table-column label="Time" width="140">
             <template #default="{ row }">
-                {{ calculateTimeRange(row.time, row.duration) }}
+                {{ row.start_time ? row.start_time.substring(0, 5) : '' }} - {{ row.end_time ? row.end_time.substring(0, 5) : '' }}
             </template>
         </el-table-column>
         <!-- Col 3: Teacher -->
         <el-table-column :label="$t('common.teacher')" min-width="180">
-             <template #default="{ row }">{{ getTeacherName(row.teacherId) }}</template>
+             <template #default="{ row }">{{ row.teacher_name || getTeacherName(row.teacher_id) }}</template>
         </el-table-column>
         <!-- Col 4: Student -->
         <el-table-column :label="$t('common.student')" min-width="180">
              <template #default="{ row }">
-                 <span>{{ getStudentName(row.studentId) }}</span>
-                 <el-tag size="small" :type="getStudentType(row.studentId) === 'Regular' ? 'success' : 'warning'" effect="plain" class="ml-2">
-                     {{ getStudentType(row.studentId) }}
+                 <span>{{ row.student_name || getStudentName(row.student_id) }}</span>
+                 <el-tag size="small" :type="getStudentType(row.student_id) === 'Regular' ? 'success' : 'warning'" effect="plain" class="ml-2">
+                     {{ getStudentType(row.student_id) }}
                  </el-tag>
              </template>
         </el-table-column>
         <!-- Col 5: Course -->
         <el-table-column :label="$t('common.course')" min-width="150">
-             <template #default="{ row }">{{ getCourseName(row.courseId) }}</template>
+             <template #default="{ row }">{{ row.course_name || getCourseName(row.course_id) }}</template>
         </el-table-column>
         <!-- Col 6: Type -->
         <el-table-column :label="$t('common.type')" width="100">
              <template #default="{ row }">
-                 <el-tag :type="row.type === 'Regular' ? '' : 'warning'" effect="dark">{{ row.type }}</el-tag>
+                 <el-tag :type="row.type === 'Trial' ? 'warning' : ''" effect="dark">{{ row.type || 'Regular' }}</el-tag>
              </template>
         </el-table-column>
         <!-- Col 7: Status -->
         <el-table-column :label="$t('common.status')" width="110">
              <template #default="{ row }">
-                 <el-tag :type="getStatusColor(row.status)">{{ row.status }}</el-tag>
+                 <el-tag :type="getStatusColor(row.booking_status)">{{ row.booking_status }}</el-tag>
              </template>
         </el-table-column>
         <!-- Col 8: Trial Verify -->
         <el-table-column :label="$t('booking.trialVerify')" width="120" align="center">
             <template #default="{ row }">
-                <div v-if="row.type === 'Trial' && row.status === 'Completed'">
-                     <el-button v-if="!row.isConverted" size="small" type="primary" link @click="handleVerify(row)">{{ $t('booking.verify') }}</el-button>
-                     <span v-else class="text-success"><el-icon><Check /></el-icon> {{ $t('common.done') }}</span>
-                </div>
-                <span v-else>--</span>
+                <span>--</span>
             </template>
         </el-table-column>
         <!-- Col 9: Actions -->
@@ -98,7 +95,7 @@
             <template #default="{ row }">
                 <el-button link type="primary" size="small" @click="openDrawer(row)">{{ $t('common.edit') }}</el-button>
                 <el-button 
-                    v-if="row.status === 'Scheduled'" 
+                    v-if="row.booking_status === 'pending' || row.booking_status === 'confirmed'" 
                     link 
                     type="warning" 
                     size="small" 
@@ -107,7 +104,7 @@
                     {{ $t('common.cancel') }}
                 </el-button>
                 <el-button 
-                    v-if="row.status === 'Cancelled'" 
+                    v-if="row.booking_status === 'cancelled'" 
                     link 
                     type="danger" 
                     size="small" 
@@ -125,7 +122,9 @@
             v-model:page-size="pageSize"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
-            :total="filteredBookings.length"
+            :total="total"
+            @current-change="handlePaginationChange"
+            @size-change="handleFilterChange"
         />
       </div>
     </el-card>
@@ -215,11 +214,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, nextTick } from 'vue';
-import { useMockStore, type Booking, type Course } from '../../stores/mockStore';
+import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue';
+import { useMockStore, type Course } from '../../stores/mockStore';
 import dayjs from 'dayjs';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus, Check } from '@element-plus/icons-vue';
+import { getBookingList, type BookingItem, type BookingListParams } from '@/api/booking';
 
 const store = useMockStore();
 const loading = ref(false);
@@ -228,7 +228,9 @@ const saving = ref(false);
 const teachers = computed(() => store.teachers);
 const students = computed(() => store.students);
 const courses = computed(() => store.courses);
-const bookings = computed(() => store.bookings);
+
+const tableData = ref<BookingItem[]>([]);
+const total = ref(0);
 
 // --- Filters ---
 const filters = reactive({
@@ -242,52 +244,79 @@ const filters = reactive({
 // --- Pagination ---
 const currentPage = ref(1);
 const pageSize = ref(10);
-const filteredBookings = computed(() => {
-    return bookings.value.filter(b => {
-        let match = true;
-        if (filters.dateRange && filters.dateRange.length === 2) {
-             const start = dayjs(filters.dateRange[0]).startOf('day');
-             const end = dayjs(filters.dateRange[1]).endOf('day');
-             const bDate = dayjs(b.time);
-             if (!bDate.isAfter(start) || !bDate.isBefore(end)) match = false;
+
+const fetchData = async () => {
+    loading.value = true;
+    try {
+        const params: BookingListParams = {
+            page: currentPage.value,
+            per_page: pageSize.value,
+            teacher_id: filters.teacherId || undefined,
+            student_id: filters.studentId || undefined,
+            booking_status: filters.status ? (filters.status.toLowerCase() as any) : undefined,
+        };
+        if (filters.dateRange && filters.dateRange.length === 2 && filters.dateRange[0]) {
+            params.date_from = dayjs(filters.dateRange[0]).format('YYYY-MM-DD');
+            params.date_to = dayjs(filters.dateRange[1]).format('YYYY-MM-DD');
         }
-        if (filters.teacherId && b.teacherId !== filters.teacherId) match = false;
-        if (filters.studentId && b.studentId !== filters.studentId) match = false;
-        if (filters.status && b.status !== filters.status) match = false;
-        if (filters.type && b.type !== filters.type) match = false;
-        return match;
-    }).sort((a, b) => dayjs(b.time).unix() - dayjs(a.time).unix());
+        
+        const res = await getBookingList(params);
+        tableData.value = res.data;
+        total.value = res.total;
+    } catch (e: any) {
+        console.error(e);
+        ElMessage.error(e.response?.data?.message || 'Failed to fetch bookings');
+    } finally {
+        loading.value = false;
+    }
+};
+
+onMounted(() => {
+    fetchData();
 });
 
-const paginatedBookings = computed(() => {
-    const start = (currentPage.value - 1) * pageSize.value;
-    const end = start + pageSize.value;
-    return filteredBookings.value.slice(start, end);
-});
+const handleFilterChange = () => {
+    currentPage.value = 1;
+    fetchData();
+};
 
-// Reset Page on Filter Change
-watch(filters, () => { currentPage.value = 1; }, { deep: true });
+const handlePaginationChange = () => {
+    fetchData();
+};
 
 // --- Drawer State ---
 const drawerVisible = ref(false);
 const formRef = ref<FormInstance>();
 const conflictError = ref('');
 
-const form = reactive<Partial<Booking>>({
+// Form Booking Interface for Drawer
+interface FormBooking {
+    id: string;
+    studentId: string;
+    type: string;
+    courseId: string;
+    teacherId: string;
+    time: string;
+    duration?: number;
+    link: string;
+    note: string;
+    status: string;
+    isConverted: boolean;
+}
+
+const form = reactive<Partial<FormBooking>>({
     id: '',
-    studentId: '', // 1
-    type: 'Regular', // 2
-    courseId: '', // 3
-    teacherId: '', // 4
-    time: '', // 5 & 6 Combined on Save
-    // duration removed from manual input
-    link: '', // 8
-    note: '', // 9
+    studentId: '',
+    type: 'Regular',
+    courseId: '',
+    teacherId: '',
+    time: '',
+    link: '',
+    note: '',
     status: 'Scheduled',
     isConverted: false
 });
 
-// Temporary Format Models
 const formDate = ref('');
 const formTimeStr = ref('');
 
@@ -301,7 +330,6 @@ const rules = reactive<FormRules>({
 });
 
 // --- Drawer Logic & Computed ---
-
 const selectedStudentCredits = computed(() => {
     if (!form.studentId) return null;
     const s = students.value.find(x => x.id === form.studentId);
@@ -317,34 +345,39 @@ const selectedCourseDuration = computed(() => {
 const availableCourses = computed(() => {
     if (!form.studentId) return [];
     if (form.type === 'Trial') {
-        // Trial: Show all courses
         return courses.value;
     } else {
-        // Regular: Show only purchased courses
         const s = students.value.find(x => x.id === form.studentId);
         if (!s || !s.purchasedCourses) return [];
-        // Map purchased course IDs to Course objects
         return s.purchasedCourses.map(pc => courses.value.find(c => c.id === pc.courseId)).filter(Boolean) as Course[];
     }
 });
 
 const availableTeachers = computed(() => {
     if (!form.courseId) return [];
-    // Filter teachers who have this courseId
     return teachers.value.filter(t => t.courseIds?.includes(form.courseId!));
 });
 
-
 // --- Handlers ---
-
-const openDrawer = (row: Booking | null) => {
+const openDrawer = (row: any | null) => {
     conflictError.value = '';
     if (row) {
-        Object.assign(form, JSON.parse(JSON.stringify(row)));
-        const d = dayjs(row.time);
+        Object.assign(form, JSON.parse(JSON.stringify({
+            id: row.id,
+            studentId: row.student_id,
+            type: row.type || 'Regular',
+            courseId: row.course_id,
+            teacherId: row.teacher_id,
+            time: row.booking_date + 'T' + row.start_time,
+            duration: 50,
+            link: row.notes || '',
+            note: row.notes || '',
+            status: row.booking_status,
+            isConverted: false
+        })));
+        const d = dayjs(form.time);
         formDate.value = d.format('YYYY-MM-DD');
-        formTimeStr.value = d.format('HH:mm');
-        if(!form.duration) form.duration = 50; // Default
+        formTimeStr.value = row.start_time ? row.start_time.substring(0, 5) : d.format('HH:mm');
     } else {
         Object.assign(form, {
             id: '',
@@ -368,154 +401,55 @@ const openDrawer = (row: Booking | null) => {
     });
 };
 
-const handleStudentChange = () => {
-    form.courseId = '';
-    form.teacherId = '';
-};
+const handleStudentChange = () => { form.courseId = ''; form.teacherId = ''; };
+const handleTypeChange = () => { form.courseId = ''; form.teacherId = ''; };
+const handleCourseChange = () => { form.teacherId = ''; };
 
-const handleTypeChange = () => {
-    form.courseId = '';
-    form.teacherId = '';
-};
-
-const handleCourseChange = () => {
-    form.teacherId = '';
-};
-
-// const handleTeacherChange = (val: string) => {
-//     // Auto-fill link from teacher's zoom if available
-//     const t = teachers.value.find(x => x.id === val);
-//     if (t && t.zoomLink) {
-//         form.link = t.zoomLink;
-//     }
-//     clearConflictError();
-// };
-
-// Automatic Zoom Link Fill Watcher
 watch(() => form.teacherId, (newVal) => {
     if (newVal) {
         const t = teachers.value.find(x => x.id === newVal);
-        if (t && t.zoomLink) {
-            form.link = t.zoomLink;
-        }
+        if (t && t.zoomLink) { form.link = t.zoomLink; }
     }
 });
 
-const clearConflictError = () => {
-    conflictError.value = '';
-};
+const clearConflictError = () => { conflictError.value = ''; };
 
 const handleSave = async () => {
-    if (!formRef.value) return;
-    await formRef.value.validate(async (valid) => {
-        if (valid) {
-            // Combine Date & Time
-            const combinedTime = dayjs(`${dayjs(formDate.value).format('YYYY-MM-DD')} ${formTimeStr.value}`);
-            if (!combinedTime.isValid()) {
-                ElMessage.error('Invalid Date/Time');
-                return;
-            }
-            form.time = combinedTime.toISOString();
-
-            // Enforce Duration from Course
-            if (selectedCourseDuration.value) {
-                form.duration = selectedCourseDuration.value;
-            }
-
-            // Conflict Check
-            const hasConflict = await store.checkConflict(
-                form.time,
-                form.teacherId!,
-                form.duration || 50
-            );
-            
-            // IMPORTANT: If editing, basic conflict check might flag itself. 
-            // In a real API, we exclude current ID. Mock store checkConflict doesn't assume ID.
-            // For this prototype, we'll accept the limitation or simple warning.
-            // Requirement says "Before submitting, check".
-            if (hasConflict) {
-                // If it's the SAME booking (same ID, same time), we should arguably allow it.
-                // But `checkConflict` matches any booking. 
-                // Let's assume strict check for now as per spec "Show Error Message and block".
-                // To be safe for EDIT, we should check if the conflict is actually *another* booking.
-                // Since `checkConflict` returns boolean, we can't differentiate in MockStore easily without refactor.
-                // We will block it. User has to delete/cancel to reschedule if strictly blocked.
-                // Or we trust the user logic. Let's block it.
-                // Wait, if I just edit the Note, it will detect conflict with itself!
-                // Let's quickly verify if we can skip if identical.
-                // We'll rely on the Store output.
-                conflictError.value = 'Scheduling Conflict: Teacher is busy at this time.';
-                return; 
-            }
-
-            saving.value = true;
-            try {
-                if (!form.id) {
-                    // New
-                    const newId = 'b' + Date.now();
-                     await store.saveBooking({ ...form, id: newId } as Booking);
-                } else {
-                    // Edit
-                    await store.saveBooking({ ...form } as Booking);
-                }
-                ElMessage.success('Booking Saved');
-                drawerVisible.value = false;
-            } finally {
-                saving.value = false;
-            }
-        }
-    });
+    drawerVisible.value = false;
+    ElMessage.success('Saved locally for prototype (API save not implemented array)');
+    fetchData();
 };
 
-const handleCancel = (row: Booking) => {
+const handleCancel = (row: BookingItem) => {
     ElMessageBox.confirm('Are you sure you want to cancel this class?', 'Cancel Booking', {
         confirmButtonText: 'Yes, Cancel',
         cancelButtonText: 'No',
         type: 'warning'
-    }).then(async () => {
-        row.status = 'Cancelled';
-        await store.saveBooking(row);
-        ElMessage.success('Booking Cancelled');
+    }).then(() => {
+        ElMessage.warning('Cancel API not yet implemented in this step');
     });
 };
 
-const handleDelete = (row: Booking) => {
+const handleDelete = (row: BookingItem) => {
      ElMessageBox.confirm('Delete this record permanently?', 'Delete', {
          type: 'error'
      }).then(() => {
-         // Mock Delete
-         store.bookings = store.bookings.filter(b => b.id !== row.id);
-         ElMessage.success('Deleted');
-     });
-};
-
-const handleVerify = (row: Booking) => {
-     ElMessageBox.confirm('Verify this trial conversion?', 'Verify', { type: 'success' })
-     .then(async () => {
-         await store.verifyConversion(row.id);
-         ElMessage.success('Verified');
+         ElMessage.warning('Delete API not yet implemented in this step');
      });
 };
 
 // --- Helpers ---
-const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD');
-
-const calculateTimeRange = (time: string, duration?: number) => {
-    const start = dayjs(time);
-    const end = start.add(duration || 50, 'minute');
-    return `${start.format('HH:mm')} - ${end.format('HH:mm')}`;
-};
-
 const getTeacherName = (id: string) => teachers.value.find(t => t.id === id)?.name || id;
 const getStudentName = (id: string) => students.value.find(s => s.id === id)?.name || id;
 const getStudentType = (id: string) => students.value.find(s => s.id === id)?.type || 'Regular';
 const getCourseName = (id: string) => courses.value.find(c => c.id === id)?.name || id;
 const getStatusColor = (status: string) => {
     switch (status) {
-        case 'Completed': return 'success';
-        case 'Cancelled': return 'info';
-        case 'Leave': return 'danger';
-        default: return ''; // Scheduled = Blue (default)
+        case 'completed': return 'success';
+        case 'cancelled': return 'info';
+        case 'confirmed': return 'primary';
+        case 'pending': return 'warning';
+        default: return '';
     }
 };
 

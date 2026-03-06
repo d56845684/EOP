@@ -165,15 +165,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useMockStore, type TeacherSlot } from '../../stores/mockStore';
+import { useAuthStore } from '@/stores/auth';
+import { getTeacherSlots, createTeacherSlot, batchCreateTeacherSlots, deleteTeacherSlot, type TeacherSlotParams, type TeacherSlotCreate, type TeacherSlotBatchCreate } from '@/api/teacherSlot';
 import dayjs from 'dayjs';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { MoreFilled } from '@element-plus/icons-vue';
 
 const { t } = useI18n();
-const store = useMockStore();
+const authStore = useAuthStore();
 
 // --- State ---
 const currentDate = ref(new Date());
@@ -182,15 +183,14 @@ const drawerVisible = ref(false);
 
 const addDialogVisible = ref(false);
 const leaveDialogVisible = ref(false);
-const slots = ref<TeacherSlot[]>([]);
+const slots = ref<any[]>([]);
 
 const addForm = reactive({
     startDate: '',
     timeRange: ['09:00', '17:00'],
     isAllDay: false,
     repeatType: 'none', // none, custom
-    // Custom logic
-    weekDays: [] as number[], // 0=Sun, 1=Mon... wait, dayjs().day() 0=Sun.
+    weekDays: [] as number[],
     endType: 'date', // date, count
     endDate: '',
     repeatCount: 1,
@@ -200,7 +200,7 @@ const leaveReason = ref('');
 const selectedSlotId = ref<string | null>(null);
 
 // --- Computed ---
-const currentUser = computed(() => store.currentUser);
+const currentUser = computed(() => authStore.userInfo);
 
 const formattedSelectedDate = computed(() => {
     return dayjs(selectedDate.value).format('YYYY/MM/DD dddd');
@@ -218,14 +218,38 @@ const weekDayOptions = computed(() => [
 
 // --- Lifecycle ---
 onMounted(async () => {
-    await fetchRequest();
+    await fetchSlots();
 });
 
-const fetchRequest = async () => {
+watch(currentDate, () => {
+    fetchSlots();
+});
+
+const fetchSlots = async () => {
     if (!currentUser.value) return;
-    const start = dayjs(currentDate.value).startOf('month').subtract(1, 'week').toISOString();
-    const end = dayjs(currentDate.value).endOf('month').add(1, 'week').toISOString();
-    slots.value = await store.fetchSlots(currentUser.value.id, start, end);
+    const start = dayjs(currentDate.value).startOf('month').subtract(1, 'week').format('YYYY-MM-DD');
+    const end = dayjs(currentDate.value).endOf('month').add(1, 'week').format('YYYY-MM-DD');
+    
+    try {
+        const params: TeacherSlotParams = {
+            teacher_id: currentUser.value.id,
+            date_from: start,
+            date_to: end
+        };
+        const res: any = await getTeacherSlots(params);
+        const dataList = res.data || res || [];
+        
+        slots.value = dataList.map((s: any) => ({
+            id: s.id,
+            start: `${s.slot_date}T${s.start_time}`,
+            end: `${s.slot_date}T${s.end_time}`,
+            status: s.is_available === false ? 'Booked' : 'Available',
+            bookingInfo: s.notes || ''
+        }));
+    } catch (e: any) {
+        console.error(e);
+        ElMessage.error(e.response?.data?.message || 'Failed to fetch slots');
+    }
 };
 
 // --- Calendar Logic ---
@@ -239,9 +263,6 @@ const hasBookings = (day: string) => {
 
 const handleDateClick = (data: any) => {
     selectedDate.value = data.day;
-    // currentDate.value = new Date(data.day); // Sync calendar current view
-    
-    // Only open drawer if there are slots
     if (hasSlots(data.day)) {
         drawerVisible.value = true;
     }
@@ -258,8 +279,6 @@ const disabledEndDate = (time: Date) => {
 // --- Drawer Logic ---
 const dailySlots = computed(() => {
     if (!selectedDate.value) return [];
-    
-    // Get raw slots for day
     const dayStart = dayjs(selectedDate.value).startOf('day');
     const dayEnd = dayjs(selectedDate.value).endOf('day');
     
@@ -268,18 +287,7 @@ const dailySlots = computed(() => {
         return sStart.isAfter(dayStart) && sStart.isBefore(dayEnd);
     }).sort((a, b) => dayjs(a.start).diff(dayjs(b.start)));
     
-    return daySlots.map(s => {
-        let info = '';
-        if (s.status === 'Booked' && s.bookingId) {
-             const booking = store.bookings.find(b => b.id === s.bookingId);
-             if (booking) {
-                 const course = store.courses.find(c => c.id === booking.courseId);
-                 const student = store.students.find(st => st.id === booking.studentId);
-                 info = `${course?.name || 'Course'} - ${student?.name || 'Student'}`;
-             }
-        }
-        return { ...s, bookingInfo: info };
-    });
+    return daySlots;
 });
 
 const formatTime = (iso: string) => dayjs(iso).format('HH:mm');
@@ -299,16 +307,19 @@ const handleSlotAction = (cmd: string, slot: any) => {
                 type: 'warning',
             }
         ).then(async () => {
-            await store.removeSlot(slot.id);
-            await fetchRequest();
-            ElMessage.success(t('common.done'));
+            try {
+                await deleteTeacherSlot(slot.id);
+                await fetchSlots();
+                ElMessage.success(t('common.done'));
+            } catch (e: any) {
+                ElMessage.error(e.response?.data?.message || 'Failed to delete slot');
+            }
         });
     }
 };
 
 // --- Add Dialog Logic ---
 const openAddDialog = () => {
-    // Default to currently selected date or today
     const defaultDate = selectedDate.value || dayjs().format('YYYY-MM-DD');
     addForm.startDate = defaultDate;
     addForm.timeRange = ['09:00', '10:00'];
@@ -325,100 +336,60 @@ const openAddDialog = () => {
 const saveTimeSlot = async () => {
     if (!currentUser.value || !addForm.startDate) return;
     
-    // Preparation
-    const baseDate = addForm.startDate;
-    let timeStartStr = '00:00';
-    let timeEndStr = '00:00';
+    let timeStartStr = '00:00:00';
+    let timeEndStr = '00:00:00';
     
     if (addForm.isAllDay) {
-        timeStartStr = '06:00';
-        timeEndStr = '23:59';
+        timeStartStr = '06:00:00';
+        timeEndStr = '23:59:00';
     } else {
-        if (!addForm.timeRange) return;
-        timeStartStr = addForm.timeRange[0];
-        timeEndStr = addForm.timeRange[1];
+        if (!addForm.timeRange || addForm.timeRange.length !== 2) return;
+        timeStartStr = addForm.timeRange[0] + ':00';
+        timeEndStr = addForm.timeRange[1] + ':00';
     }
     
-    // Generate dates to add
-    const datesToAdd: string[] = [];
-    
-    if (addForm.repeatType === 'none') {
-        datesToAdd.push(baseDate);
-    } else if (addForm.repeatType === 'custom') {
-        // Validation
-        if (addForm.weekDays.length === 0) {
-            ElMessage.warning('Please select at least one day of week');
-            return;
-        }
-
-        let current = dayjs(baseDate);
-        let count = 0;
-        const maxDate = addForm.endType === 'date' ? dayjs(addForm.endDate) : dayjs(baseDate).add(2, 'year'); // safety
-        const maxCount = addForm.endType === 'count' ? addForm.repeatCount : 999; 
-
-        // Safety break loop
-        let safety = 0;
-        while (safety < 300) { // Limit 300 days/iterations check
-            if (addForm.endType === 'date' && current.isAfter(maxDate)) break;
-            if (addForm.endType === 'count' && count >= maxCount) break;
-            
-            const currentDayOfWeek = current.day(); // 0-6
-            if (addForm.weekDays.includes(currentDayOfWeek)) {
-                datesToAdd.push(current.format('YYYY-MM-DD'));
-                count++;
-            }
-            
-            current = current.add(1, 'day');
-            safety++;
-        }
-    }
-    
-    // Create Slots for each date
-    for (const dateStr of datesToAdd) {
-        // Parse start/end for this date
-        const startISO = `${dateStr}T${timeStartStr}:00`;
-        const endISO = `${dateStr}T${timeEndStr}:00`;
-        
-        let slotCurrent = dayjs(startISO);
-        const slotEnd = dayjs(endISO);
-        
-        // Generate 30 min segments (simplified safety 50 slots per day)
-        let daySafety = 0;
-        while(slotCurrent.isBefore(slotEnd) && daySafety < 50) {
-            const next = slotCurrent.add(30, 'minute');
-            if (next.isAfter(slotEnd)) break;
-            
-            // Check formatted string logic if spanning days?
-            // Assuming simplified same-day slots 06:00-23:59
-            
-            const newSlot: TeacherSlot = {
-                id: `ts-${Date.now()}-${daySafety}-${Math.random().toString(36).substr(2, 5)}`,
-                teacherId: currentUser.value.id,
-                start: slotCurrent.toISOString(),
-                end: next.toISOString(),
-                status: 'Available'
+    try {
+        if (addForm.repeatType === 'none') {
+            const data: TeacherSlotCreate = {
+                teacher_id: currentUser.value.id,
+                slot_date: addForm.startDate,
+                start_time: timeStartStr,
+                end_time: timeEndStr,
+                is_available: true
             };
-            
-            await store.addSlot(newSlot);
-            slotCurrent = next;
-            daySafety++;
+            await createTeacherSlot(data);
+        } else if (addForm.repeatType === 'custom') {
+            if (addForm.weekDays.length === 0) {
+                ElMessage.warning('Please select at least one day of week');
+                return;
+            }
+            const determinedEndDate = addForm.endType === 'date' 
+                ? addForm.endDate 
+                : dayjs(addForm.startDate).add(addForm.repeatCount, 'week').format('YYYY-MM-DD');
+                
+            const data: TeacherSlotBatchCreate = {
+                teacher_id: currentUser.value.id,
+                start_date: addForm.startDate,
+                end_date: determinedEndDate,
+                weekdays: addForm.weekDays,
+                start_time: timeStartStr,
+                end_time: timeEndStr,
+            };
+            await batchCreateTeacherSlots(data);
         }
+        
+        addDialogVisible.value = false;
+        await fetchSlots();
+        ElMessage.success(t('common.done'));
+    } catch (e: any) {
+        ElMessage.error(e.response?.data?.message || 'Failed to save slots');
     }
-
-    addDialogVisible.value = false;
-    await fetchRequest();
-    ElMessage.success(t('common.done'));
 };
 
 const submitLeaveRequest = async () => {
-    if (selectedSlotId.value) {
-        await store.updateSlotStatus(selectedSlotId.value, 'Leave');
-        leaveDialogVisible.value = false;
-        await fetchRequest();
-        ElMessage.success(t('common.done'));
-    }
+    leaveDialogVisible.value = false;
+    ElMessage.warning('Leave request logic requires further backend support');
 };
-
 </script>
 
 <style scoped lang="scss">
