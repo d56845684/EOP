@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, HTTPException, Depends
 from app.services.supabase_service import supabase_service
 from app.services.invite_service import invite_service
@@ -106,9 +107,16 @@ async def accept_invite(data: AcceptInviteRequest):
         user_id = auth_response.user.id
 
         # 4. INSERT user_profiles 帶入 student_id/teacher_id
+        #    查 roles 表取得 role_id
+        role_row = await supabase_service.pool.fetchrow(
+            "SELECT id FROM roles WHERE key = $1", entity_type
+        )
+        if not role_row:
+            raise HTTPException(status_code=500, detail=f"角色 '{entity_type}' 不存在")
+
         profile_data = {
             "id": user_id,
-            "role": entity_type,
+            "role_id": str(role_row["id"]),
             "must_change_password": True,
         }
         if entity_type == "student":

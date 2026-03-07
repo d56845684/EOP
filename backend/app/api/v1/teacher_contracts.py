@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.config import settings
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.teacher_contract import (
     TeacherContractCreate, TeacherContractUpdate, TeacherContractResponse,
     TeacherContractListResponse, ContractStatus, EmploymentType,
@@ -17,18 +17,6 @@ import uuid
 import re
 
 router = APIRouter(prefix="/teacher-contracts", tags=["教師合約管理"])
-
-
-async def get_user_teacher_id(user_id: str) -> Optional[str]:
-    """根據 user_id 取得對應的 teacher_id"""
-    result = await supabase_service.table_select(
-        table="user_profiles",
-        select="teacher_id",
-        filters={"id": user_id},
-    )
-    if result and result[0].get("teacher_id"):
-        return result[0]["teacher_id"]
-    return None
 
 
 async def generate_contract_no() -> str:
@@ -126,7 +114,7 @@ CONTRACT_SELECT = "id,contract_no,teacher_id,contract_status,start_date,end_date
 
 @router.get("/options/teachers", tags=["教師合約管理"])
 async def get_teacher_options(
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """取得教師下拉選單"""
     try:
@@ -142,7 +130,7 @@ async def get_teacher_options(
 
 @router.get("/options/courses", tags=["教師合約管理"])
 async def get_course_options(
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """取得課程下拉選單"""
     try:
@@ -164,7 +152,7 @@ async def list_teacher_contracts(
     contract_status: Optional[ContractStatus] = Query(None, description="篩選合約狀態"),
     employment_type: Optional[EmploymentType] = Query(None, description="篩選僱用類型"),
     teacher_id: Optional[str] = Query(None, description="篩選教師"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """取得教師合約列表
 
@@ -180,7 +168,7 @@ async def list_teacher_contracts(
         # 角色權限過濾 (RLS 邏輯在後端實現)
         if current_user.is_teacher():
             # 教師只能看自己的合約
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
+            user_teacher_id = current_user.teacher_id
             if not user_teacher_id:
                 # 沒有對應的 teacher_id，返回空列表
                 return TeacherContractListResponse(
@@ -263,7 +251,7 @@ async def list_teacher_contracts(
 @router.get("/{contract_id}", response_model=DataResponse[TeacherContractResponse])
 async def get_teacher_contract(
     contract_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """取得單一教師合約
 
@@ -290,7 +278,7 @@ async def get_teacher_contract(
 
         # 教師只能查看自己的合約
         if current_user.is_teacher():
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
+            user_teacher_id = current_user.teacher_id
             if contract.get("teacher_id") != user_teacher_id:
                 raise HTTPException(status_code=403, detail="無權查看此合約")
 
@@ -306,7 +294,7 @@ async def get_teacher_contract(
 @router.post("", response_model=DataResponse[TeacherContractResponse])
 async def create_teacher_contract(
     data: TeacherContractCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """建立教師合約（僅限員工）"""
     try:
@@ -373,7 +361,7 @@ async def create_teacher_contract(
 async def update_teacher_contract(
     contract_id: str,
     data: TeacherContractUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """更新教師合約（僅限員工）"""
     try:
@@ -450,7 +438,7 @@ async def update_teacher_contract(
 @router.delete("/{contract_id}", response_model=BaseResponse)
 async def delete_teacher_contract(
     contract_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """刪除教師合約（軟刪除，僅限員工）— 連帶刪除明細"""
     try:
@@ -519,7 +507,7 @@ async def delete_teacher_contract(
 @router.get("/{contract_id}/details")
 async def list_contract_details(
     contract_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """取得合約明細列表"""
     try:
@@ -538,7 +526,7 @@ async def list_contract_details(
 
         # 教師只能看自己的合約明細
         if current_user.is_teacher():
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
+            user_teacher_id = current_user.teacher_id
             if contract[0].get("teacher_id") != user_teacher_id:
                 raise HTTPException(status_code=403, detail="無權查看此合約明細")
 
@@ -575,7 +563,7 @@ async def list_contract_details(
 async def create_contract_detail(
     contract_id: str,
     data: TeacherContractDetailCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """新增合約明細（僅限員工）"""
     try:
@@ -644,7 +632,7 @@ async def update_contract_detail(
     contract_id: str,
     detail_id: str,
     data: TeacherContractDetailUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """更新合約明細（僅限員工，不可改 detail_type 和 course_id）"""
     try:
@@ -706,7 +694,7 @@ async def update_contract_detail(
 async def delete_contract_detail(
     contract_id: str,
     detail_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """刪除合約明細（軟刪除，僅限員工）"""
     try:
@@ -760,7 +748,7 @@ class ConfirmUploadRequest(BaseModel):
 @router.post("/{contract_id}/upload-url")
 async def get_teacher_contract_upload_url(
     contract_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """取得教師合約檔案的 signed upload URL（僅限員工）
 
@@ -802,7 +790,7 @@ async def get_teacher_contract_upload_url(
 async def confirm_teacher_contract_upload(
     contract_id: str,
     body: ConfirmUploadRequest,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """確認教師合約檔案上傳完成（僅限員工）
 
@@ -874,7 +862,7 @@ async def confirm_teacher_contract_upload(
 @router.get("/{contract_id}/download-url")
 async def get_teacher_contract_download_url(
     contract_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
     """取得教師合約檔案的 signed download URL
 
@@ -899,7 +887,7 @@ async def get_teacher_contract_download_url(
         contract = result[0]
 
         if current_user.is_teacher():
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
+            user_teacher_id = current_user.teacher_id
             if contract.get("teacher_id") != user_teacher_id:
                 raise HTTPException(status_code=403, detail="無權下載此合約")
 

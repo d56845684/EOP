@@ -74,7 +74,7 @@ async def get_current_user_info(
     current_user: CurrentUser = Depends(get_current_user)
 ):
     """取得當前用戶資訊"""
-    # 查詢 must_change_password
+    # 查詢 must_change_password（entity IDs 已在 CurrentUser 中）
     profile_extra = await auth_service.get_profile_extra(current_user.user_id)
 
     return DataResponse(
@@ -82,10 +82,14 @@ async def get_current_user_info(
             id=current_user.user_id,
             email=current_user.email,
             role=current_user.role,
+            role_id=current_user.role_id or profile_extra.get("role_id"),
             email_confirmed=True,
             employee_type=current_user.employee_type,
             permission_level=current_user.permission_level,
             must_change_password=profile_extra.get("must_change_password", False),
+            teacher_id=current_user.teacher_id,
+            student_id=current_user.student_id,
+            employee_id=current_user.employee_id,
         )
     )
 

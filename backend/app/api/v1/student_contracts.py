@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.config import settings
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.student_contract import (
     StudentContractCreate, StudentContractUpdate, StudentContractResponse,
     StudentContractListResponse, ContractStatus,
@@ -20,18 +20,6 @@ import re
 router = APIRouter(prefix="/student-contracts", tags=["學生合約管理"])
 
 CONTRACT_SELECT = "id,contract_no,student_id,contract_status,start_date,end_date,total_lessons,remaining_lessons,total_amount,total_leave_allowed,used_leave_count,is_recurring,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
-
-
-async def get_user_student_id(user_id: str) -> Optional[str]:
-    """根據 user_id 取得對應的 student_id"""
-    result = await supabase_service.table_select(
-        table="user_profiles",
-        select="student_id",
-        filters={"id": user_id},
-    )
-    if result and result[0].get("student_id"):
-        return result[0]["student_id"]
-    return None
 
 
 async def generate_contract_no() -> str:
@@ -134,7 +122,7 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
 
 @router.get("/options/students", tags=["學生合約管理"])
 async def get_student_options(
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """取得學生下拉選單"""
     try:
@@ -151,7 +139,7 @@ async def get_student_options(
 @router.get("/options/courses", tags=["學生合約管理"])
 async def get_course_options(
     student_id: Optional[str] = Query(None, description="若提供，只回傳該學生已選修的課程"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """取得課程下拉選單（供明細 form 使用）
 
@@ -199,7 +187,7 @@ async def get_course_options(
 
 @router.get("/options/teachers", tags=["學生合約管理"])
 async def get_teacher_options(
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """取得教師下拉選單"""
     try:
@@ -222,7 +210,7 @@ async def list_student_contracts(
     search: Optional[str] = Query(None, description="搜尋合約編號"),
     contract_status: Optional[ContractStatus] = Query(None, description="篩選合約狀態"),
     student_id: Optional[str] = Query(None, description="篩選學生"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """取得學生合約列表
 
@@ -238,7 +226,7 @@ async def list_student_contracts(
         # 角色權限過濾 (RLS 邏輯在後端實現)
         if current_user.is_student():
             # 學生只能看自己的合約
-            user_student_id = await get_user_student_id(current_user.user_id)
+            user_student_id = current_user.student_id
             if not user_student_id:
                 # 沒有對應的 student_id，返回空列表
                 return StudentContractListResponse(
@@ -318,7 +306,7 @@ async def list_student_contracts(
 @router.get("/{contract_id}", response_model=DataResponse[StudentContractResponse])
 async def get_student_contract(
     contract_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """取得單一學生合約
 
@@ -345,7 +333,7 @@ async def get_student_contract(
 
         # 學生只能查看自己的合約
         if current_user.is_student():
-            user_student_id = await get_user_student_id(current_user.user_id)
+            user_student_id = current_user.student_id
             if contract.get("student_id") != user_student_id:
                 raise HTTPException(status_code=403, detail="無權查看此合約")
 
@@ -361,7 +349,7 @@ async def get_student_contract(
 @router.post("", response_model=DataResponse[StudentContractResponse])
 async def create_student_contract(
     data: StudentContractCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """建立學生合約（僅限員工）"""
     try:
@@ -434,7 +422,7 @@ async def create_student_contract(
 async def update_student_contract(
     contract_id: str,
     data: StudentContractUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """更新學生合約（僅限員工）"""
     try:
@@ -509,7 +497,7 @@ async def update_student_contract(
 @router.delete("/{contract_id}", response_model=BaseResponse)
 async def delete_student_contract(
     contract_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """刪除學生合約（軟刪除，僅限員工）— 連帶刪除明細、教師綁定和請假紀錄"""
     try:
@@ -600,7 +588,7 @@ async def delete_student_contract(
 @router.get("/{contract_id}/details")
 async def list_contract_details(
     contract_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """取得合約明細列表"""
     try:
@@ -619,7 +607,7 @@ async def list_contract_details(
 
         # 學生只能看自己的合約明細
         if current_user.is_student():
-            user_student_id = await get_user_student_id(current_user.user_id)
+            user_student_id = current_user.student_id
             if contract[0].get("student_id") != user_student_id:
                 raise HTTPException(status_code=403, detail="無權查看此合約明細")
 
@@ -656,7 +644,7 @@ async def list_contract_details(
 async def create_contract_detail(
     contract_id: str,
     data: StudentContractDetailCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """新增合約明細（僅限員工）"""
     try:
@@ -755,7 +743,7 @@ async def update_contract_detail(
     contract_id: str,
     detail_id: str,
     data: StudentContractDetailUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """更新合約明細（僅限員工，不可改 detail_type 和 course_id）"""
     try:
@@ -836,7 +824,7 @@ async def update_contract_detail(
 async def delete_contract_detail(
     contract_id: str,
     detail_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """刪除合約明細（軟刪除，僅限員工）"""
     try:
@@ -900,7 +888,7 @@ async def delete_contract_detail(
 @router.get("/{contract_id}/leave-records")
 async def list_leave_records(
     contract_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """取得合約請假紀錄"""
     try:
@@ -918,7 +906,7 @@ async def list_leave_records(
 
         # 學生只能看自己的
         if current_user.is_student():
-            user_student_id = await get_user_student_id(current_user.user_id)
+            user_student_id = current_user.student_id
             if contract[0].get("student_id") != user_student_id:
                 raise HTTPException(status_code=403, detail="無權查看此合約請假紀錄")
 
@@ -943,7 +931,7 @@ async def list_leave_records(
 async def create_leave_record(
     contract_id: str,
     data: StudentContractLeaveRecordCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """新增請假紀錄（僅限員工），同時 used_leave_count +1"""
     try:
@@ -1002,7 +990,7 @@ async def create_leave_record(
 async def delete_leave_record(
     contract_id: str,
     record_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """刪除請假紀錄（軟刪除，僅限員工），同時 used_leave_count -1"""
     try:
@@ -1071,7 +1059,7 @@ class ConfirmUploadRequest(BaseModel):
 @router.post("/{contract_id}/upload-url")
 async def get_student_contract_upload_url(
     contract_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """取得學生合約檔案的 signed upload URL（僅限員工）
 
@@ -1117,7 +1105,7 @@ async def get_student_contract_upload_url(
 async def confirm_student_contract_upload(
     contract_id: str,
     body: ConfirmUploadRequest,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """確認學生合約檔案上傳完成（僅限員工）
 
@@ -1192,7 +1180,7 @@ async def confirm_student_contract_upload(
 @router.get("/{contract_id}/download-url")
 async def get_student_contract_download_url(
     contract_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
     """取得學生合約檔案的 signed download URL
 
@@ -1220,7 +1208,7 @@ async def get_student_contract_download_url(
 
         # 學生只能下載自己的合約
         if current_user.is_student():
-            user_student_id = await get_user_student_id(current_user.user_id)
+            user_student_id = current_user.student_id
             if contract.get("student_id") != user_student_id:
                 raise HTTPException(status_code=403, detail="無權下載此合約")
 

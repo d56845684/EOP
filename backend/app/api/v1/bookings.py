@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.booking import (
     BookingCreate, BookingUpdate, BookingResponse, BookingListResponse, BookingStatus,
     BookingBatchUpdateByIds, BookingBatchDeleteByIds, BookingBatchUpdate, BookingBatchDelete,
@@ -334,7 +334,7 @@ async def list_bookings(
     course_id: Optional[str] = Query(None, description="篩選課程"),
     date_from: Optional[date] = Query(None, description="開始日期"),
     date_to: Optional[date] = Query(None, description="結束日期"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得預約列表"""
     try:
@@ -363,17 +363,13 @@ async def list_bookings(
             else:
                 filters["booking_date"] = f"lte.{date_to.isoformat()}"
 
-        # 根據角色過濾（查詢資料庫取得關聯 ID）
-        user_role = current_user.role
-
-        if user_role == "student":
-            user_student_id = await get_user_student_id(current_user.user_id)
-            if user_student_id:
-                filters["student_id"] = f"eq.{user_student_id}"
-        elif user_role == "teacher":
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if user_teacher_id:
-                filters["teacher_id"] = f"eq.{user_teacher_id}"
+        # 根據角色過濾（直接從 CurrentUser 取得 entity ID）
+        if current_user.is_student():
+            if current_user.student_id:
+                filters["student_id"] = f"eq.{current_user.student_id}"
+        elif current_user.is_teacher():
+            if current_user.teacher_id:
+                filters["teacher_id"] = f"eq.{current_user.teacher_id}"
 
         # 取得總數
         all_bookings = await supabase_service.table_select(
@@ -426,7 +422,7 @@ async def list_bookings(
 @router.get("/slot-availability/{teacher_slot_id}", response_model=DataResponse[SlotAvailabilityResponse])
 async def get_slot_availability(
     teacher_slot_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得指定教師時段的 30 分鐘區塊可用狀態"""
     try:
@@ -510,7 +506,7 @@ async def get_my_student_info(
 ):
     """取得當前用戶的學生資料（學生用）"""
     try:
-        user_student_id = await get_user_student_id(current_user.user_id)
+        user_student_id = current_user.student_id
 
         if not user_student_id:
             return {"data": None}
@@ -535,7 +531,7 @@ async def get_my_contracts(
 ):
     """取得當前學生的合約（學生用，按建立時間由新到舊排序）"""
     try:
-        user_student_id = await get_user_student_id(current_user.user_id)
+        user_student_id = current_user.student_id
 
         if not user_student_id:
             return {"data": []}
@@ -589,7 +585,7 @@ async def get_my_contracts(
 @router.get("/{booking_id}", response_model=DataResponse[BookingResponse])
 async def get_booking(
     booking_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得單一預約"""
     try:
@@ -602,6 +598,14 @@ async def get_booking(
         if not result:
             raise HTTPException(status_code=404, detail="預約不存在")
 
+        # Ownership check: 學生/教師只能查自己的預約
+        if current_user.is_student():
+            if result[0].get("student_id") != current_user.student_id:
+                raise HTTPException(status_code=403, detail="無權查看此預約")
+        elif current_user.is_teacher():
+            if result[0].get("teacher_id") != current_user.teacher_id:
+                raise HTTPException(status_code=403, detail="無權查看此預約")
+
         booking = await enrich_booking_with_relations(result[0])
         return DataResponse(data=BookingResponse(**booking))
 
@@ -611,48 +615,21 @@ async def get_booking(
         raise HTTPException(status_code=500, detail=f"取得預約失敗: {str(e)}")
 
 
-async def get_user_student_id(user_id: str) -> str | None:
-    """取得用戶關聯的學生 ID"""
-    profile = await supabase_service.table_select(
-        table="user_profiles",
-        select="student_id",
-        filters={"id": user_id},
-    )
-    if profile and profile[0].get("student_id"):
-        return profile[0]["student_id"]
-    return None
-
-
-async def get_user_teacher_id(user_id: str) -> str | None:
-    """取得用戶關聯的教師 ID"""
-    profile = await supabase_service.table_select(
-        table="user_profiles",
-        select="teacher_id",
-        filters={"id": user_id},
-    )
-    if profile and profile[0].get("teacher_id"):
-        return profile[0]["teacher_id"]
-    return None
-
-
 @router.post("", response_model=DataResponse[BookingResponse])
 async def create_booking(
     data: BookingCreate,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.create"))
 ):
     """建立預約（員工可為任何學生預約，學生只能為自己預約）"""
     try:
-        user_role = current_user.role
-
         # 權限檢查
-        if user_role == "student":
+        if current_user.is_student():
             # 學生只能為自己預約
-            user_student_id = await get_user_student_id(current_user.user_id)
-            if not user_student_id:
+            if not current_user.student_id:
                 raise HTTPException(status_code=403, detail="無法取得學生資料")
-            if data.student_id != user_student_id:
+            if data.student_id != current_user.student_id:
                 raise HTTPException(status_code=403, detail="學生只能為自己預約")
-        elif user_role not in ["admin", "employee"]:
+        elif not current_user.is_staff():
             # 教師和其他角色不能建立預約
             raise HTTPException(status_code=403, detail="無權建立預約")
 
@@ -936,7 +913,7 @@ async def create_booking(
 @router.put("/batch", response_model=BaseResponse)
 async def batch_update_bookings(
     data: BookingBatchUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.edit"))
 ):
     """批次更新預約狀態（週期性篩選，僅限員工）"""
     try:
@@ -1046,7 +1023,7 @@ async def batch_update_bookings(
 async def update_booking(
     booking_id: str,
     data: BookingUpdate,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.edit"))
 ):
     """更新預約（員工可完整更新，教師僅可將自己的預約確認）"""
     try:
@@ -1064,8 +1041,7 @@ async def update_booking(
 
         # 教師權限：僅能將自己的預約狀態改為 confirmed
         if current_user.is_teacher():
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if existing[0].get("teacher_id") != user_teacher_id:
+            if existing[0].get("teacher_id") != current_user.teacher_id:
                 raise HTTPException(status_code=403, detail="教師只能更新自己的預約")
             if not data.booking_status or data.booking_status.value != "confirmed":
                 raise HTTPException(status_code=403, detail="教師僅可將預約狀態更新為已確認")
@@ -1231,7 +1207,7 @@ async def update_booking(
 @router.delete("/batch", response_model=BaseResponse)
 async def batch_delete_bookings(
     data: BookingBatchDelete,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.delete"))
 ):
     """批次刪除預約（週期性篩選，僅限員工）"""
     try:
@@ -1353,7 +1329,7 @@ async def batch_delete_bookings(
 @router.delete("/{booking_id}", response_model=BaseResponse)
 async def delete_booking(
     booking_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.delete"))
 ):
     """刪除預約（軟刪除，僅限員工）"""
     try:
@@ -1428,21 +1404,18 @@ async def delete_booking(
 @router.post("/batch", response_model=BaseResponse)
 async def batch_create_bookings(
     data: BookingBatchCreate,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.create"))
 ):
     """批次建立預約（週期性，自動匹配可用時段）"""
     try:
-        user_role = current_user.role
-
         # 權限檢查
-        if user_role == "student":
+        if current_user.is_student():
             # 學生只能為自己預約
-            user_student_id = await get_user_student_id(current_user.user_id)
-            if not user_student_id:
+            if not current_user.student_id:
                 raise HTTPException(status_code=403, detail="無法取得學生資料")
-            if data.student_id != user_student_id:
+            if data.student_id != current_user.student_id:
                 raise HTTPException(status_code=403, detail="學生只能為自己預約")
-        elif user_role not in ["admin", "employee"]:
+        elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權建立預約")
 
         # 驗證學生存在
@@ -1747,7 +1720,7 @@ async def batch_create_bookings(
 @router.post("/batch-by-ids/update", response_model=BaseResponse)
 async def batch_update_bookings_by_ids(
     data: BookingBatchUpdateByIds,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.edit"))
 ):
     """根據 ID 批次更新預約狀態（僅限員工）"""
     try:
@@ -1829,7 +1802,7 @@ async def batch_update_bookings_by_ids(
 @router.post("/batch-by-ids/delete", response_model=BaseResponse)
 async def batch_delete_bookings_by_ids(
     data: BookingBatchDeleteByIds,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.delete"))
 ):
     """根據 ID 批次刪除預約（僅限員工）"""
     try:
@@ -1924,7 +1897,7 @@ async def batch_delete_bookings_by_ids(
 
 @router.get("/options/students", tags=["預約管理"])
 async def get_student_options(
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得學生下拉選單"""
     try:
@@ -1941,7 +1914,7 @@ async def get_student_options(
 @router.get("/options/teachers", tags=["預約管理"])
 async def get_teacher_options(
     student_id: Optional[str] = Query(None, description="學生 ID（用於偏好過濾）"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得教師下拉選單（可依學生偏好聯集過濾）"""
     try:
@@ -1969,48 +1942,11 @@ async def get_teacher_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/options/teachers/{teacher_id}/level", tags=["預約管理"])
-async def update_teacher_level(
-    teacher_id: str,
-    level: int = Query(..., ge=1, description="教師等級"),
-    current_user: CurrentUser = Depends(require_staff)
-):
-    """更新教師等級（僅員工）"""
-    try:
-        employee_id = await get_user_employee_id(current_user.user_id)
-
-        teacher = await supabase_service.table_select(
-            table="teachers", select="id",
-            filters={"id": teacher_id, "is_deleted": "eq.false"},
-        )
-        if not teacher:
-            raise HTTPException(status_code=404, detail="教師不存在")
-
-        update_data = {"teacher_level": level}
-        if employee_id:
-            update_data["updated_by"] = employee_id
-
-        result = await supabase_service.table_update(
-            table="teachers",
-            data=update_data,
-            filters={"id": teacher_id},
-        )
-
-        if not result:
-            raise HTTPException(status_code=500, detail="更新教師等級失敗")
-
-        return {"success": True, "message": f"教師等級已更新為 {level}", "data": result}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/options/overlapping-courses", tags=["預約管理"])
 async def get_overlapping_course_options(
     student_id: str = Query(..., description="學生 ID"),
     teacher_id: str = Query(..., description="教師 ID"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得學生與教師的交集課程（學生選課 ∩ 教師可教課程）
 
@@ -2098,7 +2034,7 @@ async def get_overlapping_course_options(
 
 @router.get("/options/courses", tags=["預約管理"])
 async def get_course_options(
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得課程下拉選單"""
     try:
@@ -2115,7 +2051,7 @@ async def get_course_options(
 @router.get("/options/student-contracts/{student_id}", tags=["預約管理"])
 async def get_student_contract_options(
     student_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得學生的合約下拉選單（按建立時間由新到舊排序）"""
     try:
@@ -2168,7 +2104,7 @@ async def get_student_contract_options(
 @router.get("/options/teacher-contracts/{teacher_id}", tags=["預約管理"])
 async def get_teacher_contract_options(
     teacher_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得教師的合約下拉選單"""
     try:
@@ -2191,7 +2127,7 @@ async def get_teacher_slot_options(
     teacher_id: str,
     date_from: Optional[date] = Query(None, description="開始日期"),
     date_to: Optional[date] = Query(None, description="結束日期"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得教師的可用時段（不再過濾 is_booked，改由前端顯示區塊可用性）"""
     try:

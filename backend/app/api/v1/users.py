@@ -2,7 +2,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import Optional
 from app.core.dependencies import (
-    get_current_user, require_staff, CurrentUser
+    get_current_user, require_staff, require_page_permission, CurrentUser
 )
 from app.services.supabase_service import supabase_service
 from app.schemas.response import DataResponse, PaginatedResponse, BaseResponse
@@ -19,10 +19,10 @@ async def get_profile(
     current_user: CurrentUser = Depends(get_current_user)
 ):
     """取得當前用戶完整資料"""
-    # 根據角色查詢對應的表
-    if current_user.role == "student":
+    # 根據 entity ID 查詢對應的表
+    if current_user.student_id:
         table = "students"
-    elif current_user.role == "teacher":
+    elif current_user.teacher_id:
         table = "teachers"
     else:
         table = "employees"
@@ -66,7 +66,7 @@ async def list_users(
     per_page: int = Query(20, ge=1, le=100),
     role: Optional[str] = Query(None, description="角色篩選"),
     search: Optional[str] = Query(None, description="搜尋 email/name"),
-    current_user: CurrentUser = Depends(require_staff),
+    current_user: CurrentUser = Depends(require_page_permission("employees.list")),
 ):
     """列出所有帳號（含 email、名稱）"""
     try:
@@ -78,7 +78,8 @@ async def list_users(
             SELECT
                 up.id,
                 u.email,
-                up.role,
+                r.key AS role,
+                up.role_id,
                 up.employee_subtype,
                 up.is_active,
                 COALESCE(up.is_protected, FALSE) AS is_protected,
@@ -86,6 +87,7 @@ async def list_users(
                 COALESCE(e.name, t.name, s.name) AS name
             FROM user_profiles up
             JOIN public.users u ON u.id = up.id
+            LEFT JOIN roles r ON r.id = up.role_id
             LEFT JOIN employees e ON e.id = up.employee_id
             LEFT JOIN teachers t ON t.id = up.teacher_id
             LEFT JOIN students s ON s.id = up.student_id
@@ -93,7 +95,7 @@ async def list_users(
 
         if role:
             params.append(role)
-            where_clauses.append(f"up.role = ${len(params)}")
+            where_clauses.append(f"r.key = ${len(params)}")
 
         if search:
             params.append(f"%{search}%")
@@ -107,7 +109,7 @@ async def list_users(
             where_sql = " WHERE " + " AND ".join(where_clauses)
 
         # Count total
-        count_sql = f"SELECT COUNT(*) FROM user_profiles up JOIN public.users u ON u.id = up.id LEFT JOIN employees e ON e.id = up.employee_id LEFT JOIN teachers t ON t.id = up.teacher_id LEFT JOIN students s ON s.id = up.student_id{where_sql}"
+        count_sql = f"SELECT COUNT(*) FROM user_profiles up JOIN public.users u ON u.id = up.id LEFT JOIN roles r ON r.id = up.role_id LEFT JOIN employees e ON e.id = up.employee_id LEFT JOIN teachers t ON t.id = up.teacher_id LEFT JOIN students s ON s.id = up.student_id{where_sql}"
         total_row = await supabase_service.pool.fetchrow(count_sql, *params)
         total = total_row[0] if total_row else 0
 
@@ -129,6 +131,7 @@ async def list_users(
                 email=d["email"],
                 name=d.get("name"),
                 role=d["role"],
+                role_id=str(d["role_id"]) if d.get("role_id") else None,
                 employee_subtype=d.get("employee_subtype"),
                 is_active=d.get("is_active", True),
                 is_protected=d.get("is_protected", False),
@@ -155,7 +158,7 @@ async def list_users(
 async def update_user(
     user_id: str,
     data: AccountUpdate,
-    current_user: CurrentUser = Depends(require_staff),
+    current_user: CurrentUser = Depends(require_page_permission("employees.edit")),
 ):
     """更新帳號角色/狀態"""
     try:
@@ -163,7 +166,7 @@ async def update_user(
 
         # Check exists & is_protected
         profile = await supabase_service.pool.fetchrow(
-            "SELECT id, role, employee_subtype, is_active, COALESCE(is_protected, FALSE) AS is_protected FROM user_profiles WHERE id = $1",
+            "SELECT id, role_id, employee_subtype, is_active, COALESCE(is_protected, FALSE) AS is_protected FROM user_profiles WHERE id = $1",
             uid,
         )
         if not profile:
@@ -187,23 +190,32 @@ async def update_user(
                     update_data["employee_subtype"], employee_id,
                 )
 
+        # Convert role_id string to UUID for DB update
+        if "role_id" in update_data:
+            update_data["role_id"] = uuid.UUID(update_data["role_id"])
+
         # Update user_profiles
-        result = await supabase_service.table_update(
-            table="user_profiles",
-            data=update_data,
-            filters={"id": user_id},
+        sets = []
+        params = [uid]
+        for k, v in update_data.items():
+            params.append(v)
+            sets.append(f"{k} = ${len(params)}")
+
+        await supabase_service.pool.execute(
+            f"UPDATE user_profiles SET {', '.join(sets)} WHERE id = $1",
+            *params,
         )
-        if not result:
-            raise HTTPException(status_code=500, detail="更新失敗")
 
         # Re-fetch full account info
         row = await supabase_service.pool.fetchrow(
             """
-            SELECT up.id, u.email, up.role, up.employee_subtype, up.is_active,
+            SELECT up.id, u.email, r.key AS role, up.role_id,
+                   up.employee_subtype, up.is_active,
                    COALESCE(up.is_protected, FALSE) AS is_protected, up.created_at,
                    COALESCE(e.name, t.name, s.name) AS name
             FROM user_profiles up
             JOIN public.users u ON u.id = up.id
+            LEFT JOIN roles r ON r.id = up.role_id
             LEFT JOIN employees e ON e.id = up.employee_id
             LEFT JOIN teachers t ON t.id = up.teacher_id
             LEFT JOIN students s ON s.id = up.student_id
@@ -214,7 +226,8 @@ async def update_user(
         d = supabase_service._row_to_dict(row)
         account = AccountInfo(
             id=d["id"], email=d["email"], name=d.get("name"),
-            role=d["role"], employee_subtype=d.get("employee_subtype"),
+            role=d["role"], role_id=str(d["role_id"]) if d.get("role_id") else None,
+            employee_subtype=d.get("employee_subtype"),
             is_active=d.get("is_active", True),
             is_protected=d.get("is_protected", False),
             created_at=d.get("created_at"),
@@ -231,7 +244,7 @@ async def update_user(
 @router.delete("/{user_id}", response_model=BaseResponse)
 async def deactivate_user(
     user_id: str,
-    current_user: CurrentUser = Depends(require_staff),
+    current_user: CurrentUser = Depends(require_page_permission("employees.delete")),
 ):
     """停用帳號（設 is_active=false）"""
     try:

@@ -391,7 +391,7 @@ export default function TeacherContractsPage() {
         setUploading(null)
     }
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
+    const isStaff = profile?.employee_id != null
 
     const formatDate = (dateStr: string) => {
         return new Date(dateStr).toLocaleDateString('zh-TW')

@@ -74,7 +74,7 @@ export default function RolePermissionsPage() {
     setCreateSaving(true)
     setCreateError(null)
     const { error: err } = await accountsApi.createRole({
-      role: createRole, name: createName, description: createDesc || undefined,
+      key: createRole, name: createName, description: createDesc || undefined,
     })
     if (err) {
       setCreateError(err.message)
@@ -100,7 +100,7 @@ export default function RolePermissionsPage() {
     if (!editingRoleInfo) return
     setEditSaving(true)
     setEditError(null)
-    const { error: err } = await accountsApi.updateRole(editingRoleInfo.role, {
+    const { error: err } = await accountsApi.updateRole(editingRoleInfo.id, {
       name: editName, description: editDesc || undefined,
     })
     if (err) {
@@ -117,7 +117,7 @@ export default function RolePermissionsPage() {
     if (!deleteTarget) return
     setDeleting(true)
     setDeleteError(null)
-    const { error: err } = await accountsApi.deleteRole(deleteTarget.role)
+    const { error: err } = await accountsApi.deleteRole(deleteTarget.id)
     if (err) {
       setDeleteError(err.message)
     } else {
@@ -136,11 +136,21 @@ export default function RolePermissionsPage() {
 
     const [pagesRes, rolePagesRes] = await Promise.all([
       accountsApi.getAllPages(),
-      accountsApi.getRolePages(role.role),
+      accountsApi.getRolePages(role.id),
     ])
 
-    if (pagesRes.data) setAllPages(pagesRes.data.filter(p => p.is_active))
-    if (rolePagesRes.data) {
+    if (pagesRes.data) {
+      const activePages = pagesRes.data.filter(p => p.is_active)
+      setAllPages(activePages)
+      // Identify parent keys to exclude from checked state
+      const pKeys = new Set(activePages.filter(p => p.parent_key).map(p => p.parent_key!))
+      const parentIds = new Set(activePages.filter(p => pKeys.has(p.key)).map(p => p.id))
+      if (rolePagesRes.data) {
+        const ids = new Set(rolePagesRes.data.filter(p => !parentIds.has(p.id)).map(p => p.id))
+        setCheckedIds(ids)
+        setSavedIds(new Set(ids))
+      }
+    } else if (rolePagesRes.data) {
       const ids = new Set(rolePagesRes.data.map(p => p.id))
       setCheckedIds(ids)
       setSavedIds(new Set(ids))
@@ -173,25 +183,32 @@ export default function RolePermissionsPage() {
     setPermError(null)
     setPermSuccess(null)
 
-    const { error: err } = await accountsApi.setRolePages(permRole.role, Array.from(checkedIds))
+    const { error: err } = await accountsApi.setRolePages(permRole.id, Array.from(checkedIds))
     if (err) {
       setPermError(err.message)
     } else {
       setSavedIds(new Set(checkedIds))
       setPermSuccess('儲存成功')
-      setRoles(prev => prev.map(r => r.role === permRole.role ? { ...r, page_count: checkedIds.size } : r))
+      setRoles(prev => prev.map(r => r.id === permRole.id ? { ...r, page_count: checkedIds.size } : r))
       setTimeout(() => setPermSuccess(null), 3000)
     }
     setPermSaving(false)
   }
 
-  // Group pages by parent_key
-  const groupedPages = allPages.reduce((acc, page) => {
-    const group = page.parent_key || '_root'
-    if (!acc[group]) acc[group] = []
-    acc[group].push(page)
-    return acc
-  }, {} as Record<string, PageInfo[]>)
+  // Identify parent pages (pages whose key is used as parent_key by others)
+  const parentKeySet = new Set(allPages.filter(p => p.parent_key).map(p => p.parent_key!))
+  const parentPageMap = new Map<string, PageInfo>()
+  allPages.forEach(p => { if (parentKeySet.has(p.key)) parentPageMap.set(p.key, p) })
+
+  // Group non-parent pages by parent_key (parent pages are display-only headers)
+  const groupedPages = allPages
+    .filter(p => !parentKeySet.has(p.key))
+    .reduce((acc, page) => {
+      const group = page.parent_key || '_root'
+      if (!acc[group]) acc[group] = []
+      acc[group].push(page)
+      return acc
+    }, {} as Record<string, PageInfo[]>)
 
   return (
     <DashboardLayout>
@@ -239,11 +256,11 @@ export default function RolePermissionsPage() {
                 </tr>
               ) : (
                 roles.map(role => (
-                  <tr key={role.role} className="hover:bg-gray-50">
+                  <tr key={role.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5">
-                        <span className={`inline-block px-2.5 py-1 text-xs font-medium rounded ${roleBadgeColors[role.role] || 'bg-purple-100 text-purple-700'}`}>
-                          {role.role}
+                        <span className={`inline-block px-2.5 py-1 text-xs font-medium rounded ${roleBadgeColors[role.key] || 'bg-purple-100 text-purple-700'}`}>
+                          {role.key}
                         </span>
                         {role.is_system && <Lock className="w-3.5 h-3.5 text-gray-400" title="系統內建" />}
                       </div>
@@ -363,7 +380,7 @@ export default function RolePermissionsPage() {
               </div>
 
               <div className="text-sm text-gray-500 mb-4">
-                Key: <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{editingRoleInfo.role}</span>
+                Key: <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{editingRoleInfo.key}</span>
               </div>
 
               <div className="space-y-4">
@@ -411,7 +428,7 @@ export default function RolePermissionsPage() {
             <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 m-4">
               <h2 className="text-lg font-semibold mb-2">確認刪除角色</h2>
               <p className="text-sm text-gray-600 mb-4">
-                確定要刪除角色 <span className="font-semibold">{deleteTarget.name}</span>（{deleteTarget.role}）嗎？此操作無法復原。
+                確定要刪除角色 <span className="font-semibold">{deleteTarget.name}</span>（{deleteTarget.key}）嗎？此操作無法復原。
               </p>
 
               {deleteError && (
@@ -439,7 +456,7 @@ export default function RolePermissionsPage() {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <h2 className="text-lg font-semibold">編輯頁面權限</h2>
-                  <span className={`inline-block px-2.5 py-1 text-xs font-medium rounded ${roleBadgeColors[permRole.role] || 'bg-purple-100 text-purple-700'}`}>
+                  <span className={`inline-block px-2.5 py-1 text-xs font-medium rounded ${roleBadgeColors[permRole.key] || 'bg-purple-100 text-purple-700'}`}>
                     {permRole.name}
                   </span>
                 </div>
@@ -463,6 +480,8 @@ export default function RolePermissionsPage() {
                       const groupPageIds = pages.map(p => p.id)
                       const allGroupChecked = groupPageIds.every(id => checkedIds.has(id))
                       const someGroupChecked = groupPageIds.some(id => checkedIds.has(id))
+                      const parentPage = parentPageMap.get(groupKey)
+                      const groupLabel = groupKey === '_root' ? '其他' : (parentPage?.name || groupKey)
 
                       return (
                         <div key={groupKey}>
@@ -474,8 +493,8 @@ export default function RolePermissionsPage() {
                               onChange={() => toggleGroup(groupPageIds)}
                               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                             />
-                            <span className="text-sm font-semibold text-gray-700 uppercase">
-                              {groupKey === '_root' ? '其他' : groupKey}
+                            <span className="text-sm font-semibold text-gray-700">
+                              {groupLabel}
                             </span>
                             <span className="text-xs text-gray-400">
                               ({groupPageIds.filter(id => checkedIds.has(id)).length}/{groupPageIds.length})

@@ -27,7 +27,7 @@ router = APIRouter(prefix="/notifications/line", tags=["Line 通知"])
 
 
 def get_channel_type_from_role(role: str) -> ChannelType:
-    """根據用戶角色取得對應的頻道類型"""
+    """根據用戶角色取得對應的頻道類型（保留供相容使用）"""
     role_to_channel = {
         "student": "student",
         "teacher": "teacher",
@@ -35,6 +35,15 @@ def get_channel_type_from_role(role: str) -> ChannelType:
         "admin": "employee",
     }
     return role_to_channel.get(role, "student")
+
+
+def get_channel_type_for_user(user) -> ChannelType:
+    """根據用戶 entity IDs 取得對應的頻道類型"""
+    if user.employee_id:
+        return "employee"
+    if user.teacher_id:
+        return "teacher"
+    return "student"
 
 
 @router.get("/preferences", response_model=NotificationPreferencesResponse)
@@ -45,7 +54,7 @@ async def get_notification_preferences(
     """
     取得通知偏好設定
     """
-    channel_type = channel or get_channel_type_from_role(current_user.role)
+    channel_type = channel or get_channel_type_for_user(current_user)
 
     preferences = await line_binding_service.get_notification_preferences(
         current_user.user_id,
@@ -78,7 +87,7 @@ async def update_notification_preferences(
     """
     更新通知偏好設定
     """
-    channel_type = channel or get_channel_type_from_role(current_user.role)
+    channel_type = channel or get_channel_type_for_user(current_user)
 
     # 檢查是否已綁定 Line
     is_bound = await line_binding_service.is_bound(current_user.user_id, channel_type)
@@ -116,7 +125,7 @@ async def send_test_notification(
 
     用於測試 Line 通知是否正常運作
     """
-    channel_type = data.channel or get_channel_type_from_role(current_user.role)
+    channel_type = data.channel or get_channel_type_for_user(current_user)
 
     if not line_message_service.is_channel_configured(channel_type):
         return TestNotificationResponse(

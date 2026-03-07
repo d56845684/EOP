@@ -32,6 +32,7 @@ class AccountInfo(BaseModel):
     email: str
     name: Optional[str] = None
     role: str
+    role_id: Optional[str] = None
     employee_subtype: Optional[str] = None
     is_active: bool = True
     is_protected: bool = False
@@ -39,6 +40,6 @@ class AccountInfo(BaseModel):
 
 class AccountUpdate(BaseModel):
     """帳號更新"""
-    role: Optional[str] = None
+    role_id: Optional[str] = None
     employee_subtype: Optional[str] = None
     is_active: Optional[bool] = None

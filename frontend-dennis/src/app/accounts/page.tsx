@@ -2,19 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
-import { accountsApi, AccountInfo, PageInfo, UserPageOverride } from '@/lib/api/accounts'
+import { accountsApi, AccountInfo, RoleInfo, PageInfo, UserPageOverride } from '@/lib/api/accounts'
 import { Search, Pencil, Shield, Lock, ChevronLeft, ChevronRight, X, CheckCircle, XCircle } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 
-const ROLES = ['admin', 'employee', 'teacher', 'student'] as const
 const EMPLOYEE_SUBTYPES = ['admin', 'full_time', 'part_time', 'intern'] as const
-
-const roleLabels: Record<string, string> = {
-  admin: '管理員',
-  employee: '員工',
-  teacher: '教師',
-  student: '學生',
-}
 
 const subtypeLabels: Record<string, string> = {
   admin: '管理員',
@@ -23,12 +15,14 @@ const subtypeLabels: Record<string, string> = {
   intern: '工讀生',
 }
 
-const roleBadgeColors: Record<string, string> = {
+const SYSTEM_ROLE_BADGE_COLORS: Record<string, string> = {
   admin: 'bg-red-100 text-red-700',
   employee: 'bg-blue-100 text-blue-700',
   teacher: 'bg-green-100 text-green-700',
   student: 'bg-yellow-100 text-yellow-700',
 }
+
+const CUSTOM_ROLE_BADGE_COLOR = 'bg-purple-100 text-purple-700'
 
 export default function AccountsPage() {
   const { user, profile } = useAuth()
@@ -43,10 +37,23 @@ export default function AccountsPage() {
   const [total, setTotal] = useState(0)
   const perPage = 20
 
+  // Roles from API
+  const [roles, setRoles] = useState<RoleInfo[]>([])
+
+  const roleLabels: Record<string, string> = {}
+  roles.forEach(r => { roleLabels[r.key] = r.name })
+
+  // Map role_id → role key for display
+  const roleIdToKey: Record<string, string> = {}
+  roles.forEach(r => { roleIdToKey[r.id] = r.key })
+
+  const getRoleBadgeColor = (role: string) =>
+    SYSTEM_ROLE_BADGE_COLORS[role] || CUSTOM_ROLE_BADGE_COLOR
+
   // Edit modal
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingAccount, setEditingAccount] = useState<AccountInfo | null>(null)
-  const [editRole, setEditRole] = useState('')
+  const [editRoleId, setEditRoleId] = useState('')
   const [editSubtype, setEditSubtype] = useState('')
   const [editIsActive, setEditIsActive] = useState(true)
   const [editSaving, setEditSaving] = useState(false)
@@ -84,6 +91,15 @@ export default function AccountsPage() {
     fetchAccounts()
   }, [fetchAccounts])
 
+  // Fetch roles from API
+  useEffect(() => {
+    const loadRoles = async () => {
+      const { data } = await accountsApi.getRoles()
+      if (data) setRoles(data)
+    }
+    loadRoles()
+  }, [])
+
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
@@ -92,12 +108,15 @@ export default function AccountsPage() {
   // ===== Edit Modal =====
   const openEditModal = (account: AccountInfo) => {
     setEditingAccount(account)
-    setEditRole(account.role)
+    setEditRoleId(account.role_id || '')
     setEditSubtype(account.employee_subtype || '')
     setEditIsActive(account.is_active)
     setEditError(null)
     setShowEditModal(true)
   }
+
+  // Get the role key for the currently selected editRoleId
+  const editRoleKey = roleIdToKey[editRoleId] || ''
 
   const handleEditSave = async () => {
     if (!editingAccount) return
@@ -105,7 +124,7 @@ export default function AccountsPage() {
     setEditError(null)
 
     const updateData: any = {}
-    if (editRole !== editingAccount.role) updateData.role = editRole
+    if (editRoleId !== (editingAccount.role_id || '')) updateData.role_id = editRoleId
     if (editSubtype !== (editingAccount.employee_subtype || '')) updateData.employee_subtype = editSubtype || null
     if (editIsActive !== editingAccount.is_active) updateData.is_active = editIsActive
 
@@ -135,20 +154,33 @@ export default function AccountsPage() {
     // Load all pages + role defaults + user overrides in parallel
     const [pagesRes, rolePagesRes, overridesRes] = await Promise.all([
       accountsApi.getAllPages(),
-      accountsApi.getRolePages(account.role),
+      accountsApi.getRolePages(account.role_id || ''),
       accountsApi.getUserOverrides(account.id),
     ])
 
     if (pagesRes.data) {
-      setAllPages(pagesRes.data.filter(p => p.is_active))
-    }
-    if (rolePagesRes.data) {
-      setRolePageIds(new Set(rolePagesRes.data.map(p => p.id)))
-    }
-    if (overridesRes.data) {
-      const m = new Map<string, 'grant' | 'revoke'>()
-      overridesRes.data.forEach(o => m.set(o.page_id, o.access_type))
-      setOverrides(m)
+      const activePages = pagesRes.data.filter(p => p.is_active)
+      setAllPages(activePages)
+      // Identify parent page IDs to exclude from selectable items
+      const pKeys = new Set(activePages.filter(p => p.parent_key).map(p => p.parent_key!))
+      const parentIds = new Set(activePages.filter(p => pKeys.has(p.key)).map(p => p.id))
+      if (rolePagesRes.data) {
+        setRolePageIds(new Set(rolePagesRes.data.filter(p => !parentIds.has(p.id)).map(p => p.id)))
+      }
+      if (overridesRes.data) {
+        const m = new Map<string, 'grant' | 'revoke'>()
+        overridesRes.data.filter(o => !parentIds.has(o.page_id)).forEach(o => m.set(o.page_id, o.access_type))
+        setOverrides(m)
+      }
+    } else {
+      if (rolePagesRes.data) {
+        setRolePageIds(new Set(rolePagesRes.data.map(p => p.id)))
+      }
+      if (overridesRes.data) {
+        const m = new Map<string, 'grant' | 'revoke'>()
+        overridesRes.data.forEach(o => m.set(o.page_id, o.access_type))
+        setOverrides(m)
+      }
     }
   }
 
@@ -206,13 +238,20 @@ export default function AccountsPage() {
     setPermSaving(false)
   }
 
-  // Group pages by parent_key
-  const groupedPages = allPages.reduce((acc, page) => {
-    const group = page.parent_key || '_root'
-    if (!acc[group]) acc[group] = []
-    acc[group].push(page)
-    return acc
-  }, {} as Record<string, PageInfo[]>)
+  // Identify parent pages (pages whose key is used as parent_key by others)
+  const parentKeySet = new Set(allPages.filter(p => p.parent_key).map(p => p.parent_key!))
+  const parentPageMap = new Map<string, PageInfo>()
+  allPages.forEach(p => { if (parentKeySet.has(p.key)) parentPageMap.set(p.key, p) })
+
+  // Group non-parent pages by parent_key (parent pages are display-only headers)
+  const groupedPages = allPages
+    .filter(p => !parentKeySet.has(p.key))
+    .reduce((acc, page) => {
+      const group = page.parent_key || '_root'
+      if (!acc[group]) acc[group] = []
+      acc[group].push(page)
+      return acc
+    }, {} as Record<string, PageInfo[]>)
 
   return (
     <DashboardLayout>
@@ -240,8 +279,8 @@ export default function AccountsPage() {
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="">全部角色</option>
-            {ROLES.map(r => (
-              <option key={r} value={r}>{roleLabels[r]}</option>
+            {roles.map(r => (
+              <option key={r.id} value={r.key}>{r.name}</option>
             ))}
           </select>
         </div>
@@ -289,7 +328,7 @@ export default function AccountsPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">{account.name || '-'}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${roleBadgeColors[account.role] || 'bg-gray-100 text-gray-700'}`}>
+                        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${getRoleBadgeColor(account.role)}`}>
                           {roleLabels[account.role] || account.role}
                         </span>
                       </td>
@@ -377,17 +416,17 @@ export default function AccountsPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">角色</label>
                   <select
-                    value={editRole}
-                    onChange={(e) => setEditRole(e.target.value)}
+                    value={editRoleId}
+                    onChange={(e) => setEditRoleId(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    {ROLES.map(r => (
-                      <option key={r} value={r}>{roleLabels[r]}</option>
+                    {roles.map(r => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
                     ))}
                   </select>
                 </div>
 
-                {(editRole === 'admin' || editRole === 'employee') && (
+                {(editRoleKey === 'admin' || editRoleKey === 'employee') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">員工子類型</label>
                     <select
@@ -445,7 +484,7 @@ export default function AccountsPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-lg font-semibold">頁面權限</h2>
-                  <p className="text-sm text-gray-500">{permAccount.email} ({roleLabels[permAccount.role]})</p>
+                  <p className="text-sm text-gray-500">{permAccount.email} ({roleLabels[permAccount.role] || permAccount.role})</p>
                 </div>
                 <button onClick={() => setShowPermModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
                   <X className="w-5 h-5" />
@@ -459,10 +498,13 @@ export default function AccountsPage() {
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-                {Object.entries(groupedPages).sort().map(([groupKey, pages]) => (
+                {Object.entries(groupedPages).sort().map(([groupKey, pages]) => {
+                  const parentPage = parentPageMap.get(groupKey)
+                  const groupLabel = groupKey === '_root' ? '其他' : (parentPage?.name || groupKey)
+                  return (
                   <div key={groupKey}>
                     {groupKey !== '_root' && (
-                      <div className="text-xs font-medium text-gray-500 uppercase mb-1.5">{groupKey}</div>
+                      <div className="text-xs font-medium text-gray-500 uppercase mb-1.5">{groupLabel}</div>
                     )}
                     <div className="space-y-1">
                       {pages.map(pg => {
@@ -502,7 +544,7 @@ export default function AccountsPage() {
                       })}
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
 
               {permError && (

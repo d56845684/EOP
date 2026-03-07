@@ -9,3 +9,4 @@ scripts/notion*
 scripts/setup*
 .env.prod
 deploy/.rds-endpoint
+.claude

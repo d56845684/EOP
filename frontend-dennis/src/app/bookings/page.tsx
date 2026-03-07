@@ -165,9 +165,9 @@ export default function BookingsPage() {
     const [zoomMeetings, setZoomMeetings] = useState<Record<string, ZoomMeetingLog>>({})
     const [creatingZoomFor, setCreatingZoomFor] = useState<string | null>(null)
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
-    const isStudent = profile?.role === 'student'
-    const isTeacher = profile?.role === 'teacher'
+    const isStaff = profile?.employee_id != null
+    const isStudent = profile?.student_id != null
+    const isTeacher = profile?.teacher_id != null
     const canCreateBooking = isStaff || isStudent
 
     // 判斷選中的學生是否為試上學生

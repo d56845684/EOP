@@ -12,12 +12,16 @@ interface User {
 
 interface UserProfile {
     id: string
-    role: 'admin' | 'teacher' | 'student' | 'employee'
+    role: string
+    role_id?: string
     full_name: string
     email: string
     phone?: string
     avatar_url?: string
     must_change_password?: boolean
+    teacher_id?: string
+    student_id?: string
+    employee_id?: string
 }
 
 interface AuthContextValue {
@@ -113,10 +117,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signOut,
         refreshUser: fetchCurrentUser,
-        isAdmin: profile?.role === 'admin',
-        isTeacher: profile?.role === 'teacher',
-        isStudent: profile?.role === 'student',
-        isEmployee: profile?.role === 'employee',
+        isAdmin: profile?.employee_id != null && (profile?.role === 'admin' || (profile as any)?.permission_level >= 100),
+        isTeacher: profile?.teacher_id != null,
+        isStudent: profile?.student_id != null,
+        isEmployee: profile?.employee_id != null,
         pageKeys,
         hasPage,
     }

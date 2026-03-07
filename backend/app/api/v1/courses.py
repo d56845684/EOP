@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.course import (
     CourseCreate, CourseUpdate, CourseResponse, CourseListResponse
 )
@@ -17,7 +17,7 @@ async def list_courses(
     per_page: int = Query(20, ge=1, le=100, description="每頁數量"),
     search: Optional[str] = Query(None, description="搜尋關鍵字（課程代碼或名稱）"),
     is_active: Optional[bool] = Query(None, description="篩選啟用狀態"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("courses.list"))
 ):
     """取得課程列表"""
     try:
@@ -73,7 +73,7 @@ async def list_courses(
 @router.get("/{course_id}", response_model=DataResponse[CourseResponse])
 async def get_course(
     course_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("courses.list"))
 ):
     """取得單一課程"""
     try:
@@ -97,7 +97,7 @@ async def get_course(
 @router.post("", response_model=DataResponse[CourseResponse])
 async def create_course(
     data: CourseCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("courses.create"))
 ):
     """建立課程（僅限員工）"""
     try:
@@ -142,7 +142,7 @@ async def create_course(
 async def update_course(
     course_id: str,
     data: CourseUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("courses.edit"))
 ):
     """更新課程（僅限員工）"""
     try:
@@ -196,7 +196,7 @@ async def update_course(
 @router.delete("/{course_id}", response_model=BaseResponse)
 async def delete_course(
     course_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("courses.delete"))
 ):
     """刪除課程（軟刪除，僅限員工）"""
     try:

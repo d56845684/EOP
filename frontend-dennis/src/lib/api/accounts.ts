@@ -7,6 +7,7 @@ export interface AccountInfo {
   email: string
   name: string | null
   role: string
+  role_id: string | null
   employee_subtype: string | null
   is_active: boolean
   is_protected: boolean
@@ -23,13 +24,14 @@ export interface AccountListResponse {
 }
 
 export interface AccountUpdateData {
-  role?: string
+  role_id?: string
   employee_subtype?: string
   is_active?: boolean
 }
 
 export interface RoleInfo {
-  role: string
+  id: string
+  key: string
   name: string
   description: string | null
   is_system: boolean
@@ -129,7 +131,7 @@ export const accountsApi = {
     }
   },
 
-  async createRole(data: { role: string; name: string; description?: string }): Promise<{ data: any; error: any }> {
+  async createRole(data: { key: string; name: string; description?: string }): Promise<{ data: any; error: any }> {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/roles`, {
         method: 'POST',
@@ -147,9 +149,9 @@ export const accountsApi = {
     }
   },
 
-  async updateRole(roleKey: string, data: { name?: string; description?: string }): Promise<{ data: any; error: any }> {
+  async updateRole(roleId: string, data: { name?: string; description?: string }): Promise<{ data: any; error: any }> {
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/roles/${roleKey}`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/roles/${roleId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -165,9 +167,9 @@ export const accountsApi = {
     }
   },
 
-  async deleteRole(roleKey: string): Promise<{ data: any; error: any }> {
+  async deleteRole(roleId: string): Promise<{ data: any; error: any }> {
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/roles/${roleKey}`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/roles/${roleId}`, {
         method: 'DELETE',
       })
       if (!response.ok) {
@@ -197,9 +199,9 @@ export const accountsApi = {
     }
   },
 
-  async getRolePages(role: string): Promise<{ data: PageInfo[] | null; error: any }> {
+  async getRolePages(roleId: string): Promise<{ data: PageInfo[] | null; error: any }> {
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/role-pages?role=${role}`)
+      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/role-pages?role_id=${roleId}`)
       if (!response.ok) {
         const err = await response.json()
         return { data: null, error: { message: err.detail || '取得角色頁面失敗' } }
@@ -211,12 +213,12 @@ export const accountsApi = {
     }
   },
 
-  async setRolePages(role: string, pageIds: string[]): Promise<{ data: any; error: any }> {
+  async setRolePages(roleId: string, pageIds: string[]): Promise<{ data: any; error: any }> {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/role-pages`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, page_ids: pageIds }),
+        body: JSON.stringify({ role_id: roleId, page_ids: pageIds }),
       })
       if (!response.ok) {
         const err = await response.json()

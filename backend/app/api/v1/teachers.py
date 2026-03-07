@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.config import settings
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_teacher, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_teacher, require_page_permission, get_user_employee_id
 from app.schemas.teacher import TeacherCreate, TeacherUpdate, TeacherResponse, TeacherListResponse
 from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
@@ -22,7 +22,7 @@ async def list_teachers(
     per_page: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None, description="搜尋（編號/姓名/email）"),
     is_active: Optional[bool] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.list"))
 ):
     """取得教師列表"""
     try:
@@ -107,7 +107,7 @@ async def update_teacher_self(
 @router.get("/{teacher_id}", response_model=DataResponse[TeacherResponse])
 async def get_teacher(
     teacher_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.list"))
 ):
     """取得單一教師"""
     try:
@@ -127,7 +127,7 @@ async def get_teacher(
 @router.post("", response_model=DataResponse[TeacherResponse])
 async def create_teacher(
     data: TeacherCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.create"))
 ):
     """建立教師（僅限員工）"""
     try:
@@ -167,7 +167,7 @@ async def create_teacher(
 async def update_teacher(
     teacher_id: str,
     data: TeacherUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """更新教師（僅限員工）"""
     try:
@@ -206,7 +206,7 @@ async def update_teacher(
 @router.delete("/{teacher_id}", response_model=BaseResponse)
 async def delete_teacher(
     teacher_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.delete"))
 ):
     """刪除教師（軟刪除，僅限員工）"""
     try:
@@ -243,7 +243,7 @@ class AvatarConfirmRequest(BaseModel):
 @router.post("/{teacher_id}/avatar/upload-url")
 async def get_teacher_avatar_upload_url(
     teacher_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """取得教師頭像的 signed upload URL（僅限員工）"""
     try:
@@ -280,7 +280,7 @@ async def get_teacher_avatar_upload_url(
 async def confirm_teacher_avatar_upload(
     teacher_id: str,
     body: AvatarConfirmRequest,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """確認教師頭像上傳完成（僅限員工）"""
     try:

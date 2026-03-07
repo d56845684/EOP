@@ -64,8 +64,10 @@ class AuthService:
         if not user or not session:
             raise AuthException("登入失敗：無效的憑證")
         
-        # 2. 取得用戶角色 (從 user_profiles 表)
-        user_role = await self._get_user_role(user.id)
+        # 2. 取得用戶身份資訊 (從 user_profiles 表)
+        identity = await self._get_user_identity(user.id)
+        user_role = identity["role_key"]
+        role_id = identity["role_id"]
         profile_extra = await self.get_profile_extra(user.id)
 
         # 3. 建立 Session
@@ -76,32 +78,40 @@ class AuthService:
             ip_address=request.client.host if request.client else None,
             extra_data={"email": user.email}
         )
-        
-        # 4. 建立自己的 JWT Token
+
+        # 4. 建立自己的 JWT Token（含 entity IDs）
         token_data = {
             "sub": user.id,
             "email": user.email,
             "role": user_role,
-            "session_id": session_data.session_id
+            "role_id": role_id,
+            "session_id": session_data.session_id,
+            "student_id": identity["student_id"],
+            "teacher_id": identity["teacher_id"],
+            "employee_id": identity["employee_id"],
         }
-        
+
         access_token = create_token(token_data, TokenType.ACCESS)
         refresh_token = create_token(
             {"sub": user.id, "session_id": session_data.session_id},
             TokenType.REFRESH
         )
-        
+
         # 5. 設定 HttpOnly Cookies
         set_auth_cookies(response, access_token, refresh_token, session_id)
-        
+
         # 6. 快取用戶資料
         user_info = UserInfo(
             id=user.id,
             email=user.email,
             role=user_role,
+            role_id=role_id,
             email_confirmed=user.email_confirmed_at is not None,
             created_at=user.created_at,
             must_change_password=profile_extra.get("must_change_password", False),
+            student_id=identity["student_id"],
+            teacher_id=identity["teacher_id"],
+            employee_id=identity["employee_id"],
         )
         await self._cache_user_profile(user.id, user_info.model_dump())
         
@@ -181,14 +191,24 @@ class AuthService:
         # 取得用戶資料
         user_profile = await self._get_cached_user_profile(user_id)
         if not user_profile:
-            user_role = await self._get_user_role(user_id)
-            user_profile = {"role": user_role}
-        
-        # 建立新 Tokens
+            identity = await self._get_user_identity(user_id)
+            user_profile = {
+                "role": identity["role_key"],
+                "role_id": identity["role_id"],
+                "student_id": identity["student_id"],
+                "teacher_id": identity["teacher_id"],
+                "employee_id": identity["employee_id"],
+            }
+
+        # 建立新 Tokens（含 entity IDs）
         token_data = {
             "sub": user_id,
             "role": user_profile.get("role", "student"),
-            "session_id": session_data.session_id
+            "role_id": user_profile.get("role_id"),
+            "session_id": session_data.session_id,
+            "student_id": user_profile.get("student_id"),
+            "teacher_id": user_profile.get("teacher_id"),
+            "employee_id": user_profile.get("employee_id"),
         }
         
         new_access_token = create_token(token_data, TokenType.ACCESS)
@@ -233,8 +253,10 @@ class AuthService:
         Returns:
             (UserInfo, TokenPair)
         """
-        # 取得用戶資料
-        user_role = await self._get_user_role(user_id)
+        # 取得用戶身份資訊
+        identity = await self._get_user_identity(user_id)
+        user_role = identity["role_key"]
+        role_id = identity["role_id"]
 
         # 取得用戶 email (user_data is a SupabaseUser object)
         user_data = await self.supabase.admin_get_user(user_id)
@@ -249,12 +271,16 @@ class AuthService:
             extra_data={"email": user_email, "login_method": "line"}
         )
 
-        # 建立 JWT Token
+        # 建立 JWT Token（含 entity IDs）
         token_data = {
             "sub": user_id,
             "email": user_email,
             "role": user_role,
-            "session_id": session_data.session_id
+            "role_id": role_id,
+            "session_id": session_data.session_id,
+            "student_id": identity["student_id"],
+            "teacher_id": identity["teacher_id"],
+            "employee_id": identity["employee_id"],
         }
 
         access_token = create_token(token_data, TokenType.ACCESS)
@@ -271,7 +297,11 @@ class AuthService:
             id=user_id,
             email=user_email,
             role=user_role,
+            role_id=role_id,
             email_confirmed=True,
+            student_id=identity["student_id"],
+            teacher_id=identity["teacher_id"],
+            employee_id=identity["employee_id"],
         )
         await self._cache_user_profile(user_id, user_info.model_dump())
 
@@ -284,33 +314,53 @@ class AuthService:
 
         return user_info, token_pair
 
-    async def _get_user_role(self, user_id: str) -> str:
-        """從資料庫取得用戶角色"""
-        try:
-            result = await self.supabase.table_select(
-                table="user_profiles",
-                select="role",
-                filters={"id": user_id},
-            )
+    async def _get_user_identity(self, user_id: str) -> dict:
+        """從資料庫取得用戶角色與 entity IDs
 
-            if result and len(result) > 0:
-                return result[0].get("role", "student")
+        Returns:
+            dict with role_key, role_id, student_id, teacher_id, employee_id
+        """
+        try:
+            rows = await self.supabase.pool.fetch(
+                """
+                SELECT r.key AS role_key, r.id AS role_id,
+                       up.student_id, up.teacher_id, up.employee_id
+                FROM user_profiles up
+                JOIN roles r ON r.id = up.role_id
+                WHERE up.id = $1
+                """,
+                __import__('uuid').UUID(user_id),
+            )
+            if rows:
+                row = rows[0]
+                return {
+                    "role_key": str(row["role_key"]),
+                    "role_id": str(row["role_id"]),
+                    "student_id": str(row["student_id"]) if row["student_id"] else None,
+                    "teacher_id": str(row["teacher_id"]) if row["teacher_id"] else None,
+                    "employee_id": str(row["employee_id"]) if row["employee_id"] else None,
+                }
         except:
             pass
 
-        return "student"  # 預設角色
+        return {"role_key": "student", "role_id": None, "student_id": None, "teacher_id": None, "employee_id": None}
 
     async def get_profile_extra(self, user_id: str) -> dict:
-        """從資料庫取得用戶 profile 額外資訊（must_change_password 等）"""
+        """從資料庫取得用戶 profile 額外資訊（must_change_password, entity IDs, role_id 等）"""
         try:
             result = await self.supabase.table_select(
                 table="user_profiles",
-                select="must_change_password",
+                select="must_change_password,teacher_id,student_id,employee_id,role_id",
                 filters={"id": user_id},
             )
             if result and len(result) > 0:
+                row = result[0]
                 return {
-                    "must_change_password": result[0].get("must_change_password", False) or False,
+                    "must_change_password": row.get("must_change_password", False) or False,
+                    "teacher_id": row.get("teacher_id"),
+                    "student_id": row.get("student_id"),
+                    "employee_id": row.get("employee_id"),
+                    "role_id": row.get("role_id"),
                 }
         except:
             pass

@@ -349,19 +349,10 @@ async def get_meeting_by_booking(
 
             booking = bookings[0]
             if current_user.is_teacher():
-                from app.api.v1.bookings import get_user_teacher_id
-                teacher_id = await get_user_teacher_id(current_user.user_id)
-                if booking.get("teacher_id") != teacher_id:
+                if booking.get("teacher_id") != current_user.teacher_id:
                     raise HTTPException(status_code=403, detail="無權查看此預約的 Zoom 資訊")
             elif current_user.is_student():
-                # 查 student_id
-                students = await supabase_service.table_select(
-                    table="students",
-                    select="id",
-                    filters={"email": current_user.email},
-                )
-                student_id = students[0]["id"] if students else None
-                if booking.get("student_id") != student_id:
+                if booking.get("student_id") != current_user.student_id:
                     raise HTTPException(status_code=403, detail="無權查看此預約的 Zoom 資訊")
 
         # 查詢會議

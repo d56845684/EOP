@@ -18,6 +18,7 @@ import {
 import { Plus, Pencil, Trash2, Search, X, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Layers, RefreshCw, Star } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { bookingsApi } from '@/lib/api/bookings'
+import { teachersApi } from '@/lib/api/teachers'
 
 const weekdayLabels = ['週一', '週二', '週三', '週四', '週五', '週六', '週日']
 
@@ -85,11 +86,11 @@ export default function TeacherSlotsPage() {
     const [teacherLevelValue, setTeacherLevelValue] = useState(1)
     const [savingLevel, setSavingLevel] = useState(false)
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
-    const isTeacher = profile?.role === 'teacher'
+    const isStaff = profile?.employee_id != null
+    const isTeacher = profile?.teacher_id != null
     const canManage = isStaff || isTeacher
 
-    // Load teacher options (staff only)
+    // Load teacher options and populate myTeacherId
     useEffect(() => {
         const loadOptions = async () => {
             if (isStaff) {
@@ -97,6 +98,10 @@ export default function TeacherSlotsPage() {
                 if (res.data) setTeacherOptions(res.data)
             }
             if (isTeacher) {
+                // Set teacher's own ID from profile
+                if (profile?.teacher_id) {
+                    setMyTeacherId(profile.teacher_id)
+                }
                 // Load teacher's own contracts
                 const res = await teacherSlotsApi.getMyContracts()
                 if (res.data) setContractOptions(res.data)
@@ -610,7 +615,8 @@ export default function TeacherSlotsPage() {
                                             <button
                                                 onClick={async () => {
                                                     setSavingLevel(true)
-                                                    const { success, error } = await bookingsApi.updateTeacherLevel(filterTeacherId, teacherLevelValue)
+                                                    const { data, error } = await teachersApi.update(filterTeacherId, { teacher_level: teacherLevelValue })
+                                                    const success = !error
                                                     if (success) {
                                                         setTeacherOptions(prev => prev.map(t =>
                                                             t.id === filterTeacherId ? { ...t, teacher_level: teacherLevelValue } : t

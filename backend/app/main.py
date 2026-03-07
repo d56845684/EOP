@@ -75,12 +75,15 @@ async def ensure_super_admin():
             },
         )
 
-        # 3. 建 user_profiles
+        # 3. 建 user_profiles（使用 role_id UUID）
+        admin_role_id = await supabase_service.pool.fetchval(
+            "SELECT id FROM roles WHERE key = 'admin'"
+        )
         await supabase_service.table_insert(
             table="user_profiles",
             data={
                 "id": user_id,
-                "role": "admin",
+                "role_id": str(admin_role_id),
                 "employee_id": emp_id,
                 "employee_subtype": "admin",
                 "is_active": True,

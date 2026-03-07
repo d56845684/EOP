@@ -165,7 +165,7 @@ export default function CoursesPage() {
         setDeleting(false)
     }
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
+    const isStaff = profile?.employee_id != null
 
     return (
         <DashboardLayout>

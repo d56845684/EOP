@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.student_teacher_preference import (
     StudentTeacherPreferenceCreate, StudentTeacherPreferenceUpdate, StudentTeacherPreferenceResponse
 )
@@ -48,7 +48,7 @@ async def enrich_preference(pref: dict) -> dict:
 @router.get("/", tags=["學生教師偏好"])
 async def list_preferences(
     student_id: str = Query(..., description="學生 ID"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """列出學生的教師偏好設定"""
     try:
@@ -73,7 +73,7 @@ async def list_preferences(
 @router.post("/", response_model=DataResponse[StudentTeacherPreferenceResponse])
 async def create_preference(
     data: StudentTeacherPreferenceCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """新增學生教師偏好（僅員工）"""
     try:
@@ -175,7 +175,7 @@ async def create_preference(
 async def update_preference(
     preference_id: str,
     data: StudentTeacherPreferenceUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """更新學生教師偏好（僅員工）"""
     try:
@@ -237,7 +237,7 @@ async def update_preference(
 @router.delete("/{preference_id}", response_model=BaseResponse)
 async def delete_preference(
     preference_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """軟刪除學生教師偏好（僅員工）"""
     try:

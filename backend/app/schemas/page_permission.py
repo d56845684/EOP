@@ -11,18 +11,11 @@ class AccessType(str, Enum):
     revoke = "revoke"
 
 
-class UserRoleEnum(str, Enum):
-    admin = "admin"
-    employee = "employee"
-    teacher = "teacher"
-    student = "student"
-
-
 # ========== Roles CRUD ==========
 
 class RoleCreate(BaseModel):
     """建立角色"""
-    role: str = Field(..., min_length=1, max_length=50, pattern=r'^[a-z][a-z0-9_]*$', description="角色 key（英文小寫+底線）")
+    key: str = Field(..., min_length=1, max_length=50, pattern=r'^[a-z][a-z0-9_]*$', description="角色 key（英文小寫+底線）")
     name: str = Field(..., min_length=1, max_length=200, description="角色顯示名稱")
     description: Optional[str] = Field(None, description="角色描述")
 
@@ -86,13 +79,13 @@ class PageListResponse(BaseModel):
 class RolePagesResponse(BaseModel):
     """角色頁面回應"""
     success: bool = True
-    role: str
+    role_id: str
     pages: List[PageResponse] = []
 
 
 class RolePagesBatchSet(BaseModel):
     """批次設定角色頁面"""
-    role: str = Field(..., description="角色 key")
+    role_id: str = Field(..., description="角色 UUID")
     page_ids: List[str] = Field(..., description="頁面 ID 列表")
 
 
@@ -130,7 +123,8 @@ class UserPageOverridesBatchSet(BaseModel):
 
 class RoleInfo(BaseModel):
     """角色資訊"""
-    role: str
+    id: str
+    key: str
     name: str
     description: Optional[str] = None
     is_system: bool = False

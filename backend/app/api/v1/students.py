@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.student import (
     StudentCreate, StudentUpdate, StudentResponse, StudentListResponse,
     ConvertToFormalRequest, ConvertToFormalResponse, ConvertToFormalContractInfo,
@@ -22,7 +22,7 @@ async def list_students(
     search: Optional[str] = Query(None, description="搜尋（編號/姓名/email）"),
     is_active: Optional[bool] = Query(None),
     student_type: Optional[str] = Query(None, description="學生類型 (formal/trial)"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.list"))
 ):
     """取得學生列表"""
     try:
@@ -64,7 +64,7 @@ async def list_students(
 @router.get("/{student_id}", response_model=DataResponse[StudentResponse])
 async def get_student(
     student_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.list"))
 ):
     """取得單一學生"""
     try:
@@ -84,7 +84,7 @@ async def get_student(
 @router.post("", response_model=DataResponse[StudentResponse])
 async def create_student(
     data: StudentCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.create"))
 ):
     """建立學生（僅限員工）"""
     try:
@@ -127,7 +127,7 @@ async def create_student(
 async def update_student(
     student_id: str,
     data: StudentUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """更新學生（僅限員工）"""
     try:
@@ -169,7 +169,7 @@ async def update_student(
 @router.delete("/{student_id}", response_model=BaseResponse)
 async def delete_student(
     student_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.delete"))
 ):
     """刪除學生（軟刪除，僅限員工）"""
     try:
@@ -199,7 +199,7 @@ async def delete_student(
 async def convert_to_formal(
     student_id: str,
     data: ConvertToFormalRequest,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """試上學生轉正式學生（僅限員工）
 

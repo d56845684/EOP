@@ -22,7 +22,7 @@ router = APIRouter(prefix="/auth/line", tags=["Line 認證"])
 
 
 def get_channel_type_from_role(role: str) -> ChannelType:
-    """根據用戶角色取得對應的頻道類型"""
+    """根據用戶角色取得對應的頻道類型（保留供相容使用）"""
     role_to_channel = {
         "student": "student",
         "teacher": "teacher",
@@ -30,6 +30,15 @@ def get_channel_type_from_role(role: str) -> ChannelType:
         "admin": "employee",
     }
     return role_to_channel.get(role, "student")
+
+
+def get_channel_type_for_user(user) -> ChannelType:
+    """根據用戶 entity IDs 取得對應的頻道類型"""
+    if user.employee_id:
+        return "employee"
+    if user.teacher_id:
+        return "teacher"
+    return "student"
 
 
 @router.get("/login", response_model=LineLoginUrlResponse)
@@ -197,7 +206,7 @@ async def bind_line(
     已登入用戶用此端點開始綁定 Line 流程
     """
     # 如果未指定頻道，根據用戶角色決定
-    channel_type = channel or get_channel_type_from_role(current_user.role)
+    channel_type = channel or get_channel_type_for_user(current_user)
 
     if not line_oauth_service.is_channel_configured(channel_type):
         raise HTTPException(status_code=503, detail=f"Line {channel_type} 頻道功能未啟用")
@@ -243,7 +252,7 @@ async def unbind_line(
     解除 Line 綁定
     """
     # 如果未指定頻道，根據用戶角色決定
-    channel_type = channel or get_channel_type_from_role(current_user.role)
+    channel_type = channel or get_channel_type_for_user(current_user)
 
     success = await line_binding_service.unbind(current_user.user_id, channel_type)
 
@@ -262,7 +271,7 @@ async def get_line_status(
     取得 Line 綁定狀態
     """
     # 如果未指定頻道，根據用戶角色決定
-    channel_type = channel or get_channel_type_from_role(current_user.role)
+    channel_type = channel or get_channel_type_for_user(current_user)
 
     binding = await line_binding_service.get_binding_by_user(
         current_user.user_id, channel_type
