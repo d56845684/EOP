@@ -9,6 +9,7 @@ from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
 from datetime import datetime, date
 import math
+import uuid
 
 router = APIRouter(prefix="/students", tags=["學生管理"])
 
@@ -221,6 +222,26 @@ async def convert_to_formal(
         if student.get("student_type") != "trial":
             raise HTTPException(status_code=400, detail="此學生非試上學生，無法執行轉正")
 
+        # 1.5 驗證 booking_id 為 trial、已完成、且未轉正
+        if data.booking_id:
+            booking_rows = await supabase_service.pool.fetch(
+                """
+                SELECT id, booking_type, booking_status, is_trial_to_formal
+                FROM bookings_view
+                WHERE id = $1 AND is_deleted = FALSE
+                """,
+                uuid.UUID(data.booking_id),
+            )
+            if not booking_rows:
+                raise HTTPException(status_code=404, detail="預約不存在")
+            bk = booking_rows[0]
+            if bk["booking_type"] != "trial":
+                raise HTTPException(status_code=400, detail="只能選擇試上類型的預約")
+            if bk["booking_status"] != "completed":
+                raise HTTPException(status_code=400, detail="預約狀態必須為已完成")
+            if bk["is_trial_to_formal"]:
+                raise HTTPException(status_code=400, detail="此預約已被標記為轉正")
+
         # 2. 更新 student_type → formal
         updated_student = await supabase_service.table_update(
             table="students",
@@ -269,28 +290,27 @@ async def convert_to_formal(
                 )
                 if tc_list:
                     bonus = tc_list[0].get("trial_to_formal_bonus", 0) or 0
-                    if bonus > 0:
-                        bonus_amount = float(bonus)
-                        bonus_recorded = True
-                        # 寫入 teacher_bonus_records
-                        try:
-                            bonus_data = {
-                                "teacher_id": data.teacher_id,
-                                "bonus_type": "trial_to_formal",
-                                "amount": bonus_amount,
-                                "bonus_date": date.today().isoformat(),
-                                "description": f"學生 {student.get('name', '')} 試上轉正獎金",
-                                "related_student_id": student_id,
-                            }
-                            if data.booking_id:
-                                bonus_data["related_booking_id"] = data.booking_id
-                            if employee_id:
-                                bonus_data["created_by"] = employee_id
-                            await supabase_service.table_insert(
-                                table="teacher_bonus_records", data=bonus_data
-                            )
-                        except Exception:
-                            pass  # 獎金寫入失敗不影響轉正流程
+                    bonus_amount = float(bonus)
+                    bonus_recorded = True
+                    # 寫入 teacher_bonus_records
+                    try:
+                        bonus_data = {
+                            "teacher_id": data.teacher_id,
+                            "bonus_type": "trial_to_formal",
+                            "amount": bonus_amount,
+                            "bonus_date": date.today().isoformat(),
+                            "description": f"學生 {student.get('name', '')} 試上轉正獎金",
+                            "related_student_id": student_id,
+                        }
+                        if data.booking_id:
+                            bonus_data["related_booking_id"] = data.booking_id
+                        if employee_id:
+                            bonus_data["created_by"] = employee_id
+                        await supabase_service.table_insert(
+                            table="teacher_bonus_records", data=bonus_data
+                        )
+                    except Exception:
+                        pass  # 獎金寫入失敗不影響轉正流程
             except Exception:
                 pass  # 獎金查詢失敗不影響轉正
 
