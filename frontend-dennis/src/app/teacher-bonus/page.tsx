@@ -63,7 +63,7 @@ export default function TeacherBonusPage() {
     const [deleteConfirm, setDeleteConfirm] = useState<TeacherBonus | null>(null)
     const [deleting, setDeleting] = useState(false)
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
+    const isStaff = profile?.employee_id != null
 
     const fetchBonuses = useCallback(async () => {
         setLoading(true)

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.config import settings
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.teacher_detail import (
     TeacherDetailCreate, TeacherDetailUpdate,
     TeacherDetailResponse, TeacherDetailListResponse,
@@ -20,15 +20,20 @@ DETAIL_SELECT = "id,teacher_id,detail_type,content,issue_date,expiry_date,file_p
 @router.get("", response_model=TeacherDetailListResponse)
 async def list_teacher_details(
     teacher_id: str = Query(..., description="教師 ID"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.details"))
 ):
-    """取得教師明細列表（登入即可）"""
+    """取得教師明細列表"""
     try:
+        # Ownership check: 教師只能查自己的明細
+        if current_user.is_teacher():
+            user_teacher_id = current_user.teacher_id
+            if teacher_id != user_teacher_id:
+                raise HTTPException(status_code=403, detail="無權查看其他教師的明細")
+
         details = await supabase_service.table_select(
             table="teacher_details",
             select=DETAIL_SELECT,
             filters={"teacher_id": teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         return TeacherDetailListResponse(
             data=[TeacherDetailResponse(**d) for d in details]
@@ -40,7 +45,7 @@ async def list_teacher_details(
 @router.post("", response_model=DataResponse[TeacherDetailResponse])
 async def create_teacher_detail(
     data: TeacherDetailCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """新增教師明細（僅限員工）"""
     try:
@@ -48,7 +53,6 @@ async def create_teacher_detail(
         teachers = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teachers:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -68,7 +72,7 @@ async def create_teacher_detail(
             detail_data["created_by"] = employee_id
 
         result = await supabase_service.table_insert(
-            table="teacher_details", data=detail_data, use_service_key=True
+            table="teacher_details", data=detail_data
         )
         if not result:
             raise HTTPException(status_code=500, detail="新增教師明細失敗")
@@ -84,14 +88,13 @@ async def create_teacher_detail(
 async def update_teacher_detail(
     detail_id: str,
     data: TeacherDetailUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """更新教師明細（僅限員工）"""
     try:
         existing = await supabase_service.table_select(
             table="teacher_details", select="id",
             filters={"id": detail_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師明細不存在")
@@ -113,7 +116,7 @@ async def update_teacher_detail(
 
         result = await supabase_service.table_update(
             table="teacher_details", data=update_data,
-            filters={"id": detail_id}, use_service_key=True
+            filters={"id": detail_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新教師明細失敗")
@@ -128,14 +131,13 @@ async def update_teacher_detail(
 @router.delete("/{detail_id}", response_model=BaseResponse)
 async def delete_teacher_detail(
     detail_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """軟刪除教師明細（僅限員工）"""
     try:
         existing = await supabase_service.table_select(
             table="teacher_details", select="id",
             filters={"id": detail_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師明細不存在")
@@ -150,7 +152,7 @@ async def delete_teacher_detail(
 
         result = await supabase_service.table_update(
             table="teacher_details", data=delete_data,
-            filters={"id": detail_id}, use_service_key=True
+            filters={"id": detail_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="刪除教師明細失敗")
@@ -173,7 +175,7 @@ class ConfirmUploadRequest(BaseModel):
 @router.post("/{detail_id}/upload-url")
 async def get_teacher_detail_upload_url(
     detail_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """取得教師明細檔案的 signed upload URL（僅限員工）
 
@@ -184,7 +186,6 @@ async def get_teacher_detail_upload_url(
             table="teacher_details",
             select="id,teacher_id,detail_type",
             filters={"id": detail_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師明細不存在")
@@ -220,14 +221,13 @@ async def get_teacher_detail_upload_url(
 async def confirm_teacher_detail_upload(
     detail_id: str,
     body: ConfirmUploadRequest,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """確認教師明細檔案上傳完成（僅限員工）"""
     try:
         existing = await supabase_service.table_select(
             table="teacher_details", select="id",
             filters={"id": detail_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師明細不存在")
@@ -248,7 +248,7 @@ async def confirm_teacher_detail_upload(
 
         result = await supabase_service.table_update(
             table="teacher_details", data=update_data,
-            filters={"id": detail_id}, use_service_key=True
+            filters={"id": detail_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新檔案資訊失敗")
@@ -266,20 +266,26 @@ async def confirm_teacher_detail_upload(
 @router.get("/{detail_id}/download-url")
 async def get_teacher_detail_download_url(
     detail_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.details"))
 ):
-    """取得教師明細檔案的 signed download URL（登入即可）"""
+    """取得教師明細檔案的 signed download URL"""
     try:
         result = await supabase_service.table_select(
             table="teacher_details",
-            select="id,file_path,file_name",
+            select="id,teacher_id,file_path,file_name",
             filters={"id": detail_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not result:
             raise HTTPException(status_code=404, detail="教師明細不存在")
 
         detail = result[0]
+
+        # Ownership check: 教師只能下載自己的文件
+        if current_user.is_teacher():
+            user_teacher_id = current_user.teacher_id
+            if detail.get("teacher_id") != user_teacher_id:
+                raise HTTPException(status_code=403, detail="無權下載此文件")
+
         if not detail.get("file_path"):
             raise HTTPException(status_code=404, detail="此明細尚無上傳檔案")
 

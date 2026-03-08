@@ -16,6 +16,8 @@ export interface Booking {
     teacher_hourly_rate: number
     teacher_rate_percentage?: number
     booking_status: BookingStatus
+    booking_type?: 'trial' | 'regular'
+    is_trial_to_formal?: boolean
     booking_date: string
     start_time: string
     end_time: string
@@ -458,22 +460,6 @@ export const bookingsApi = {
         }
     },
 
-    async updateTeacherLevel(teacherId: string, level: number): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/teachers/${teacherId}/level?level=${level}`, {
-                method: 'PUT',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: parseErrorDetail(error.detail) || '更新教師等級失敗' } }
-            }
-
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
 
     async getOverlappingCourseOptions(studentId: string, teacherId: string): Promise<{ data: CourseOption[] | null, error: any }> {
         try {

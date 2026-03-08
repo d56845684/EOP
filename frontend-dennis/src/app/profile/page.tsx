@@ -17,8 +17,8 @@ export default function ProfilePage() {
   const [myCourses, setMyCourses] = useState<StudentCourse[]>([])
   const [coursesLoading, setCoursesLoading] = useState(false)
 
-  const isStudent = profile?.role === 'student'
-  const isTeacher = profile?.role === 'teacher'
+  const isStudent = profile?.student_id != null
+  const isTeacher = profile?.teacher_id != null
 
   // Teacher self-update state
   const [teacherBio, setTeacherBio] = useState('')

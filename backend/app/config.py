@@ -90,6 +90,13 @@ class Settings(BaseSettings):
     # Feature toggle
     ZOOM_ENABLED: bool = False
 
+    # Super Admin（預設最高權限帳號，留空 = 不建立）
+    SUPER_ADMIN_EMAIL: str = ""
+    SUPER_ADMIN_PASSWORD: str = ""
+
+    # Service Account API Key（留空 = 停用）
+    SERVICE_API_KEY: str = ""
+
     # Frontend URL (for OAuth redirects)
     FRONTEND_URL: str = "http://localhost:4173"
 

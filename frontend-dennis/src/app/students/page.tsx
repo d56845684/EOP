@@ -73,7 +73,7 @@ export default function StudentsPage() {
     const [convertBookings, setConvertBookings] = useState<Booking[]>([])
     const [convertBookingsLoading, setConvertBookingsLoading] = useState(false)
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
+    const isStaff = profile?.employee_id != null
 
     const fetchStudents = useCallback(async () => {
         setLoading(true)

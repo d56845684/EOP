@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.teacher_slot import (
     TeacherSlotCreate, TeacherSlotBatchCreate, TeacherSlotBatchDelete, TeacherSlotBatchUpdate,
     TeacherSlotBatchDeleteByIds, TeacherSlotBatchUpdateByIds,
@@ -23,7 +23,6 @@ async def slot_has_active_bookings(slot_id: str) -> bool:
             "teacher_slot_id": f"eq.{slot_id}",
             "is_deleted": "eq.false",
         },
-        use_service_key=True
     )
     # 過濾掉已取消的
     active = [b for b in bookings if b.get("booking_status") != "cancelled"]
@@ -38,7 +37,6 @@ async def enrich_slot_with_relations(slot: dict) -> dict:
             table="teachers",
             select="name,teacher_no",
             filters={"id": slot["teacher_id"]},
-            use_service_key=True
         )
         if teacher:
             slot["teacher_name"] = teacher[0]["name"]
@@ -50,25 +48,10 @@ async def enrich_slot_with_relations(slot: dict) -> dict:
             table="teacher_contracts",
             select="contract_no",
             filters={"id": slot["teacher_contract_id"]},
-            use_service_key=True
         )
         slot["teacher_contract_no"] = contract[0]["contract_no"] if contract else None
 
     return slot
-
-
-async def get_user_teacher_id(user_id: str) -> Optional[str]:
-    """取得用戶關聯的教師 ID"""
-    profile = await supabase_service.table_select(
-        table="user_profiles",
-        select="teacher_id",
-        filters={"id": user_id},
-        use_service_key=True
-    )
-    if profile and profile[0].get("teacher_id"):
-        return profile[0]["teacher_id"]
-    return None
-
 
 
 @router.get("", response_model=TeacherSlotListResponse)
@@ -79,7 +62,7 @@ async def list_teacher_slots(
     date_from: Optional[date] = Query(None, description="開始日期"),
     date_to: Optional[date] = Query(None, description="結束日期"),
     is_available: Optional[bool] = Query(None, description="篩選可用狀態"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
     """取得教師時段列表"""
     try:
@@ -87,18 +70,14 @@ async def list_teacher_slots(
         filters = {"is_deleted": "eq.false"}
 
         # 根據角色過濾
-        user_role = current_user.role
-
-        if user_role == "teacher":
+        if current_user.is_teacher():
             # 教師只能看自己的時段
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if user_teacher_id:
-                filters["teacher_id"] = f"eq.{user_teacher_id}"
+            if current_user.teacher_id:
+                filters["teacher_id"] = f"eq.{current_user.teacher_id}"
             else:
-                # 教師沒有關聯的 teacher_id，返回空列表
                 return TeacherSlotListResponse(data=[], total=0, page=page, per_page=per_page, total_pages=0)
-        elif user_role == "student":
-            # 學生只能看可用的時段（不再用 is_booked 過濾）
+        elif current_user.is_student():
+            # 學生只能看可用的時段
             filters["is_available"] = "eq.true"
         # staff (admin/employee) 可看所有時段
 
@@ -117,7 +96,6 @@ async def list_teacher_slots(
             table="teacher_available_slots",
             select="id",
             filters=filters,
-            use_service_key=True
         )
 
         # 如果有結束日期，在結果中篩選
@@ -142,7 +120,6 @@ async def list_teacher_slots(
             order_by="slot_date.asc,start_time.asc",
             limit=per_page,
             offset=offset,
-            use_service_key=True
         )
 
         # 如果有結束日期，在結果中篩選
@@ -169,15 +146,14 @@ async def list_teacher_slots(
 
 @router.get("/options/teachers", tags=["教師時段管理"])
 async def get_teacher_options(
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
-    """取得教師下拉選單（僅限員工）"""
+    """取得教師下拉選單（員工或教師）"""
     try:
         teachers = await supabase_service.table_select(
             table="teachers",
             select="id,teacher_no,name,teacher_level",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
         return {"data": teachers}
     except Exception as e:
@@ -186,11 +162,11 @@ async def get_teacher_options(
 
 @router.get("/my-contracts", tags=["教師時段管理"])
 async def get_my_contracts(
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
     """取得當前教師的合約（教師用）"""
     try:
-        user_teacher_id = await get_user_teacher_id(current_user.user_id)
+        user_teacher_id = current_user.teacher_id
 
         if not user_teacher_id:
             return {"data": []}
@@ -203,7 +179,6 @@ async def get_my_contracts(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
         return {"data": contracts}
     except Exception as e:
@@ -213,7 +188,7 @@ async def get_my_contracts(
 @router.get("/{slot_id}", response_model=DataResponse[TeacherSlotResponse])
 async def get_teacher_slot(
     slot_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
     """取得單一教師時段"""
     try:
@@ -221,7 +196,6 @@ async def get_teacher_slot(
             table="teacher_available_slots",
             select="id,teacher_id,teacher_contract_id,slot_date,start_time,end_time,is_available,is_booked,notes,created_at,updated_at",
             filters={"id": slot_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not result:
@@ -230,13 +204,10 @@ async def get_teacher_slot(
         slot = result[0]
 
         # 權限檢查
-        user_role = current_user.role
-        if user_role == "teacher":
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if slot["teacher_id"] != user_teacher_id:
+        if current_user.is_teacher():
+            if slot["teacher_id"] != current_user.teacher_id:
                 raise HTTPException(status_code=403, detail="無權查看此時段")
-        elif user_role == "student":
-            # 學生只能查看可用的時段（不再檢查 is_booked）
+        elif current_user.is_student():
             if not slot["is_available"]:
                 raise HTTPException(status_code=403, detail="此時段不可查看")
 
@@ -252,18 +223,16 @@ async def get_teacher_slot(
 @router.post("", response_model=DataResponse[TeacherSlotResponse])
 async def create_teacher_slot(
     data: TeacherSlotCreate,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
     """建立教師時段（教師自己或員工）"""
     try:
-        user_role = current_user.role
-
-        # 權限檢查
-        if user_role == "teacher":
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if data.teacher_id != user_teacher_id:
-                raise HTTPException(status_code=403, detail="教師只能建立自己的時段")
-        elif user_role not in ["admin", "employee"]:
+        # 權限檢查：教師自動使用自己的 teacher_id
+        if current_user.is_teacher():
+            if not current_user.teacher_id:
+                raise HTTPException(status_code=403, detail="找不到教師資料")
+            data.teacher_id = current_user.teacher_id
+        elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權建立教師時段")
 
         # 驗證教師存在
@@ -271,7 +240,6 @@ async def create_teacher_slot(
             table="teachers",
             select="id,name",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在")
@@ -282,7 +250,6 @@ async def create_teacher_slot(
                 table="teacher_contracts",
                 select="id",
                 filters={"id": data.teacher_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not contract:
                 raise HTTPException(status_code=400, detail="教師合約不存在")
@@ -306,7 +273,6 @@ async def create_teacher_slot(
         result = await supabase_service.table_insert(
             table="teacher_available_slots",
             data=slot_data,
-            use_service_key=True
         )
 
         if not result:
@@ -329,18 +295,16 @@ async def create_teacher_slot(
 @router.post("/batch", response_model=BaseResponse)
 async def create_teacher_slots_batch(
     data: TeacherSlotBatchCreate,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
     """批次建立教師時段（週期性）"""
     try:
-        user_role = current_user.role
-
-        # 權限檢查
-        if user_role == "teacher":
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if data.teacher_id != user_teacher_id:
-                raise HTTPException(status_code=403, detail="教師只能建立自己的時段")
-        elif user_role not in ["admin", "employee"]:
+        # 權限檢查：教師自動使用自己的 teacher_id
+        if current_user.is_teacher():
+            if not current_user.teacher_id:
+                raise HTTPException(status_code=403, detail="找不到教師資料")
+            data.teacher_id = current_user.teacher_id
+        elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權建立教師時段")
 
         # 驗證教師存在
@@ -348,7 +312,6 @@ async def create_teacher_slots_batch(
             table="teachers",
             select="id,name",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在")
@@ -359,7 +322,6 @@ async def create_teacher_slots_batch(
                 table="teacher_contracts",
                 select="id",
                 filters={"id": data.teacher_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not contract:
                 raise HTTPException(status_code=400, detail="教師合約不存在")
@@ -396,7 +358,6 @@ async def create_teacher_slots_batch(
             result = await supabase_service.table_insert(
                 table="teacher_available_slots",
                 data=slot_data,
-                use_service_key=True
             )
             if result:
                 created_count += 1
@@ -412,18 +373,16 @@ async def create_teacher_slots_batch(
 @router.delete("/batch", response_model=BaseResponse)
 async def delete_teacher_slots_batch(
     data: TeacherSlotBatchDelete,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
     """批次刪除教師時段（僅刪除無有效預約的時段）"""
     try:
-        user_role = current_user.role
-
-        # 權限檢查
-        if user_role == "teacher":
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if data.teacher_id != user_teacher_id:
-                raise HTTPException(status_code=403, detail="教師只能刪除自己的時段")
-        elif user_role not in ["admin", "employee"]:
+        # 權限檢查：教師自動使用自己的 teacher_id
+        if current_user.is_teacher():
+            if not current_user.teacher_id:
+                raise HTTPException(status_code=403, detail="找不到教師資料")
+            data.teacher_id = current_user.teacher_id
+        elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權刪除教師時段")
 
         # 查詢符合條件的時段（不再用 is_booked 過濾）
@@ -437,7 +396,6 @@ async def delete_teacher_slots_batch(
             table="teacher_available_slots",
             select="id,slot_date,start_time,end_time",
             filters=filters,
-            use_service_key=True
         )
 
         # 在 Python 中進行更精細的過濾
@@ -500,7 +458,6 @@ async def delete_teacher_slots_batch(
                 table="teacher_available_slots",
                 data=delete_data,
                 filters={"id": slot_id},
-                use_service_key=True
             )
             if result:
                 deleted_count += 1
@@ -520,18 +477,16 @@ async def delete_teacher_slots_batch(
 @router.put("/batch", response_model=BaseResponse)
 async def update_teacher_slots_batch(
     data: TeacherSlotBatchUpdate,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
     """批次更新教師時段（有預約的時段不可修改時間）"""
     try:
-        user_role = current_user.role
-
-        # 權限檢查
-        if user_role == "teacher":
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if data.teacher_id != user_teacher_id:
-                raise HTTPException(status_code=403, detail="教師只能更新自己的時段")
-        elif user_role not in ["admin", "employee"]:
+        # 權限檢查：教師自動使用自己的 teacher_id
+        if current_user.is_teacher():
+            if not current_user.teacher_id:
+                raise HTTPException(status_code=403, detail="找不到教師資料")
+            data.teacher_id = current_user.teacher_id
+        elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權更新教師時段")
 
         # 檢查是否有要更新的內容
@@ -561,7 +516,6 @@ async def update_teacher_slots_batch(
             table="teacher_available_slots",
             select="id,slot_date,start_time,end_time",
             filters=filters,
-            use_service_key=True
         )
 
         # 在 Python 中進行更精細的過濾
@@ -613,7 +567,6 @@ async def update_teacher_slots_batch(
                 table="teacher_available_slots",
                 data=update_fields,
                 filters={"id": slot_id},
-                use_service_key=True
             )
             if result:
                 updated_count += 1
@@ -633,12 +586,10 @@ async def update_teacher_slots_batch(
 @router.post("/batch-by-ids/delete", response_model=BaseResponse)
 async def delete_teacher_slots_by_ids(
     data: TeacherSlotBatchDeleteByIds,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
     """根據 ID 批次刪除教師時段（僅刪除無有效預約的時段）"""
     try:
-        user_role = current_user.role
-
         if not data.slot_ids:
             raise HTTPException(status_code=400, detail="請選擇要刪除的時段")
 
@@ -656,7 +607,6 @@ async def delete_teacher_slots_by_ids(
                 table="teacher_available_slots",
                 select="id,teacher_id",
                 filters={"id": slot_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
 
             if not existing:
@@ -665,12 +615,11 @@ async def delete_teacher_slots_by_ids(
             slot = existing[0]
 
             # 權限檢查
-            if user_role == "teacher":
-                user_teacher_id = await get_user_teacher_id(current_user.user_id)
-                if slot["teacher_id"] != user_teacher_id:
+            if current_user.is_teacher():
+                if slot["teacher_id"] != current_user.teacher_id:
                     skipped_count += 1
                     continue
-            elif user_role not in ["admin", "employee"]:
+            elif not current_user.is_staff():
                 skipped_count += 1
                 continue
 
@@ -691,7 +640,6 @@ async def delete_teacher_slots_by_ids(
                 table="teacher_available_slots",
                 data=delete_data,
                 filters={"id": slot_id},
-                use_service_key=True
             )
             if result:
                 deleted_count += 1
@@ -711,12 +659,10 @@ async def delete_teacher_slots_by_ids(
 @router.post("/batch-by-ids/update", response_model=BaseResponse)
 async def update_teacher_slots_by_ids(
     data: TeacherSlotBatchUpdateByIds,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
     """根據 ID 批次更新教師時段"""
     try:
-        user_role = current_user.role
-
         if not data.slot_ids:
             raise HTTPException(status_code=400, detail="請選擇要更新的時段")
 
@@ -745,7 +691,6 @@ async def update_teacher_slots_by_ids(
                 table="teacher_available_slots",
                 select="id,teacher_id",
                 filters={"id": slot_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
 
             if not existing:
@@ -754,12 +699,11 @@ async def update_teacher_slots_by_ids(
             slot = existing[0]
 
             # 權限檢查
-            if user_role == "teacher":
-                user_teacher_id = await get_user_teacher_id(current_user.user_id)
-                if slot["teacher_id"] != user_teacher_id:
+            if current_user.is_teacher():
+                if slot["teacher_id"] != current_user.teacher_id:
                     skipped_count += 1
                     continue
-            elif user_role not in ["admin", "employee"]:
+            elif not current_user.is_staff():
                 skipped_count += 1
                 continue
 
@@ -773,7 +717,6 @@ async def update_teacher_slots_by_ids(
                 table="teacher_available_slots",
                 data=update_fields,
                 filters={"id": slot_id},
-                use_service_key=True
             )
             if result:
                 updated_count += 1
@@ -794,7 +737,7 @@ async def update_teacher_slots_by_ids(
 async def update_teacher_slot(
     slot_id: str,
     data: TeacherSlotUpdate,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
     """更新教師時段（教師自己或員工）"""
     try:
@@ -803,7 +746,6 @@ async def update_teacher_slot(
             table="teacher_available_slots",
             select="id,teacher_id",
             filters={"id": slot_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -812,12 +754,10 @@ async def update_teacher_slot(
         slot = existing[0]
 
         # 權限檢查
-        user_role = current_user.role
-        if user_role == "teacher":
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if slot["teacher_id"] != user_teacher_id:
+        if current_user.is_teacher():
+            if slot["teacher_id"] != current_user.teacher_id:
                 raise HTTPException(status_code=403, detail="教師只能更新自己的時段")
-        elif user_role not in ["admin", "employee"]:
+        elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權更新教師時段")
 
         # 有有效預約的時段不能修改日期/時間
@@ -843,7 +783,6 @@ async def update_teacher_slot(
             table="teacher_available_slots",
             data=update_data,
             filters={"id": slot_id},
-            use_service_key=True
         )
 
         if not result:
@@ -866,7 +805,7 @@ async def update_teacher_slot(
 @router.delete("/{slot_id}", response_model=BaseResponse)
 async def delete_teacher_slot(
     slot_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
     """刪除教師時段（軟刪除，無有效預約才可刪除）"""
     try:
@@ -875,7 +814,6 @@ async def delete_teacher_slot(
             table="teacher_available_slots",
             select="id,teacher_id",
             filters={"id": slot_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -884,12 +822,10 @@ async def delete_teacher_slot(
         slot = existing[0]
 
         # 權限檢查
-        user_role = current_user.role
-        if user_role == "teacher":
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if slot["teacher_id"] != user_teacher_id:
+        if current_user.is_teacher():
+            if slot["teacher_id"] != current_user.teacher_id:
                 raise HTTPException(status_code=403, detail="教師只能刪除自己的時段")
-        elif user_role not in ["admin", "employee"]:
+        elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權刪除教師時段")
 
         # 動態檢查是否有有效預約
@@ -911,7 +847,6 @@ async def delete_teacher_slot(
             table="teacher_available_slots",
             data=delete_data,
             filters={"id": slot_id},
-            use_service_key=True
         )
 
         if not result:

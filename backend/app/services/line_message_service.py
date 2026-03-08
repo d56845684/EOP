@@ -449,7 +449,6 @@ class LineMessageService:
             await supabase_service.table_insert(
                 table="line_notification_logs",
                 data=data,
-                use_service_key=True
             )
         except Exception:
             pass  # 記錄失敗不影響主流程

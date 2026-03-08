@@ -56,7 +56,7 @@ export default function TeachersPage() {
     const [detailSubmitting, setDetailSubmitting] = useState(false)
     const [uploadingDetailId, setUploadingDetailId] = useState<string | null>(null)
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
+    const isStaff = profile?.employee_id != null
 
     const fetchTeachers = useCallback(async () => {
         setLoading(true)

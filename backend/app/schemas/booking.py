@@ -62,6 +62,7 @@ class BookingCreate(BookingBase):
 class BookingUpdate(BaseModel):
     """更新預約的請求"""
     booking_status: Optional[BookingStatus] = Field(None, description="預約狀態")
+    end_time: Optional[time] = Field(None, description="結束時間（僅允許縮短預約）")
     notes: Optional[str] = Field(None, description="備註")
 
 
@@ -81,6 +82,9 @@ class BookingResponse(BaseModel):
     booking_date: date
     start_time: time
     end_time: time
+    booking_type: str = "regular"
+    is_trial_to_formal: bool = False
+    lessons_used: int = 1
     notes: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

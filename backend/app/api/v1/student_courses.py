@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.student_course import (
     StudentCourseCreate, StudentCourseResponse, StudentCourseListResponse
 )
@@ -14,19 +14,6 @@ router = APIRouter(prefix="/student-courses", tags=["學生選課管理"])
 ENROLLMENT_SELECT = "id,student_id,course_id,enrolled_at,created_at"
 
 
-async def get_user_student_id(user_id: str) -> Optional[str]:
-    """根據 user_id 取得對應的 student_id"""
-    result = await supabase_service.table_select(
-        table="user_profiles",
-        select="student_id",
-        filters={"id": user_id},
-        use_service_key=True
-    )
-    if result and result[0].get("student_id"):
-        return result[0]["student_id"]
-    return None
-
-
 async def enrich_enrollment(enrollment: dict) -> dict:
     """為選課資料添加課程和學生名稱"""
     if enrollment.get("course_id"):
@@ -34,7 +21,6 @@ async def enrich_enrollment(enrollment: dict) -> dict:
             table="courses",
             select="course_code,course_name",
             filters={"id": enrollment["course_id"]},
-            use_service_key=True
         )
         if course:
             enrollment["course_code"] = course[0].get("course_code")
@@ -45,7 +31,6 @@ async def enrich_enrollment(enrollment: dict) -> dict:
             table="students",
             select="name",
             filters={"id": enrollment["student_id"]},
-            use_service_key=True
         )
         if student:
             enrollment["student_name"] = student[0].get("name")
@@ -57,7 +42,7 @@ async def enrich_enrollment(enrollment: dict) -> dict:
 
 @router.get("/options/students", tags=["學生選課管理"])
 async def get_student_options(
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.courses"))
 ):
     """取得學生下拉選單"""
     try:
@@ -65,7 +50,6 @@ async def get_student_options(
             table="students",
             select="id,student_no,name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
         return {"data": students}
     except Exception as e:
@@ -74,7 +58,7 @@ async def get_student_options(
 
 @router.get("/options/courses", tags=["學生選課管理"])
 async def get_course_options(
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.courses"))
 ):
     """取得課程下拉選單"""
     try:
@@ -82,7 +66,6 @@ async def get_course_options(
             table="courses",
             select="id,course_code,course_name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
         return {"data": courses}
     except Exception as e:
@@ -97,7 +80,7 @@ async def list_student_courses(
     per_page: int = Query(20, ge=1, le=100, description="每頁數量"),
     student_id: Optional[str] = Query(None, description="篩選學生"),
     search: Optional[str] = Query(None, description="搜尋課程名稱"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.courses"))
 ):
     """取得學生選課列表
 
@@ -110,7 +93,7 @@ async def list_student_courses(
         filters = {"is_deleted": "eq.false"}
 
         if current_user.is_student():
-            user_student_id = await get_user_student_id(current_user.user_id)
+            user_student_id = current_user.student_id
             if not user_student_id:
                 return StudentCourseListResponse(data=[], total=0, page=page, per_page=per_page, total_pages=1)
             filters["student_id"] = f"eq.{user_student_id}"
@@ -125,7 +108,6 @@ async def list_student_courses(
             table="student_courses",
             select="id",
             filters=filters,
-            use_service_key=True
         )
         total = len(all_enrollments)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
@@ -139,7 +121,6 @@ async def list_student_courses(
             order_by="created_at.desc",
             limit=per_page,
             offset=offset,
-            use_service_key=True
         )
 
         # Enrich with names
@@ -172,10 +153,16 @@ async def list_student_courses(
 @router.get("/by-student/{student_id}")
 async def get_courses_by_student(
     student_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.courses"))
 ):
     """取得某學生的已選課程（供合約明細 course 下拉用）"""
     try:
+        # Ownership check: 學生只能查自己的選課
+        if current_user.is_student():
+            user_student_id = current_user.student_id
+            if student_id != user_student_id:
+                raise HTTPException(status_code=403, detail="無權查看其他學生的選課")
+
         enrollments = await supabase_service.table_select(
             table="student_courses",
             select=ENROLLMENT_SELECT,
@@ -183,7 +170,6 @@ async def get_courses_by_student(
                 "student_id": f"eq.{student_id}",
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
 
         enriched = []
@@ -199,7 +185,7 @@ async def get_courses_by_student(
 @router.post("", response_model=DataResponse[StudentCourseResponse])
 async def create_student_course(
     data: StudentCourseCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """新增學生選課（僅限員工）"""
     try:
@@ -208,7 +194,6 @@ async def create_student_course(
             table="students",
             select="id,name",
             filters={"id": data.student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not student:
             raise HTTPException(status_code=400, detail="學生不存在")
@@ -218,7 +203,6 @@ async def create_student_course(
             table="courses",
             select="id,course_code,course_name",
             filters={"id": data.course_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not course:
             raise HTTPException(status_code=400, detail="課程不存在")
@@ -232,7 +216,6 @@ async def create_student_course(
                 "course_id": f"eq.{data.course_id}",
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
         if existing:
             raise HTTPException(status_code=400, detail="此學生已選修此課程")
@@ -249,7 +232,6 @@ async def create_student_course(
         result = await supabase_service.table_insert(
             table="student_courses",
             data=enrollment_data,
-            use_service_key=True
         )
 
         if not result:
@@ -271,7 +253,7 @@ async def create_student_course(
 @router.delete("/{enrollment_id}", response_model=BaseResponse)
 async def delete_student_course(
     enrollment_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """移除學生選課（軟刪除，僅限員工）"""
     try:
@@ -279,7 +261,6 @@ async def delete_student_course(
             table="student_courses",
             select="id",
             filters={"id": enrollment_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="選課紀錄不存在")
@@ -298,7 +279,6 @@ async def delete_student_course(
             table="student_courses",
             data=delete_data,
             filters={"id": enrollment_id},
-            use_service_key=True
         )
 
         if not result:

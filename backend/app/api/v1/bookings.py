@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.booking import (
     BookingCreate, BookingUpdate, BookingResponse, BookingListResponse, BookingStatus,
     BookingBatchUpdateByIds, BookingBatchDeleteByIds, BookingBatchUpdate, BookingBatchDelete,
@@ -16,6 +16,12 @@ import math
 router = APIRouter(prefix="/bookings", tags=["預約管理"])
 
 
+def calculate_lessons_used(start_time: time, end_time: time, duration_minutes: int) -> int:
+    """計算預約使用堂數 = 預約時長 / 課程單堂時長"""
+    booking_minutes = (end_time.hour * 60 + end_time.minute) - (start_time.hour * 60 + start_time.minute)
+    return max(1, booking_minutes // duration_minutes)
+
+
 async def generate_booking_no() -> str:
     """生成預約編號: BK{YYYYMMDD}{序號}"""
     today = datetime.utcnow().strftime("%Y%m%d")
@@ -26,7 +32,6 @@ async def generate_booking_no() -> str:
         table="bookings",
         select="booking_no",
         filters={"booking_no": f"like.{prefix}%"},
-        use_service_key=True
     )
 
     if not result:
@@ -66,7 +71,6 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
             "student_id": student_id,
             "is_deleted": "eq.false"
         },
-        use_service_key=True
     )
 
     if not all_prefs:
@@ -95,7 +99,6 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
                     "is_active": "eq.true",
                     "teacher_level": f"gte.{min_level}"
                 },
-                use_service_key=True
             )
             for t in teachers:
                 # 查該教師是否有 active 合約包含此課程的 course_rate
@@ -107,7 +110,6 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
                         "is_deleted": "eq.false",
                         "contract_status": "eq.active"
                     },
-                    use_service_key=True
                 )
                 for tc in t_contracts:
                     rate_check = await supabase_service.table_select(
@@ -119,7 +121,6 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
                             "detail_type": "eq.course_rate",
                             "is_deleted": "eq.false"
                         },
-                        use_service_key=True
                     )
                     if rate_check:
                         allowed.add(t["id"])
@@ -134,7 +135,6 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
                     "is_active": "eq.true",
                     "teacher_level": f"gte.{min_level}"
                 },
-                use_service_key=True
             )
             for t in teachers:
                 allowed.add(t["id"])
@@ -160,7 +160,6 @@ async def check_booking_overlap(
             "teacher_slot_id": f"eq.{teacher_slot_id}",
             "is_deleted": "eq.false",
         },
-        use_service_key=True
     )
 
     overlapping = []
@@ -221,7 +220,6 @@ async def update_slot_booked_status(slot_id: str):
         table="teacher_available_slots",
         select="id,start_time,end_time",
         filters={"id": slot_id, "is_deleted": "eq.false"},
-        use_service_key=True
     )
     if not slot:
         return
@@ -242,7 +240,6 @@ async def update_slot_booked_status(slot_id: str):
             "teacher_slot_id": f"eq.{slot_id}",
             "is_deleted": "eq.false",
         },
-        use_service_key=True
     )
 
     active_bookings = [
@@ -273,7 +270,6 @@ async def update_slot_booked_status(slot_id: str):
         table="teacher_available_slots",
         data={"is_booked": all_booked},
         filters={"id": slot_id},
-        use_service_key=True
     )
 
 
@@ -285,7 +281,6 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             table="students",
             select="name",
             filters={"id": booking["student_id"]},
-            use_service_key=True
         )
         booking["student_name"] = student[0]["name"] if student else None
 
@@ -295,7 +290,6 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             table="teachers",
             select="name",
             filters={"id": booking["teacher_id"]},
-            use_service_key=True
         )
         booking["teacher_name"] = teacher[0]["name"] if teacher else None
 
@@ -305,7 +299,6 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             table="courses",
             select="course_name",
             filters={"id": booking["course_id"]},
-            use_service_key=True
         )
         booking["course_name"] = course[0]["course_name"] if course else None
 
@@ -315,7 +308,6 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             table="student_contracts",
             select="contract_no",
             filters={"id": booking["student_contract_id"]},
-            use_service_key=True
         )
         booking["student_contract_no"] = contract[0]["contract_no"] if contract else None
 
@@ -325,7 +317,6 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             table="teacher_contracts",
             select="contract_no",
             filters={"id": booking["teacher_contract_id"]},
-            use_service_key=True
         )
         booking["teacher_contract_no"] = contract[0]["contract_no"] if contract else None
 
@@ -343,7 +334,7 @@ async def list_bookings(
     course_id: Optional[str] = Query(None, description="篩選課程"),
     date_from: Optional[date] = Query(None, description="開始日期"),
     date_to: Optional[date] = Query(None, description="結束日期"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得預約列表"""
     try:
@@ -372,24 +363,19 @@ async def list_bookings(
             else:
                 filters["booking_date"] = f"lte.{date_to.isoformat()}"
 
-        # 根據角色過濾（查詢資料庫取得關聯 ID）
-        user_role = current_user.role
-
-        if user_role == "student":
-            user_student_id = await get_user_student_id(current_user.user_id)
-            if user_student_id:
-                filters["student_id"] = f"eq.{user_student_id}"
-        elif user_role == "teacher":
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if user_teacher_id:
-                filters["teacher_id"] = f"eq.{user_teacher_id}"
+        # 根據角色過濾（直接從 CurrentUser 取得 entity ID）
+        if current_user.is_student():
+            if current_user.student_id:
+                filters["student_id"] = f"eq.{current_user.student_id}"
+        elif current_user.is_teacher():
+            if current_user.teacher_id:
+                filters["teacher_id"] = f"eq.{current_user.teacher_id}"
 
         # 取得總數
         all_bookings = await supabase_service.table_select(
-            table="bookings",
+            table="bookings_view",
             select="id",
             filters=filters,
-            use_service_key=True
         )
         total = len(all_bookings)
 
@@ -399,13 +385,12 @@ async def list_bookings(
 
         # 取得分頁資料
         bookings = await supabase_service.table_select_with_pagination(
-            table="bookings",
-            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_date,start_time,end_time,notes,created_at,updated_at",
+            table="bookings_view",
+            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_type,is_trial_to_formal,booking_date,start_time,end_time,notes,created_at,updated_at",
             filters=filters,
             order_by="booking_date.desc,start_time.desc",
             limit=per_page,
             offset=offset,
-            use_service_key=True
         )
 
         # 如果有搜尋關鍵字，在結果中篩選
@@ -437,7 +422,7 @@ async def list_bookings(
 @router.get("/slot-availability/{teacher_slot_id}", response_model=DataResponse[SlotAvailabilityResponse])
 async def get_slot_availability(
     teacher_slot_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得指定教師時段的 30 分鐘區塊可用狀態"""
     try:
@@ -446,7 +431,6 @@ async def get_slot_availability(
             table="teacher_available_slots",
             select="id,slot_date,start_time,end_time,is_available",
             filters={"id": teacher_slot_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not slot:
@@ -467,7 +451,6 @@ async def get_slot_availability(
                 "teacher_slot_id": f"eq.{teacher_slot_id}",
                 "is_deleted": "eq.false",
             },
-            use_service_key=True
         )
 
         # 過濾掉已取消的
@@ -523,7 +506,7 @@ async def get_my_student_info(
 ):
     """取得當前用戶的學生資料（學生用）"""
     try:
-        user_student_id = await get_user_student_id(current_user.user_id)
+        user_student_id = current_user.student_id
 
         if not user_student_id:
             return {"data": None}
@@ -532,7 +515,6 @@ async def get_my_student_info(
             table="students",
             select="id,student_no,name,student_type",
             filters={"id": user_student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not student:
@@ -549,7 +531,7 @@ async def get_my_contracts(
 ):
     """取得當前學生的合約（學生用，按建立時間由新到舊排序）"""
     try:
-        user_student_id = await get_user_student_id(current_user.user_id)
+        user_student_id = current_user.student_id
 
         if not user_student_id:
             return {"data": []}
@@ -562,7 +544,6 @@ async def get_my_contracts(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
 
         # 按 created_at 降序排列（最新的在前）
@@ -579,7 +560,6 @@ async def get_my_contracts(
                     "detail_type": "eq.lesson_price",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             course_ids = list(set(d["course_id"] for d in details if d.get("course_id")))
             course_names = []
@@ -589,7 +569,6 @@ async def get_my_contracts(
                     table="courses",
                     select="course_name",
                     filters={"id": cid},
-                    use_service_key=True
                 )
                 if c:
                     course_names.append(c[0]["course_name"])
@@ -606,19 +585,26 @@ async def get_my_contracts(
 @router.get("/{booking_id}", response_model=DataResponse[BookingResponse])
 async def get_booking(
     booking_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得單一預約"""
     try:
         result = await supabase_service.table_select(
-            table="bookings",
-            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_date,start_time,end_time,notes,created_at,updated_at",
+            table="bookings_view",
+            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_type,is_trial_to_formal,booking_date,start_time,end_time,notes,created_at,updated_at",
             filters={"id": booking_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not result:
             raise HTTPException(status_code=404, detail="預約不存在")
+
+        # Ownership check: 學生/教師只能查自己的預約
+        if current_user.is_student():
+            if result[0].get("student_id") != current_user.student_id:
+                raise HTTPException(status_code=403, detail="無權查看此預約")
+        elif current_user.is_teacher():
+            if result[0].get("teacher_id") != current_user.teacher_id:
+                raise HTTPException(status_code=403, detail="無權查看此預約")
 
         booking = await enrich_booking_with_relations(result[0])
         return DataResponse(data=BookingResponse(**booking))
@@ -629,50 +615,21 @@ async def get_booking(
         raise HTTPException(status_code=500, detail=f"取得預約失敗: {str(e)}")
 
 
-async def get_user_student_id(user_id: str) -> str | None:
-    """取得用戶關聯的學生 ID"""
-    profile = await supabase_service.table_select(
-        table="user_profiles",
-        select="student_id",
-        filters={"id": user_id},
-        use_service_key=True
-    )
-    if profile and profile[0].get("student_id"):
-        return profile[0]["student_id"]
-    return None
-
-
-async def get_user_teacher_id(user_id: str) -> str | None:
-    """取得用戶關聯的教師 ID"""
-    profile = await supabase_service.table_select(
-        table="user_profiles",
-        select="teacher_id",
-        filters={"id": user_id},
-        use_service_key=True
-    )
-    if profile and profile[0].get("teacher_id"):
-        return profile[0]["teacher_id"]
-    return None
-
-
 @router.post("", response_model=DataResponse[BookingResponse])
 async def create_booking(
     data: BookingCreate,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.create"))
 ):
     """建立預約（員工可為任何學生預約，學生只能為自己預約）"""
     try:
-        user_role = current_user.role
-
         # 權限檢查
-        if user_role == "student":
+        if current_user.is_student():
             # 學生只能為自己預約
-            user_student_id = await get_user_student_id(current_user.user_id)
-            if not user_student_id:
+            if not current_user.student_id:
                 raise HTTPException(status_code=403, detail="無法取得學生資料")
-            if data.student_id != user_student_id:
+            if data.student_id != current_user.student_id:
                 raise HTTPException(status_code=403, detail="學生只能為自己預約")
-        elif user_role not in ["admin", "employee"]:
+        elif not current_user.is_staff():
             # 教師和其他角色不能建立預約
             raise HTTPException(status_code=403, detail="無權建立預約")
 
@@ -681,7 +638,6 @@ async def create_booking(
             table="students",
             select="id,name,student_type",
             filters={"id": data.student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not student:
             raise HTTPException(status_code=400, detail="學生不存在")
@@ -693,7 +649,6 @@ async def create_booking(
             table="teachers",
             select="id,name,teacher_level",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在")
@@ -701,12 +656,23 @@ async def create_booking(
         # 驗證課程存在
         course = await supabase_service.table_select(
             table="courses",
-            select="id,course_name",
+            select="id,course_name,duration_minutes",
             filters={"id": data.course_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not course:
             raise HTTPException(status_code=400, detail="課程不存在")
+
+        # 驗證預約時長是課程時長的倍數
+        course_duration = course[0].get("duration_minutes", 60)
+        start_minutes = data.start_time.hour * 60 + data.start_time.minute
+        end_minutes = data.end_time.hour * 60 + data.end_time.minute
+        booking_minutes = end_minutes - start_minutes
+        if booking_minutes % course_duration != 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"預約時長 ({booking_minutes}分鐘) 必須是課程時長 ({course_duration}分鐘) 的倍數"
+            )
+        lessons_used = calculate_lessons_used(data.start_time, data.end_time, course_duration)
 
         # 驗證課程交集合法性：學生選課 ∩ 教師可教課程
         # (a) 非 trial 學生：驗證 student_courses 有此 course_id
@@ -719,7 +685,6 @@ async def create_booking(
                     "course_id": data.course_id,
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             if not sc_check:
                 raise HTTPException(status_code=400, detail="學生未選修此課程")
@@ -733,7 +698,6 @@ async def create_booking(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
         has_course_rate = False
         for tc in teacher_active_contracts:
@@ -746,7 +710,6 @@ async def create_booking(
                     "detail_type": "eq.course_rate",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             if rate_check:
                 has_course_rate = True
@@ -769,12 +732,11 @@ async def create_booking(
                 table="student_contracts",
                 select="id,contract_no,remaining_lessons",
                 filters={"id": data.student_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not student_contract:
                 raise HTTPException(status_code=400, detail="學生合約不存在")
-            if student_contract[0].get("remaining_lessons", 0) <= 0:
-                raise HTTPException(status_code=400, detail="學生合約剩餘堂數不足")
+            if student_contract[0].get("remaining_lessons", 0) < lessons_used:
+                raise HTTPException(status_code=400, detail=f"學生合約剩餘堂數不足（需要 {lessons_used} 堂）")
         elif not is_trial:
             raise HTTPException(status_code=400, detail="正式學生必須提供學生合約")
 
@@ -788,7 +750,6 @@ async def create_booking(
                 table="teacher_contracts",
                 select="id,contract_no",
                 filters={"id": teacher_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not teacher_contract:
                 raise HTTPException(status_code=400, detail="教師合約不存在")
@@ -803,7 +764,6 @@ async def create_booking(
                     "detail_type": "eq.course_rate",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             if teacher_rate:
                 hourly_rate = teacher_rate[0].get("amount", 0)
@@ -819,7 +779,6 @@ async def create_booking(
                 table="teacher_available_slots",
                 select="id,slot_date,start_time,end_time,is_available,teacher_contract_id",
                 filters={"id": teacher_slot_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not teacher_slot:
                 raise HTTPException(status_code=400, detail="教師時段不存在")
@@ -862,7 +821,6 @@ async def create_booking(
                     "is_deleted": "eq.false",
                     "is_available": "eq.true",
                 },
-                use_service_key=True
             )
 
             # 找出包含預約時間區間的時段，並檢查無重疊
@@ -912,6 +870,8 @@ async def create_booking(
             "booking_date": data.booking_date.isoformat(),
             "start_time": data.start_time.isoformat(),
             "end_time": data.end_time.isoformat(),
+            "booking_type": "trial" if is_trial else "regular",
+            "lessons_used": lessons_used,
             "notes": data.notes,
         }
         if employee_id:
@@ -920,7 +880,6 @@ async def create_booking(
         result = await supabase_service.table_insert(
             table="bookings",
             data=booking_data,
-            use_service_key=True
         )
 
         if not result:
@@ -930,9 +889,8 @@ async def create_booking(
         if student_contract and data.student_contract_id:
             await supabase_service.table_update(
                 table="student_contracts",
-                data={"remaining_lessons": student_contract[0]["remaining_lessons"] - 1},
+                data={"remaining_lessons": student_contract[0]["remaining_lessons"] - lessons_used},
                 filters={"id": data.student_contract_id},
-                use_service_key=True
             )
 
         # 更新 slot 預約已滿狀態
@@ -955,7 +913,7 @@ async def create_booking(
 @router.put("/batch", response_model=BaseResponse)
 async def batch_update_bookings(
     data: BookingBatchUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.edit"))
 ):
     """批次更新預約狀態（週期性篩選，僅限員工）"""
     try:
@@ -973,9 +931,8 @@ async def batch_update_bookings(
 
         all_bookings = await supabase_service.table_select(
             table="bookings",
-            select="id,booking_date,booking_status,teacher_slot_id,student_contract_id",
+            select="id,booking_date,booking_status,teacher_slot_id,student_contract_id,lessons_used",
             filters=filters,
-            use_service_key=True
         )
 
         # 在 Python 中進行更精細的過濾
@@ -1021,7 +978,6 @@ async def batch_update_bookings(
                 table="bookings",
                 data=update_data,
                 filters={"id": booking["id"]},
-                use_service_key=True
             )
 
             if result:
@@ -1029,19 +985,18 @@ async def batch_update_bookings(
 
                 # 如果狀態變更為取消，恢復堂數
                 if data.new_status.value == "cancelled" and old_status != "cancelled":
+                    booking_lessons = booking.get("lessons_used", 1)
                     # 恢復學生合約剩餘堂數
                     contract = await supabase_service.table_select(
                         table="student_contracts",
                         select="remaining_lessons",
                         filters={"id": booking["student_contract_id"]},
-                        use_service_key=True
                     )
                     if contract:
                         await supabase_service.table_update(
                             table="student_contracts",
-                            data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
+                            data={"remaining_lessons": contract[0]["remaining_lessons"] + booking_lessons},
                             filters={"id": booking["student_contract_id"]},
-                            use_service_key=True
                         )
                         restored_contracts.append(booking["student_contract_id"])
 
@@ -1068,16 +1023,15 @@ async def batch_update_bookings(
 async def update_booking(
     booking_id: str,
     data: BookingUpdate,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.edit"))
 ):
     """更新預約（員工可完整更新，教師僅可將自己的預約確認）"""
     try:
         # 檢查預約是否存在
         existing = await supabase_service.table_select(
             table="bookings",
-            select="id,booking_status,teacher_slot_id,student_contract_id,teacher_id",
+            select="id,booking_status,teacher_slot_id,student_contract_id,teacher_id,lessons_used,start_time,end_time,course_id",
             filters={"id": booking_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -1087,8 +1041,7 @@ async def update_booking(
 
         # 教師權限：僅能將自己的預約狀態改為 confirmed
         if current_user.is_teacher():
-            user_teacher_id = await get_user_teacher_id(current_user.user_id)
-            if existing[0].get("teacher_id") != user_teacher_id:
+            if existing[0].get("teacher_id") != current_user.teacher_id:
                 raise HTTPException(status_code=403, detail="教師只能更新自己的預約")
             if not data.booking_status or data.booking_status.value != "confirmed":
                 raise HTTPException(status_code=403, detail="教師僅可將預約狀態更新為已確認")
@@ -1101,12 +1054,53 @@ async def update_booking(
         if old_status == "cancelled":
             raise HTTPException(status_code=400, detail="已取消的預約無法修改")
 
+        # 處理 end_time 縮短預約
+        end_time_delta = 0  # 要退回的堂數差額
+        if data.end_time is not None:
+            # 驗證 30 分鐘邊界
+            if data.end_time.minute not in (0, 30) or data.end_time.second != 0:
+                raise HTTPException(status_code=400, detail="結束時間必須在 30 分鐘邊界上")
+
+            orig_start_str = existing[0].get("start_time", "")
+            orig_end_str = existing[0].get("end_time", "")
+            orig_start = time.fromisoformat(orig_start_str) if isinstance(orig_start_str, str) else orig_start_str
+            orig_end = time.fromisoformat(orig_end_str) if isinstance(orig_end_str, str) else orig_end_str
+
+            if data.end_time <= orig_start:
+                raise HTTPException(status_code=400, detail="新結束時間必須晚於開始時間")
+            if data.end_time > orig_end:
+                raise HTTPException(status_code=400, detail="只允許縮短預約（新結束時間不可晚於原結束時間）")
+
+            # 查詢課程時長
+            course_result = await supabase_service.table_select(
+                table="courses",
+                select="duration_minutes",
+                filters={"id": existing[0]["course_id"], "is_deleted": "eq.false"},
+            )
+            course_duration = course_result[0].get("duration_minutes", 60) if course_result else 60
+
+            new_booking_minutes = (data.end_time.hour * 60 + data.end_time.minute) - (orig_start.hour * 60 + orig_start.minute)
+            if new_booking_minutes % course_duration != 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"縮短後時長 ({new_booking_minutes}分鐘) 必須是課程時長 ({course_duration}分鐘) 的倍數"
+                )
+
+            old_lessons_used = existing[0].get("lessons_used", 1)
+            new_lessons_used = calculate_lessons_used(orig_start, data.end_time, course_duration)
+            end_time_delta = old_lessons_used - new_lessons_used  # 要退回的堂數
+
         # 更新預約
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
 
         # 處理枚舉值
         if "booking_status" in update_data:
             update_data["booking_status"] = update_data["booking_status"].value
+
+        # 處理 end_time 變更：同步更新 lessons_used
+        if "end_time" in update_data:
+            update_data["end_time"] = data.end_time.isoformat()
+            update_data["lessons_used"] = new_lessons_used
 
         if not update_data:
             raise HTTPException(status_code=400, detail="沒有要更新的資料")
@@ -1115,11 +1109,24 @@ async def update_booking(
             table="bookings",
             data=update_data,
             filters={"id": booking_id},
-            use_service_key=True
         )
 
         if not result:
             raise HTTPException(status_code=500, detail="更新預約失敗")
+
+        # 縮短預約：退回差額堂數到合約
+        if end_time_delta > 0 and existing[0].get("student_contract_id"):
+            contract = await supabase_service.table_select(
+                table="student_contracts",
+                select="remaining_lessons",
+                filters={"id": existing[0]["student_contract_id"]},
+            )
+            if contract:
+                await supabase_service.table_update(
+                    table="student_contracts",
+                    data={"remaining_lessons": contract[0]["remaining_lessons"] + end_time_delta},
+                    filters={"id": existing[0]["student_contract_id"]},
+                )
 
         # Zoom 整合：狀態變更時觸發
         new_status = update_data.get("booking_status")
@@ -1154,19 +1161,18 @@ async def update_booking(
 
         # 如果狀態變更為取消，恢復堂數
         if new_status == "cancelled" and old_status != "cancelled":
+            booking_lessons = existing[0].get("lessons_used", 1)
             # 恢復學生合約剩餘堂數
             contract = await supabase_service.table_select(
                 table="student_contracts",
                 select="remaining_lessons",
                 filters={"id": existing[0]["student_contract_id"]},
-                use_service_key=True
             )
             if contract:
                 await supabase_service.table_update(
                     table="student_contracts",
-                    data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
+                    data={"remaining_lessons": contract[0]["remaining_lessons"] + booking_lessons},
                     filters={"id": existing[0]["student_contract_id"]},
-                    use_service_key=True
                 )
 
             # 更新 slot 預約已滿狀態
@@ -1201,7 +1207,7 @@ async def update_booking(
 @router.delete("/batch", response_model=BaseResponse)
 async def batch_delete_bookings(
     data: BookingBatchDelete,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.delete"))
 ):
     """批次刪除預約（週期性篩選，僅限員工）"""
     try:
@@ -1219,9 +1225,8 @@ async def batch_delete_bookings(
 
         all_bookings = await supabase_service.table_select(
             table="bookings",
-            select="id,booking_date,booking_status,teacher_slot_id,student_contract_id",
+            select="id,booking_date,booking_status,teacher_slot_id,student_contract_id,lessons_used",
             filters=filters,
-            use_service_key=True
         )
 
         # 在 Python 中進行更精細的過濾
@@ -1278,7 +1283,6 @@ async def batch_delete_bookings(
                 table="bookings",
                 data=delete_data_base,
                 filters={"id": booking["id"]},
-                use_service_key=True
             )
 
             if result:
@@ -1289,19 +1293,18 @@ async def batch_delete_bookings(
 
                 # 如果預約尚未取消或完成，恢復堂數
                 if old_status not in ["cancelled", "completed"]:
+                    booking_lessons = booking.get("lessons_used", 1)
                     # 恢復學生合約剩餘堂數
                     contract = await supabase_service.table_select(
                         table="student_contracts",
                         select="remaining_lessons",
                         filters={"id": booking["student_contract_id"]},
-                        use_service_key=True
                     )
                     if contract:
                         await supabase_service.table_update(
                             table="student_contracts",
-                            data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
+                            data={"remaining_lessons": contract[0]["remaining_lessons"] + booking_lessons},
                             filters={"id": booking["student_contract_id"]},
-                            use_service_key=True
                         )
                         restored_contracts.append(booking["student_contract_id"])
 
@@ -1326,16 +1329,15 @@ async def batch_delete_bookings(
 @router.delete("/{booking_id}", response_model=BaseResponse)
 async def delete_booking(
     booking_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.delete"))
 ):
     """刪除預約（軟刪除，僅限員工）"""
     try:
         # 檢查預約是否存在
         existing = await supabase_service.table_select(
             table="bookings",
-            select="id,booking_status,teacher_slot_id,student_contract_id",
+            select="id,booking_status,teacher_slot_id,student_contract_id,lessons_used",
             filters={"id": booking_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -1362,7 +1364,6 @@ async def delete_booking(
             table="bookings",
             data=delete_data,
             filters={"id": booking_id},
-            use_service_key=True
         )
 
         if not result:
@@ -1370,19 +1371,18 @@ async def delete_booking(
 
         # 如果預約尚未取消或完成，恢復堂數
         if old_status not in ["cancelled", "completed"]:
+            booking_lessons = existing[0].get("lessons_used", 1)
             # 恢復學生合約剩餘堂數
             contract = await supabase_service.table_select(
                 table="student_contracts",
                 select="remaining_lessons",
                 filters={"id": existing[0]["student_contract_id"]},
-                use_service_key=True
             )
             if contract:
                 await supabase_service.table_update(
                     table="student_contracts",
-                    data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
+                    data={"remaining_lessons": contract[0]["remaining_lessons"] + booking_lessons},
                     filters={"id": existing[0]["student_contract_id"]},
-                    use_service_key=True
                 )
 
         # 更新 slot 預約已滿狀態
@@ -1404,21 +1404,18 @@ async def delete_booking(
 @router.post("/batch", response_model=BaseResponse)
 async def batch_create_bookings(
     data: BookingBatchCreate,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.create"))
 ):
     """批次建立預約（週期性，自動匹配可用時段）"""
     try:
-        user_role = current_user.role
-
         # 權限檢查
-        if user_role == "student":
+        if current_user.is_student():
             # 學生只能為自己預約
-            user_student_id = await get_user_student_id(current_user.user_id)
-            if not user_student_id:
+            if not current_user.student_id:
                 raise HTTPException(status_code=403, detail="無法取得學生資料")
-            if data.student_id != user_student_id:
+            if data.student_id != current_user.student_id:
                 raise HTTPException(status_code=403, detail="學生只能為自己預約")
-        elif user_role not in ["admin", "employee"]:
+        elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權建立預約")
 
         # 驗證學生存在
@@ -1426,7 +1423,6 @@ async def batch_create_bookings(
             table="students",
             select="id,name,student_type",
             filters={"id": data.student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not student:
             raise HTTPException(status_code=400, detail="學生不存在")
@@ -1438,7 +1434,6 @@ async def batch_create_bookings(
             table="teachers",
             select="id,name,teacher_level",
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在")
@@ -1447,6 +1442,16 @@ async def batch_create_bookings(
         course_id = data.course_id
         if not course_id:
             raise HTTPException(status_code=400, detail="請提供課程 ID")
+
+        # 查詢課程取得 duration_minutes
+        batch_course = await supabase_service.table_select(
+            table="courses",
+            select="id,duration_minutes",
+            filters={"id": course_id, "is_deleted": "eq.false"},
+        )
+        if not batch_course:
+            raise HTTPException(status_code=400, detail="課程不存在")
+        batch_course_duration = batch_course[0].get("duration_minutes", 60)
 
         # 驗證學生合約存在且有效（試上學生可不提供合約）
         student_contract = None
@@ -1457,7 +1462,6 @@ async def batch_create_bookings(
                 table="student_contracts",
                 select="id,contract_no,remaining_lessons",
                 filters={"id": data.student_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not student_contract:
                 raise HTTPException(status_code=400, detail="學生合約不存在")
@@ -1478,7 +1482,6 @@ async def batch_create_bookings(
                         "course_id": course_id,
                         "is_deleted": "eq.false"
                     },
-                    use_service_key=True
                 )
                 if not sc_check:
                     raise HTTPException(status_code=400, detail="學生未選修此課程")
@@ -1492,7 +1495,6 @@ async def batch_create_bookings(
                     "is_deleted": "eq.false",
                     "contract_status": "eq.active"
                 },
-                use_service_key=True
             )
             has_course_rate = False
             for tc in batch_teacher_contracts:
@@ -1505,7 +1507,6 @@ async def batch_create_bookings(
                         "detail_type": "eq.course_rate",
                         "is_deleted": "eq.false"
                     },
-                    use_service_key=True
                 )
                 if rate_check:
                     has_course_rate = True
@@ -1522,7 +1523,6 @@ async def batch_create_bookings(
                 "course_id": f"eq.{course_id}",
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
         pref = pref_list[0] if pref_list else None
         if pref:
@@ -1543,7 +1543,6 @@ async def batch_create_bookings(
                 table="teacher_contracts",
                 select="id,contract_no",
                 filters={"id": teacher_contract_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not teacher_contract:
                 raise HTTPException(status_code=400, detail="教師合約不存在")
@@ -1559,7 +1558,6 @@ async def batch_create_bookings(
             table="teacher_available_slots",
             select="id,slot_date,start_time,end_time,teacher_contract_id",
             filters=slot_filters,
-            use_service_key=True
         )
 
         # 篩選符合條件的時段
@@ -1601,11 +1599,20 @@ async def batch_create_bookings(
         if not matching_slots:
             return BaseResponse(success=False, message="沒有符合條件的可用時段")
 
+        # 計算每筆預約的 lessons_used 及總堂數需求
+        total_lessons_needed = 0
+        for slot in matching_slots:
+            slot_start_str = data.start_time.isoformat()[:5] if data.start_time else slot.get("start_time", "")[:5]
+            slot_end_str = data.end_time.isoformat()[:5] if data.end_time else slot.get("end_time", "")[:5]
+            s_t = time.fromisoformat(slot_start_str)
+            e_t = time.fromisoformat(slot_end_str)
+            total_lessons_needed += calculate_lessons_used(s_t, e_t, batch_course_duration)
+
         # 檢查剩餘堂數是否足夠（試上學生無合約則跳過）
-        if remaining_lessons is not None and remaining_lessons < len(matching_slots):
+        if remaining_lessons is not None and remaining_lessons < total_lessons_needed:
             return BaseResponse(
                 success=False,
-                message=f"學生合約剩餘堂數不足（剩餘 {remaining_lessons} 堂，需要 {len(matching_slots)} 堂）"
+                message=f"學生合約剩餘堂數不足（剩餘 {remaining_lessons} 堂，需要 {total_lessons_needed} 堂）"
             )
 
         # 取得教師時薪（從 teacher_contract_details）
@@ -1621,7 +1628,6 @@ async def batch_create_bookings(
                     "detail_type": "eq.course_rate",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             if teacher_rate:
                 hourly_rate = teacher_rate[0].get("amount", 0)
@@ -1632,6 +1638,7 @@ async def batch_create_bookings(
         # 批次建立預約
         created_count = 0
         failed_count = 0
+        total_lessons_deducted = 0
 
         for slot in matching_slots:
             try:
@@ -1640,6 +1647,13 @@ async def batch_create_bookings(
 
                 # 使用時段的教師合約（如果有）
                 slot_teacher_contract_id = teacher_contract_id or slot.get("teacher_contract_id")
+
+                # 計算此筆預約的 lessons_used
+                slot_start_str = data.start_time.isoformat()[:5] if data.start_time else slot.get("start_time", "")[:5]
+                slot_end_str = data.end_time.isoformat()[:5] if data.end_time else slot.get("end_time", "")[:5]
+                s_t = time.fromisoformat(slot_start_str)
+                e_t = time.fromisoformat(slot_end_str)
+                slot_lessons_used = calculate_lessons_used(s_t, e_t, batch_course_duration)
 
                 # 建立預約
                 booking_data = {
@@ -1656,6 +1670,8 @@ async def batch_create_bookings(
                     "booking_date": slot["slot_date"],
                     "start_time": data.start_time.isoformat() if data.start_time else slot["start_time"],
                     "end_time": data.end_time.isoformat() if data.end_time else slot["end_time"],
+                    "booking_type": "trial" if is_trial else "regular",
+                    "lessons_used": slot_lessons_used,
                     "notes": data.notes,
                 }
                 if employee_id:
@@ -1664,11 +1680,11 @@ async def batch_create_bookings(
                 result = await supabase_service.table_insert(
                     table="bookings",
                     data=booking_data,
-                    use_service_key=True
                 )
 
                 if result:
                     created_count += 1
+                    total_lessons_deducted += slot_lessons_used
                 else:
                     failed_count += 1
 
@@ -1676,13 +1692,12 @@ async def batch_create_bookings(
                 failed_count += 1
 
         # 扣除學生合約剩餘堂數（試上學生無合約則跳過）
-        if created_count > 0 and student_contract and data.student_contract_id:
-            new_remaining = remaining_lessons - created_count
+        if total_lessons_deducted > 0 and student_contract and data.student_contract_id:
+            new_remaining = remaining_lessons - total_lessons_deducted
             await supabase_service.table_update(
                 table="student_contracts",
                 data={"remaining_lessons": new_remaining},
                 filters={"id": data.student_contract_id},
-                use_service_key=True
             )
 
         # 更新所有受影響 slot 的預約已滿狀態
@@ -1705,7 +1720,7 @@ async def batch_create_bookings(
 @router.post("/batch-by-ids/update", response_model=BaseResponse)
 async def batch_update_bookings_by_ids(
     data: BookingBatchUpdateByIds,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.edit"))
 ):
     """根據 ID 批次更新預約狀態（僅限員工）"""
     try:
@@ -1720,9 +1735,8 @@ async def batch_update_bookings_by_ids(
             # 檢查預約是否存在
             existing = await supabase_service.table_select(
                 table="bookings",
-                select="id,booking_status,teacher_slot_id,student_contract_id",
+                select="id,booking_status,teacher_slot_id,student_contract_id,lessons_used",
                 filters={"id": booking_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
 
             if not existing:
@@ -1744,7 +1758,6 @@ async def batch_update_bookings_by_ids(
                 table="bookings",
                 data=update_data,
                 filters={"id": booking_id},
-                use_service_key=True
             )
 
             if result:
@@ -1752,19 +1765,18 @@ async def batch_update_bookings_by_ids(
 
                 # 如果狀態變更為取消，恢復堂數
                 if data.booking_status.value == "cancelled" and old_status != "cancelled":
+                    booking_lessons = existing[0].get("lessons_used", 1)
                     # 恢復學生合約剩餘堂數
                     contract = await supabase_service.table_select(
                         table="student_contracts",
                         select="remaining_lessons",
                         filters={"id": existing[0]["student_contract_id"]},
-                        use_service_key=True
                     )
                     if contract:
                         await supabase_service.table_update(
                             table="student_contracts",
-                            data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
+                            data={"remaining_lessons": contract[0]["remaining_lessons"] + booking_lessons},
                             filters={"id": existing[0]["student_contract_id"]},
-                            use_service_key=True
                         )
                         restored_contracts.append(existing[0]["student_contract_id"])
 
@@ -1790,7 +1802,7 @@ async def batch_update_bookings_by_ids(
 @router.post("/batch-by-ids/delete", response_model=BaseResponse)
 async def batch_delete_bookings_by_ids(
     data: BookingBatchDeleteByIds,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.delete"))
 ):
     """根據 ID 批次刪除預約（僅限員工）"""
     try:
@@ -1810,9 +1822,8 @@ async def batch_delete_bookings_by_ids(
             # 檢查預約是否存在
             existing = await supabase_service.table_select(
                 table="bookings",
-                select="id,booking_status,teacher_slot_id,student_contract_id",
+                select="id,booking_status,teacher_slot_id,student_contract_id,lessons_used",
                 filters={"id": booking_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
 
             if not existing:
@@ -1837,7 +1848,6 @@ async def batch_delete_bookings_by_ids(
                 table="bookings",
                 data=delete_data,
                 filters={"id": booking_id},
-                use_service_key=True
             )
 
             if result:
@@ -1848,19 +1858,18 @@ async def batch_delete_bookings_by_ids(
 
                 # 如果預約尚未取消或完成，恢復堂數
                 if old_status not in ["cancelled", "completed"]:
+                    booking_lessons = existing[0].get("lessons_used", 1)
                     # 恢復學生合約剩餘堂數
                     contract = await supabase_service.table_select(
                         table="student_contracts",
                         select="remaining_lessons",
                         filters={"id": existing[0]["student_contract_id"]},
-                        use_service_key=True
                     )
                     if contract:
                         await supabase_service.table_update(
                             table="student_contracts",
-                            data={"remaining_lessons": contract[0]["remaining_lessons"] + 1},
+                            data={"remaining_lessons": contract[0]["remaining_lessons"] + booking_lessons},
                             filters={"id": existing[0]["student_contract_id"]},
-                            use_service_key=True
                         )
                         restored_contracts.append(existing[0]["student_contract_id"])
 
@@ -1888,7 +1897,7 @@ async def batch_delete_bookings_by_ids(
 
 @router.get("/options/students", tags=["預約管理"])
 async def get_student_options(
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得學生下拉選單"""
     try:
@@ -1896,7 +1905,6 @@ async def get_student_options(
             table="students",
             select="id,student_no,name,student_type",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
         return {"data": students}
     except Exception as e:
@@ -1906,7 +1914,7 @@ async def get_student_options(
 @router.get("/options/teachers", tags=["預約管理"])
 async def get_teacher_options(
     student_id: Optional[str] = Query(None, description="學生 ID（用於偏好過濾）"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得教師下拉選單（可依學生偏好聯集過濾）"""
     try:
@@ -1919,7 +1927,6 @@ async def get_teacher_options(
                 table="teachers",
                 select="id,teacher_no,name,teacher_level",
                 filters=filters,
-                use_service_key=True
             )
             teachers = [t for t in teachers if t["id"] in allowed_set]
         else:
@@ -1928,49 +1935,9 @@ async def get_teacher_options(
                 table="teachers",
                 select="id,teacher_no,name,teacher_level",
                 filters=filters,
-                use_service_key=True
             )
 
         return {"data": teachers}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.put("/options/teachers/{teacher_id}/level", tags=["預約管理"])
-async def update_teacher_level(
-    teacher_id: str,
-    level: int = Query(..., ge=1, description="教師等級"),
-    current_user: CurrentUser = Depends(require_staff)
-):
-    """更新教師等級（僅員工）"""
-    try:
-        employee_id = await get_user_employee_id(current_user.user_id)
-
-        teacher = await supabase_service.table_select(
-            table="teachers", select="id",
-            filters={"id": teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
-        )
-        if not teacher:
-            raise HTTPException(status_code=404, detail="教師不存在")
-
-        update_data = {"teacher_level": level}
-        if employee_id:
-            update_data["updated_by"] = employee_id
-
-        result = await supabase_service.table_update(
-            table="teachers",
-            data=update_data,
-            filters={"id": teacher_id},
-            use_service_key=True
-        )
-
-        if not result:
-            raise HTTPException(status_code=500, detail="更新教師等級失敗")
-
-        return {"success": True, "message": f"教師等級已更新為 {level}", "data": result}
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1979,7 +1946,7 @@ async def update_teacher_level(
 async def get_overlapping_course_options(
     student_id: str = Query(..., description="學生 ID"),
     teacher_id: str = Query(..., description="教師 ID"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得學生與教師的交集課程（學生選課 ∩ 教師可教課程）
 
@@ -1992,7 +1959,6 @@ async def get_overlapping_course_options(
             table="students",
             select="id,student_type",
             filters={"id": student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not student:
             raise HTTPException(status_code=400, detail="學生不存在")
@@ -2008,7 +1974,6 @@ async def get_overlapping_course_options(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
 
         teacher_course_ids = set()
@@ -2021,7 +1986,6 @@ async def get_overlapping_course_options(
                     "detail_type": "eq.course_rate",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             for d in details:
                 if d.get("course_id"):
@@ -2043,7 +2007,6 @@ async def get_overlapping_course_options(
                     "student_id": student_id,
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             student_course_ids = set(sc["course_id"] for sc in student_courses if sc.get("course_id"))
 
@@ -2057,7 +2020,6 @@ async def get_overlapping_course_options(
             table="courses",
             select="id,course_code,course_name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
 
         # 過濾交集課程
@@ -2072,7 +2034,7 @@ async def get_overlapping_course_options(
 
 @router.get("/options/courses", tags=["預約管理"])
 async def get_course_options(
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得課程下拉選單"""
     try:
@@ -2080,7 +2042,6 @@ async def get_course_options(
             table="courses",
             select="id,course_code,course_name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
-            use_service_key=True
         )
         return {"data": courses}
     except Exception as e:
@@ -2090,7 +2051,7 @@ async def get_course_options(
 @router.get("/options/student-contracts/{student_id}", tags=["預約管理"])
 async def get_student_contract_options(
     student_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得學生的合約下拉選單（按建立時間由新到舊排序）"""
     try:
@@ -2102,7 +2063,6 @@ async def get_student_contract_options(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
 
         # 按 created_at 降序排列（最新的在前）
@@ -2119,7 +2079,6 @@ async def get_student_contract_options(
                     "detail_type": "eq.lesson_price",
                     "is_deleted": "eq.false"
                 },
-                use_service_key=True
             )
             course_ids = list(set(d["course_id"] for d in details if d.get("course_id")))
             course_names = []
@@ -2129,7 +2088,6 @@ async def get_student_contract_options(
                     table="courses",
                     select="course_name",
                     filters={"id": cid},
-                    use_service_key=True
                 )
                 if c:
                     course_names.append(c[0]["course_name"])
@@ -2146,7 +2104,7 @@ async def get_student_contract_options(
 @router.get("/options/teacher-contracts/{teacher_id}", tags=["預約管理"])
 async def get_teacher_contract_options(
     teacher_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得教師的合約下拉選單"""
     try:
@@ -2158,7 +2116,6 @@ async def get_teacher_contract_options(
                 "is_deleted": "eq.false",
                 "contract_status": "eq.active"
             },
-            use_service_key=True
         )
         return {"data": contracts}
     except Exception as e:
@@ -2170,7 +2127,7 @@ async def get_teacher_slot_options(
     teacher_id: str,
     date_from: Optional[date] = Query(None, description="開始日期"),
     date_to: Optional[date] = Query(None, description="結束日期"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
     """取得教師的可用時段（不再過濾 is_booked，改由前端顯示區塊可用性）"""
     try:
@@ -2187,7 +2144,6 @@ async def get_teacher_slot_options(
             table="teacher_available_slots",
             select="id,slot_date,start_time,end_time,teacher_contract_id,is_booked",
             filters=filters,
-            use_service_key=True
         )
 
         # 如果有結束日期，在結果中篩選
