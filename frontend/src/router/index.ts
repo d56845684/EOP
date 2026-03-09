@@ -1,6 +1,4 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
-import { useAuthStore } from '../stores/auth';
-import { usePermissionStore } from '../stores/permission';
+import { createRouter, createWebHistory } from 'vue-router';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -20,33 +18,6 @@ const router = createRouter({
     ],
 });
 
-router.beforeEach(async (to, _from, next) => {
-    const authStore = useAuthStore();
-    const permissionStore = usePermissionStore();
 
-    // Simple auth check
-    if (to.name !== 'Login' && !authStore.isAuthenticated) {
-        next({ name: 'Login' });
-    } else {
-        if (to.name === 'Login') {
-            next();
-        } else {
-            // Check if routes are already generated
-            if (permissionStore.addRoutes.length === 0) {
-                // TEMPORARY BYPASS FOR DEVELOPMENT
-                const accessRoutes = permissionStore.generateRoutesUnfiltered();
-
-                accessRoutes.forEach(route => {
-                    router.addRoute('Layout', route as RouteRecordRaw);
-                });
-
-                // TODO: Revert this bypass when backend RBAC is ready
-                next({ ...to, replace: true });
-            } else {
-                next();
-            }
-        }
-    }
-});
 
 export default router;

@@ -2,101 +2,80 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { RouteRecordRaw } from 'vue-router';
 import { SYSTEM_MODULES } from './mockStore';
+import { getMyPermissions } from '../api/permission';
+import { adminRoutes, teacherRoutes, studentRoutes, constantRoutes } from '../router/routes';
 
 export const usePermissionStore = defineStore('permission', () => {
     const routes = ref<RouteRecordRaw[]>([]);
     const addRoutes = ref<RouteRecordRaw[]>([]);
+    const isRoutesGenerated = ref<boolean>(false);
 
-    // The async routes (everything under Dashboard, Teacher, Student, etc)
-    const asyncRoutes: RouteRecordRaw[] = [
-        {
-            path: 'dashboard',
-            name: 'Dashboard',
-            component: () => import('../views/Dashboard.vue'),
-        },
-        {
-            path: 'reports',
-            name: 'Reports',
-            component: () => import('../views/reports/ReportStats.vue'),
-        },
-        {
-            path: 'teacher',
-            name: 'Teachers',
-            component: () => import('../views/teacher/TeacherList.vue'),
-        },
-        {
-            path: 'student',
-            name: 'Students',
-            component: () => import('../views/student/StudentList.vue'),
-        },
-        {
-            path: 'booking',
-            name: 'Bookings',
-            component: () => import('../views/booking/BookingList.vue'),
-        },
-        {
-            path: 'course',
-            name: 'Courses',
-            component: () => import('../views/course/CourseList.vue'),
-        },
-        {
-            path: 'salary',
-            name: 'Salary',
-            component: () => import('../views/salary/SalaryReport.vue'),
-        },
-        {
-            path: 'settings/account',
-            name: 'AccountSettings',
-            component: () => import('../views/settings/AccountList.vue'),
-        },
-        {
-            path: 'settings/role',
-            name: 'RoleSettings',
-            component: () => import('../views/settings/RoleList.vue'),
-        },
-        // --- Teacher Portal ---
-        {
-            path: 'teacher-portal/schedule',
-            name: 'ScheduleSettings',
-            component: () => import('../views/teacher-portal/ScheduleSettings.vue'),
-        },
-        {
-            path: 'teacher-portal/history',
-            name: 'BookingHistory',
-            component: () => import('../views/teacher-portal/BookingHistory.vue'),
-        },
-        {
-            path: 'teacher-portal/profile',
-            name: 'TeacherProfile',
-            component: () => import('../views/teacher-portal/TeacherProfile.vue'),
-        },
-        // --- Student Portal ---
-        {
-            path: 'student-portal/booking',
-            name: 'ClassBooking',
-            component: () => import('../views/student-portal/ClassBooking.vue'),
-        },
-        {
-            path: 'student-portal/profile',
-            name: 'StudentProfile',
-            component: () => import('../views/student-portal/StudentProfile.vue'),
-        },
-    ];
+    // Define pageKeys
+    const pageKeys = ref<string[]>([]);
 
-    const constantRoutes: RouteRecordRaw[] = [
-        // Login and other static routes
-    ];
+    const hasPermission = (permissionKey: string, userRole?: string) => {
+        if (userRole === 'admin' || userRole === 'super_admin') return true;
+        return pageKeys.value.includes(permissionKey);
+    };
+
+    const filterAsyncRoutes = (routes: RouteRecordRaw[], keys: string[]) => {
+        const filtered: RouteRecordRaw[] = [];
+        routes.forEach(route => {
+            const tmp = { ...route } as any;
+            // A route is kept if it has NO pageKey requirement OR the user has the required pageKey
+            if (!tmp.meta || !tmp.meta.pageKey || keys.includes(tmp.meta.pageKey)) {
+                if (tmp.children) {
+                    tmp.children = filterAsyncRoutes(tmp.children, keys);
+                }
+                filtered.push(tmp);
+            }
+        });
+        return filtered;
+    };
+
+    const generateRoutes = async (role: string) => {
+        // 1. ALWAYS fetch permissions first
+        try {
+            const res = await getMyPermissions();
+            pageKeys.value = res.page_keys || [];
+        } catch (error) {
+            console.warn('Failed to fetch permissions, defaulting to empty array', error);
+            pageKeys.value = [];
+        }
+
+        let accessedRoutes: RouteRecordRaw[] = [];
+
+        // 2. Assign routes based on role
+        if (role === 'admin' || role === 'super_admin' || role === 'super admin') {
+            accessedRoutes = adminRoutes;
+        } else if (role === 'teacher') {
+            accessedRoutes = teacherRoutes;
+        } else if (role === 'student') {
+            accessedRoutes = studentRoutes;
+        } else {
+            // Employee logic: Needs fine-grained filtering
+            accessedRoutes = filterAsyncRoutes(adminRoutes, pageKeys.value);
+        }
+
+        addRoutes.value = accessedRoutes;
+        routes.value = constantRoutes.concat(accessedRoutes);
+        isRoutesGenerated.value = true;
+        return accessedRoutes;
+    };
+
+    const resetState = () => {
+        routes.value = [];
+        addRoutes.value = [];
+        pageKeys.value = [];
+        isRoutesGenerated.value = false;
+    }
 
     const generateRoutesUnfiltered = () => {
         // TEMPORARY BYPASS FOR DEVELOPMENT
-        // Combine constantRoutes and ALL asyncRoutes
-        addRoutes.value = asyncRoutes;
-        routes.value = constantRoutes.concat(asyncRoutes);
-
-        // Provide the menu structure too, overriding what might have been filtered
-        // We export SYSTEM_MODULES directly for the Sidebar to consume
-        return asyncRoutes;
+        addRoutes.value = adminRoutes;
+        routes.value = constantRoutes.concat(adminRoutes);
+        return adminRoutes;
     };
 
-    return { routes, addRoutes, generateRoutesUnfiltered, menuModules: SYSTEM_MODULES };
+    return { routes, addRoutes, isRoutesGenerated, generateRoutes, generateRoutesUnfiltered, resetState, menuModules: SYSTEM_MODULES, pageKeys, hasPermission };
 });

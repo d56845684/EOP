@@ -7,9 +7,14 @@ import 'element-plus/theme-chalk/dark/css-vars.css'; // Dark mode
 import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 import App from './App.vue';
 import router from './router';
+import './permission'; // Global Navigation Guard
 import './style.scss';
 
+import { permission } from './directives/permission';
+
 const app = createApp(App);
+
+app.directive('permission', permission);
 
 // Pinia
 const pinia = createPinia();

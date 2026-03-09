@@ -14,63 +14,34 @@
           :collapse="false"
         >
           <!-- Dynamic Menu Generation -->
-          <template v-for="module in visibleModules" :key="module.id">
+          <template v-for="module in visibleModules" :key="String(module.name)">
             
-            <!-- Single Page Module (Category pretending to be page) OR Category with children -->
-            <!-- Our structure is Level 1 (Category) -> Level 2 (Page) -->
-            <!-- Logic: If Category has children, we check if we should show a sub-menu or flat item -->
-            <!-- But user requirement says: Category -> Page. -->
-            
-            <!-- Special Case: Flatten Portals (Teacher/Student) -->
-            <template v-if="['teacher_portal', 'student_portal'].includes(module.id)">
-               <template v-for="page in module.children" :key="page.id">
-                 <el-menu-item 
-                   v-if="hasPagePermission(page)" 
-                   :index="page.path || ''">
-                    <!-- Inherit parent icon or use page icon if available -->
-                    <el-icon v-if="page.icon || module.icon">
-                        <component :is="page.icon || module.icon" />
-                    </el-icon>
-                    <span>{{ $t('menu.' + page.id, page.label) }}</span>
-                 </el-menu-item>
-               </template>
-            </template>
-
-            <!-- Case 1: Category usually has multiple pages (Setting -> Account, Role). -->
-            <!-- Case 2: Category might map directly to a page if it's "flat" like Dashboard. -->
-            
-            <!-- Logic: Check module.children (Pages). -->
-            <el-sub-menu v-else-if="module.children && module.children.length > 0 && !module.path" :index="module.id">
+            <el-sub-menu v-if="module.children && module.children.length > 0" :index="String(module.name)">
               <template #title>
                  <!-- Dynamic Icon -->
-                <el-icon v-if="module.icon">
-                    <component :is="module.icon" />
+                <el-icon v-if="module.meta?.icon">
+                    <component :is="module.meta.icon" />
                 </el-icon>
-                <span>{{ $t('menu.' + module.id) }}</span>
+                <span>{{ module.meta?.title || module.name }}</span>
               </template>
               
               <!-- Sub Items (Pages) -->
-              <template v-for="page in module.children" :key="page.id">
-                 <el-menu-item 
-                   v-if="hasPagePermission(page)" 
-                   :index="page.path || ''">
-                    <span>{{ $t('menu.' + page.id, page.label) }}</span>
+              <template v-for="page in module.children" :key="String(page.name)">
+                 <el-menu-item :index="(module.path.startsWith('/') ? module.path : '/' + module.path) + '/' + page.path">
+                    <el-icon v-if="page.meta?.icon || module.meta?.icon">
+                        <component :is="page.meta?.icon || module.meta?.icon" />
+                    </el-icon>
+                    <span>{{ page.meta?.title || page.name }}</span>
                  </el-menu-item>
               </template>
             </el-sub-menu>
 
-            <!-- Case: Flat Module (Dashboard) where module itself acts as link ?? -->
-            <!-- But our structure in mockStore has dashboard -> children[dashboard_page] -->
-            <!-- So we should perhaps handle "Single Child" optimization OR just always iterate children. -->
-            
-            <!-- However, Dashboard usually doesn't need a dropdown. -->
-            <!-- Let's check if the module has a path. If it has a path, it's a direct link. -->
-            
-            <el-menu-item v-else-if="module.path && hasAnyChildPermission(module)" :index="module.path">
-                <el-icon v-if="module.icon">
-                    <component :is="module.icon" />
+            <!-- Flat Module -->
+            <el-menu-item v-else :index="module.path.startsWith('/') ? module.path : '/' + module.path">
+                <el-icon v-if="module.meta?.icon">
+                    <component :is="module.meta.icon" />
                 </el-icon>
-                <span>{{ $t('menu.' + module.id) }}</span>
+                <span>{{ module.meta?.title || module.name }}</span>
             </el-menu-item>
             
           </template>
@@ -125,7 +96,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { useMockStore, type SystemModule } from '../stores/mockStore';
+import { useMockStore } from '../stores/mockStore';
 import { usePermissionStore } from '../stores/permission';
 import { useI18n } from 'vue-i18n';
 import { ArrowDown } from '@element-plus/icons-vue';
@@ -178,21 +149,11 @@ const currentUser = computed(() => store.currentUser);
 
 // --- Permission Logic ---
 
-const hasPagePermission = (_page: SystemModule) => {
-   // TODO: Revert this bypass when backend RBAC is ready
-   return true; // TEMPORARY BYPASS FOR DEVELOPMENT
-};
-
 // Filter modules that should be visible
 const visibleModules = computed(() => {
-    // Read directly from the unfiltered permission store menu modules
-    return permissionStore.menuModules;
+    // Read directly from the filtered permission store routes
+    return permissionStore.routes;
 });
-
-const hasAnyChildPermission = (module: SystemModule) => {
-    if (!module.children) return false;
-    return module.children.some(page => hasPagePermission(page));
-};
 
 
 // Auto-logout
