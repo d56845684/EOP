@@ -1,12 +1,50 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue';
-import { useMockStore, type Teacher, type RoleDef } from '../../stores/mockStore';
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { useMockStore, type RoleDef } from '../../stores/mockStore';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus, Edit, CopyDocument, Document, Delete, UploadFilled } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
 import type { UploadFile } from 'element-plus';
+import { getTeacherList, createTeacher, updateTeacher, type TeacherListParams, type TeacherCreate, type TeacherUpdate, type TeacherResponse } from '../../api/teacher';
 
 const store = useMockStore();
+
+// --- API State ---
+const teachersData = ref<TeacherResponse[]>([]);
+const totalTeachers = ref(0);
+const loading = ref(false);
+
+const queryParams = reactive({
+    page: 1,
+    per_page: 10,
+    search: '',
+    is_active: 'all' as 'all' | boolean
+});
+
+const fetchTeachersList = async () => {
+    loading.value = true;
+    try {
+        const params: TeacherListParams = {
+            page: queryParams.page,
+            per_page: queryParams.per_page,
+            search: queryParams.search || undefined,
+            is_active: queryParams.is_active === 'all' ? undefined : queryParams.is_active
+        };
+        const res = await getTeacherList(params);
+        if (res.success) {
+            teachersData.value = res.data;
+            totalTeachers.value = res.total;
+        }
+    } catch (e: any) {
+        ElMessage.error(e.message || 'Failed to fetch teachers');
+    } finally {
+        loading.value = false;
+    }
+};
+
+onMounted(() => {
+    fetchTeachersList();
+});
 
 // --- State ---
 const editDrawerVisible = ref(false);
@@ -18,37 +56,51 @@ const activeDetailsTab = ref('info');
 const currentTeacherId = ref<string | null>(null);
 
 const currentTeacher = computed(() => 
-    store.teachers.find(t => t.id === currentTeacherId.value)
+    teachersData.value.find(t => t.id === currentTeacherId.value)
 );
 
-// --- Pagination State ---
-const currentPage = ref(1);
-const pageSize = ref(10);
-const paginatedTeachers = computed(() => {
-    const start = (currentPage.value - 1) * pageSize.value;
-    const end = start + pageSize.value;
-    return store.teachers.slice(start, end);
-});
+// We need an extended interface for the UI state since API doesn't hold all these yet
+interface TeacherUIState extends Omit<TeacherResponse, 'id' | 'teacher_no' | 'created_at' | 'updated_at' | 'email_verified_at'> {
+    // These fields are only in UI for now, mocked until backend supports them
+    id?: string;
+    teacher_no?: string;
+    contractType: 'Part-time' | 'Full-time';
+    bonusMultiplier: number;
+    salaryConfig: { hourlyRate?: number; courseRates?: any[]; baseSalary?: number; overtimeRate?: number };
+    zoomLink: string;
+    tags: string[];
+    videoUrl: string;
+    certs: string[];
+    isCourseFeesEnabled: boolean;
+    courseFees: { courseId: string; price: number }[];
+    courseIds: string[];
+    educationExperience: string;
+    teachingSpecialty: string;
+    introduction: string;
+    description: string;
+    status: boolean; // mapped from is_active
+}
 
 // Form Data (for Edit/Add)
 const formRef = ref<FormInstance>();
 // Default Form State
-const getDefaultFormData = (): Teacher => ({
-    id: '',
+const getDefaultFormData = (): TeacherUIState => ({
     name: '',
+    email: '',
+    phone: '',
+    address: '',
+    bio: '',
+    teacher_level: 1,
+    is_active: true,
+    status: true, // ui sync
     description: '',
     contractType: 'Part-time',
     bonusMultiplier: 1.0,
     salaryConfig: { hourlyRate: 0, courseRates: [], baseSalary: 0, overtimeRate: 0 },
-    status: true,
-    email: '',
-    phone: '',
     zoomLink: '',
     tags: [],
-    bio: '', 
     videoUrl: '',
     certs: [],
-    avatar: '',
     isCourseFeesEnabled: false,
     courseFees: [],
     courseIds: [],
@@ -57,9 +109,7 @@ const getDefaultFormData = (): Teacher => ({
     introduction: ''
 });
 
-// Form Data (for Edit/Add)
-// const formRef = ref<FormInstance>();
-const formData = reactive<Teacher>(getDefaultFormData());
+const formData = reactive<TeacherUIState>(getDefaultFormData());
 
 // Rules
 const rules = reactive<FormRules>({
@@ -131,8 +181,6 @@ const openVideoModal = (url: string) => {
     videoDialogVisible.value = true;
 };
 
-// --- Actions ---
-
 const handleAdd = () => {
     isAddMode.value = true;
     currentTeacherId.value = null;
@@ -140,31 +188,33 @@ const handleAdd = () => {
     editDrawerVisible.value = true;
 };
 
-const handleEdit = (t: Teacher) => {
+const handleEdit = (t: TeacherResponse) => {
     isAddMode.value = false;
     currentTeacherId.value = t.id;
     
     // 1. Reset Form first to clear old data
     resetForm();
 
-    // 2. Clone data to form
-    const data = JSON.parse(JSON.stringify(t));
-    Object.assign(formData, data);
-    
-    // 3. Ensure structure exists (overwrites default empty if present in data, otherwise keeps default)
-    if(!formData.salaryConfig) formData.salaryConfig = {};
-    if(formData.isCourseFeesEnabled === undefined) formData.isCourseFeesEnabled = false;
-    if(!formData.courseFees) formData.courseFees = [];
-    if(!formData.courseIds) formData.courseIds = [];
-    if(!formData.educationExperience) formData.educationExperience = '';
-    if(!formData.teachingSpecialty) formData.teachingSpecialty = '';
-    if(!formData.introduction) formData.introduction = formData.bio || ''; // Fallback to bio if intro missing
+    // 2. Clone basic API data to form, preserving mock complex data keys
+    const dataOverrides = {
+        id: t.id,
+        teacher_no: t.teacher_no,
+        name: t.name,
+        email: t.email,
+        phone: t.phone || '',
+        address: t.address || '',
+        bio: t.bio || '',
+        teacher_level: t.teacher_level,
+        is_active: t.is_active,
+        status: t.is_active // map for UI
+    };
+    Object.assign(formData, dataOverrides);
     
     activeEditTab.value = 'basic';
     editDrawerVisible.value = true;
 };
 
-const handleDetails = (t: Teacher) => {
+const handleDetails = (t: TeacherResponse) => {
     currentTeacherId.value = t.id;
     activeDetailsTab.value = 'info';
     detailsDrawerVisible.value = true;
@@ -174,20 +224,74 @@ const handleSave = async (formEl: FormInstance | undefined) => {
     if (!formEl) return;
     await formEl.validate(async (valid) => {
         if (valid) {
-            // Basic validation for course fees
-            if (formData.contractType === 'Part-time' && formData.isCourseFeesEnabled && formData.courseFees?.length === 0) {
+             if (formData.contractType === 'Part-time' && formData.isCourseFeesEnabled && formData.courseFees?.length === 0) {
                 ElMessage.warning('Please add at least one course fee setting.');
                 return;
             }
-            await store.saveTeacher({ ...formData });
-            editDrawerVisible.value = false;
-            ElMessage.success('Teacher saved successfully');
+            try {
+                if (isAddMode.value) {
+                    const payload: TeacherCreate = {
+                        teacher_no: formData.teacher_no || 'T-' + Date.now(), // Auto-gen if empty for now
+                        name: formData.name,
+                        email: formData.email,
+                        phone: formData.phone,
+                        address: formData.address,
+                        bio: formData.bio || formData.introduction, // Use intro if bio is empty, since PRD separates them
+                        teacher_level: formData.teacher_level,
+                        is_active: formData.status
+                    };
+                    await createTeacher(payload);
+                    ElMessage.success('Teacher added successfully');
+                } else {
+                    const payload: TeacherUpdate = {
+                        name: formData.name,
+                        email: formData.email,
+                        phone: formData.phone,
+                        address: formData.address,
+                        bio: formData.bio || formData.introduction,
+                        teacher_level: formData.teacher_level,
+                        is_active: formData.status
+                    };
+                    if (currentTeacherId.value) {
+                        await updateTeacher(currentTeacherId.value, payload);
+                        ElMessage.success('Teacher updated successfully');
+                    }
+                }
+                editDrawerVisible.value = false;
+                fetchTeachersList();
+            } catch (e: any) {
+                ElMessage.error(e.message || 'Failed to save teacher');
+            }
         }
     });
 };
 
-const handleToggleStatus = async (t: Teacher, val: boolean) => {
-    await store.toggleTeacherStatus(t.id, val);
+const handleToggleStatus = async (t: TeacherResponse, val: boolean) => {
+    try {
+        await ElMessageBox.confirm(
+            '是否已確認上/下架該老師？ 上/下架後學生可/不可預約該老師課程。',
+            'Warning',
+            {
+                confirmButtonText: 'Confirm',
+                cancelButtonText: 'Cancel',
+                type: 'warning',
+            }
+        );
+        
+        try {
+            await updateTeacher(t.id, { is_active: val });
+            ElMessage.success('Status updated successfully');
+            fetchTeachersList();
+        } catch (e: any) {
+            ElMessage.error(e.message || 'Failed to update status');
+            // Revert switch on failure
+            t.is_active = !val;
+        }
+
+    } catch {
+        // User cancelled, revert switch
+        t.is_active = !val;
+    }
 };
 
 const copyZoomLink = async (link: string) => {
@@ -237,9 +341,32 @@ watch(editDrawerVisible, (val) => {
         <el-button type="primary" :icon="Plus" @click="handleAdd">{{ $t('teacher.add') }}</el-button>
      </div>
 
+     <!-- Search & Filter Area -->
+     <el-card class="filter-card">
+         <el-form :inline="true" :model="queryParams">
+             <el-form-item label="Contract Type (合約類型)">
+                 <el-select v-model="queryParams.is_active" style="width: 150px" @change="fetchTeachersList">
+                     <el-option label="All" value="all" />
+                     <el-option label="Active (Full-time/Part-time mock)" :value="true" />
+                     <el-option label="Inactive" :value="false" />
+                 </el-select>
+             </el-form-item>
+             <el-form-item label="Keyword Search (關鍵字搜尋)">
+                 <el-input v-model="queryParams.search" placeholder="Name or Email" clearable @clear="fetchTeachersList" @keyup.enter="fetchTeachersList" />
+             </el-form-item>
+              <!-- Date range mock for now as API doesn't support join date filter -->
+             <el-form-item label="Join Date (加入時間區間)">
+                 <el-date-picker type="daterange" style="width: 250px" placeholder="Past 3 months (mock)" />
+             </el-form-item>
+             <el-form-item>
+                 <el-button type="primary" @click="fetchTeachersList">搜尋 (Search)</el-button>
+             </el-form-item>
+         </el-form>
+     </el-card>
+
      <!-- Main List -->
-     <div class="teacher-cards">
-        <el-card v-for="teacher in paginatedTeachers" :key="teacher.id" class="teacher-card" shadow="hover">
+     <div class="teacher-cards" v-loading="loading">
+        <el-card v-for="teacher in teachersData" :key="teacher.id" class="teacher-card" shadow="hover">
             <!-- Full Width Descriptions Grid -->
             <el-descriptions direction="vertical" :column="3" border class="teacher-desc">
                 <template #extra>
@@ -256,8 +383,9 @@ watch(editDrawerVisible, (val) => {
                 <el-descriptions-item :label="$t('teacher.name') + '/' + $t('salary.contract')">
                     <div class="name-contract-row">
                         <span class="teacher-name">{{ teacher.name }}</span>
-                        <el-tag size="small" :type="teacher.contractType === 'Full-time' ? 'success' : 'warning'">
-                            {{ teacher.contractType }}
+                        <!-- Mock contract type for now since real API doesn't have it -->
+                        <el-tag size="small" type="warning">
+                            Part-time
                         </el-tag>
                     </div>
                 </el-descriptions-item>
@@ -265,14 +393,16 @@ watch(editDrawerVisible, (val) => {
                 <!-- Item 3: Status (Fixed Width, Left Label / Center Content) -->
                 <el-descriptions-item :label="$t('common.status')" width="120px" label-align="left" align="center">
                      <el-switch 
-                        v-model="teacher.status" 
+                        v-model="teacher.is_active" 
                         @change="(val: boolean) => handleToggleStatus(teacher, val)"
                      />
                 </el-descriptions-item>
 
-                <!-- Item 4: Email -->
-                <el-descriptions-item :label="$t('common.email')">
-                    {{ teacher.email }}
+                <!-- Item 4: Course Tags (Full Row) -->
+                <el-descriptions-item :label="$t('common.course')">
+                    <div class="tags-group">
+                        <span class="text-gray">No courses (API)</span>
+                    </div>
                 </el-descriptions-item>
 
                 <!-- Item 5: Details Action (Fixed Width, Left Label / Center Content) -->
@@ -280,21 +410,17 @@ watch(editDrawerVisible, (val) => {
                      <el-button link type="primary" @click="handleDetails(teacher)">{{ $t('common.viewDetails') }}</el-button>
                 </el-descriptions-item>
 
-                <!-- Item 6: Course Tags (Full Row) -->
-                <el-descriptions-item :label="$t('common.course')" :span="3">
-                    <div class="tags-group">
-                        <el-tag v-for="cid in teacher.courseIds" :key="cid" size="small" effect="plain">{{ getCourseName(cid) }}</el-tag>
-                        <span v-if="!teacher.courseIds?.length" class="text-gray">No courses</span>
-                    </div>
+                <!-- Item 6: Email -->
+                <el-descriptions-item :label="$t('common.email')" :span="3">
+                    {{ teacher.email }}
                 </el-descriptions-item>
 
                 <!-- Item 7: Zoom Link (Full Row) -->
-                <el-descriptions-item :label="$t('teacher.zoomLink')" :span="3">
+                <!-- <el-descriptions-item :label="$t('teacher.zoomLink')" :span="3">
                     <div class="zoom-row">
-                        <span class="link-text">{{ teacher.zoomLink || 'No Link' }}</span>
-                        <el-button v-if="teacher.zoomLink" :icon="CopyDocument" circle size="small" @click="copyZoomLink(teacher.zoomLink)" />
+                        <span class="link-text">No Link</span>
                     </div>
-                </el-descriptions-item>
+                </el-descriptions-item> -->
             </el-descriptions>
         </el-card>
      </div>
@@ -302,19 +428,21 @@ watch(editDrawerVisible, (val) => {
      <!-- Pagination -->
      <div class="pagination-footer">
         <el-pagination
-            v-model:current-page="currentPage"
-            v-model:page-size="pageSize"
+            v-model:current-page="queryParams.page"
+            v-model:page-size="queryParams.per_page"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
-            :total="store.teachers.length"
+            :total="totalTeachers"
+            @size-change="fetchTeachersList"
+            @current-change="fetchTeachersList"
         />
      </div>
 
      <!-- Edit Drawer -->
-     <el-drawer v-model="editDrawerVisible" :title="isAddMode ? $t('teacher.add') : $t('teacher.edit')" size="600px">
+     <el-drawer v-model="editDrawerVisible" :title="isAddMode ? $t('common.add') : $t('common.edit')" size="600px">
         <el-form ref="formRef" :model="formData" :rules="rules" label-width="150px" label-position="right">
             <el-tabs v-model="activeEditTab">
-                <el-tab-pane :label="$t('student.basicInfo')" name="basic">
+                <el-tab-pane :label="$t('common.basicInfo')" name="info">
                     <el-row :gutter="20">
                         <el-col :span="12">
                             <el-form-item :label="$t('common.name')" prop="name">
@@ -448,68 +576,23 @@ watch(editDrawerVisible, (val) => {
               <el-tab-pane :label="$t('student.basicInfo')" name="info">
                   <el-descriptions border :column="1">
                       <el-descriptions-item :label="$t('teacher.name')">{{ currentTeacher.name }}</el-descriptions-item>
-                      <el-descriptions-item :label="$t('teacher.contractType')">
-                          <el-tag :type="currentTeacher.contractType === 'Full-time' ? 'success' : 'warning'">{{ currentTeacher.contractType }}</el-tag>
-                      </el-descriptions-item>
                       <el-descriptions-item :label="$t('common.status')">
-                          <el-tag :type="currentTeacher.status ? 'success' : 'danger'">{{ currentTeacher.status ? 'On-Shelf' : 'Off-Shelf' }}</el-tag>
+                          <el-tag :type="currentTeacher.is_active ? 'success' : 'danger'">{{ currentTeacher.is_active ? 'On-Shelf' : 'Off-Shelf' }}</el-tag>
                       </el-descriptions-item>
                       <el-descriptions-item :label="$t('common.email')">{{ currentTeacher.email }}</el-descriptions-item>
-                      <el-descriptions-item :label="$t('common.phone')">{{ currentTeacher.phone }}</el-descriptions-item>
-                      <el-descriptions-item :label="$t('common.address')">台北市大安區信義路三段123號 (Mock)</el-descriptions-item>
-                      <el-descriptions-item :label="$t('teacher.zoomId')">{{ currentTeacher.zoomLink ? '123-456-7890' : '-' }}</el-descriptions-item>
-                      <el-descriptions-item :label="$t('teacher.zoomLink')">
-                          <div class="zoom-row">
-                              <span class="link-text">{{ currentTeacher.zoomLink || '-' }}</span>
-                              <el-button v-if="currentTeacher.zoomLink" :icon="CopyDocument" link type="primary" size="small" @click="copyZoomLink(currentTeacher.zoomLink)">Copy</el-button>
-                          </div>
-                      </el-descriptions-item>
-                      <el-descriptions-item :label="$t('teacher.teachingCourses')">
-                          <div class="tags-group">
-                              <el-tag v-for="cid in currentTeacher.courseIds" :key="cid" size="small">{{ getCourseName(cid) }}</el-tag>
-                              <span v-if="!currentTeacher.courseIds?.length" class="text-gray">-</span>
-                          </div>
-                      </el-descriptions-item>
-                      <el-descriptions-item :label="$t('teacher.joinDate')">2024-01-01 (Mock)</el-descriptions-item>
-                      <el-descriptions-item :label="$t('common.lastUpdated')">2024-12-19 12:00 (Mock)</el-descriptions-item>
+                      <el-descriptions-item :label="$t('common.phone')">{{ currentTeacher.phone || '-' }}</el-descriptions-item>
+                      <el-descriptions-item :label="$t('common.address')">{{ currentTeacher.address || '-' }}</el-descriptions-item>
+                      <el-descriptions-item :label="'Level'">{{ currentTeacher.teacher_level }}</el-descriptions-item>
+                      <el-descriptions-item :label="$t('teacher.joinDate')">{{ currentTeacher.created_at ? dayjs(currentTeacher.created_at).format('YYYY-MM-DD') : '-' }}</el-descriptions-item>
+                      <el-descriptions-item :label="$t('common.lastUpdated')">{{ currentTeacher.updated_at ? dayjs(currentTeacher.updated_at).format('YYYY-MM-DD HH:mm') : '-' }}</el-descriptions-item>
                   </el-descriptions>
               </el-tab-pane>
 
               <!-- Tab 2: Resume -->
               <el-tab-pane label="Resume" name="resume">
                   <el-descriptions border :column="1">
-                      <el-descriptions-item :label="$t('teacher.educationExperience')">
-                           <div style="white-space: pre-wrap;">{{ currentTeacher.educationExperience || '-' }}</div>
-                      </el-descriptions-item>
-                      <el-descriptions-item :label="$t('teacher.teachingSpecialty')">
-                          {{ currentTeacher.teachingSpecialty || '-' }}
-                      </el-descriptions-item>
                       <el-descriptions-item :label="$t('teacher.introduction')">
-                          {{ currentTeacher.introduction || '-' }}
-                      </el-descriptions-item>
-                      <el-descriptions-item :label="$t('teacher.introVideo')">
-                          <div v-if="currentTeacher.videoUrl" class="video-thumbnail" @click="openVideoModal(currentTeacher.videoUrl)">
-                              <el-icon :size="40" color="#409EFF"><img v-if="false" /> <!-- Placeholder for thumbnail, using Icon for now -->
-                                  <div class="play-icon-overlay"><component :is="UploadFilled" /></div> <!-- Reuse upload icon as play placeholder -->
-                              </el-icon>
-                              <span style="margin-left: 10px; color: #409EFF; cursor: pointer;">Click to Play Video</span>
-                          </div>
-                          <span v-else>No video uploaded.</span>
-                      </el-descriptions-item>
-                      <el-descriptions-item :label="$t('teacher.certificates')">
-                          <div v-if="currentTeacher.certs && currentTeacher.certs.length" class="cert-gallery">
-                               <!-- Mock Images for preview -->
-                              <el-image 
-                                v-for="(cert, idx) in currentTeacher.certs" 
-                                :key="idx"
-                                style="width: 100px; height: 100px; margin-right: 10px"
-                                :src="'https://cube.elemecdn.com/6/94/4d3ea53c084bad6931a56d5158a48jpeg.jpeg'" 
-                                :preview-src-list="['https://cube.elemecdn.com/6/94/4d3ea53c084bad6931a56d5158a48jpeg.jpeg']" 
-                                fit="cover"
-                              /> 
-                              <!-- Note: Using mock elemecdn image since real certs are just filenames in store -->
-                          </div>
-                          <span v-else>-</span>
+                          {{ currentTeacher.bio || '-' }}
                       </el-descriptions-item>
                   </el-descriptions>
               </el-tab-pane>
@@ -613,7 +696,10 @@ watch(editDrawerVisible, (val) => {
     margin-top: 5px;
 }
 
-/* Details Drawer Styles */
+.filter-card {
+    margin-bottom: 20px;
+}
+
 .history-filters {
     display: flex;
     gap: 15px;

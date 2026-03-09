@@ -96,7 +96,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { useMockStore } from '../stores/mockStore';
+import { useAuthStore } from '../stores/auth';
 import { usePermissionStore } from '../stores/permission';
 import { useI18n } from 'vue-i18n';
 import { ArrowDown } from '@element-plus/icons-vue';
@@ -137,8 +137,8 @@ const handleLanguageChange = (lang: string) => {
     localStorage.setItem('eop_locale', lang);
 };
 
-const store = useMockStore();
-const currentUser = computed(() => store.currentUser);
+const authStore = useAuthStore();
+const currentUser = computed(() => authStore.userInfo);
 
 // ... (No changes to permissions logic)
 
@@ -162,13 +162,13 @@ const { idle } = useIdle(10 * 60 * 1000);
 
 import { watch } from 'vue';
 watch(idle, (isIdle) => {
-  if (isIdle && store.currentUser) {
+  if (isIdle && authStore.userInfo) {
     handleLogout();
   }
 });
 
 const handleLogout = async () => {
-    store.logout();
+    authStore.logout();
     router.push('/login');
 };
 </script>

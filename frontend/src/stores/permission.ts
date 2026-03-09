@@ -44,21 +44,24 @@ export const usePermissionStore = defineStore('permission', () => {
         }
 
         let accessedRoutes: RouteRecordRaw[] = [];
+        let needConcatConstantRoutes: boolean = true;
 
         // 2. Assign routes based on role
         if (role === 'admin' || role === 'super_admin' || role === 'super admin') {
             accessedRoutes = adminRoutes;
         } else if (role === 'teacher') {
             accessedRoutes = teacherRoutes;
+            needConcatConstantRoutes = false;
         } else if (role === 'student') {
             accessedRoutes = studentRoutes;
+            needConcatConstantRoutes = false;
         } else {
             // Employee logic: Needs fine-grained filtering
             accessedRoutes = filterAsyncRoutes(adminRoutes, pageKeys.value);
         }
 
         addRoutes.value = accessedRoutes;
-        routes.value = constantRoutes.concat(accessedRoutes);
+        routes.value = needConcatConstantRoutes ? constantRoutes.concat(accessedRoutes) : accessedRoutes;
         isRoutesGenerated.value = true;
         return accessedRoutes;
     };

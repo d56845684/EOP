@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { loginApi, logoutApi, getMeApi, type LoginRequest, type UserInfo } from '@/api/auth';
+import { loginApi, logout as logoutApi, getMeApi, type LoginRequest, type UserInfo } from '@/api/auth';
+import { usePermissionStore } from '@/stores/permission';
 import router from '@/router';
 
 export const useAuthStore = defineStore('auth', () => {
@@ -37,18 +38,33 @@ export const useAuthStore = defineStore('auth', () => {
         }
     };
 
-    const logout = async () => {
-        try {
-            await logoutApi();
-        } catch (e) {
-            console.error('Logout API failed', e);
-        } finally {
-            userInfo.value = null;
-            if (router) {
-                router.push('/login');
-            }
+    const clearLocalState = () => {
+        console.log('clearLocalState');
+        // 1. Clear user info
+        userInfo.value = null;
+
+        // 2. Clear permissions and route generation flags
+        const permissionStore = usePermissionStore();
+        permissionStore.resetState();
+
+        // 3. Clear LocalStorage/SessionStorage if you have any persisted data
+        localStorage.removeItem('auth'); // Adjust based on your persistence setup
+
+        // 4. Redirect to login
+        if (router) {
+            router.push('/login');
         }
     };
 
-    return { userInfo, isAuthenticated, login, checkAuth, logout };
+    const logout = async (logoutAll: boolean = false) => {
+        try {
+            await logoutApi({ logout_all_devices: logoutAll });
+        } catch (error) {
+            console.warn('Logout API failed, but continuing local cleanup', error);
+        } finally {
+            clearLocalState();
+        }
+    };
+
+    return { userInfo, isAuthenticated, login, checkAuth, logout, clearLocalState };
 });

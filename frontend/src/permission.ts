@@ -44,7 +44,7 @@ router.beforeEach(async (to, _from, next) => {
 
             // Dynamically add routes to the router
             accessRoutes.forEach((route) => {
-                router.addRoute(route); // Add as children of Layout
+                router.addRoute('Layout', route); // Add as children of Layout
             });
 
             // Hack: replace: true ensures the dynamically added routes are completely resolved before navigating

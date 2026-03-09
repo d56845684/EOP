@@ -31,8 +31,17 @@ export function loginApi(data: LoginRequest) {
     return request.post<any, LoginResponse>('/v1/auth/login', data);
 }
 
-export function logoutApi(logout_all_devices: boolean = false) {
-    return request.post('/v1/auth/logout', { logout_all_devices });
+export interface LogoutRequest {
+    logout_all_devices?: boolean;
+}
+
+export function logout(data: LogoutRequest = { logout_all_devices: false }) {
+    return request.post('/v1/auth/logout', data);
+}
+
+export function refreshToken() {
+    // The Swagger doesn't specify a body, assuming token is sent via HTTP-only cookie or Authorization header
+    return request.post('/v1/auth/refresh');
 }
 
 export function getMeApi() {

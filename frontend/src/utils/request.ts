@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { ElMessage } from 'element-plus';
-import router from '@/router';
+import { useAuthStore } from '@/stores/auth';
+import { refreshToken } from '@/api/auth';
 
 // 1. Axios Instance Setup
 const service = axios.create({
@@ -8,6 +9,21 @@ const service = axios.create({
     timeout: 10000, // 10s
     withCredentials: true, // Mandatory for cross-origin cookie transmission
 });
+
+// Flags for token refresh
+let isRefreshing = false;
+let failedQueue: any[] = [];
+
+const processQueue = (error: any) => {
+    failedQueue.forEach((prom) => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve();
+        }
+    });
+    failedQueue = [];
+};
 
 // 2. Request Interceptor
 service.interceptors.request.use(
@@ -27,7 +43,47 @@ service.interceptors.response.use(
         // Success: Return the actual data payload directly
         return response.data;
     },
-    (error) => {
+    async (error) => {
+        const originalRequest = error.config;
+
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            // Prevent infinite loops if the refresh API itself returns 401
+            if (originalRequest.url?.includes('/v1/auth/refresh')) {
+                const authStore = useAuthStore();
+                authStore.clearLocalState();
+                return Promise.reject(error);
+            }
+
+            if (isRefreshing) {
+                // If already refreshing, queue this request
+                return new Promise(function (resolve, reject) {
+                    failedQueue.push({ resolve, reject });
+                })
+                    .then(() => {
+                        return service(originalRequest);
+                    })
+                    .catch((err) => {
+                        return Promise.reject(err);
+                    });
+            }
+
+            originalRequest._retry = true;
+            isRefreshing = true;
+
+            try {
+                await refreshToken();
+                processQueue(null); // Resolve queued requests
+                return service(originalRequest); // Retry the original request
+            } catch (refreshError) {
+                processQueue(refreshError);
+                const authStore = useAuthStore();
+                authStore.clearLocalState(); // Force logout
+                return Promise.reject(refreshError);
+            } finally {
+                isRefreshing = false;
+            }
+        }
+
         if (error.response) {
             const status = error.response.status;
             const message = error.response.data.message || error.response.data.detail;
@@ -37,8 +93,6 @@ service.interceptors.response.use(
                     break;
                 case 401:
                     ElMessage.error(message || '請重新登入 (Unauthorized)');
-                    // The cookie is typically invalid or expired here.
-                    router.push('/login');
                     break;
                 case 403:
                     ElMessage.error(message || '權限不足 (Forbidden)');

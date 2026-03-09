@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { constantRoutes } from './routes';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -12,8 +13,8 @@ const router = createRouter({
             path: '/',
             name: 'Layout',
             component: () => import('../layouts/MainLayout.vue'),
-            redirect: '/dashboard', // Safe landing
-            children: [], // Populated dynamically
+            redirect: '/dashboard',
+            children: constantRoutes,
         },
     ],
 });
