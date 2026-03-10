@@ -1,643 +1,473 @@
 <template>
   <div class="student-list-page">
-    
     <!-- Search / Filter Bar -->
+    <div class="page-header">
+      <h3>{{ $t('menu.student_mgmt') }}</h3>
+      <el-button 
+        type="primary" 
+        :icon="Plus" 
+        @click="openAddDrawer"
+        v-permission="'students.create'"
+      >
+        {{ $t('student.add') }}
+      </el-button>
+    </div>
     <el-card class="filter-card mb-20">
-        <div class="filter-row">
-            <el-input v-model="filters.contractId" :placeholder="$t('student.filter.contractId')" class="filter-item" clearable style="width: 200px;" />
-            <el-input v-model="filters.keyword" :placeholder="$t('student.filter.keyword')" class="filter-item" clearable :prefix-icon="Search" style="width: 200px;" />
-            <el-select v-model="filters.identity" :placeholder="$t('student.filter.identity')" clearable class="filter-item" style="width: 160px;">
-                <el-option :label="$t('student.type.regular')" value="Regular" />
-                <el-option :label="$t('student.type.trial')" value="Trial" />
-            </el-select>
-            <el-date-picker
-                v-model="filters.dateRange"
-                type="daterange"
-                range-separator="To"
-                :start-placeholder="$t('common.startDate')"
-                :end-placeholder="$t('common.endDate')"
-                class="filter-item"
-                style="width: 260px;"
-            />
-            <div class="spacer"></div>
-            <el-button :icon="Download" @click="handleExport">{{ $t('common.export') }}</el-button>
-            <el-button type="primary" :icon="Plus" @click="openDrawer(null)">{{ $t('student.add') }}</el-button>
-        </div>
+      <el-form :inline="true" :model="queryParams" label-position="top" class="flex items-end">
+        <el-form-item :label="$t('common.searchKeyword')">
+          <el-input 
+            v-model="queryParams.search" 
+            :placeholder="$t('student.filter.keyword')" 
+            class="filter-item" 
+            clearable 
+            :prefix-icon="Search" 
+            style="width: 300px;" 
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('student.filter.status')">
+          <el-select 
+            v-model="queryParams.is_active" 
+            :placeholder="$t('student.filter.status')" 
+            class="filter-item" 
+            style="width: 160px;"
+            @change="handleSearch"
+          >
+            <el-option :label="$t('common.all')" value="all" />
+            <el-option :label="$t('common.active')" :value="true" />
+            <el-option :label="$t('common.inactive')" :value="false" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('student.filter.identity')">
+          <el-select 
+            v-model="queryParams.student_type" 
+            :placeholder="$t('student.filter.identity')" 
+            class="filter-item" 
+            style="width: 160px;"
+            @change="handleSearch"
+          >
+            <el-option :label="$t('common.all')" value="all" />
+            <el-option :label="$t('student.type.formal')" value="formal" />
+            <el-option :label="$t('student.type.trial')" value="trial" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :icon="Search" @click="handleSearch">{{ $t('common.search') }}</el-button>
+          <el-button :icon="Refresh" @click="resetQuery">{{ $t('common.btnReset') }}</el-button>
+        </el-form-item>
+
+        <div class="spacer"></div>
+      </el-form>
     </el-card>
 
     <!-- Student Table -->
     <el-card>
-      <el-table :data="paginatedStudents" style="width: 100%" v-loading="loading" stripe>
-        <!-- 1. Name (No Avatar) -->
-        <el-table-column prop="name" :label="$t('common.name')" min-width="120" />
+      <el-table :data="studentList" style="width: 100%" v-loading="loading" stripe>
+        <!-- Student No -->
+        <el-table-column prop="student_no" :label="$t('student.studentNo')" min-width="120" />
         
-        <!-- 2. Eng Name -->
-        <el-table-column prop="engName" :label="$t('student.engName')" min-width="120" />
+        <!-- Name -->
+        <el-table-column prop="name" :label="$t('common.name')" min-width="160" />
+        
+        <!-- Email -->
+        <el-table-column prop="email" :label="$t('common.email')" min-width="240" />
 
-        <!-- 3. Identity -->
-        <el-table-column :label="$t('student.identity')" width="120">
+        <!-- Phone -->
+        <el-table-column prop="phone" :label="$t('common.phone')" min-width="120" />
+
+        <!-- Type -->
+        <el-table-column :label="$t('student.filter.identity')" width="120">
            <template #default="{ row }">
-             <el-tag :type="row.type === 'Regular' ? 'success' : 'info'" effect="dark">
-               {{ row.type === 'Regular' ? 'Regular' : 'Trial' }}
+             <el-tag :type="row.student_type === 'formal' ? 'success' : 'info'" effect="dark">
+               {{ row.student_type === 'formal' ? $t('student.type.formal') : $t('student.type.trial') }}
              </el-tag>
            </template>
         </el-table-column>
         
-        <!-- 4. Email -->
-        <el-table-column prop="email" :label="$t('common.email')" min-width="180" />
-
-        <!-- 5. Phone -->
-        <el-table-column prop="phone" :label="$t('common.phone')" min-width="120" />
-
-        <!-- 6. Contract Time -->
-        <el-table-column :label="$t('student.contractTime')" min-width="200">
-             <template #default="{ row }">
-                 <div v-if="row.contractPeriod && row.contractPeriod[0]">
-                     {{ row.contractPeriod[0] }} ~ {{ row.contractPeriod[1] }}
-                 </div>
-                 <span v-else class="text-gray">-</span>
-             </template>
+        <!-- Status -->
+        <el-table-column :label="$t('common.status')" width="100">
+           <template #default="{ row }">
+             <el-tag :type="row.is_active ? 'success' : 'danger'">
+               {{ row.is_active ? $t('common.active') : $t('common.inactive') }}
+             </el-tag>
+           </template>
         </el-table-column>
 
-        <!-- 7. Last Updated -->
-        <el-table-column :label="$t('common.lastUpdated')" width="180">
-            <template #default="{ row }">{{ formatDateTime(row.updatedAt) }}</template>
-        </el-table-column>
-
-        <!-- 8. Details (Standalone) -->
-        <el-table-column :label="$t('common.details')" width="120" align="center">
-            <template #default="{ row }">
-                <el-button size="small" :icon="Document" @click="openDetails(row)">{{ $t('common.viewDetails') }}</el-button>
-            </template>
-        </el-table-column>
-
-        <!-- 9. Actions -->
-        <el-table-column :label="$t('common.actions')" width="220" fixed="right">
+        <!-- Actions -->
+        <el-table-column :label="$t('common.actions')" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" :icon="Edit" @click="openDrawer(row)">{{ $t('common.edit') }}</el-button>
-            
-            <el-button 
-               v-if="row.type === 'Regular'" 
-               type="primary" 
-               link 
-               size="small"
-               @click="openAddCourseDialog(row)"
-            >
-              {{ $t('student.addCourse') }}
+            <el-button v-permission="'students.edit'" size="small" :icon="Edit" @click="openManageDrawer(row)">
+              {{ $t('student.detailsTitle') }}
             </el-button>
-
             <el-button 
-                 v-if="row.type === 'Trial' && (row.contractFileUrl || row.contractUrl)" 
-                 type="success" 
-                 size="small" 
-                 link
-                 @click="handleActivate(row)"
-               >
-                 {{ $t('student.activate') }}
-             </el-button>
+              v-if="row.student_type === 'trial'"
+              type="primary" 
+              size="small" 
+              link
+              @click="openConvertToFormalDialog(row)"
+              v-permission="'students.contracts'"
+            >
+              {{ $t('student.convertToFormal') }}
+            </el-button>
+            <el-button 
+              type="danger" 
+              size="small" 
+              link
+              @click="handleDelete(row)"
+              v-permission="'students.delete'"
+            >
+              {{ $t('common.delete') }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
       <div class="pagination-footer">
          <el-pagination
-            v-model:current-page="currentPage"
-            v-model:page-size="pageSize"
+            v-model:current-page="queryParams.page"
+            v-model:page-size="queryParams.per_page"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
-            :total="students.length"
+            :total="total"
+            @size-change="fetchData"
+            @current-change="fetchData"
          />
       </div>
     </el-card>
 
-    <!-- Edit/Add Drawer -->
+    <!-- Manage / Details Drawer -->
     <el-drawer
-      v-model="editDrawerVisible"
-      :title="isAddMode ? $t('student.addTitle') : $t('student.editTitle')"
-      size="500px"
+      v-model="drawerVisible"
+      :title="isAddMode ? 'Add Student' : (currentStudent.name || 'Student Details')"
+      size="600px"
     >
-        <el-form :model="form" :rules="rules" ref="formRef" label-width="140px" label-position="right">
-            <!-- 1. Name -->
-            <el-form-item :label="$t('common.name')" prop="name">
-                <el-input v-model="form.name" />
-            </el-form-item>
-            <!-- 2. Eng Name -->
-            <el-form-item :label="$t('student.engName')" prop="engName">
-                <el-input v-model="form.engName" />
-            </el-form-item>
-             <!-- 3. Birthday -->
-            <el-form-item label="Birthday" prop="birthday">
-                <el-date-picker v-model="form.birthday" type="date" placeholder="Select Date" style="width: 100%" />
-            </el-form-item>
-             <!-- 4. Email -->
-             <el-form-item :label="$t('common.email')" prop="email">
-                <el-input v-model="form.email" />
-            </el-form-item>
-             <!-- 5. Phone -->
-             <el-form-item :label="$t('common.phone')" prop="phone">
-                <el-input v-model="form.phone" />
-            </el-form-item>
-             <!-- 6. Address -->
-            <el-form-item :label="$t('common.address')" prop="address">
-                <el-input v-model="form.address" />
-            </el-form-item>
-             <!-- 7. Emergency Contact (Split) -->
-            <el-form-item :label="$t('student.emergencyName')">
-                <el-input v-model="form.emergencyContactName" placeholder="Name" />
-            </el-form-item>
-            <el-form-item :label="$t('student.emergencyPhone')">
-                <el-input v-model="form.emergencyContactPhone" placeholder="Phone" />
-            </el-form-item>
-             <!-- 8. Contract ID (Read Only) -->
-            <el-form-item :label="$t('student.contractId')">
-                <el-input v-model="form.contractId" disabled />
-            </el-form-item>
-             <!-- 9. Contract Period -->
-            <el-form-item :label="$t('student.contractTime')">
-                <el-date-picker
-                    v-model="form.contractPeriod"
-                    type="daterange"
-                    range-separator="To"
-                    :start-placeholder="$t('common.startDate')"
-                    :end-placeholder="$t('common.endDate')"
-                    style="width: 100%"
-                />
-            </el-form-item>
-             <!-- 10. Contract File -->
-            <el-form-item label="Contract File">
-                <el-upload
-                  action="#"
-                  :show-file-list="true"
-                  :auto-upload="false"
-                  :on-change="handleUploadContract"
-                  limit="1"
-                >
-                    <el-button type="primary" link>{{ $t('course.upload') }}</el-button>
-                    <div v-if="form.contractFileUrl" class="text-gray text-xs ml-2">File: {{ form.contractFileUrl }}</div>
-                </el-upload>
-            </el-form-item>
-             <!-- 11. Leave Limit -->
-            <el-form-item :label="$t('student.leaveLimit')">
-                <el-input-number v-model="form.leaveLimit" :min="0" />
-            </el-form-item>
-             <!-- 12. Note -->
-            <el-form-item :label="$t('common.note')">
-                <el-input v-model="form.note" type="textarea" />
-            </el-form-item>
-        </el-form>
-        <template #footer>
-            <el-button @click="editDrawerVisible = false">{{ $t('common.cancel') }}</el-button>
-            <el-button type="primary" @click="handleSave(formRef)">{{ $t('common.save') }}</el-button>
-        </template>
+      <el-tabs v-model="activeTab" v-if="!isAddMode">
+        <!-- Tab 1: Basic Info -->
+        <el-tab-pane label="基本資料 (Basic Info)" name="basic">
+          <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
+              <el-form-item :label="$t('common.name')" prop="name">
+                  <el-input v-model="form.name" />
+              </el-form-item>
+              <el-form-item :label="$t('common.email')" prop="email">
+                  <el-input v-model="form.email" />
+              </el-form-item>
+              <el-form-item :label="$t('common.phone')" prop="phone">
+                  <el-input v-model="form.phone" />
+              </el-form-item>
+              <el-form-item :label="$t('common.address')" prop="address">
+                  <el-input v-model="form.address" />
+              </el-form-item>
+              <el-form-item :label="$t('common.birthday')" prop="birth_date">
+                  <el-date-picker 
+                      v-model="form.birth_date" 
+                      type="date" 
+                      value-format="YYYY-MM-DD" 
+                  />
+              </el-form-item>
+              <el-form-item>
+                  <el-button type="primary" @click="handleSaveBasicInfo" :loading="saving" v-permission="'students.edit'">
+                      {{ $t('common.save') }}
+                  </el-button>
+              </el-form-item>
+          </el-form>
+      </el-tab-pane>
+
+      <!-- Tab 2: Contracts -->
+      <el-tab-pane label="合約管理 (Contracts)" name="contracts">
+          <div class="skeleton-content">
+              <p class="text-gray">Contract management under construction...</p>
+          </div>
+      </el-tab-pane>
+
+      <!-- Tab 3: Courses -->
+      <el-tab-pane label="選課紀錄 (Courses)" name="courses">
+          <div class="skeleton-content">
+              <p class="text-gray">Course records under construction...</p>
+          </div>
+      </el-tab-pane>
+    </el-tabs>
+
+    <!-- Add Form (when isAddMode is true) -->
+    <el-form v-else :model="addForm" :rules="addRules" ref="addFormRef" label-width="120px">
+          <el-form-item label="Student No" prop="student_no">
+            <el-input v-model="addForm.student_no" />
+        </el-form-item>
+          <el-form-item :label="$t('common.name')" prop="name">
+            <el-input v-model="addForm.name" />
+        </el-form-item>
+        <el-form-item :label="$t('common.email')" prop="email">
+            <el-input v-model="addForm.email" />
+        </el-form-item>
+        <el-form-item :label="$t('common.phone')" prop="phone">
+            <el-input v-model="addForm.phone" />
+        </el-form-item>
+        <el-form-item :label="$t('common.address')" prop="address">
+            <el-input v-model="addForm.address" />
+        </el-form-item>
+        <el-form-item label="Birth Date" prop="birth_date">
+            <el-date-picker 
+                v-model="addForm.birth_date" 
+                type="date" 
+                value-format="YYYY-MM-DD" 
+            />
+        </el-form-item>
+        <el-form-item label="Type" prop="student_type">
+            <el-select v-model="addForm.student_type">
+                <el-option label="Formal" value="formal" />
+                <el-option label="Trial" value="trial" />
+            </el-select>
+        </el-form-item>
+        <el-form-item label="Active" prop="is_active">
+            <el-switch v-model="addForm.is_active" />
+        </el-form-item>
+        <el-form-item>
+            <el-button type="primary" @click="handleCreateStudent" :loading="saving" v-permission="'students.create'">
+                {{ $t('common.save') }}
+            </el-button>
+        </el-form-item>
+      </el-form>
     </el-drawer>
-
-    <!-- Details Drawer -->
-    <el-drawer
-      v-model="detailsDrawerVisible"
-      :title="$t('student.detailsTitle')"
-      size="700px"
-    >
-        <el-tabs v-model="activeDetailsTab">
-            <!-- Tab 1: Basic Info -->
-            <el-tab-pane :label="$t('student.basicInfo')" name="basic">
-                <el-descriptions :column="1" border label-width="160px">
-                    <el-descriptions-item :label="$t('common.name')">{{ currentStudent?.name }}</el-descriptions-item>
-                    <el-descriptions-item :label="$t('student.engName')">{{ currentStudent?.engName }}</el-descriptions-item>
-                    <el-descriptions-item :label="$t('student.identity')">
-                        <el-tag :type="currentStudent?.type === 'Regular' ? 'success' : 'info'">{{ currentStudent?.type }}</el-tag>
-                    </el-descriptions-item>
-                    <el-descriptions-item :label="$t('student.contractId')">
-                        <div class="flex-between">
-                            <span>{{ currentStudent?.contractId || '--' }}</span>
-                            <el-button v-if="currentStudent?.contractFileUrl || currentStudent?.contractUrl" size="small" link type="primary">View Contract</el-button>
-                        </div>
-                    </el-descriptions-item>
-                    <el-descriptions-item :label="$t('student.contractTime')">
-                        <span v-if="currentStudent?.contractPeriod">{{ currentStudent.contractPeriod[0] }} ~ {{ currentStudent.contractPeriod[1] }}</span>
-                        <span v-else>-</span>
-                    </el-descriptions-item>
-                    <el-descriptions-item label="Birthday">{{ currentStudent?.birthday }}</el-descriptions-item>
-                    <el-descriptions-item :label="$t('common.email')">{{ currentStudent?.email }}</el-descriptions-item>
-                    <el-descriptions-item :label="$t('common.phone')">{{ currentStudent?.phone }}</el-descriptions-item>
-                    <el-descriptions-item :label="$t('student.emergencyName')">{{ currentStudent?.emergencyContactName }}</el-descriptions-item>
-                    <el-descriptions-item :label="$t('student.emergencyPhone')">{{ currentStudent?.emergencyContactPhone }}</el-descriptions-item>
-                    <el-descriptions-item :label="$t('common.note')">{{ currentStudent?.note }}</el-descriptions-item>
-                    <el-descriptions-item label="Last Login">--</el-descriptions-item>
-                </el-descriptions>
-            </el-tab-pane>
-
-            <!-- Tab 2: Purchased Courses -->
-            <el-tab-pane :label="$t('student.purchasedCourses')" name="courses">
-                <el-table :data="purchasedCoursesList" border stripe>
-                     <el-table-column prop="name" label="Course Name" />
-                     <el-table-column prop="sessions" label="Total Sessions" width="120" />
-                     <el-table-column prop="teacher" :label="$t('common.teacher')" />
-                     <el-table-column prop="date" label="Purchase Date" />
-                     <el-table-column prop="status" :label="$t('common.status')">
-                         <template #default>
-                            <el-tag type="success" size="small">Active</el-tag>
-                         </template>
-                     </el-table-column>
-                </el-table>
-                <div class="mt-20 text-center" v-if="purchasedCoursesList.length === 0">
-                    <span class="text-gray">No purchased courses</span>
-                </div>
-            </el-tab-pane>
-
-             <!-- Tab 3: Class Records -->
-             <el-tab-pane :label="$t('student.classRecords')" name="records">
-                <!-- Filter for Records -->
-                 <div class="filter-row mb-10">
-                     <el-select :placeholder="$t('common.status')" size="small" style="width: 120px;">
-                        <el-option value="Completed" label="Completed" />
-                        <el-option value="Scheduled" label="Scheduled" />
-                     </el-select>
-                     <el-date-picker type="daterange" size="small" style="width: 200px;" :start-placeholder="$t('common.startDate')" :end-placeholder="$t('common.endDate')" />
-                     <el-button size="small" :icon="Download">{{ $t('common.export') }}</el-button>
-                 </div>
-
-                <el-table :data="studentRecords" border height="400">
-                    <el-table-column prop="courseName" :label="$t('common.course')" width="150" />
-                    <el-table-column prop="time" :label="$t('salary.dateTime')" width="160" />
-                    <el-table-column :label="$t('common.teacher')">
-                        <template #default="{ row }">
-                            {{ row.teacherName }}
-                            <el-tag v-if="row.isSubstitute" type="warning" size="small" effect="plain" class="ml-5">Substitute</el-tag>
-                        </template>
-                    </el-table-column>
-                    <el-table-column prop="duration" :label="$t('course.duration')" width="100">
-                        <template #default="{ row }">{{ row.duration }} min</template>
-                    </el-table-column>
-                    <el-table-column prop="status" :label="$t('common.status')">
-                        <template #default="{ row }">
-                            <el-tag :type="row.status === 'Completed' ? 'success' : 'warning'" size="small">{{ row.status }}</el-tag>
-                        </template>
-                    </el-table-column>
-                </el-table>
-             </el-tab-pane>
-        </el-tabs>
-    </el-drawer>
-
-    <!-- Add Course Dialog -->
-    <el-dialog
-        v-model="addCourseDialogVisible"
-        :title="$t('student.addCourse')"
-        width="400px"
-    >
-        <el-form :model="addCourseForm" label-width="100px" label-position="top">
-            <el-form-item :label="$t('student.courseLabel')">
-                <el-select v-model="addCourseForm.courseId" filterable placeholder="Select Course" @change="handleCourseChange">
-                    <el-option v-for="c in store.courses" :key="c.id" :label="`${c.code || c.id} - ${c.name}`" :value="c.id" />
-                </el-select>
-            </el-form-item>
-            <el-form-item :label="$t('student.teacherLabel')">
-                <el-select v-model="addCourseForm.teacherId" placeholder="Select Teacher">
-                    <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
-                </el-select>
-            </el-form-item>
-            <el-form-item :label="$t('student.sessionsLabel')">
-                <el-input-number v-model="addCourseForm.sessions" :min="1" @change="calculateTotal" />
-            </el-form-item>
-            <el-form-item :label="$t('student.totalAmountLabel')">
-                <el-input v-model="addCourseForm.totalAmount" />
-            </el-form-item>
-        </el-form>
-        <template #footer>
-            <el-button @click="addCourseDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-            <el-button type="primary" @click="saveCourse">{{ $t('common.confirm') }}</el-button>
-        </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue';
-import { useMockStore, type Student, type Course } from '../../stores/mockStore';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
-import { Search, Plus, Download, Edit, Document } from '@element-plus/icons-vue';
-import dayjs from 'dayjs';
+import { Search, Plus, Edit, Refresh } from '@element-plus/icons-vue';
+import { 
+  getStudentList, 
+  createStudent, 
+  updateStudent, 
+  deleteStudent,
+  type StudentListParams,
+  type StudentResponse,
+  type StudentCreate,
+  type StudentUpdate
+} from '@/api/student';
 
-const store = useMockStore();
-
-// --- Filters ---
-const filters = reactive({
-    contractId: '',
-    keyword: '',
-    identity: '',
-    dateRange: [] as [string, string] | []
-});
-
-// --- List Data ---
-const students = computed(() => {
-    let list = store.students;
-
-    // Filter Logic
-    if (filters.contractId) {
-        list = list.filter(s => s.contractId === filters.contractId);
-    }
-    if (filters.identity) {
-        list = list.filter(s => s.type === filters.identity);
-    }
-    if (filters.keyword) {
-        const k = filters.keyword.toLowerCase();
-        list = list.filter(s => 
-            s.name.toLowerCase().includes(k) || 
-            (s.engName && s.engName.toLowerCase().includes(k)) || 
-            (s.email && s.email.toLowerCase().includes(k))
-        );
-    }
-    if (filters.dateRange && filters.dateRange.length === 2) {
-        const [start, end] = filters.dateRange;
-        list = list.filter(s => dayjs(s.updatedAt).isAfter(start) && dayjs(s.updatedAt).isBefore(end));
-    }
-    return list;
-});
-
+// --- List State ---
 const loading = ref(false);
+const studentList = ref<StudentResponse[]>([]);
+const total = ref(0);
 
-// --- Pagination State ---
-const currentPage = ref(1);
-const pageSize = ref(10);
-const paginatedStudents = computed(() => {
-    const start = (currentPage.value - 1) * pageSize.value;
-    const end = start + pageSize.value;
-    return students.value.slice(start, end);
+const queryParams = reactive<StudentListParams>({
+  page: 1,
+  per_page: 10,
+  search: '',
+  is_active: 'all',
+  student_type: 'all'
 });
 
-// Reset page on filter change
-watch(filters, () => {
-    currentPage.value = 1;
-}, { deep: true });
-
-// --- Drawers State ---
-const editDrawerVisible = ref(false);
-const detailsDrawerVisible = ref(false);
+// --- Drawer State ---
+const drawerVisible = ref(false);
 const isAddMode = ref(false);
-const activeDetailsTab = ref('basic');
+const activeTab = ref('basic');
+const currentStudent = ref<Partial<StudentResponse>>({});
+const saving = ref(false);
 
-// --- Form State ---
+// Refs for forms
 const formRef = ref<FormInstance>();
-const form = reactive<Student>({
-    id: '',
-    name: '',
-    engName: '',
-    birthday: '',
-    email: '',
-    phone: '',
-    address: '',
-    emergencyContactName: '',
-    emergencyContactPhone: '',
-    contractId: '',
-    contractPeriod: ['', ''],
-    contractFileUrl: '',
-    leaveLimit: 2,
-    note: '',
-    type: 'Trial',
-    credits: 0,
-    purchasedCourses: [],
-    avatar: '',
-    updatedAt: ''
+const addFormRef = ref<FormInstance>();
+
+// --- Forms ---
+// Basic Info Update Form
+const form = reactive<StudentUpdate>({
+  name: '',
+  email: '',
+  phone: '',
+  address: '',
+  birth_date: ''
 });
 
 const rules = reactive<FormRules>({
-    name: [{ required: true, message: 'Required' }],
-    engName: [{ required: true, message: 'Required' }],
-    birthday: [{ required: true, message: 'Required' }],
-    email: [{ required: true, message: 'Required' }],
-    phone: [{ required: true, message: 'Required' }],
-    address: [{ required: true, message: 'Required' }]
+  name: [{ required: true, message: 'Name is required' }],
+  email: [{ required: true, message: 'Email is required', type: 'email' }]
 });
 
-// --- Details State ---
-const currentStudentId = ref<string | null>(null);
-const currentStudent = computed(() => store.students.find(s => s.id === currentStudentId.value));
-const studentRecords = computed(() => {
-    if (!currentStudentId.value) return [];
-    return store.bookings.filter(b => b.studentId === currentStudentId.value).map(b => {
-         const course = store.courses.find(c => c.id === b.courseId);
-         const teacher = store.teachers.find(t => t.id === b.teacherId);
-         // Substitute Logic: If booking teacher != course default teacher
-         const isSubstitute = course && course.defaultTeacherId && course.defaultTeacherId !== b.teacherId;
-         
-         return {
-             courseName: course?.name || b.courseId,
-             time: dayjs(b.time).format('YYYY-MM-DD HH:mm'),
-             teacherName: teacher?.name || 'Unknown',
-             isSubstitute,
-             duration: course?.duration || 60,
-             status: b.status
-         };
-    });
-});
-const purchasedCoursesList = computed(() => {
-    if (!currentStudent.value) return [];
-    return currentStudent.value.purchasedCourses.map(pc => {
-        const c = store.courses.find(x => x.id === pc.courseId);
-        return {
-            name: c ? c.name : pc.courseId,
-            sessions: 10, // Mock total sessions per purchase
-            teacher: c ? store.teachers.find(t => t.id === c.defaultTeacherId)?.name : '-',
-            date: dayjs(pc.date).format('YYYY-MM-DD'),
-            status: 'Active'
-        };
-    });
+// Add Student Form
+const addForm = reactive<StudentCreate>({
+  student_no: '',
+  name: '',
+  email: '',
+  phone: '',
+  address: '',
+  birth_date: '',
+  student_type: 'formal',
+  is_active: true
 });
 
-// --- Add Course Dialog Types & State ---
-const addCourseDialogVisible = ref(false);
-const addCourseForm = reactive({
-    studentId: '',
-    courseId: '',
-    teacherId: '',
-    sessions: 1,
-    totalAmount: 0
+const addRules = reactive<FormRules>({
+  student_no: [{ required: true, message: 'Student No is required' }],
+  name: [{ required: true, message: 'Name is required' }],
+  email: [{ required: true, message: 'Email is required', type: 'email' }]
 });
 
-const teacherOptions = computed(() => {
-    if (!addCourseForm.courseId) return [];
-    // Filter teachers who have this courseId in their courseIds array
-    return store.teachers.filter(t => t.courseIds?.includes(addCourseForm.courseId));
-});
+// --- Methods ---
 
-// --- Actions ---
+const fetchData = async () => {
+  loading.value = true;
+  try {
+    const params: any = { ...queryParams };
+    if (params.is_active === 'all') {
+      delete params.is_active;
+    }
+    if (params.student_type === 'all') {
+      delete params.student_type;
+    }
+    
+    const res: any = await getStudentList(params);
+    const data = res.data;
+    
+    studentList.value = data || [];
+    total.value = data.total || 0;
+  } catch (err) {
+    console.error(err);
+    ElMessage.error('Failed to fetch students');
+  } finally {
+    loading.value = false;
+  }
+};
 
 const handleSearch = () => {
-    // Computed triggers automatically
-    ElMessage.success('Search Filter Applied');
+  queryParams.page = 1;
+  fetchData();
 };
 
-const handleExport = () => {
-    ElMessage.success('Exporting Data... (Mock)');
+const resetQuery = () => {
+  queryParams.page = 1;
+  queryParams.search = '';
+  queryParams.is_active = 'all';
+  queryParams.student_type = 'all';
+  fetchData();
 };
 
-const openDrawer = (row: Student | null) => {
-    if (row) {
-        // Edit Mode
-        isAddMode.value = false;
-        const data = JSON.parse(JSON.stringify(row));
-        Object.assign(form, data);
-        if (!form.contractPeriod) form.contractPeriod = ['', ''];
-    } else {
-        // Add Mode
-        isAddMode.value = true;
-        Object.assign(form, {
-            id: '',
-            name: '',
-            engName: '',
-            birthday: '',
-            email: '',
-            phone: '',
-            address: '',
-            emergencyContactName: '',
-            emergencyContactPhone: '',
-            contractId: 'CT-' + Date.now(),
-            contractPeriod: [dayjs().format('YYYY-MM-DD'), dayjs().add(3, 'month').format('YYYY-MM-DD')],
-            contractFileUrl: '',
-            leaveLimit: 2,
-            note: '',
-            type: 'Trial',
-            credits: 0,
-            purchasedCourses: [],
-            avatar: 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png',
-            updatedAt: ''
-        });
+const openAddDrawer = () => {
+  isAddMode.value = true;
+  Object.assign(addForm, {
+    student_no: '',
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    birth_date: '',
+    student_type: 'formal',
+    is_active: true
+  });
+  drawerVisible.value = true;
+};
+
+const openManageDrawer = (row: StudentResponse) => {
+  isAddMode.value = false;
+  activeTab.value = 'basic';
+  currentStudent.value = row;
+  
+  Object.assign(form, {
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    address: row.address,
+    birth_date: row.birth_date
+  });
+  
+  drawerVisible.value = true;
+};
+
+const handleCreateStudent = async () => {
+  if (!addFormRef.value) return;
+  await addFormRef.value.validate(async (valid) => {
+    if (valid) {
+      saving.value = true;
+      try {
+        await createStudent(addForm);
+        ElMessage.success('Student created successfully');
+        drawerVisible.value = false;
+        fetchData();
+      } catch (err) {
+        console.error(err);
+        ElMessage.error('Failed to create student');
+      } finally {
+        saving.value = false;
+      }
     }
-    editDrawerVisible.value = true;
+  });
 };
 
-const openDetails = (row: Student) => {
-    currentStudentId.value = row.id;
-    activeDetailsTab.value = 'basic';
-    detailsDrawerVisible.value = true;
-};
-
-const handleSave = async (formEl: FormInstance | undefined) => {
-    if (!formEl) return;
-    await formEl.validate((valid) => {
-        if (valid) {
-            form.updatedAt = dayjs().toISOString();
-            
-            // Mock Save to Store
-            const idx = store.students.findIndex(s => s.id === form.id);
-            if (idx !== -1) {
-                store.students[idx] = { ...form };
-            } else {
-                form.id = 's' + Date.now();
-                store.students.push({ ...form });
-            }
-            
-            editDrawerVisible.value = false;
-            ElMessage.success(isAddMode.value ? 'Student Added' : 'Student Updated');
-        }
-    });
-};
-
-const handleActivate = async (row: Student) => {
-    if (!row.contractUrl && !row.contractFileUrl) {
-         ElMessage.warning('No contract file uploaded.');
-         return;
+const handleSaveBasicInfo = async () => {
+  if (!formRef.value || !currentStudent.value.id) return;
+  await formRef.value.validate(async (valid) => {
+    if (valid) {
+      saving.value = true;
+      try {
+        await updateStudent(currentStudent.value.id, form);
+        ElMessage.success('Basic info updated');
+        fetchData();
+      } catch (err) {
+        console.error(err);
+        ElMessage.error('Failed to update student');
+      } finally {
+        saving.value = false;
+      }
     }
-    await store.activateStudent(row.id);
+  });
 };
 
-// --- Add Course Logic ---
-const openAddCourseDialog = (row: Student) => {
-    addCourseForm.studentId = row.id;
-    addCourseForm.courseId = '';
-    addCourseForm.teacherId = '';
-    addCourseForm.sessions = 1;
-    addCourseForm.totalAmount = 0;
-    addCourseDialogVisible.value = true;
-};
-
-const handleCourseChange = (courseId: string) => {
-    const course = store.courses.find(c => c.id === courseId);
-    if (course) {
-        // Auto select default teacher if available and in list
-        // We need to wait for computed updates or just check store
-        const potentialTeachers = store.teachers.filter(t => t.courseIds?.includes(courseId));
-        if (potentialTeachers.length > 0) {
-             // If course has specific defaultTeacherId, try to select matches
-             if (course.defaultTeacherId && potentialTeachers.find(t => t.id === course.defaultTeacherId)) {
-                 addCourseForm.teacherId = course.defaultTeacherId;
-             } else {
-                 addCourseForm.teacherId = potentialTeachers[0].id; // Fallback to first
-             }
-        } else {
-            addCourseForm.teacherId = '';
-        }
+const handleDelete = (row: StudentResponse) => {
+  ElMessageBox.confirm(
+    `Are you sure you want to delete ${row.name}?`,
+    'Warning',
+    {
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel',
+      type: 'warning',
     }
-    calculateTotal();
-};
-
-const calculateTotal = () => {
-    if (!addCourseForm.courseId) return;
-    const course = store.courses.find(c => c.id === addCourseForm.courseId);
-    if (course) {
-        addCourseForm.totalAmount = course.price * addCourseForm.sessions;
+  ).then(async () => {
+    try {
+      await deleteStudent(row.id);
+      ElMessage.success('Student deleted');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      ElMessage.error('Failed to delete student');
     }
+  }).catch(() => {});
 };
 
-const saveCourse = () => {
-    if (!addCourseForm.courseId || !addCourseForm.teacherId) {
-        ElMessage.warning('Please select course and teacher');
-        return;
-    }
-    const student = store.students.find(s => s.id === addCourseForm.studentId);
-    if (student) {
-        if (!student.purchasedCourses) student.purchasedCourses = [];
-        student.purchasedCourses.push({
-            courseId: addCourseForm.courseId,
-            date: dayjs().toISOString()
-        });
-        student.updatedAt = dayjs().toISOString();
-        ElMessage.success(`Course added. Total: $${addCourseForm.totalAmount} (Mock Save)`);
-        addCourseDialogVisible.value = false;
-    }
+const openConvertToFormalDialog = (row: StudentResponse) => {
+  ElMessage.info('Convert to Formal dialog to be implemented');
 };
 
-const handleUploadContract = (file: any) => {
-    form.contractFileUrl = 'mock_contract_' + file.name;
-    ElMessage.success('Contract uploaded (mock)');
-};
-
-// --- Helpers ---
-const formatDateTime = (d: string) => d ? dayjs(d).format('YYYY-MM-DD HH:mm:ss') : '-';
-
+onMounted(() => {
+  fetchData();
+});
 </script>
 
 <style scoped>
 .student-list-page {
-    padding: 20px;
+  padding: 0 10px;
 }
-.pagination-footer { display: flex; justify-content: flex-end; margin-top: 20px; }
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.pagination-footer { 
+  display: flex; 
+  justify-content: flex-end; 
+  margin-top: 20px; 
+}
 .filter-row {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-.spacer {
-    flex: 1;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 .filter-item {
-    min-width: 150px;
+  min-width: 150px;
 }
-.flex-center {
-    display: flex;
-    align-items: center;
-}
-.mr-10 { margin-right: 10px; }
 .mb-20 { margin-bottom: 20px; }
-.mb-10 { margin-bottom: 10px; }
-.mt-20 { margin-top: 20px; }
-.ml-5 { margin-left: 5px; }
-.ml-2 { margin-left: 8px; }
 .text-gray { color: #909399; }
-.text-xs { font-size: 12px; }
-.flex-between {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
+.skeleton-content {
+  padding: 20px;
+  text-align: center;
 }
 </style>

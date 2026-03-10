@@ -19,6 +19,7 @@ export default {
         email: 'Email',
         phone: '電話',
         address: '地址',
+        birthday: '生日',
         note: '備註',
         done: '完成',
         startDate: '開始日期',
@@ -35,6 +36,8 @@ export default {
         no: '否',
         inactive: '未啟用',
         basicInfo: '基本資料',
+        btnReset: '重置',
+        searchKeyword: '關鍵字搜尋',
     },
     menu: {
         dashboard: '儀表板',
@@ -101,6 +104,7 @@ export default {
         identity: '身份',
         contractTime: '合約期間',
         contractId: '合約編號',
+        studentNo: '學生編號',
         emergencyName: '緊急聯絡人',
         emergencyPhone: '緊急聯絡電話',
         leaveLimit: '請假額度',
@@ -114,14 +118,15 @@ export default {
         sessionsLabel: '堂數',
         totalAmountLabel: '總金額',
         filter: {
-            contractId: '合約編號 (精確)',
-            keyword: '姓名/英文名/Email',
+            keyword: '搜尋姓名/英文名/Email',
+            status: '狀態',
             identity: '學生身份',
         },
         type: {
-            regular: '正課生',
+            formal: '正課生',
             trial: '試上生',
-        }
+        },
+        convertToFormal: '試上轉正',
     },
     booking: {
         title: '預約管理',

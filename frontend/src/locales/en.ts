@@ -19,6 +19,7 @@ export default {
         email: 'Email',
         phone: 'Phone',
         address: 'Address',
+        birthday: 'Birth date',
         note: 'Note',
         done: 'Done',
         startDate: 'Start Date',
@@ -35,6 +36,7 @@ export default {
         no: 'No',
         inactive: 'Inactive',
         basicInfo: 'Basic Info',
+        btnReset: 'Reset'
     },
     menu: {
         dashboard: 'Dashboard',
@@ -101,6 +103,7 @@ export default {
         identity: 'Identity',
         contractTime: 'Contract Time',
         contractId: 'Contract ID',
+        studentNo: 'Student No.',
         emergencyName: 'Emergency Name',
         emergencyPhone: 'Emergency Phone',
         leaveLimit: 'Leave Limit',
@@ -114,9 +117,9 @@ export default {
         sessionsLabel: 'Sessions (堂數)',
         totalAmountLabel: 'Total Amount (總金額)',
         filter: {
-            contractId: 'Contract ID (Exact)',
-            keyword: 'Name/Eng Name/Email',
+            keyword: 'Search Name/Eng Name/Email',
             identity: 'Student Identity',
+            status: 'Status',
         },
         type: {
             regular: 'Regular Student',

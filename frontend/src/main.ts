@@ -9,6 +9,7 @@ import App from './App.vue';
 import router from './router';
 import './permission'; // Global Navigation Guard
 import './style.scss';
+import 'virtual:uno.css'
 
 import { permission } from './directives/permission';
 

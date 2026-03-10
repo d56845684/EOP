@@ -22,54 +22,54 @@ export const adminRoutes: RouteRecordRaw[] = [
         path: '/reports',
         name: 'Reports',
         component: () => import('../views/reports/ReportStats.vue'),
-        meta: { title: '報表分析', pageKey: 'reports.view' }
+        meta: { title: '報表分析', icon: 'DataAnalysis', pageKey: 'reports.view' }
     },
     {
         path: '/teacher',
         name: 'Teachers',
         component: () => import('../views/teacher/TeacherList.vue'),
-        meta: { title: '講師管理', pageKey: 'teachers.list' }
+        meta: { title: '講師管理', icon: 'Avatar', pageKey: 'teachers.list' }
     },
     {
         path: '/student',
         name: 'Students',
         component: () => import('../views/student/StudentList.vue'),
-        meta: { title: '學員管理', pageKey: 'students.list' }
+        meta: { title: '學員管理', icon: 'UserFilled', pageKey: 'students.list' }
     },
     {
         path: '/booking',
         name: 'Bookings',
         component: () => import('../views/booking/BookingList.vue'),
-        meta: { title: '預約記錄', pageKey: 'bookings.list' }
+        meta: { title: '預約管理', icon: 'Calendar', pageKey: 'bookings.list' }
     },
     {
         path: '/course',
         name: 'Courses',
         component: () => import('../views/course/CourseList.vue'),
-        meta: { title: '課程管理', pageKey: 'courses.list' }
+        meta: { title: '課程管理', icon: 'Reading', pageKey: 'courses.list' }
     },
     {
         path: '/salary',
         name: 'Salary',
         component: () => import('../views/salary/SalaryReport.vue'),
-        meta: { title: '薪資計算', pageKey: 'salary.view' }
+        meta: { title: '薪資計算', icon: 'Money', pageKey: 'salary.view' }
     },
     {
         path: '/settings',
         name: 'Settings',
-        meta: { title: '系統設定' }, // A parent wrapper
+        meta: { title: '系統設定', icon: 'Setting' }, // A parent wrapper
         children: [
             {
                 path: '/account',
                 name: 'AccountSettings',
                 component: () => import('../views/settings/AccountList.vue'),
-                meta: { title: '帳號管理', pageKey: 'settings.account' }
+                meta: { title: '帳號管理', icon: 'Files', pageKey: 'settings.account' }
             },
             {
                 path: '/role',
                 name: 'RoleSettings',
                 component: () => import('../views/settings/RoleList.vue'),
-                meta: { title: '角色權限', pageKey: 'settings.role' }
+                meta: { title: '角色權限', icon: 'SetUp', pageKey: 'settings.role' }
             }
         ]
     }
