@@ -20,7 +20,7 @@
               <template #title>
                  <!-- Dynamic Icon -->
                 <el-icon v-if="module.meta?.icon">
-                    <component :is="module.meta.icon" />
+                    <i :class="module.meta?.icon"></i>
                 </el-icon>
                 <span>{{ module.meta?.title || module.name }}</span>
               </template>
@@ -28,8 +28,8 @@
               <!-- Sub Items (Pages) -->
               <template v-for="page in module.children" :key="String(page.name)">
                  <el-menu-item :index="(module.path.startsWith('/') ? module.path : '/' + module.path) + '/' + page.path">
-                    <el-icon v-if="page.meta?.icon || module.meta?.icon">
-                        <component :is="page.meta?.icon || module.meta?.icon" />
+                    <el-icon v-if="page.meta?.icon">
+                        <i :class="page.meta?.icon"></i>
                     </el-icon>
                     <span>{{ page.meta?.title || page.name }}</span>
                  </el-menu-item>
@@ -39,7 +39,7 @@
             <!-- Flat Module -->
             <el-menu-item v-else :index="module.path.startsWith('/') ? module.path : '/' + module.path">
                 <el-icon v-if="module.meta?.icon">
-                    <component :is="module.meta.icon" />
+                    <i :class="module.meta?.icon"></i>
                 </el-icon>
                 <span>{{ module.meta?.title || module.name }}</span>
             </el-menu-item>
@@ -52,8 +52,13 @@
       <div class="aside-bottom">
         <el-dropdown trigger="click" @command="handleLanguageChange" class="lang-dropdown">
           <span class="el-dropdown-link">
+            <el-icon>
+                <i class="i-hugeicons:language-square"></i>
+            </el-icon>
              {{ $t('common.language') }}
-            <el-icon class="el-icon--right"><arrow-down /></el-icon>
+            <el-icon>
+                <i class="i-hugeicons:arrow-down-01"></i>
+            </el-icon>
           </span>
           <template #dropdown>
             <el-dropdown-menu>
@@ -64,7 +69,10 @@
         </el-dropdown>
 
         <el-button type="danger" plain class="logout-btn" @click="handleLogout">
-          {{ $t('common.logout') }}
+          <el-icon>
+              <i class="i-hugeicons:logout-circle-01"></i>
+          </el-icon>
+          <span>{{ $t('common.logout') }}</span>
         </el-button>
       </div>
     </el-aside>
@@ -87,7 +95,7 @@
       </el-main>
       
       <el-footer height="40px" class="footer">
-        <span class="text-gray">© 2024 EOP System Prototype</span>
+        <span class="text-gray">© 2026 EOP System Prototype</span>
       </el-footer>
     </el-container>
   </el-container>
@@ -99,7 +107,6 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { usePermissionStore } from '../stores/permission';
 import { useI18n } from 'vue-i18n';
-import { ArrowDown } from '@element-plus/icons-vue';
 
 const permissionStore = usePermissionStore();
 
