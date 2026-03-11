@@ -127,7 +127,7 @@ export default {
             formal: '正課生',
             trial: '試上生',
         },
-        convertToFormal: '開通正式',
+        convertToFormal: '合約開通',
         basicInfo: '基本資料',
         contracts: '合約管理',
         courses: '選課紀錄',

@@ -2,7 +2,7 @@
   <div class="student-list-page">
     <!-- Search / Filter Bar -->
     <div class="page-header">
-      <h3>{{ $t('menu.student_mgmt') }}</h3>
+      <h3 class="my-0">{{ $t('menu.student_mgmt') }}</h3>
       <el-button 
         type="primary" 
         :icon="Plus" 
@@ -12,7 +12,7 @@
         {{ $t('student.add') }}
       </el-button>
     </div>
-    <el-card class="filter-card mb-20">
+    <el-card class="filter-card mb-20px">
       <el-form :inline="true" :model="queryParams" label-position="top" class="flex items-end">
         <el-form-item :label="$t('common.searchKeyword')">
           <el-input 
@@ -62,12 +62,12 @@
 
     <!-- Student Table -->
     <el-card>
-      <el-table :data="studentList" style="width: 100%" v-loading="loading" stripe>
+      <el-table :data="studentList" class="w-full" v-loading="loading" stripe>
         <!-- Student No -->
         <el-table-column prop="student_no" :label="$t('student.studentNo')" min-width="120" />
         
         <!-- Name -->
-        <el-table-column prop="name" :label="$t('common.name')" min-width="160" />
+        <el-table-column prop="name" :label="$t('common.name')" align="center" min-width="160" />
 
         <!-- Type -->
         <el-table-column :label="$t('student.filter.identity')" width="100" align="center">
@@ -100,14 +100,23 @@
               {{ $t('student.detailsTitle') }}
             </el-button>
             <el-button 
-              v-if="row.student_type === 'trial'"
+              v-if="row.student_type === 'trial' && !row._contract_id"
               type="primary" 
               size="small" 
               link
               @click="openConvertToFormalDialog(row)"
               v-permission="'students.contracts'"
             >
-              {{ $t('student.convertToFormal') }}
+              轉正
+            </el-button>
+            <el-button
+              v-if="row._contract_id"
+              type="success"
+              size="small"
+              link
+              @click="downloadContract(row._contract_id)"
+            >
+              下載合約書
             </el-button>
             <el-button 
               type="danger" 
@@ -137,10 +146,10 @@
     <!-- Manage / Details Drawer -->
     <el-drawer
       v-model="drawerVisible"
-      :title="isAddMode ? $t('student.addTitle') : (currentStudent.name || $t('student.detailsTitle'))"
+      :title="isAddMode ? $t('student.addTitle') : (currentStudent.student_no + ' - ' + currentStudent.name || $t('student.detailsTitle'))"
       size="600px"
     >
-      <el-tabs v-model="activeTab" v-if="!isAddMode">
+      <el-tabs v-model="activeTab" v-if="!isAddMode" @tab-change="loadTab">
         <!-- Tab 1: Basic Info -->
         <el-tab-pane :label="$t('student.basicInfo')" name="basic">
           <el-form :model="form" :rules="rules" ref="formRef" label-width="150px" label-position="top" class="flex flex-wrap justify-between gap-1 my-10px mx-5px">
@@ -173,15 +182,129 @@
 
       <!-- Tab 2: Contracts -->
       <el-tab-pane v-permission="'students.contracts'" :label="$t('student.contracts')" name="contracts">
-          <div class="skeleton-content">
-              <p class="text-gray">Contract management under construction...</p>
+          <div v-loading="contractLoading" v-if="contract">
+            <!-- Main Contract Form -->
+            <el-form :model="contractForm" label-position="top" class="constract-form mt-4">
+              <el-row :gutter="40">
+                <el-col :span="12">
+                  <el-form-item label="合約狀態">
+                    <el-select v-model="contractForm.contract_status" class="w-full">
+                      <el-option label="待生效" value="pending"></el-option>
+                      <el-option label="生效中" value="active"></el-option>
+                      <el-option label="已過期" value="expired"></el-option>
+                      <el-option label="已終止" value="terminated"></el-option>
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="帶狀課學生">
+                    <el-switch
+                      v-model="contractForm.is_recurring"
+                      size="large"
+                      inline-prompt
+                      active-text="是"
+                      inactive-text="否"
+                      class="translate-y-[-4px]"
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="24">
+                  <el-form-item label="起迄時間">
+                    <el-date-picker v-model="contractForm.dateRange" type="daterange" value-format="YYYY-MM-DD" class="w-full"></el-date-picker>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="總堂數">
+                    <el-input-number v-model="contractForm.total_lessons" :min="1" class="w-full"></el-input-number>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="剩餘堂數">
+                    <span class="block h-30px line-height-30px px-2 bg-gray-100 rounded">{{ contract.remaining_lessons }}</span>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="合約總金額">
+                    <el-input-number v-model="contractForm.total_amount" :min="0" class="w-full"></el-input-number>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="可請假次數">
+                    <el-input-number v-model="contractForm.total_leave_allowed" :min="0" class="w-full"></el-input-number>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="已請假次數">
+                    <span class="block h-30px line-height-30px px-2 bg-gray-100 rounded">{{ contract.used_leave_count }}</span>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="24">
+                  <el-form-item label="備註">
+                    <el-input type="textarea" v-model="contractForm.notes" :rows="3"></el-input>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="24">
+                  <el-form-item>
+                     <el-button type="primary" :loading="savingContract" @click="saveContractData">
+                      <template #icon>
+                        <div class="i-hugeicons:floppy-disk text-lg" />
+                      </template>
+                      儲存合約
+                    </el-button>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </el-form>
+
+            <el-divider>合約明細</el-divider>
+            <el-button type="primary" size="small" text @click="openAddDetailDialog">
+              <template #icon><div class="i-hugeicons:add-square" /></template>
+              新增明細
+            </el-button>
+            <el-table :data="contractDetails" class="mt-2 w-full" size="small" border>
+               <el-table-column prop="detail_type" label="類型">
+                 <template #default="{ row }">
+                   {{ row.detail_type === 'lesson_price' ? '課程單價' : row.detail_type === 'discount' ? '優惠折扣' : '補償堂數' }}
+                 </template>
+               </el-table-column>
+               <el-table-column prop="description" label="說明" />
+               <el-table-column prop="amount" label="金額" />
+               <el-table-column prop="notes" label="備註" />
+            </el-table>
+
+            <el-divider>請假紀錄</el-divider>
+            <el-form :inline="true" :model="leaveForm" label-position="left" size="small" class="mt-2 mb-2 p-4 bg-gray-50 rounded">
+              <el-form-item label="請假日期">
+                 <el-date-picker v-model="leaveForm.leave_date" type="date" value-format="YYYY-MM-DD" style="width: 140px"></el-date-picker>
+              </el-form-item>
+              <el-form-item label="事由">
+                 <el-input v-model="leaveForm.reason" style="width: 160px"></el-input>
+              </el-form-item>
+              <el-form-item class="h-full">
+                <div class="w-full flex justify-end items-center">
+                 <el-button type="primary" size="small" @click="submitLeaveForm" :loading="leaveLoading">新增</el-button>
+                </div>
+              </el-form-item>
+            </el-form>
+            <el-table :data="leaveRecords" size="small" border>
+              <el-table-column prop="leave_date" label="請假日期" />
+              <el-table-column prop="reason" label="事由" />
+              <el-table-column label="操作" width="100" align="center">
+                 <template #default="{ row }">
+                    <el-button type="danger" link @click="deleteLeave(row.id)">刪除</el-button>
+                 </template>
+              </el-table-column>
+            </el-table>
+          </div>
+          <div v-else class="skeleton-content">
+              <p class="text-[#909399]" v-if="!contractLoading">無合約紀錄</p>
           </div>
       </el-tab-pane>
 
       <!-- Tab 3: Courses -->
       <el-tab-pane v-permission="'bookings.list'" :label="$t('student.courses')" name="courses">
           <div class="skeleton-content">
-              <p class="text-gray">Course records under construction...</p>
+              <p class="text-[#909399]">Course records under construction...</p>
           </div>
       </el-tab-pane>
     </el-tabs>
@@ -226,6 +349,72 @@
         </el-form-item>
       </el-form>
     </el-drawer>
+
+    <!-- Convert to Formal Dialog -->
+    <el-dialog v-model="convertVisible" :title="`${currentStudent?.name} - 轉正`" width="500px">
+      <el-form :model="convertForm" :rules="convertRules" ref="convertFormRef" label-width="120px" @submit.prevent>
+        <el-form-item label="合約編號" prop="contract_no">
+          <el-input v-model="convertForm.contract_no" placeholder="請輸入合約編號"></el-input>
+        </el-form-item>
+        <el-form-item label="總堂數" prop="total_lessons">
+          <el-input-number v-model="convertForm.total_lessons" :min="1" class="w-full"></el-input-number>
+        </el-form-item>
+        <el-form-item label="合約總金額" prop="total_amount">
+          <el-input-number v-model="convertForm.total_amount" :min="0" class="w-full"></el-input-number>
+        </el-form-item>
+        <el-form-item label="起迄日期" prop="dateRange">
+          <el-date-picker v-model="convertForm.dateRange" type="daterange" value-format="YYYY-MM-DD" class="w-full"></el-date-picker>
+        </el-form-item>
+        <el-form-item label="關聯試上預約">
+          <el-select v-model="convertForm.booking_id" :disabled="bookingOptions.length === 0" :placeholder="bookingOptions.length > 0 ? '請選擇' : '無預約紀錄'" class="w-full" clearable>
+            <el-option v-for="b in bookingOptions" :key="b.id" :label="b.booking_no + ' - ' + b.booking_date" :value="b.id"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="指定教師">
+          <el-select v-model="convertForm.teacher_id" placeholder="請選擇教師(選填)" class="w-full" clearable>
+            <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="備註">
+          <el-input type="textarea" v-model="convertForm.notes" :rows="3"></el-input>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="convertVisible = false">取消</el-button>
+        <el-button type="primary" :loading="converting" @click="submitConvert">確認轉正</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- Add Contract Detail Dialog -->
+    <el-dialog v-model="detailVisible" title="新增合約明細" width="360px">
+      <el-form :model="detailForm" :rules="detailRules" ref="detailFormRef" label-width="120px" label-position="top" @submit.prevent>
+        <el-form-item label="類型" prop="detail_type">
+          <el-select v-model="detailForm.detail_type" class="w-full">
+            <el-option label="課程單價" value="lesson_price"></el-option>
+            <el-option label="優惠折扣" value="discount"></el-option>
+            <el-option label="補償堂數" value="compensation"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="課程" prop="course_id" v-if="detailForm.detail_type === 'lesson_price'">
+          <el-select v-model="detailForm.course_id" class="w-full" clearable>
+            <el-option v-for="c in detailCourseOptions" :key="c.value" :label="c.label" :value="c.value"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="說明" prop="description">
+          <el-input v-model="detailForm.description" maxlength="100" show-word-limit></el-input>
+        </el-form-item>
+        <el-form-item label="金額" prop="amount">
+          <el-input-number v-model="detailForm.amount" class="w-full"></el-input-number>
+        </el-form-item>
+        <el-form-item label="備註">
+          <el-input type="textarea" v-model="detailForm.notes"></el-input>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="detailVisible = false">取消</el-button>
+        <el-button type="primary" :loading="detailLoading" @click="submitDetailForm">新增</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -238,15 +427,36 @@ import {
   createStudent, 
   updateStudent, 
   deleteStudent,
+  convertToFormal,
   type StudentListParams,
   type StudentResponse,
   type StudentCreate,
-  type StudentUpdate
+  type StudentUpdate,
+  type ConvertToFormalRequest
 } from '@/api/student';
+import {
+  getStudentContracts,
+  updateStudentContract,
+  getContractDetails,
+  createContractDetail,
+  getContractLeaveRecords,
+  createContractLeaveRecord,
+  deleteContractLeaveRecord,
+  getContractTeacherOptions,
+  getContractCourseOptions,
+  getContractDownloadUrl,
+  type StudentContract,
+  type StudentContractUpdate,
+  type StudentContractDetail,
+  type StudentContractDetailCreate,
+  type StudentContractLeaveRecord,
+  type StudentContractLeaveRecordCreate
+} from '@/api/contract';
+import { getBookingList } from '@/api/booking';
 
 // --- List State ---
 const loading = ref(false);
-const studentList = ref<StudentResponse[]>([]);
+const studentList = ref<any[]>([]);
 const total = ref(0);
 
 const queryParams = reactive<StudentListParams>({
@@ -301,24 +511,85 @@ const addRules = reactive<FormRules>({
   email: [{ required: true, message: 'Email is required', type: 'email' }]
 });
 
+// --- Contracts Feature State ---
+const contract = ref<StudentContract | null>(null);
+const contractLoading = ref(false);
+const savingContract = ref(false);
+const contractForm = reactive<StudentContractUpdate & { dateRange: [string, string] }>({
+  contract_status: 'pending',
+  is_recurring: false,
+  dateRange: ['', ''],
+  start_date: '',
+  end_date: '',
+  total_lessons: 0,
+  total_amount: 0,
+  total_leave_allowed: 0,
+  notes: ''
+});
+
+const contractDetails = ref<StudentContractDetail[]>([]);
+const detailVisible = ref(false);
+const detailLoading = ref(false);
+const detailCourseOptions = ref<any[]>([]);
+const detailFormRef = ref<FormInstance>();
+const detailForm = reactive<StudentContractDetailCreate>({
+  detail_type: 'lesson_price',
+  course_id: '',
+  description: '',
+  amount: 0,
+  notes: ''
+});
+const detailRules = reactive<FormRules>({});
+
+const leaveRecords = ref<StudentContractLeaveRecord[]>([]);
+const leaveLoading = ref(false);
+const leaveForm = reactive<StudentContractLeaveRecordCreate>({
+  leave_date: '',
+  reason: ''
+});
+
+
+// --- Convert to Formal State ---
+const convertVisible = ref(false);
+const converting = ref(false);
+const convertFormRef = ref<FormInstance>();
+const currentConvertStudent = ref<StudentResponse | null>(null);
+
+const convertForm = reactive({
+  contract_no: '',
+  total_lessons: 1,
+  total_amount: 0,
+  dateRange: ['', ''] as unknown as [string, string],
+  teacher_id: '',
+  booking_id: '',
+  notes: ''
+});
+
+const convertRules = reactive<FormRules>({
+  contract_no: [{ required: true, message: 'Required', trigger: 'blur' }],
+  total_lessons: [{ required: true, message: 'Required', trigger: 'blur' }],
+  total_amount: [{ required: true, message: 'Required', trigger: 'blur' }],
+  dateRange: [{ required: true, message: 'Required', trigger: 'change' }]
+});
+
+const bookingOptions = ref<any[]>([]);
+const teacherOptions = ref<any[]>([]);
+
+
 // --- Methods ---
 
 const fetchData = async () => {
   loading.value = true;
   try {
     const params: any = { ...queryParams };
-    if (params.is_active === 'all') {
-      delete params.is_active;
-    }
-    if (params.student_type === 'all') {
-      delete params.student_type;
-    }
+    if (params.is_active === 'all') delete params.is_active;
+    if (params.student_type === 'all') delete params.student_type;
     
     const res: any = await getStudentList(params);
     const data = res.data;
     
-    studentList.value = data || [];
-    total.value = data.total || 0;
+    studentList.value = data?.items || data || [];
+    total.value = data?.total || 0;
   } catch (err) {
     console.error(err);
     ElMessage.error('Failed to fetch students');
@@ -397,7 +668,7 @@ const handleSaveBasicInfo = async () => {
     if (valid) {
       saving.value = true;
       try {
-        await updateStudent(currentStudent.value.id, form);
+        await updateStudent(currentStudent.value.id!, form);
         ElMessage.success('Basic info updated');
         fetchData();
       } catch (err) {
@@ -431,9 +702,231 @@ const handleDelete = (row: StudentResponse) => {
   }).catch(() => {});
 };
 
-const openConvertToFormalDialog = (row: StudentResponse) => {
-  ElMessage.info('Convert to Formal dialog to be implemented');
+// --- Convert To Formal API ---
+const openConvertToFormalDialog = async (row: any) => {
+  currentConvertStudent.value = row;
+  Object.assign(convertForm, {
+    contract_no: '',
+    total_lessons: 1,
+    total_amount: 0,
+    dateRange: ['', ''],
+    teacher_id: '',
+    booking_id: '',
+    notes: ''
+  });
+  convertVisible.value = true;
+  
+  try {
+    const [bookRes, teacherRes] = await Promise.all([
+      getBookingList({ student_id: row.id, booking_status: 'completed' }),
+      getContractTeacherOptions()
+    ]);
+    bookingOptions.value = (bookRes.data as any)?.data || [];
+    teacherOptions.value = (teacherRes.data as any) || [];
+  } catch (err) {
+    console.error(err);
+  }
 };
+
+const submitConvert = async () => {
+  if (!convertFormRef.value) return;
+  await convertFormRef.value.validate(async valid => {
+    if (valid && currentConvertStudent.value) {
+      converting.value = true;
+      try {
+        const payload: ConvertToFormalRequest = {
+          contract_no: convertForm.contract_no,
+          total_lessons: convertForm.total_lessons,
+          total_amount: convertForm.total_amount,
+          start_date: convertForm.dateRange[0],
+          end_date: convertForm.dateRange[1],
+          teacher_id: convertForm.teacher_id || null,
+          booking_id: convertForm.booking_id || null,
+          notes: convertForm.notes || null,
+        };
+        const res: any = await convertToFormal(currentConvertStudent.value.id, payload);
+        ElMessage.success('Converted to formal student successfully!');
+        
+        const rowAny: any = currentConvertStudent.value;
+        rowAny.student_type = 'formal';
+        rowAny._contract_id = res.data?.contract?.id || res.data?.id || res.contract?.id;
+        
+        convertVisible.value = false;
+      } catch (err) {
+         ElMessage.error('Failed to convert');
+      } finally {
+        converting.value = false;
+      }
+    }
+  });
+};
+
+const downloadContract = async (contractId: string) => {
+  try {
+    const res: any = await getContractDownloadUrl(contractId);
+    if (res.data && res.data.url) {
+      window.open(res.data.url, '_blank');
+    } else {
+      ElMessage.warning('No download URL provided');
+    }
+  } catch (err) {
+    ElMessage.error('Failed to get contract download URL');
+  }
+};
+
+// --- Contract Tab API ---
+const loadTab = async (tabName: string | number) => {
+  if (tabName === 'contracts' && currentStudent.value?.id) {
+     contractLoading.value = true;
+     try {
+       const res: any = await getStudentContracts({ student_id: currentStudent.value.id });
+       const contracts = res.data || [];
+       if (contracts.length > 0) {
+          contract.value = contracts[0];
+          Object.assign(contractForm, { 
+            contract_status: contract.value?.contract_status || 'pending',
+            is_recurring: contract.value?.is_recurring || false,
+            total_lessons: contract.value?.total_lessons || 0,
+            total_amount: contract.value?.total_amount || 0,
+            total_leave_allowed: contract.value?.total_leave_allowed,
+            notes: contract.value?.notes || ''
+          });
+          contractForm.dateRange = [(contract.value as any).start_date, (contract.value as any).end_date];
+          if (contractForm.total_leave_allowed == null) {
+            contractForm.total_leave_allowed = contractForm.total_lessons * 2;
+          }
+          await fetchContractDependencies(contract.value!.id);
+       } else {
+          contract.value = null;
+       }
+     } catch (err) {
+       console.error(err);
+       ElMessage.error('Failed to load contract');
+     } finally {
+       contractLoading.value = false;
+     }
+  }
+};
+
+const fetchContractDependencies = async (contractId: string) => {
+  try {
+     const [detailsRes, leavesRes] = await Promise.all([
+         getContractDetails(contractId),
+         getContractLeaveRecords(contractId)
+     ]);
+     contractDetails.value = (detailsRes.data as any) || [];
+     leaveRecords.value = (leavesRes.data as any) || [];
+  } catch(err) {
+     console.error("fetch dependencies failed", err);
+  }
+};
+
+const saveContractData = async () => {
+   if(!contract.value) return;
+   savingContract.value = true;
+   try {
+     const payload: StudentContractUpdate = {
+       contract_status: contractForm.contract_status,
+       is_recurring: contractForm.is_recurring,
+       start_date: contractForm.dateRange[0],
+       end_date: contractForm.dateRange[1],
+       total_lessons: contractForm.total_lessons,
+       total_amount: contractForm.total_amount,
+       total_leave_allowed: contractForm.total_leave_allowed,
+       notes: contractForm.notes
+     };
+     await updateStudentContract(contract.value.id, payload);
+     ElMessage.success('Contract updated');
+     
+     // Refresh exactly the loaded tab state to see updated leave limits, etc
+     await loadTab('contracts');
+   } catch(err) {
+     ElMessage.error('Failed to update contract');
+   } finally {
+     savingContract.value = false;
+   }
+};
+
+// --- Contract Details API ---
+const openAddDetailDialog = async () => {
+  Object.assign(detailForm, {
+    detail_type: 'lesson_price',
+    course_id: '',
+    description: '',
+    amount: 0,
+    notes: ''
+  });
+  detailVisible.value = true;
+  
+  if (currentStudent.value?.id) {
+    try {
+      const cRes = await getContractCourseOptions(currentStudent.value.id);
+      detailCourseOptions.value = (cRes.data as any) || [];
+    } catch(err) {
+      console.error(err);
+    }
+  }
+};
+
+const submitDetailForm = async () => {
+  if (!detailFormRef.value || !contract.value) return;
+  await detailFormRef.value.validate(async valid => {
+    if (valid) {
+      detailLoading.value = true;
+      try {
+        const payload: StudentContractDetailCreate = { ...detailForm };
+        if (payload.detail_type !== 'lesson_price') {
+           payload.course_id = null;
+        }
+        await createContractDetail(contract.value!.id, payload);
+        ElMessage.success('Detail added');
+        detailVisible.value = false;
+        fetchContractDependencies(contract.value!.id);
+      } catch(err) {
+        ElMessage.error('Failed to add detail');
+      } finally {
+        detailLoading.value = false;
+      }
+    }
+  });
+};
+
+// --- Leave Records API ---
+const submitLeaveForm = async () => {
+  if (!leaveForm.leave_date || !contract.value) {
+     ElMessage.warning('請選擇請假日期');
+     return;
+  }
+  leaveLoading.value = true;
+  try {
+     await createContractLeaveRecord(contract.value.id, {
+        leave_date: leaveForm.leave_date,
+        reason: leaveForm.reason
+     });
+     ElMessage.success('請假紀錄已新增');
+     leaveForm.leave_date = '';
+     leaveForm.reason = '';
+     // Re-fetch to update used leave counts
+     await loadTab('contracts');
+  } catch(err) {
+     ElMessage.error('Failed to add leave record');
+  } finally {
+     leaveLoading.value = false;
+  }
+};
+
+const deleteLeave = async (recordId: string) => {
+  if (!contract.value) return;
+  try {
+      await deleteContractLeaveRecord(contract.value.id, recordId);
+      ElMessage.success('請假紀錄已刪除');
+      // Re-fetch to update used leave counts
+      await loadTab('contracts');
+  } catch(err){
+      ElMessage.error('Failed to delete leave record');
+  }
+};
+
 
 onMounted(() => {
   fetchData();
@@ -448,12 +941,12 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
 }
 .pagination-footer { 
   display: flex; 
   justify-content: flex-end; 
-  margin-top: 20px; 
+  margin-top: 20px;
 }
 .filter-row {
   display: flex;
@@ -464,10 +957,18 @@ onMounted(() => {
 .filter-item {
   min-width: 150px;
 }
-.mb-20 { margin-bottom: 20px; }
-.text-gray { color: #909399; }
 .skeleton-content {
   padding: 20px;
+  text-align: center;
+}
+.constract-form {
+
+}
+.bg-gray-100 {
+  background-color: #f3f4f6;
+  color: #606266;
+  width: 100%;
+  display: inline-block;
   text-align: center;
 }
 </style>
