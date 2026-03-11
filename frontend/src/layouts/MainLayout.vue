@@ -22,7 +22,7 @@
                 <el-icon v-if="module.meta?.icon">
                     <i :class="module.meta?.icon"></i>
                 </el-icon>
-                <span>{{ module.meta?.title || module.name }}</span>
+                <span>{{ $t(getBreadcrumbLabel( module.name as string)) || module.meta?.title }}</span>
               </template>
               
               <!-- Sub Items (Pages) -->
@@ -31,7 +31,7 @@
                     <el-icon v-if="page.meta?.icon">
                         <i :class="page.meta?.icon"></i>
                     </el-icon>
-                    <span>{{ page.meta?.title || page.name }}</span>
+                    <span>{{ $t(getBreadcrumbLabel(page.name as string)) || page.meta?.title }}</span>
                  </el-menu-item>
               </template>
             </el-sub-menu>
@@ -41,7 +41,7 @@
                 <el-icon v-if="module.meta?.icon">
                     <i :class="module.meta?.icon"></i>
                 </el-icon>
-                <span>{{ module.meta?.title || module.name }}</span>
+                <span>{{ $t(getBreadcrumbLabel(module.name as string)) || module.meta?.title }}</span>
             </el-menu-item>
             
           </template>
@@ -116,19 +116,21 @@ const router = useRouter();
 
 const routeKeyMap: Record<string, string> = {
   'Dashboard': 'dashboard',
+  'Profile': 'profile',
   'Reports': 'reports',
-  'Teachers': 'teachers',
-  'Students': 'students',
-  'Bookings': 'bookings',
-  'Courses': 'courses',
-  'Salary': 'salary',
+  'Teachers': 'teacher_mgmt',
+  'Students': 'student_mgmt',
+  'Bookings': 'booking_mgmt',
+  'Courses': 'course_mgmt',
+  'Salary': 'salary_mgmt',
   'AccountSettings': 'account_settings',
   'RoleSettings': 'role_settings',
   'ScheduleSettings': 'schedule_settings',
   'BookingHistory': 'booking_history',
   'TeacherProfile': 'teacher_profile',
   'ClassBooking': 'class_booking',
-  'StudentProfile': 'student_profile'
+  'StudentProfile': 'student_profile',
+  'Settings': 'settings_mgmt',
 };
 
 const getBreadcrumbLabel = (routeName: string) => {

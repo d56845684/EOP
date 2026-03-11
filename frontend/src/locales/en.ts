@@ -49,7 +49,7 @@ export default {
         bookings: 'Bookings List',
         course_mgmt: 'Course Management',
         courses: 'Course List',
-        financial_mgmt: 'Financial Management',
+        salary_mgmt: 'Salary Management',
         salary: 'Salary Reports',
         settings_mgmt: 'Settings',
         account_settings: 'Account Management',
@@ -124,7 +124,11 @@ export default {
         type: {
             regular: 'Regular Student',
             trial: 'Trial Student',
-        }
+        },
+        convertToFormal: 'Activate Contract',
+        basicInfo: 'Basic Info',
+        contracts: 'Contract Management',
+        courses: 'Booking Record',
     },
     booking: {
         title: 'Booking Management',

@@ -68,15 +68,9 @@
         
         <!-- Name -->
         <el-table-column prop="name" :label="$t('common.name')" min-width="160" />
-        
-        <!-- Email -->
-        <el-table-column prop="email" :label="$t('common.email')" min-width="240" />
-
-        <!-- Phone -->
-        <el-table-column prop="phone" :label="$t('common.phone')" min-width="120" />
 
         <!-- Type -->
-        <el-table-column :label="$t('student.filter.identity')" width="120">
+        <el-table-column :label="$t('student.filter.identity')" width="100" align="center">
            <template #default="{ row }">
              <el-tag :type="row.student_type === 'formal' ? 'success' : 'info'" effect="dark">
                {{ row.student_type === 'formal' ? $t('student.type.formal') : $t('student.type.trial') }}
@@ -84,8 +78,14 @@
            </template>
         </el-table-column>
         
+        <!-- Email -->
+        <el-table-column prop="email" :label="$t('common.email')" min-width="240" />
+
+        <!-- Phone -->
+        <el-table-column prop="phone" :label="$t('common.phone')" min-width="120" />
+        
         <!-- Status -->
-        <el-table-column :label="$t('common.status')" width="100">
+        <el-table-column :label="$t('common.status')" width="90" align="center">
            <template #default="{ row }">
              <el-tag :type="row.is_active ? 'success' : 'danger'">
                {{ row.is_active ? $t('common.active') : $t('common.inactive') }}
@@ -94,7 +94,7 @@
         </el-table-column>
 
         <!-- Actions -->
-        <el-table-column :label="$t('common.actions')" width="280" fixed="right">
+        <el-table-column :label="$t('common.actions')" width="240" fixed="right">
           <template #default="{ row }">
             <el-button v-permission="'students.edit'" size="small" :icon="Edit" @click="openManageDrawer(row)">
               {{ $t('student.detailsTitle') }}
@@ -137,33 +137,33 @@
     <!-- Manage / Details Drawer -->
     <el-drawer
       v-model="drawerVisible"
-      :title="isAddMode ? 'Add Student' : (currentStudent.name || 'Student Details')"
+      :title="isAddMode ? $t('student.addTitle') : (currentStudent.name || $t('student.detailsTitle'))"
       size="600px"
     >
       <el-tabs v-model="activeTab" v-if="!isAddMode">
         <!-- Tab 1: Basic Info -->
-        <el-tab-pane label="基本資料 (Basic Info)" name="basic">
-          <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
-              <el-form-item :label="$t('common.name')" prop="name">
+        <el-tab-pane :label="$t('student.basicInfo')" name="basic">
+          <el-form :model="form" :rules="rules" ref="formRef" label-width="150px" label-position="top" class="flex flex-wrap justify-between gap-1 my-10px mx-5px">
+              <el-form-item :label="$t('common.name')" prop="name" class="min-w-[calc(50%-8px)]">
                   <el-input v-model="form.name" />
               </el-form-item>
-              <el-form-item :label="$t('common.email')" prop="email">
-                  <el-input v-model="form.email" />
-              </el-form-item>
-              <el-form-item :label="$t('common.phone')" prop="phone">
+              <el-form-item :label="$t('common.phone')" prop="phone" class="min-w-[calc(50%-8px)]">
                   <el-input v-model="form.phone" />
               </el-form-item>
-              <el-form-item :label="$t('common.address')" prop="address">
+              <el-form-item :label="$t('common.email')" prop="email" class="flex-1 min-w-full">
+                  <el-input v-model="form.email" />
+              </el-form-item>
+              <el-form-item :label="$t('common.address')" prop="address" class="flex-1 min-w-full">
                   <el-input v-model="form.address" />
               </el-form-item>
-              <el-form-item :label="$t('common.birthday')" prop="birth_date">
+              <el-form-item :label="$t('common.birthday')" prop="birth_date" class="min-w-[calc(50%-8px)]">
                   <el-date-picker 
                       v-model="form.birth_date" 
                       type="date" 
                       value-format="YYYY-MM-DD" 
                   />
               </el-form-item>
-              <el-form-item>
+              <el-form-item class="flex-1 min-w-full">
                   <el-button type="primary" @click="handleSaveBasicInfo" :loading="saving" v-permission="'students.edit'">
                       {{ $t('common.save') }}
                   </el-button>
@@ -172,14 +172,14 @@
       </el-tab-pane>
 
       <!-- Tab 2: Contracts -->
-      <el-tab-pane label="合約管理 (Contracts)" name="contracts">
+      <el-tab-pane v-permission="'students.contracts'" :label="$t('student.contracts')" name="contracts">
           <div class="skeleton-content">
               <p class="text-gray">Contract management under construction...</p>
           </div>
       </el-tab-pane>
 
       <!-- Tab 3: Courses -->
-      <el-tab-pane label="選課紀錄 (Courses)" name="courses">
+      <el-tab-pane v-permission="'bookings.list'" :label="$t('student.courses')" name="courses">
           <div class="skeleton-content">
               <p class="text-gray">Course records under construction...</p>
           </div>
