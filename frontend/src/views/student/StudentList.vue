@@ -13,7 +13,7 @@
       </el-button>
     </div>
     <el-card class="filter-card mb-20px">
-      <el-form :inline="true" :model="queryParams" label-position="top" class="flex items-end">
+      <el-form :inline="true" :model="queryParams" label-position="top" class="filter-form flex items-end">
         <el-form-item :label="$t('common.searchKeyword')">
           <el-input 
             v-model="queryParams.search" 
@@ -72,7 +72,7 @@
         <!-- Type -->
         <el-table-column :label="$t('student.filter.identity')" width="100" align="center">
            <template #default="{ row }">
-             <el-tag :type="row.student_type === 'formal' ? 'success' : 'info'" effect="dark">
+             <el-tag :type="row.student_type === 'formal' ? 'success' : 'info'" :color="row.student_type === 'formal' ? '#66c18c' : '#a7a8bd'" effect="dark">
                {{ row.student_type === 'formal' ? $t('student.type.formal') : $t('student.type.trial') }}
              </el-tag>
            </template>
@@ -94,38 +94,42 @@
         </el-table-column>
 
         <!-- Actions -->
-        <el-table-column :label="$t('common.actions')" width="240" fixed="right">
+        <el-table-column :label="$t('common.actions')" width="240" fixed="right" class-name="action-column">
           <template #default="{ row }">
-            <el-button v-permission="'students.edit'" size="small" :icon="Edit" @click="openManageDrawer(row)">
-              {{ $t('student.detailsTitle') }}
-            </el-button>
-            <el-button 
-              v-if="row.student_type === 'trial' && !row._contract_id"
-              type="primary" 
-              size="small" 
-              link
-              @click="openConvertToFormalDialog(row)"
-              v-permission="'students.contracts'"
-            >
-              轉正
-            </el-button>
-            <el-button
-              v-if="row._contract_id"
-              type="success"
-              size="small"
-              link
-              @click="downloadContract(row._contract_id)"
-            >
-              下載合約書
-            </el-button>
+            <div>
+              <el-button v-permission="'students.edit'" size="small" :icon="Edit" @click="openManageDrawer(row)">
+                {{ $t('student.detailsTitle') }}
+              </el-button>
+              <el-button 
+                v-if="row.student_type === 'trial' && !row._contract_id"
+                type="primary" 
+                size="small" 
+                link
+                @click="openConvertToFormalDialog(row)"
+                v-permission="'students.contracts'"
+              >
+                轉正
+              </el-button>
+              <el-button
+                v-if="row._contract_id"
+                type="success"
+                size="small"
+                link
+                @click="downloadContract(row._contract_id)"
+              >
+                <div class="i-hugeicons:file-download" />
+                下載合約書
+              </el-button>
+            </div>
             <el-button 
               type="danger" 
-              size="small" 
+              size="large" 
               link
               @click="handleDelete(row)"
               v-permission="'students.delete'"
             >
-              {{ $t('common.delete') }}
+              <!-- {{ $t('common.delete') }} -->
+              <div class="i-hugeicons:delete-02" />
             </el-button>
           </template>
         </el-table-column>
@@ -148,161 +152,38 @@
       v-model="drawerVisible"
       :title="isAddMode ? $t('student.addTitle') : (currentStudent.student_no + ' - ' + currentStudent.name || $t('student.detailsTitle'))"
       size="600px"
+      class="student-drawer"
     >
       <el-tabs v-model="activeTab" v-if="!isAddMode" @tab-change="loadTab">
         <!-- Tab 1: Basic Info -->
         <el-tab-pane :label="$t('student.basicInfo')" name="basic">
-          <el-form :model="form" :rules="rules" ref="formRef" label-width="150px" label-position="top" class="flex flex-wrap justify-between gap-1 my-10px mx-5px">
-              <el-form-item :label="$t('common.name')" prop="name" class="min-w-[calc(50%-8px)]">
-                  <el-input v-model="form.name" />
-              </el-form-item>
-              <el-form-item :label="$t('common.phone')" prop="phone" class="min-w-[calc(50%-8px)]">
-                  <el-input v-model="form.phone" />
-              </el-form-item>
-              <el-form-item :label="$t('common.email')" prop="email" class="flex-1 min-w-full">
-                  <el-input v-model="form.email" />
-              </el-form-item>
-              <el-form-item :label="$t('common.address')" prop="address" class="flex-1 min-w-full">
-                  <el-input v-model="form.address" />
-              </el-form-item>
-              <el-form-item :label="$t('common.birthday')" prop="birth_date" class="min-w-[calc(50%-8px)]">
-                  <el-date-picker 
-                      v-model="form.birth_date" 
-                      type="date" 
-                      value-format="YYYY-MM-DD" 
-                  />
-              </el-form-item>
-              <el-form-item class="flex-1 min-w-full">
-                  <el-button type="primary" @click="handleSaveBasicInfo" :loading="saving" v-permission="'students.edit'">
-                      {{ $t('common.save') }}
-                  </el-button>
-              </el-form-item>
-          </el-form>
-      </el-tab-pane>
+          <BaseInfo
+            :form="form"
+            :rules="rules"
+            :formRef="formRef"
+            :saving="saving"
+            @saveBasicInfo="handleSaveBasicInfo"
+          />
+        </el-tab-pane>
 
-      <!-- Tab 2: Contracts -->
-      <el-tab-pane v-permission="'students.contracts'" :label="$t('student.contracts')" name="contracts">
-          <div v-loading="contractLoading" v-if="contract">
-            <!-- Main Contract Form -->
-            <el-form :model="contractForm" label-position="top" class="constract-form mt-4">
-              <el-row :gutter="40">
-                <el-col :span="12">
-                  <el-form-item label="合約狀態">
-                    <el-select v-model="contractForm.contract_status" class="w-full">
-                      <el-option label="待生效" value="pending"></el-option>
-                      <el-option label="生效中" value="active"></el-option>
-                      <el-option label="已過期" value="expired"></el-option>
-                      <el-option label="已終止" value="terminated"></el-option>
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="帶狀課學生">
-                    <el-switch
-                      v-model="contractForm.is_recurring"
-                      size="large"
-                      inline-prompt
-                      active-text="是"
-                      inactive-text="否"
-                      class="translate-y-[-4px]"
-                    />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="24">
-                  <el-form-item label="起迄時間">
-                    <el-date-picker v-model="contractForm.dateRange" type="daterange" value-format="YYYY-MM-DD" class="w-full"></el-date-picker>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="總堂數">
-                    <el-input-number v-model="contractForm.total_lessons" :min="1" class="w-full"></el-input-number>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="剩餘堂數">
-                    <span class="block h-30px line-height-30px px-2 bg-gray-100 rounded">{{ contract.remaining_lessons }}</span>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="合約總金額">
-                    <el-input-number v-model="contractForm.total_amount" :min="0" class="w-full"></el-input-number>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="可請假次數">
-                    <el-input-number v-model="contractForm.total_leave_allowed" :min="0" class="w-full"></el-input-number>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="已請假次數">
-                    <span class="block h-30px line-height-30px px-2 bg-gray-100 rounded">{{ contract.used_leave_count }}</span>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="24">
-                  <el-form-item label="備註">
-                    <el-input type="textarea" v-model="contractForm.notes" :rows="3"></el-input>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="24">
-                  <el-form-item>
-                     <el-button type="primary" :loading="savingContract" @click="saveContractData">
-                      <template #icon>
-                        <div class="i-hugeicons:floppy-disk text-lg" />
-                      </template>
-                      儲存合約
-                    </el-button>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </el-form>
-
-            <el-divider>合約明細</el-divider>
-            <el-button type="primary" size="small" text @click="openAddDetailDialog">
-              <template #icon><div class="i-hugeicons:add-square" /></template>
-              新增明細
-            </el-button>
-            <el-table :data="contractDetails" class="mt-2 w-full" size="small" border>
-               <el-table-column prop="detail_type" label="類型">
-                 <template #default="{ row }">
-                   {{ row.detail_type === 'lesson_price' ? '課程單價' : row.detail_type === 'discount' ? '優惠折扣' : '補償堂數' }}
-                 </template>
-               </el-table-column>
-               <el-table-column prop="description" label="說明" />
-               <el-table-column prop="amount" label="金額" />
-               <el-table-column prop="notes" label="備註" />
-            </el-table>
-
-            <el-divider>請假紀錄</el-divider>
-            <el-form :inline="true" :model="leaveForm" label-position="left" size="small" class="mt-2 mb-2 p-4 bg-gray-50 rounded">
-              <el-form-item label="請假日期">
-                 <el-date-picker v-model="leaveForm.leave_date" type="date" value-format="YYYY-MM-DD" style="width: 140px"></el-date-picker>
-              </el-form-item>
-              <el-form-item label="事由">
-                 <el-input v-model="leaveForm.reason" style="width: 160px"></el-input>
-              </el-form-item>
-              <el-form-item class="h-full">
-                <div class="w-full flex justify-end items-center">
-                 <el-button type="primary" size="small" @click="submitLeaveForm" :loading="leaveLoading">新增</el-button>
-                </div>
-              </el-form-item>
-            </el-form>
-            <el-table :data="leaveRecords" size="small" border>
-              <el-table-column prop="leave_date" label="請假日期" />
-              <el-table-column prop="reason" label="事由" />
-              <el-table-column label="操作" width="100" align="center">
-                 <template #default="{ row }">
-                    <el-button type="danger" link @click="deleteLeave(row.id)">刪除</el-button>
-                 </template>
-              </el-table-column>
-            </el-table>
-          </div>
+        <!-- Tab 2: Contracts -->
+        <el-tab-pane v-permission="'students.contracts'" :label="$t('student.contracts')" name="contracts">
+          <ContractManagement
+            v-if="contract" 
+            :contract="contract" 
+            :contractLoading="contractLoading"
+            @openAddDetailDialog="openAddDetailDialog"
+            @submitLeaveForm="submitLeaveForm"
+            @deleteLeave="deleteLeave"
+            @saveContractData="saveContractData"
+          />
           <div v-else class="skeleton-content">
               <p class="text-[#909399]" v-if="!contractLoading">無合約紀錄</p>
           </div>
-      </el-tab-pane>
+        </el-tab-pane>
 
-      <!-- Tab 3: Courses -->
-      <el-tab-pane v-permission="'bookings.list'" :label="$t('student.courses')" name="courses">
+        <!-- Tab 3: Courses -->
+        <el-tab-pane v-permission="'bookings.list'" :label="$t('student.courses')" name="courses">
           <div class="skeleton-content">
               <p class="text-[#909399]">Course records under construction...</p>
           </div>
@@ -310,44 +191,14 @@
     </el-tabs>
 
     <!-- Add Form (when isAddMode is true) -->
-    <el-form v-else :model="addForm" :rules="addRules" ref="addFormRef" label-width="120px">
-          <el-form-item label="Student No" prop="student_no">
-            <el-input v-model="addForm.student_no" />
-        </el-form-item>
-          <el-form-item :label="$t('common.name')" prop="name">
-            <el-input v-model="addForm.name" />
-        </el-form-item>
-        <el-form-item :label="$t('common.email')" prop="email">
-            <el-input v-model="addForm.email" />
-        </el-form-item>
-        <el-form-item :label="$t('common.phone')" prop="phone">
-            <el-input v-model="addForm.phone" />
-        </el-form-item>
-        <el-form-item :label="$t('common.address')" prop="address">
-            <el-input v-model="addForm.address" />
-        </el-form-item>
-        <el-form-item label="Birth Date" prop="birth_date">
-            <el-date-picker 
-                v-model="addForm.birth_date" 
-                type="date" 
-                value-format="YYYY-MM-DD" 
-            />
-        </el-form-item>
-        <el-form-item label="Type" prop="student_type">
-            <el-select v-model="addForm.student_type">
-                <el-option label="Formal" value="formal" />
-                <el-option label="Trial" value="trial" />
-            </el-select>
-        </el-form-item>
-        <el-form-item label="Active" prop="is_active">
-            <el-switch v-model="addForm.is_active" />
-        </el-form-item>
-        <el-form-item>
-            <el-button type="primary" @click="handleCreateStudent" :loading="saving" v-permission="'students.create'">
-                {{ $t('common.save') }}
-            </el-button>
-        </el-form-item>
-      </el-form>
+    <CreateStudent
+      v-else
+      :form="addForm"
+      :rules="addRules"
+      :formRef="addFormRef"
+      :saving="saving"
+      @createStudent="handleCreateStudent"
+    />
     </el-drawer>
 
     <!-- Convert to Formal Dialog -->
@@ -453,6 +304,9 @@ import {
   type StudentContractLeaveRecordCreate
 } from '@/api/contract';
 import { getBookingList } from '@/api/booking';
+import BaseInfo from './component/BaseInfo.vue';
+import ContractManagement from './component/ContractManagement.vue'
+import CreateStudent from './component/CreateStudent.vue'
 
 // --- List State ---
 const loading = ref(false);
@@ -642,13 +496,13 @@ const openManageDrawer = (row: StudentResponse) => {
   drawerVisible.value = true;
 };
 
-const handleCreateStudent = async () => {
+const handleCreateStudent = async (data: StudentCreate) => {
   if (!addFormRef.value) return;
   await addFormRef.value.validate(async (valid) => {
     if (valid) {
       saving.value = true;
       try {
-        await createStudent(addForm);
+        await createStudent(data);
         ElMessage.success('Student created successfully');
         drawerVisible.value = false;
         fetchData();
@@ -933,7 +787,7 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .student-list-page {
   padding: 0 10px;
 }
@@ -961,14 +815,19 @@ onMounted(() => {
   padding: 20px;
   text-align: center;
 }
-.constract-form {
-
+:deep(.filter-form) {
+  gap: 30px;
+   .el-form-item {
+     margin-right: 0;
+   }
 }
-.bg-gray-100 {
-  background-color: #f3f4f6;
-  color: #606266;
-  width: 100%;
-  display: inline-block;
-  text-align: center;
+:deep(.el-table) {
+  .action-column {
+    .cell {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  }
 }
 </style>
