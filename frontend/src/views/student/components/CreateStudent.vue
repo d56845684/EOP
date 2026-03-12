@@ -41,23 +41,17 @@
 </template>
 
 <script setup lang="ts">
-  import { reactive } from 'vue';
- import { type StudentCreate } from '@/api/student';
+  import { reactive, ref } from 'vue';
+  import { type StudentCreate } from '@/api/student';
+  import { type FormInstance, type FormRules } from 'element-plus';
+
   const props = defineProps({
-    addRules: {
-      type: Object,
-      required: true
-    },
-    addFormRef: {
-      type: Object,
-      required: true
-    },
     saving: {
       type: Boolean,
       required: true
     }
   })
-
+  const addFormRef = ref<FormInstance>();
   const addForm = reactive<StudentCreate>({
     student_no: '',
     name: '',
@@ -69,10 +63,22 @@
     is_active: true
   });
 
+  const addRules = reactive<FormRules>({
+    student_no: [{ required: true, message: 'Student No is required' }],
+    name: [{ required: true, message: 'Name is required' }],
+    email: [{ required: true, message: 'Email is required', type: 'email' }],
+    birth_date: [{ required: true, message: 'Birth Date is required' }],
+  });
+
   const emit = defineEmits(['createStudent'])
 
-  const handleCreateStudent = () => {
-    emit('createStudent', addForm)
+  const handleCreateStudent = async () => {
+    if (!addFormRef.value) return;
+    await addFormRef.value.validate(async (valid) => {
+      if (valid) {
+        emit('createStudent', addForm as StudentCreate)
+      }
+    });
   }
 </script>
 

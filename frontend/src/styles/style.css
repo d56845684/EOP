@@ -68,14 +68,6 @@ button:focus-visible {
   text-align: center;
 }
 
-:deep(.el-form--inline) {
-  gap: 30px;
-
-  .el-form-item {
-    margin-right: 0;
-  }
-}
-
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;

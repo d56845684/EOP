@@ -8,7 +8,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 import App from './App.vue';
 import router from './router';
 import './permission'; // Global Navigation Guard
-import './style.scss';
+import './styles/style.scss';
 import 'virtual:uno.css'
 
 import { permission } from './directives/permission';

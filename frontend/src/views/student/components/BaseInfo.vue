@@ -27,7 +27,10 @@
     </el-form>
 </template>
 
-<script setup>
+<script setup lang="ts">
+  import { ref } from 'vue';
+  import type { FormInstance } from 'element-plus';
+
   const props = defineProps({
     form: {
       type: Object,
@@ -37,21 +40,23 @@
       type: Object,
       required: true
     },
-    formRef: {
-      type: Object,
-      required: true
-    },
     saving: {
       type: Boolean,
       required: true
     }
-  })
+  });
 
-  const emit = defineEmits(['saveBasicInfo'])
+  const formRef = ref<FormInstance>();
+  const emit = defineEmits(['saveBasicInfo']);
 
-  const handleSaveBasicInfo = () => {
-    emit('saveBasicInfo')
-  }
+  const handleSaveBasicInfo = async () => {
+    if (!formRef.value) return;
+    await formRef.value.validate((valid) => {
+      if (valid) {
+        emit('saveBasicInfo');
+      }
+    });
+  };
 </script>
 
 <style lang="scss" scoped>

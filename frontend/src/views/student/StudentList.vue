@@ -6,7 +6,7 @@
       <el-button 
         type="primary" 
         :icon="Plus" 
-        @click="openAddDrawer"
+        @click="openDrawer(null, 'add')"
         v-permission="'students.create'"
       >
         {{ $t('student.add') }}
@@ -52,8 +52,18 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleSearch">{{ $t('common.search') }}</el-button>
-          <el-button :icon="Refresh" @click="resetQuery">{{ $t('common.btnReset') }}</el-button>
+          <el-button type="primary" @click="handleSearch">
+            <template #icon>
+              <div class="i-hugeicons:search-list-02" />
+            </template>
+            {{ $t('common.search') }}
+          </el-button>
+          <el-button @click="resetQuery">
+            <template #icon>
+              <div class="i-hugeicons:arrow-reload-horizontal" />
+            </template>
+            {{ $t('common.btnReset') }}
+          </el-button>
         </el-form-item>
 
         <div class="spacer"></div>
@@ -87,7 +97,7 @@
         <!-- Status -->
         <el-table-column :label="$t('common.status')" width="90" align="center">
            <template #default="{ row }">
-             <el-tag :type="row.is_active ? 'success' : 'danger'">
+             <el-tag :type="row.is_active ? 'success' : 'warning'">
                {{ row.is_active ? $t('common.active') : $t('common.inactive') }}
              </el-tag>
            </template>
@@ -97,7 +107,10 @@
         <el-table-column :label="$t('common.actions')" width="240" fixed="right" class-name="action-column">
           <template #default="{ row }">
             <div>
-              <el-button v-permission="'students.edit'" size="small" :icon="Edit" @click="openManageDrawer(row)">
+              <el-button v-permission="'students.edit'" size="small" @click="openDrawer(row, 'manage')">
+                <template #icon>
+                  <div class="i-hugeicons:pencil-edit-01" />
+                </template>
                 {{ $t('student.detailsTitle') }}
               </el-button>
               <el-button 
@@ -111,14 +124,17 @@
                 轉正
               </el-button>
               <el-button
-                v-if="row._contract_id"
-                type="success"
+                v-if="row.student_type === 'formal'"
+                v-permission="'students.contracts'"
+                color="#82aa57"
                 size="small"
-                link
-                @click="downloadContract(row._contract_id)"
+                plain
+                @click="openDrawer(row, 'contract')"
               >
-                <div class="i-hugeicons:file-download" />
-                下載合約書
+                <template #icon>
+                  <div class="i-hugeicons:legal-document-02" />
+                </template>
+                合約
               </el-button>
             </div>
             <el-button 
@@ -128,8 +144,8 @@
               @click="handleDelete(row)"
               v-permission="'students.delete'"
             >
-              <!-- {{ $t('common.delete') }} -->
               <div class="i-hugeicons:delete-02" />
+              <!-- {{ $t('common.delete') }} -->
             </el-button>
           </template>
         </el-table-column>
@@ -150,59 +166,55 @@
     <!-- Manage / Details Drawer -->
     <el-drawer
       v-model="drawerVisible"
-      :title="isAddMode ? $t('student.addTitle') : (currentStudent.student_no + ' - ' + currentStudent.name || $t('student.detailsTitle'))"
-      size="600px"
+      :title="drawerType !== 'add' ? (currentStudent.student_no + ' - ' + currentStudent.name || $t('student.detailsTitle')) : $t('student.addTitle')"
+      size="660px"
       class="student-drawer"
     >
-      <el-tabs v-model="activeTab" v-if="!isAddMode" @tab-change="loadTab">
-        <!-- Tab 1: Basic Info -->
-        <el-tab-pane :label="$t('student.basicInfo')" name="basic">
-          <BaseInfo
-            :form="form"
-            :rules="rules"
-            :formRef="formRef"
-            :saving="saving"
-            @saveBasicInfo="handleSaveBasicInfo"
-          />
-        </el-tab-pane>
+      <template v-if="drawerType === 'manage'">
+        <el-tabs v-model="activeTab"  @tab-change="loadContent">
+          <!-- Tab 1: Basic Info -->
+          <el-tab-pane :label="$t('student.basicInfo')" name="basic">
+            <BaseInfo
+              :form="form"
+              :rules="rules"
+              :saving="saving"
+              @saveBasicInfo="handleSaveBasicInfo"
+            />
+          </el-tab-pane>
 
-        <!-- Tab 2: Contracts -->
-        <el-tab-pane v-permission="'students.contracts'" :label="$t('student.contracts')" name="contracts">
-          <ContractManagement
-            v-if="contract" 
-            :contract="contract" 
-            :contractLoading="contractLoading"
-            @openAddDetailDialog="openAddDetailDialog"
-            @submitLeaveForm="submitLeaveForm"
-            @deleteLeave="deleteLeave"
-            @saveContractData="saveContractData"
-          />
-          <div v-else class="skeleton-content">
-              <p class="text-[#909399]" v-if="!contractLoading">無合約紀錄</p>
-          </div>
-        </el-tab-pane>
-
-        <!-- Tab 3: Courses -->
-        <el-tab-pane v-permission="'bookings.list'" :label="$t('student.courses')" name="courses">
-          <div class="skeleton-content">
-              <p class="text-[#909399]">Course records under construction...</p>
-          </div>
-      </el-tab-pane>
-    </el-tabs>
-
-    <!-- Add Form (when isAddMode is true) -->
-    <CreateStudent
-      v-else
-      :form="addForm"
-      :rules="addRules"
-      :formRef="addFormRef"
-      :saving="saving"
-      @createStudent="handleCreateStudent"
-    />
+          <!-- Tab 2: Courses -->
+          <el-tab-pane v-permission="'bookings.list'" :label="$t('student.courses')" name="courses">
+            <BookingList 
+              v-if="activeTab === 'courses' && currentStudent?.id" 
+              :student-id="currentStudent.id" 
+            />
+          </el-tab-pane>
+        </el-tabs>
+      </template>
+      <template v-if="drawerType === 'add'">
+        <CreateStudent
+          :saving="saving"
+          @createStudent="handleCreateStudent"
+        />
+      </template>
+      <template v-else-if="drawerType === 'contract'">
+        <ContractManagement
+          v-if="contract" 
+          :contract="contract" 
+          :contractLoading="contractLoading"
+          @openAddDetailDialog="openAddDetailDialog"
+          @submitLeaveForm="submitLeaveForm"
+          @deleteLeave="deleteLeave"
+          @saveContractData="saveContractData"
+        />
+        <div v-else class="skeleton-content">
+            <p class="text-[#909399]" v-if="!contractLoading">無合約紀錄</p>
+        </div>
+      </template>
     </el-drawer>
 
     <!-- Convert to Formal Dialog -->
-    <el-dialog v-model="convertVisible" :title="`${currentStudent?.name} - 轉正`" width="500px">
+    <el-dialog v-model="convertVisible" :title="`${currentConvertStudent?.name}(${currentConvertStudent?.student_no}) - 轉正`" width="500px">
       <el-form :model="convertForm" :rules="convertRules" ref="convertFormRef" label-width="120px" @submit.prevent>
         <el-form-item label="合約編號" prop="contract_no">
           <el-input v-model="convertForm.contract_no" placeholder="請輸入合約編號"></el-input>
@@ -271,6 +283,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Search, Plus, Edit, Refresh } from '@element-plus/icons-vue';
 import { 
@@ -303,10 +316,13 @@ import {
   type StudentContractLeaveRecord,
   type StudentContractLeaveRecordCreate
 } from '@/api/contract';
-import { getBookingList } from '@/api/booking';
-import BaseInfo from './component/BaseInfo.vue';
-import ContractManagement from './component/ContractManagement.vue'
-import CreateStudent from './component/CreateStudent.vue'
+import { getBookingList, type BookingItem } from '@/api/booking';
+import BaseInfo from './components/BaseInfo.vue';
+import BookingList from './components/BookingList.vue';
+import ContractManagement from './components/ContractManagement.vue';
+import CreateStudent from './components/CreateStudent.vue';
+
+const { t } = useI18n();
 
 // --- List State ---
 const loading = ref(false);
@@ -323,14 +339,10 @@ const queryParams = reactive<StudentListParams>({
 
 // --- Drawer State ---
 const drawerVisible = ref(false);
-const isAddMode = ref(false);
+const drawerType = ref('manage');
 const activeTab = ref('basic');
 const currentStudent = ref<Partial<StudentResponse>>({});
 const saving = ref(false);
-
-// Refs for forms
-const formRef = ref<FormInstance>();
-const addFormRef = ref<FormInstance>();
 
 // --- Forms ---
 // Basic Info Update Form
@@ -344,26 +356,10 @@ const form = reactive<StudentUpdate>({
 
 const rules = reactive<FormRules>({
   name: [{ required: true, message: 'Name is required' }],
-  email: [{ required: true, message: 'Email is required', type: 'email' }]
+  email: [{ required: true, message: 'Email is required', type: 'email' }],
+  birth_date: [{ required: true, message: 'Birth Date is required' }],
 });
 
-// Add Student Form
-const addForm = reactive<StudentCreate>({
-  student_no: '',
-  name: '',
-  email: '',
-  phone: '',
-  address: '',
-  birth_date: '',
-  student_type: 'formal',
-  is_active: true
-});
-
-const addRules = reactive<FormRules>({
-  student_no: [{ required: true, message: 'Student No is required' }],
-  name: [{ required: true, message: 'Name is required' }],
-  email: [{ required: true, message: 'Email is required', type: 'email' }]
-});
 
 // --- Contracts Feature State ---
 const contract = ref<StudentContract | null>(null);
@@ -402,6 +398,11 @@ const leaveForm = reactive<StudentContractLeaveRecordCreate>({
   reason: ''
 });
 
+// --- Booking Feature State ---
+const booking = ref<BookingItem | null>(null);
+const bookingLoading = ref(false);
+const bookingForm = reactive<Partial<BookingItem>>({});
+
 
 // --- Convert to Formal State ---
 const convertVisible = ref(false);
@@ -429,7 +430,6 @@ const convertRules = reactive<FormRules>({
 const bookingOptions = ref<any[]>([]);
 const teacherOptions = ref<any[]>([]);
 
-
 // --- Methods ---
 
 const fetchData = async () => {
@@ -440,13 +440,12 @@ const fetchData = async () => {
     if (params.student_type === 'all') delete params.student_type;
     
     const res: any = await getStudentList(params);
-    const data = res.data;
     
-    studentList.value = data?.items || data || [];
-    total.value = data?.total || 0;
+    studentList.value = res?.data?.items || res?.data || [];
+    total.value = res?.total || 0;
   } catch (err) {
     console.error(err);
-    ElMessage.error('Failed to fetch students');
+    ElMessage.error('獲取學生列表失敗');
   } finally {
     loading.value = false;
   }
@@ -465,93 +464,77 @@ const resetQuery = () => {
   fetchData();
 };
 
-const openAddDrawer = () => {
-  isAddMode.value = true;
-  Object.assign(addForm, {
-    student_no: '',
-    name: '',
-    email: '',
-    phone: '',
-    address: '',
-    birth_date: '',
-    student_type: 'formal',
-    is_active: true
-  });
-  drawerVisible.value = true;
-};
+const openDrawer = async (row: StudentResponse | null, type: string) => {
+  drawerType.value = type;
+  if (row) {
+    currentStudent.value = row;
+  }
 
-const openManageDrawer = (row: StudentResponse) => {
-  isAddMode.value = false;
-  activeTab.value = 'basic';
-  currentStudent.value = row;
-  
-  Object.assign(form, {
-    name: row.name,
-    email: row.email,
-    phone: row.phone,
-    address: row.address,
-    birth_date: row.birth_date
-  });
-  
+  if (type === 'manage' && row) {
+    activeTab.value = 'basic';
+    Object.assign(form, {
+      name: row.name,
+      email: row.email,
+      phone: row.phone,
+      address: row.address,
+      birth_date: row.birth_date
+    });
+  }
+
+  if (type === 'contract' && row) {
+    await loadContent('contracts');
+  }
+
   drawerVisible.value = true;
-};
+}
 
 const handleCreateStudent = async (data: StudentCreate) => {
-  if (!addFormRef.value) return;
-  await addFormRef.value.validate(async (valid) => {
-    if (valid) {
-      saving.value = true;
-      try {
-        await createStudent(data);
-        ElMessage.success('Student created successfully');
-        drawerVisible.value = false;
-        fetchData();
-      } catch (err) {
-        console.error(err);
-        ElMessage.error('Failed to create student');
-      } finally {
-        saving.value = false;
-      }
-    }
-  });
+  saving.value = true;
+  try {
+    await createStudent(data);
+    ElMessage.success('新增學生操作成功');
+    drawerVisible.value = false;
+    fetchData();
+  } catch (err: any) {
+    console.error(err);
+    ElMessage.error('新增學生操作失敗');
+  } finally {
+    saving.value = false;
+  }
 };
 
 const handleSaveBasicInfo = async () => {
-  if (!formRef.value || !currentStudent.value.id) return;
-  await formRef.value.validate(async (valid) => {
-    if (valid) {
-      saving.value = true;
-      try {
-        await updateStudent(currentStudent.value.id!, form);
-        ElMessage.success('Basic info updated');
-        fetchData();
-      } catch (err) {
-        console.error(err);
-        ElMessage.error('Failed to update student');
-      } finally {
-        saving.value = false;
-      }
-    }
-  });
+  if (!currentStudent.value.id) return;
+  saving.value = true;
+  try {
+    await updateStudent(currentStudent.value.id!, form);
+    ElMessage.success('更新學生資料成功');
+    fetchData();
+  } catch (err) {
+    console.error(err);
+    ElMessage.error('更新學生資料失敗');
+  } finally {
+    saving.value = false;
+  }
 };
 
 const handleDelete = (row: StudentResponse) => {
   ElMessageBox.confirm(
-    `Are you sure you want to delete ${row.name}?`,
+    `Are you sure you want to delete ${row.student_no}-${row.name}?`,
     'Warning',
     {
-      confirmButtonText: 'Delete',
-      cancelButtonText: 'Cancel',
+      confirmButtonText: t('common.delete'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning',
     }
   ).then(async () => {
     try {
       await deleteStudent(row.id);
-      ElMessage.success('Student deleted');
+      ElMessage.success('刪除操作成功');
       fetchData();
     } catch (err) {
       console.error(err);
-      ElMessage.error('Failed to delete student');
+      ElMessage.error('刪除操作失敗');
     }
   }).catch(() => {});
 };
@@ -599,7 +582,7 @@ const submitConvert = async () => {
           notes: convertForm.notes || null,
         };
         const res: any = await convertToFormal(currentConvertStudent.value.id, payload);
-        ElMessage.success('Converted to formal student successfully!');
+        ElMessage.success('轉換學生身份成功');
         
         const rowAny: any = currentConvertStudent.value;
         rowAny.student_type = 'formal';
@@ -607,7 +590,7 @@ const submitConvert = async () => {
         
         convertVisible.value = false;
       } catch (err) {
-         ElMessage.error('Failed to convert');
+         ElMessage.error('轉換學生身份失敗');
       } finally {
         converting.value = false;
       }
@@ -621,46 +604,79 @@ const downloadContract = async (contractId: string) => {
     if (res.data && res.data.url) {
       window.open(res.data.url, '_blank');
     } else {
-      ElMessage.warning('No download URL provided');
+      ElMessage.warning('無法下載合約');
     }
   } catch (err) {
-    ElMessage.error('Failed to get contract download URL');
+    ElMessage.error('合約下載失敗');
   }
 };
 
 // --- Contract Tab API ---
-const loadTab = async (tabName: string | number) => {
-  if (tabName === 'contracts' && currentStudent.value?.id) {
-     contractLoading.value = true;
-     try {
-       const res: any = await getStudentContracts({ student_id: currentStudent.value.id });
-       const contracts = res.data || [];
-       if (contracts.length > 0) {
-          contract.value = contracts[0];
-          Object.assign(contractForm, { 
-            contract_status: contract.value?.contract_status || 'pending',
-            is_recurring: contract.value?.is_recurring || false,
-            total_lessons: contract.value?.total_lessons || 0,
-            total_amount: contract.value?.total_amount || 0,
-            total_leave_allowed: contract.value?.total_leave_allowed,
-            notes: contract.value?.notes || ''
-          });
-          contractForm.dateRange = [(contract.value as any).start_date, (contract.value as any).end_date];
-          if (contractForm.total_leave_allowed == null) {
-            contractForm.total_leave_allowed = contractForm.total_lessons * 2;
-          }
-          await fetchContractDependencies(contract.value!.id);
-       } else {
-          contract.value = null;
-       }
-     } catch (err) {
-       console.error(err);
-       ElMessage.error('Failed to load contract');
-     } finally {
-       contractLoading.value = false;
-     }
+const loadContent = async (tabName: string | number) => {
+  switch (tabName) {
+    case 'contracts':
+      await loadContract()
+      break;
+    case 'records':
+      await loadBookingList()
+      break;
+  
+    default:
+      break;
   }
 };
+
+const loadContract = async () => {
+  if (!currentStudent.value?.id) return;
+  contractLoading.value = true;
+  try {
+    const res: any = await getStudentContracts({ student_id: currentStudent.value.id });
+    const contracts = res.data || [];
+    if (contracts.length > 0) {
+      contract.value = contracts[0];
+      Object.assign(contractForm, { 
+        contract_status: contract.value?.contract_status || 'pending',
+        is_recurring: contract.value?.is_recurring || false,
+        total_lessons: contract.value?.total_lessons || 0,
+        total_amount: contract.value?.total_amount || 0,
+        total_leave_allowed: contract.value?.total_leave_allowed,
+        notes: contract.value?.notes || ''
+      });
+      contractForm.dateRange = [(contract.value as any).start_date, (contract.value as any).end_date];
+      if (contractForm.total_leave_allowed == null) {
+        contractForm.total_leave_allowed = contractForm.total_lessons * 2;
+      }
+      await fetchContractDependencies(contract.value!.id);
+    } else {
+      contract.value = null;
+    }
+  } catch (err) {
+    console.error(err);
+    ElMessage.error('載入合約失敗');
+  } finally {
+    contractLoading.value = false;
+  }
+}
+
+const loadBookingList = async () => {
+  if (!currentStudent.value?.id) return;
+  bookingLoading.value = true;
+  try {
+    const res: any = await getBookingList({ student_id: currentStudent.value.id });
+    const bookings = res.data || [];
+    if (bookings.length > 0) {
+      booking.value = bookings[0];
+      Object.assign(bookingForm, booking.value);
+    } else {
+      booking.value = null;
+    }
+  } catch (err) {
+    console.error(err);
+    ElMessage.error('載入預約失敗');
+  } finally {
+    bookingLoading.value = false;
+  }
+}
 
 const fetchContractDependencies = async (contractId: string) => {
   try {
@@ -671,7 +687,8 @@ const fetchContractDependencies = async (contractId: string) => {
      contractDetails.value = (detailsRes.data as any) || [];
      leaveRecords.value = (leavesRes.data as any) || [];
   } catch(err) {
-     console.error("fetch dependencies failed", err);
+     console.error("載入合約失敗", err);
+     ElMessage.error('載入合約失敗');
   }
 };
 
@@ -690,12 +707,12 @@ const saveContractData = async () => {
        notes: contractForm.notes
      };
      await updateStudentContract(contract.value.id, payload);
-     ElMessage.success('Contract updated');
+     ElMessage.success('更新合約成功');
      
      // Refresh exactly the loaded tab state to see updated leave limits, etc
-     await loadTab('contracts');
+     await loadContent('contracts');
    } catch(err) {
-     ElMessage.error('Failed to update contract');
+     ElMessage.error('更新合約失敗');
    } finally {
      savingContract.value = false;
    }
@@ -733,11 +750,11 @@ const submitDetailForm = async () => {
            payload.course_id = null;
         }
         await createContractDetail(contract.value!.id, payload);
-        ElMessage.success('Detail added');
+        ElMessage.success('新增合約明細成功');
         detailVisible.value = false;
         fetchContractDependencies(contract.value!.id);
       } catch(err) {
-        ElMessage.error('Failed to add detail');
+        ElMessage.error('新增合約明細失敗');
       } finally {
         detailLoading.value = false;
       }
@@ -761,9 +778,9 @@ const submitLeaveForm = async () => {
      leaveForm.leave_date = '';
      leaveForm.reason = '';
      // Re-fetch to update used leave counts
-     await loadTab('contracts');
+     await loadContent('contracts');
   } catch(err) {
-     ElMessage.error('Failed to add leave record');
+     ElMessage.error('新增請假紀錄失敗');
   } finally {
      leaveLoading.value = false;
   }
@@ -775,12 +792,11 @@ const deleteLeave = async (recordId: string) => {
       await deleteContractLeaveRecord(contract.value.id, recordId);
       ElMessage.success('請假紀錄已刪除');
       // Re-fetch to update used leave counts
-      await loadTab('contracts');
+      await loadContent('contracts');
   } catch(err){
-      ElMessage.error('Failed to delete leave record');
+      ElMessage.error('刪除請假紀錄失敗');
   }
 };
-
 
 onMounted(() => {
   fetchData();
@@ -816,9 +832,10 @@ onMounted(() => {
   text-align: center;
 }
 :deep(.filter-form) {
-  gap: 30px;
+  gap: 20px;
    .el-form-item {
      margin-right: 0;
+     margin-bottom: 5px;
    }
 }
 :deep(.el-table) {
@@ -830,4 +847,7 @@ onMounted(() => {
     }
   }
 }
+// :deep(.el-drawer__header) {
+//   margin-bottom: 10px !important;
+// }
 </style>

@@ -29,6 +29,9 @@ export interface BookingItem {
     booking_date: string;
     start_time: string;
     end_time: string;
+    booking_type: string;
+    is_trial_to_formal: boolean;
+    lessons_used: number;
     notes?: string | null;
     created_at?: string | null;
     updated_at?: string | null;
