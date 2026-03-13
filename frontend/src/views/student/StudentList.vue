@@ -5,10 +5,12 @@
       <h3 class="my-0">{{ $t('menu.student_mgmt') }}</h3>
       <el-button 
         type="primary" 
-        :icon="Plus" 
         @click="openDrawer(null, 'add')"
         v-permission="'students.create'"
       >
+        <template #icon>
+          <div class="i-hugeicons:plus-sign-square" />
+        </template>
         {{ $t('student.add') }}
       </el-button>
     </div>
@@ -20,10 +22,13 @@
             :placeholder="$t('student.filter.keyword')" 
             class="filter-item" 
             clearable 
-            :prefix-icon="Search" 
             style="width: 300px;" 
             @keyup.enter="handleSearch"
-          />
+          >
+            <template #prefix>
+              <div class="i-hugeicons:search-list-02" />
+            </template>
+          </el-input>
         </el-form-item>
         <el-form-item :label="$t('student.filter.status')">
           <el-select 
@@ -77,16 +82,34 @@
         <el-table-column prop="student_no" :label="$t('student.studentNo')" min-width="120" />
         
         <!-- Name -->
-        <el-table-column prop="name" :label="$t('common.name')" align="center" min-width="160" />
+        <el-table-column prop="name" :label="$t('common.name')" width="180">
+          <template #default="{ row }">
+            <div class="flex items-center justify-between gap-2">
+              <span>{{ row.name }}</span>
+              <el-tag 
+                :type="row.student_type === 'formal' ? 'success' : 'info'" 
+                :color="row.student_type === 'formal' ? '#d5f0e1' : '#dfe0f2'" 
+                effect="dark" 
+                size="small"
+                :style="{ 
+                  borderColor: row.student_type === 'formal'? '#91b5a1' : '#afb0c4' ,
+                  color: row.student_type === 'formal'? '#288a52' : '#707187' 
+                }"
+              >
+               {{ row.student_type === 'formal' ? $t('student.type.formal') : $t('student.type.trial') }}
+              </el-tag>
+            </div>
+          </template>
+        </el-table-column>
 
         <!-- Type -->
-        <el-table-column :label="$t('student.filter.identity')" width="100" align="center">
+        <!-- <el-table-column :label="$t('student.filter.identity')" width="100" align="center">
            <template #default="{ row }">
              <el-tag :type="row.student_type === 'formal' ? 'success' : 'info'" :color="row.student_type === 'formal' ? '#66c18c' : '#a7a8bd'" effect="dark">
                {{ row.student_type === 'formal' ? $t('student.type.formal') : $t('student.type.trial') }}
              </el-tag>
            </template>
-        </el-table-column>
+        </el-table-column> -->
         
         <!-- Email -->
         <el-table-column prop="email" :label="$t('common.email')" min-width="240" />
@@ -199,120 +222,64 @@
       </template>
       <template v-else-if="drawerType === 'contract'">
         <ContractManagement
-          v-if="contract" 
+          v-if="contract"
           :contract="contract" 
           :contractLoading="contractLoading"
-          @openAddDetailDialog="openAddDetailDialog"
+          @openAddDetailDialog="detailVisible = true"
           @submitLeaveForm="submitLeaveForm"
           @deleteLeave="deleteLeave"
           @saveContractData="saveContractData"
         />
         <div v-else class="skeleton-content">
-            <p class="text-[#909399]" v-if="!contractLoading">無合約紀錄</p>
+          <p class="text-[#909399]" v-if="!contractLoading">目前無合約紀錄</p>
         </div>
       </template>
     </el-drawer>
 
     <!-- Convert to Formal Dialog -->
-    <el-dialog v-model="convertVisible" :title="`${currentConvertStudent?.name}(${currentConvertStudent?.student_no}) - 轉正`" width="500px">
-      <el-form :model="convertForm" :rules="convertRules" ref="convertFormRef" label-width="120px" @submit.prevent>
-        <el-form-item label="合約編號" prop="contract_no">
-          <el-input v-model="convertForm.contract_no" placeholder="請輸入合約編號"></el-input>
-        </el-form-item>
-        <el-form-item label="總堂數" prop="total_lessons">
-          <el-input-number v-model="convertForm.total_lessons" :min="1" class="w-full"></el-input-number>
-        </el-form-item>
-        <el-form-item label="合約總金額" prop="total_amount">
-          <el-input-number v-model="convertForm.total_amount" :min="0" class="w-full"></el-input-number>
-        </el-form-item>
-        <el-form-item label="起迄日期" prop="dateRange">
-          <el-date-picker v-model="convertForm.dateRange" type="daterange" value-format="YYYY-MM-DD" class="w-full"></el-date-picker>
-        </el-form-item>
-        <el-form-item label="關聯試上預約">
-          <el-select v-model="convertForm.booking_id" :disabled="bookingOptions.length === 0" :placeholder="bookingOptions.length > 0 ? '請選擇' : '無預約紀錄'" class="w-full" clearable>
-            <el-option v-for="b in bookingOptions" :key="b.id" :label="b.booking_no + ' - ' + b.booking_date" :value="b.id"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="指定教師">
-          <el-select v-model="convertForm.teacher_id" placeholder="請選擇教師(選填)" class="w-full" clearable>
-            <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="備註">
-          <el-input type="textarea" v-model="convertForm.notes" :rows="3"></el-input>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="convertVisible = false">取消</el-button>
-        <el-button type="primary" :loading="converting" @click="submitConvert">確認轉正</el-button>
-      </template>
-    </el-dialog>
+     <CreateContractDialog
+       v-model:convertVisible="convertVisible"
+       :currentStudent="currentConvertStudent"
+       :bookingOptions="bookingOptions"
+       :teacherOptions="teacherOptions"
+     />
 
     <!-- Add Contract Detail Dialog -->
-    <el-dialog v-model="detailVisible" title="新增合約明細" width="360px">
-      <el-form :model="detailForm" :rules="detailRules" ref="detailFormRef" label-width="120px" label-position="top" @submit.prevent>
-        <el-form-item label="類型" prop="detail_type">
-          <el-select v-model="detailForm.detail_type" class="w-full">
-            <el-option label="課程單價" value="lesson_price"></el-option>
-            <el-option label="優惠折扣" value="discount"></el-option>
-            <el-option label="補償堂數" value="compensation"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="課程" prop="course_id" v-if="detailForm.detail_type === 'lesson_price'">
-          <el-select v-model="detailForm.course_id" class="w-full" clearable>
-            <el-option v-for="c in detailCourseOptions" :key="c.value" :label="c.label" :value="c.value"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="說明" prop="description">
-          <el-input v-model="detailForm.description" maxlength="100" show-word-limit></el-input>
-        </el-form-item>
-        <el-form-item label="金額" prop="amount">
-          <el-input-number v-model="detailForm.amount" class="w-full"></el-input-number>
-        </el-form-item>
-        <el-form-item label="備註">
-          <el-input type="textarea" v-model="detailForm.notes"></el-input>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="detailVisible = false">取消</el-button>
-        <el-button type="primary" :loading="detailLoading" @click="submitDetailForm">新增</el-button>
-      </template>
-    </el-dialog>
+    <AddContractDetails
+      v-model:detailVisible="detailVisible"
+      :currentStudent="currentStudent"
+      :contractId="contract?.id || ''"
+      @add-detail-finish="fetchContractDependencies"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
-import { Search, Plus, Edit, Refresh } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox, type FormRules } from 'element-plus';
 import { 
   getStudentList, 
   createStudent, 
   updateStudent, 
   deleteStudent,
-  convertToFormal,
   type StudentListParams,
   type StudentResponse,
   type StudentCreate,
   type StudentUpdate,
-  type ConvertToFormalRequest
 } from '@/api/student';
 import {
   getStudentContracts,
   updateStudentContract,
   getContractDetails,
-  createContractDetail,
   getContractLeaveRecords,
   createContractLeaveRecord,
   deleteContractLeaveRecord,
   getContractTeacherOptions,
   getContractCourseOptions,
-  getContractDownloadUrl,
   type StudentContract,
   type StudentContractUpdate,
   type StudentContractDetail,
-  type StudentContractDetailCreate,
   type StudentContractLeaveRecord,
   type StudentContractLeaveRecordCreate
 } from '@/api/contract';
@@ -321,6 +288,8 @@ import BaseInfo from './components/BaseInfo.vue';
 import BookingList from './components/BookingList.vue';
 import ContractManagement from './components/ContractManagement.vue';
 import CreateStudent from './components/CreateStudent.vue';
+import CreateContractDialog from './components/CreateContractDialog.vue';
+import AddContractDetails from './components/AddContractDetails.vue';
 
 const { t } = useI18n();
 
@@ -379,17 +348,8 @@ const contractForm = reactive<StudentContractUpdate & { dateRange: [string, stri
 
 const contractDetails = ref<StudentContractDetail[]>([]);
 const detailVisible = ref(false);
-const detailLoading = ref(false);
 const detailCourseOptions = ref<any[]>([]);
-const detailFormRef = ref<FormInstance>();
-const detailForm = reactive<StudentContractDetailCreate>({
-  detail_type: 'lesson_price',
-  course_id: '',
-  description: '',
-  amount: 0,
-  notes: ''
-});
-const detailRules = reactive<FormRules>({});
+
 
 const leaveRecords = ref<StudentContractLeaveRecord[]>([]);
 const leaveLoading = ref(false);
@@ -406,26 +366,7 @@ const bookingForm = reactive<Partial<BookingItem>>({});
 
 // --- Convert to Formal State ---
 const convertVisible = ref(false);
-const converting = ref(false);
-const convertFormRef = ref<FormInstance>();
 const currentConvertStudent = ref<StudentResponse | null>(null);
-
-const convertForm = reactive({
-  contract_no: '',
-  total_lessons: 1,
-  total_amount: 0,
-  dateRange: ['', ''] as unknown as [string, string],
-  teacher_id: '',
-  booking_id: '',
-  notes: ''
-});
-
-const convertRules = reactive<FormRules>({
-  contract_no: [{ required: true, message: 'Required', trigger: 'blur' }],
-  total_lessons: [{ required: true, message: 'Required', trigger: 'blur' }],
-  total_amount: [{ required: true, message: 'Required', trigger: 'blur' }],
-  dateRange: [{ required: true, message: 'Required', trigger: 'change' }]
-});
 
 const bookingOptions = ref<any[]>([]);
 const teacherOptions = ref<any[]>([]);
@@ -540,17 +481,8 @@ const handleDelete = (row: StudentResponse) => {
 };
 
 // --- Convert To Formal API ---
-const openConvertToFormalDialog = async (row: any) => {
+const openConvertToFormalDialog = async (row: StudentResponse) => {
   currentConvertStudent.value = row;
-  Object.assign(convertForm, {
-    contract_no: '',
-    total_lessons: 1,
-    total_amount: 0,
-    dateRange: ['', ''],
-    teacher_id: '',
-    booking_id: '',
-    notes: ''
-  });
   convertVisible.value = true;
   
   try {
@@ -562,52 +494,6 @@ const openConvertToFormalDialog = async (row: any) => {
     teacherOptions.value = (teacherRes.data as any) || [];
   } catch (err) {
     console.error(err);
-  }
-};
-
-const submitConvert = async () => {
-  if (!convertFormRef.value) return;
-  await convertFormRef.value.validate(async valid => {
-    if (valid && currentConvertStudent.value) {
-      converting.value = true;
-      try {
-        const payload: ConvertToFormalRequest = {
-          contract_no: convertForm.contract_no,
-          total_lessons: convertForm.total_lessons,
-          total_amount: convertForm.total_amount,
-          start_date: convertForm.dateRange[0],
-          end_date: convertForm.dateRange[1],
-          teacher_id: convertForm.teacher_id || null,
-          booking_id: convertForm.booking_id || null,
-          notes: convertForm.notes || null,
-        };
-        const res: any = await convertToFormal(currentConvertStudent.value.id, payload);
-        ElMessage.success('轉換學生身份成功');
-        
-        const rowAny: any = currentConvertStudent.value;
-        rowAny.student_type = 'formal';
-        rowAny._contract_id = res.data?.contract?.id || res.data?.id || res.contract?.id;
-        
-        convertVisible.value = false;
-      } catch (err) {
-         ElMessage.error('轉換學生身份失敗');
-      } finally {
-        converting.value = false;
-      }
-    }
-  });
-};
-
-const downloadContract = async (contractId: string) => {
-  try {
-    const res: any = await getContractDownloadUrl(contractId);
-    if (res.data && res.data.url) {
-      window.open(res.data.url, '_blank');
-    } else {
-      ElMessage.warning('無法下載合約');
-    }
-  } catch (err) {
-    ElMessage.error('合約下載失敗');
   }
 };
 
@@ -716,50 +602,6 @@ const saveContractData = async () => {
    } finally {
      savingContract.value = false;
    }
-};
-
-// --- Contract Details API ---
-const openAddDetailDialog = async () => {
-  Object.assign(detailForm, {
-    detail_type: 'lesson_price',
-    course_id: '',
-    description: '',
-    amount: 0,
-    notes: ''
-  });
-  detailVisible.value = true;
-  
-  if (currentStudent.value?.id) {
-    try {
-      const cRes = await getContractCourseOptions(currentStudent.value.id);
-      detailCourseOptions.value = (cRes.data as any) || [];
-    } catch(err) {
-      console.error(err);
-    }
-  }
-};
-
-const submitDetailForm = async () => {
-  if (!detailFormRef.value || !contract.value) return;
-  await detailFormRef.value.validate(async valid => {
-    if (valid) {
-      detailLoading.value = true;
-      try {
-        const payload: StudentContractDetailCreate = { ...detailForm };
-        if (payload.detail_type !== 'lesson_price') {
-           payload.course_id = null;
-        }
-        await createContractDetail(contract.value!.id, payload);
-        ElMessage.success('新增合約明細成功');
-        detailVisible.value = false;
-        fetchContractDependencies(contract.value!.id);
-      } catch(err) {
-        ElMessage.error('新增合約明細失敗');
-      } finally {
-        detailLoading.value = false;
-      }
-    }
-  });
 };
 
 // --- Leave Records API ---

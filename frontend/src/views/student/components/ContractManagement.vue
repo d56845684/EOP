@@ -61,21 +61,29 @@
             <el-input type="textarea" v-model="contractForm.notes" :rows="3"></el-input>
           </el-form-item>
         </el-col>
-        <el-col :span="24">
-          <el-form-item>
-              <el-button type="primary" :loading="savingContract" @click="saveContractData">
-              <template #icon>
-                <div class="i-hugeicons:floppy-disk text-lg" />
-              </template>
-              儲存合約
-            </el-button>
+        <el-col :span="24" justify="end">
+          <el-form-item class="w-full action-column">
+              <el-space :size="10" :spacer="h(ElDivider, { direction: 'vertical' })">
+                <el-button type="primary" :loading="savingContract" @click="saveContractData">
+                  <template #icon>
+                    <div class="i-hugeicons:floppy-disk text-lg" />
+                  </template>
+                  儲存合約
+                </el-button>
+                <el-button color="#626aef" plain :loading="savingContract" @click="saveContractData">
+                  <template #icon>
+                    <div class="i-hugeicons:file-download" />
+                  </template>
+                  下載合約
+                </el-button>
+              </el-space>
           </el-form-item>
         </el-col>
       </el-row>
     </el-form>
 
-    <el-divider>合約明細</el-divider>
-    <el-button type="primary" size="small" text @click="openAddDetailDialog">
+    <el-divider content-position="left" class="mt-5 mb-3">合約明細</el-divider>
+    <el-button type="primary" text class="float-right mb-2" @click="openAddDetailDialog">
       <template #icon><div class="i-hugeicons:add-square" /></template>
       新增明細
     </el-button>
@@ -90,7 +98,7 @@
         <el-table-column prop="notes" label="備註" />
     </el-table>
 
-    <el-divider>請假紀錄</el-divider>
+    <el-divider content-position="left" class="mt-10 mb-5">請假紀錄</el-divider>
     <el-form :inline="true" :model="leaveForm" label-position="left" size="small" class="mt-2 mb-2 p-4 bg-gray-50 rounded">
       <el-form-item label="請假日期">
           <el-date-picker v-model="leaveForm.leave_date" type="date" value-format="YYYY-MM-DD" style="width: 140px"></el-date-picker>
@@ -119,7 +127,8 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { h, ref } from 'vue';
+import { ElDivider } from 'element-plus'
 
   const props = defineProps({
     contract: {
@@ -184,5 +193,14 @@ import { ref } from 'vue';
   width: 100%;
   display: inline-block;
   text-align: center;
+}
+:deep(.action-column) {
+  .el-form-item__content {
+    justify-content: end;
+  }
+  .el-divider--vertical {
+    height: 1.5em;
+    border-color: #b5b5b5;
+  }
 }
 </style>
