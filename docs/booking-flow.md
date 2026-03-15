@@ -146,15 +146,15 @@ stateDiagram-v2
     pending --> cancelled: 取消預約
 
     confirmed --> completed: 員工標記完成
-    confirmed --> cancelled: 取消預約
+    confirmed --> cancelled: 取消預約（員工直接取消 or 請假核准）
 
     completed --> [*]: 結束（堂數不退）
 
     cancelled --> [*]: 結束（堂數退回合約）
 
     note right of pending: 員工/學生可建立
-    note right of confirmed: 可觸發 Zoom 會議建立
-    note left of cancelled: 自動退回剩餘堂數
+    note right of confirmed: 觸發 Zoom 會議建立
+    note left of cancelled: 自動退回剩餘堂數<br/>釋放教師時段<br/>取消 Zoom 會議
 ```
 
 ### 4-3. 預約操作權限
@@ -167,6 +167,10 @@ stateDiagram-v2
 | 取消預約 | ❌ | ❌ | ✅ |
 | 刪除預約 | ❌ | ❌ | ✅（僅 pending/cancelled）|
 | 縮短時間 | ❌ | ❌ | ✅（只能縮短，不能延長）|
+| 申請請假 | ✅ 只能幫自己 | ✅ 只能幫自己 | ✅ |
+| 審核請假 | ❌ | ❌ | ✅ |
+| 指派代課 | ❌ | ❌ | ✅ |
+| 取消代課 | ❌ | ❌ | ✅ |
 
 ### 4-4. 批次預約
 
@@ -177,11 +181,119 @@ flowchart LR
     BA3 --> BA4[一次建立多筆預約<br/>自動扣除合約堂數]
 ```
 
+### 4-5. 取消預約副作用
+
+當預約狀態變更為 `cancelled` 時，系統自動執行以下操作：
+
+1. **堂數歸還** — 將 `lessons_used` 加回學生合約的 `remaining_lessons`
+2. **時段釋放** — 重新計算教師時段的 `is_booked` 狀態
+3. **Zoom 取消** — 非同步取消該預約的 Zoom 會議
+
+> 此邏輯由 `cancel_booking_side_effects` 共用函式處理，適用於：直接取消、請假核准取消、批次取消、刪除預約。
+
 ---
 
-## 五、課後處理
+## 五、請假流程
 
-### 5-1. 試上轉正
+### 5-1. 請假申請
+
+```mermaid
+flowchart TD
+    L1{發起者?}
+    L1 -->|學生| L2S[學生對已確認預約<br/>提交請假申請]
+    L1 -->|教師| L2T[教師對已確認預約<br/>提交請假申請]
+    L1 -->|員工| L2E[員工代為提交請假]
+
+    L2S --> L3[建立 leave_record<br/>leave_status = pending<br/>initiator_type = student/teacher]
+    L2T --> L3
+    L2E --> L3
+
+    L3 --> L4[等待員工審核]
+```
+
+### 5-2. 請假審核（員工操作）
+
+```mermaid
+flowchart TD
+    R1{審核決定?}
+
+    R1 -->|駁回| R2[leave_status → rejected<br/>填寫駁回原因<br/>預約維持 confirmed]
+
+    R1 -->|核准 — 學生請假| R3[leave_status → approved<br/>booking → cancelled<br/>觸發取消副作用]
+    R3 --> R3A[寫入 student_contract_leave_records<br/>used_leave_count + 1]
+
+    R1 -->|核准 — 教師請假<br/>已指派代課| R4[leave_status → approved<br/>booking 維持 confirmed<br/>由代課教師授課]
+
+    R1 -->|核准 — 教師請假<br/>未指派代課| R5[leave_status → approved<br/>booking → cancelled<br/>觸發取消副作用]
+```
+
+### 5-3. 請假狀態
+
+| 狀態 | 說明 |
+|------|------|
+| `pending` | 等待審核 |
+| `approved` | 已核准 |
+| `rejected` | 已駁回（含駁回原因） |
+| `cancelled` | 已撤回（發起者或員工可撤回 pending 狀態的申請） |
+
+---
+
+## 六、代課流程
+
+### 6-1. 指派代課（員工操作）
+
+```mermaid
+flowchart TD
+    S1[選擇已確認的預約] --> S2{預約已有代課?}
+    S2 -->|是| S2X[❌ 拒絕]
+    S2 -->|否| S3[選擇代課教師]
+
+    S3 --> S4{驗證}
+    S4 --> V1[不能指派原教師自己]
+    S4 --> V2[代課教師必須在<br/>學生偏好白名單內]
+    S4 --> V3[代課教師合約有效]
+    S4 --> V4[代課教師同日<br/>同時段無衝突]
+
+    V1 & V2 & V3 & V4 --> S5[建立 substitute_detail<br/>記錄代課時薪<br/>booking.substitute_detail_id 指向該紀錄]
+
+    S5 --> S6[預約維持 confirmed<br/>原教師不變<br/>代課資訊在 substitute_details]
+```
+
+### 6-2. 取消代課（員工操作）
+
+```mermaid
+flowchart LR
+    C1[員工取消代課] --> C2[軟刪除 substitute_detail]
+    C2 --> C3[清除 booking.substitute_detail_id]
+    C3 --> C4[booking 狀態改為 pending]
+```
+
+### 6-3. 教師請假 + 代課的完整流程
+
+```mermaid
+flowchart TD
+    T1[教師對已確認預約請假] --> T2[建立 leave_record<br/>initiator_type = teacher]
+    T2 --> T3[員工審核]
+    T3 --> T4{處理方式?}
+
+    T4 -->|指派代課後核准| T5[建立 substitute_detail<br/>→ 核准 leave_record<br/>→ 預約維持 confirmed]
+
+    T4 -->|直接核准取消| T6[核准 leave_record<br/>→ 預約取消<br/>→ 觸發取消副作用]
+
+    T4 -->|駁回| T7[leave_record rejected<br/>預約維持 confirmed]
+```
+
+---
+
+## 七、課後處理
+
+### 7-1. 試上完成獎金
+
+當員工將試上預約 (`booking_type = trial`) 標記為 `completed` 時，系統自動：
+- 從教師合約取得 `trial_completed_bonus` 金額
+- 寫入 `teacher_bonus_records`（金額可以為 0）
+
+### 7-2. 試上轉正
 
 ```mermaid
 flowchart TD
@@ -201,12 +313,42 @@ flowchart TD
     C8 --> C9[轉正完成 ✓]
 ```
 
-### 5-2. 教師獎金
+### 7-3. 教師獎金
 
 | 獎金類型 | 說明 | 觸發時機 |
 |---------|------|---------|
+| `trial_completed` | 試上完成獎金 | 試上預約標記完成時自動記錄 |
 | `trial_to_formal` | 試上轉正獎金 | 試上生轉正時自動記錄 |
 | 其他自訂類型 | 績效獎金等 | 員工手動建立 |
+
+### 7-4. 正班 / 加班堂數計算
+
+針對**月薪制（full_time）**教師的預約，系統依課程時長拆分正班與加班堂數：
+
+- 以課程的 `duration_minutes` 為一堂
+- 從預約開始時間逐堂判斷：
+  - 該堂完全落在教師合約的 `[work_start_time, work_end_time]` 內 → **正班**
+  - 否則 → **加班**
+
+```
+教師合約工時: 09:00 ~ 18:00
+課程時長: 60 分鐘
+預約時段: 17:00 ~ 19:00（共 2 堂）
+
+第 1 堂 17:00-18:00 → 落在工時內 → 正班
+第 2 堂 18:00-19:00 → 超出工時   → 加班
+
+結果: regular_lessons = 1, overtime_lessons = 1
+```
+
+---
+
+## 八、Zoom 整合
+
+- 預約狀態變為 `confirmed` 時 → 非同步自動建立 Zoom 會議
+- 預約狀態變為 `cancelled` 時 → 非同步自動取消 Zoom 會議
+- 支援 OAuth 授權綁定 Zoom 帳號
+- 可透過 `ZOOM_ENABLED` 環境變數開關
 
 ---
 
@@ -235,7 +377,14 @@ flowchart TD
         C4[員工標記完成]
     end
 
-    subgraph 4. 後續處理
+    subgraph 4. 課中異動
+        E1[學生/教師請假]
+        E2[員工審核請假]
+        E3[指派代課教師]
+        E4[員工直接取消預約]
+    end
+
+    subgraph 5. 後續處理
         D1{試上生?}
         D2[試上轉正 + 建合約]
         D3[記錄教師獎金]
@@ -246,6 +395,10 @@ flowchart TD
     A3 --> B1 & B2 & B3 & B4 & B5
     B1 & B2 & B3 & B4 & B5 --> C1
     C1 --> C2 --> C3 --> C4
+    C2 --> E1
+    E1 --> E2
+    E2 -->|教師請假| E3
+    E2 -->|核准取消| E4
     C4 --> D1
     D1 -->|是| D2 --> D3 --> D4
     D1 -->|否| D4

@@ -22,10 +22,16 @@ import {
     SlotAvailabilityResponse,
     TimeBlock
 } from '@/lib/api/bookings'
-import { Plus, Pencil, Trash2, Search, X, Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, GraduationCap, Settings, List, Star, Video, ExternalLink, Film } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, GraduationCap, Settings, List, Star, Video, ExternalLink, Film, UserMinus, UserPlus, Ban } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { studentTeacherPreferencesApi, StudentTeacherPreference, CreatePreferenceData, UpdatePreferenceData } from '@/lib/api/studentTeacherPreferences'
 import { zoomApi, ZoomMeetingLog } from '@/lib/api/zoom'
+import LeaveModal from '@/components/booking/LeaveModal'
+import SubstituteModal from '@/components/booking/SubstituteModal'
+import CancelModal from '@/components/booking/CancelModal'
+import LeaveReviewModal from '@/components/booking/LeaveReviewModal'
+import { leaveRecordsApi, LeaveRecord } from '@/lib/api/leaveRecords'
+import { substituteDetailsApi } from '@/lib/api/substituteDetails'
 
 const statusConfig: Record<BookingStatus, { label: string; color: string; bgColor: string }> = {
     pending: { label: '待確認', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
@@ -161,6 +167,12 @@ export default function BookingsPage() {
     // All teachers (unfiltered) for pref form dropdown
     const [allTeacherOptions, setAllTeacherOptions] = useState<TeacherOption[]>([])
 
+    // Leave / Substitute / Cancel modals
+    const [leaveBooking, setLeaveBooking] = useState<Booking | null>(null)
+    const [substituteBooking, setSubstituteBooking] = useState<Booking | null>(null)
+    const [cancelBooking, setCancelBooking] = useState<Booking | null>(null)
+    const [reviewLeaveRecord, setReviewLeaveRecord] = useState<LeaveRecord | null>(null)
+
     // Zoom meeting info
     const [zoomMeetings, setZoomMeetings] = useState<Record<string, ZoomMeetingLog>>({})
     const [creatingZoomFor, setCreatingZoomFor] = useState<string | null>(null)
@@ -291,6 +303,30 @@ export default function BookingsPage() {
             setError(error.message)
         }
         setCreatingZoomFor(null)
+    }
+
+    const handleReviewLeave = async (bookingId: string) => {
+        const { data } = await leaveRecordsApi.list({ leave_status: 'pending' })
+        if (data?.data) {
+            const record = data.data.find(r => r.booking_id === bookingId)
+            if (record) {
+                setReviewLeaveRecord(record)
+            } else {
+                setError('找不到此預約的待審核請假紀錄')
+            }
+        }
+    }
+
+    const handleCancelSubstitute = async (booking: Booking) => {
+        if (!booking.substitute_detail_id) return
+        if (!confirm(`確定要取消「${booking.booking_no}」的代課嗎？取消後預約狀態將改為待確認。`)) return
+
+        const { error: apiError } = await substituteDetailsApi.delete(booking.substitute_detail_id)
+        if (apiError) {
+            setError(apiError.message)
+        } else {
+            fetchBookings()
+        }
     }
 
     // Search with debounce
@@ -1358,11 +1394,9 @@ export default function BookingsPage() {
                                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Zoom
                                             </th>
-                                            {(isStaff || isTeacher) && (
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    操作
-                                                </th>
-                                            )}
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                操作
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
@@ -1393,9 +1427,24 @@ export default function BookingsPage() {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="flex items-center">
-                                                            <GraduationCap className="w-4 h-4 mr-2 text-gray-400" />
-                                                            {booking.teacher_name || '-'}
+                                                        <div className="flex items-center flex-wrap gap-1">
+                                                            <GraduationCap className="w-4 h-4 mr-1 text-gray-400" />
+                                                            <span>{booking.teacher_name || '-'}</span>
+                                                            {booking.substitute_teacher_name && (
+                                                                isStaff ? (
+                                                                    <button
+                                                                        onClick={() => handleCancelSubstitute(booking)}
+                                                                        className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 cursor-pointer"
+                                                                        title="點擊取消代課"
+                                                                    >
+                                                                        代課: {booking.substitute_teacher_name} ✕
+                                                                    </button>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                                                                        代課: {booking.substitute_teacher_name}
+                                                                    </span>
+                                                                )
+                                                            )}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1420,6 +1469,26 @@ export default function BookingsPage() {
                                                             {booking.booking_status === 'cancelled' && <XCircle className="w-3 h-3 mr-1" />}
                                                             {status.label}
                                                         </span>
+                                                        {booking.has_pending_leave && (() => {
+                                                            const isTeacherLeave = booking.pending_leave_initiator_type === 'teacher'
+                                                            const label = isTeacherLeave ? '教師請假' : '學生請假'
+                                                            const colors = isTeacherLeave
+                                                                ? 'bg-purple-100 text-purple-800 hover:bg-purple-200'
+                                                                : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                                                            return isStaff ? (
+                                                                <button
+                                                                    onClick={() => handleReviewLeave(booking.id)}
+                                                                    className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${colors} cursor-pointer`}
+                                                                    title="點擊審核請假"
+                                                                >
+                                                                    {label}
+                                                                </button>
+                                                            ) : (
+                                                                <span className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.split(' hover')[0]}`}>
+                                                                    請假中
+                                                                </span>
+                                                            )
+                                                        })()}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="flex flex-col gap-1">
@@ -1501,32 +1570,93 @@ export default function BookingsPage() {
                                                     </td>
                                                     {isStaff && (
                                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                            <button
-                                                                onClick={() => openEditModal(booking)}
-                                                                className="text-blue-600 hover:text-blue-900 mr-4"
-                                                                title="編輯"
-                                                            >
-                                                                <Pencil className="w-5 h-5" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setDeleteConfirm(booking)}
-                                                                className="text-red-600 hover:text-red-900"
-                                                                title="刪除"
-                                                            >
-                                                                <Trash2 className="w-5 h-5" />
-                                                            </button>
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                {booking.booking_status === 'confirmed' && (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => setLeaveBooking(booking)}
+                                                                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 rounded"
+                                                                            title="請假"
+                                                                        >
+                                                                            <UserMinus className="w-3.5 h-3.5 mr-0.5" />
+                                                                            請假
+                                                                        </button>
+                                                                        {!booking.substitute_detail_id && (
+                                                                            <button
+                                                                                onClick={() => setSubstituteBooking(booking)}
+                                                                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded"
+                                                                                title="代課"
+                                                                            >
+                                                                                <UserPlus className="w-3.5 h-3.5 mr-0.5" />
+                                                                                代課
+                                                                            </button>
+                                                                        )}
+                                                                        <button
+                                                                            onClick={() => setCancelBooking(booking)}
+                                                                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded"
+                                                                            title="取消"
+                                                                        >
+                                                                            <Ban className="w-3.5 h-3.5 mr-0.5" />
+                                                                            取消
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => openEditModal(booking)}
+                                                                    className="text-blue-600 hover:text-blue-900 p-1"
+                                                                    title="編輯"
+                                                                >
+                                                                    <Pencil className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setDeleteConfirm(booking)}
+                                                                    className="text-red-600 hover:text-red-900 p-1"
+                                                                    title="刪除"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
                                                         </td>
                                                     )}
                                                     {isTeacher && (
                                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                            {booking.booking_status === 'pending' ? (
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                {booking.booking_status === 'confirmed' && (
+                                                                    <button
+                                                                        onClick={() => setLeaveBooking(booking)}
+                                                                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 rounded"
+                                                                        title="請假"
+                                                                    >
+                                                                        <UserMinus className="w-3.5 h-3.5 mr-0.5" />
+                                                                        請假
+                                                                    </button>
+                                                                )}
+                                                                {booking.booking_status === 'pending' && (
+                                                                    <button
+                                                                        onClick={() => handleTeacherConfirm(booking)}
+                                                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
+                                                                        title="確認預約"
+                                                                    >
+                                                                        <CheckCircle className="w-4 h-4 mr-1" />
+                                                                        確認
+                                                                    </button>
+                                                                )}
+                                                                {booking.booking_status !== 'pending' && booking.booking_status !== 'confirmed' && (
+                                                                    <span className="text-sm text-gray-400">-</span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    )}
+                                                    {isStudent && (
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                            {booking.booking_status === 'confirmed' ? (
                                                                 <button
-                                                                    onClick={() => handleTeacherConfirm(booking)}
-                                                                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
-                                                                    title="確認預約"
+                                                                    onClick={() => setLeaveBooking(booking)}
+                                                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 rounded"
+                                                                    title="請假"
                                                                 >
-                                                                    <CheckCircle className="w-4 h-4 mr-1" />
-                                                                    確認
+                                                                    <UserMinus className="w-3.5 h-3.5 mr-0.5" />
+                                                                    請假
                                                                 </button>
                                                             ) : (
                                                                 <span className="text-sm text-gray-400">-</span>
@@ -1970,6 +2100,47 @@ export default function BookingsPage() {
                 )}
 
                 {/* Delete Confirmation Modal */}
+                {/* 請假 Modal */}
+                {leaveBooking && (
+                    <LeaveModal
+                        bookingId={leaveBooking.id}
+                        bookingNo={leaveBooking.booking_no}
+                        onClose={() => setLeaveBooking(null)}
+                        onSuccess={() => { setLeaveBooking(null); fetchBookings() }}
+                    />
+                )}
+
+                {/* 代課 Modal */}
+                {substituteBooking && (
+                    <SubstituteModal
+                        bookingId={substituteBooking.id}
+                        bookingNo={substituteBooking.booking_no}
+                        studentId={substituteBooking.student_id}
+                        originalTeacherId={substituteBooking.teacher_id}
+                        onClose={() => setSubstituteBooking(null)}
+                        onSuccess={() => { setSubstituteBooking(null); fetchBookings() }}
+                    />
+                )}
+
+                {/* 取消 Modal */}
+                {cancelBooking && (
+                    <CancelModal
+                        bookingId={cancelBooking.id}
+                        bookingNo={cancelBooking.booking_no}
+                        onClose={() => setCancelBooking(null)}
+                        onSuccess={() => { setCancelBooking(null); fetchBookings() }}
+                    />
+                )}
+
+                {/* 請假審核 Modal */}
+                {reviewLeaveRecord && (
+                    <LeaveReviewModal
+                        leaveRecord={reviewLeaveRecord}
+                        onClose={() => setReviewLeaveRecord(null)}
+                        onSuccess={() => { setReviewLeaveRecord(null); fetchBookings() }}
+                    />
+                )}
+
                 {deleteConfirm && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                         <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">

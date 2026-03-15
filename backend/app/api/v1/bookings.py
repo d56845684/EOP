@@ -22,6 +22,39 @@ def calculate_lessons_used(start_time: time, end_time: time, duration_minutes: i
     return max(1, booking_minutes // duration_minutes)
 
 
+def calculate_regular_overtime_lessons(
+    booking_start: time,
+    booking_end: time,
+    work_start: time,
+    work_end: time,
+    duration_minutes: int,
+) -> tuple[int, int]:
+    """依課程時長拆分正班 / 加班堂數
+
+    以 duration_minutes 為一堂，從 booking_start 開始逐堂判斷：
+    - 該堂完全落在 [work_start, work_end] 內 → 正班
+    - 否則 → 加班
+
+    Returns: (regular_lessons, overtime_lessons)
+    """
+    ws_min = work_start.hour * 60 + work_start.minute
+    we_min = work_end.hour * 60 + work_end.minute
+    bs_min = booking_start.hour * 60 + booking_start.minute
+    be_min = booking_end.hour * 60 + booking_end.minute
+
+    regular = 0
+    overtime = 0
+    cursor = bs_min
+    while cursor + duration_minutes <= be_min:
+        if cursor >= ws_min and cursor + duration_minutes <= we_min:
+            regular += 1
+        else:
+            overtime += 1
+        cursor += duration_minutes
+
+    return regular, overtime
+
+
 async def generate_booking_no() -> str:
     """生成預約編號: BK{YYYYMMDD}{序號}"""
     today = datetime.utcnow().strftime("%Y%m%d")
@@ -273,6 +306,46 @@ async def update_slot_booked_status(slot_id: str):
     )
 
 
+async def cancel_booking_side_effects(booking: dict):
+    """取消預約的共用副作用：堂數歸還 + 時段釋放 + Zoom 取消
+
+    Args:
+        booking: 預約資料 dict，需含 id, lessons_used, student_contract_id, teacher_slot_id
+    """
+    booking_id = booking.get("id")
+    booking_lessons = booking.get("lessons_used", 1)
+
+    # 恢復學生合約剩餘堂數
+    if booking.get("student_contract_id"):
+        contract = await supabase_service.table_select(
+            table="student_contracts",
+            select="remaining_lessons",
+            filters={"id": booking["student_contract_id"]},
+        )
+        if contract:
+            await supabase_service.table_update(
+                table="student_contracts",
+                data={"remaining_lessons": contract[0]["remaining_lessons"] + booking_lessons},
+                filters={"id": booking["student_contract_id"]},
+            )
+
+    # 更新 slot 預約已滿狀態
+    if booking.get("teacher_slot_id"):
+        await update_slot_booked_status(booking["teacher_slot_id"])
+
+    # 取消 Zoom 會議
+    if booking_id:
+        try:
+            from app.services.zoom_service import zoom_service
+            from app.config import settings as app_settings
+            if app_settings.zoom_enabled:
+                asyncio.create_task(
+                    zoom_service.cancel_meeting_for_booking(booking_id)
+                )
+        except Exception:
+            pass
+
+
 async def enrich_booking_with_relations(booking: dict) -> dict:
     """為預約資料添加關聯名稱"""
     # 取得學生名稱
@@ -293,7 +366,7 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
         )
         booking["teacher_name"] = teacher[0]["name"] if teacher else None
 
-    # 計算 regular_lessons / overtime_lessons（從教師合約取得正職工作時段，以 30 分鐘為單位拆分）
+    # 計算 regular_lessons / overtime_minutes（從教師合約取得正職工作時段，依課程時長拆分）
     if booking.get("teacher_contract_id"):
         tc = await supabase_service.table_select(
             table="teacher_contracts",
@@ -302,6 +375,17 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
         )
         if tc and tc[0].get("employment_type") == "full_time" and tc[0].get("work_start_time") and tc[0].get("work_end_time"):
             from datetime import time as dt_time
+
+            # 取得課程 duration_minutes
+            course_duration = 30  # fallback
+            if booking.get("course_id"):
+                course_info = await supabase_service.table_select(
+                    table="courses", select="duration_minutes",
+                    filters={"id": booking["course_id"]},
+                )
+                if course_info and course_info[0].get("duration_minutes"):
+                    course_duration = course_info[0]["duration_minutes"]
+
             work_start = tc[0]["work_start_time"]
             work_end = tc[0]["work_end_time"]
             b_start = booking.get("start_time")
@@ -315,21 +399,9 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             if isinstance(work_end, str):
                 work_end = dt_time.fromisoformat(work_end)
 
-            # 以 30 分鐘為單位拆分
-            ws_min = work_start.hour * 60 + work_start.minute
-            we_min = work_end.hour * 60 + work_end.minute
-            bs_min = b_start.hour * 60 + b_start.minute
-            be_min = b_end.hour * 60 + b_end.minute
-
-            regular = 0
-            overtime = 0
-            cursor = bs_min
-            while cursor < be_min:
-                if cursor >= ws_min and cursor + 30 <= we_min:
-                    regular += 1
-                else:
-                    overtime += 1
-                cursor += 30
+            regular, overtime = calculate_regular_overtime_lessons(
+                b_start, b_end, work_start, work_end, course_duration
+            )
 
             booking["regular_lessons"] = regular
             booking["overtime_lessons"] = overtime
@@ -361,6 +433,38 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             filters={"id": booking["teacher_contract_id"]},
         )
         booking["teacher_contract_no"] = contract[0]["contract_no"] if contract else None
+
+    # 取得代課教師名稱
+    if booking.get("substitute_detail_id"):
+        sub = await supabase_service.table_select(
+            table="substitute_details",
+            select="substitute_teacher_id",
+            filters={"id": booking["substitute_detail_id"], "is_deleted": "eq.false"},
+        )
+        if sub:
+            sub_teacher = await supabase_service.table_select(
+                table="teachers",
+                select="name",
+                filters={"id": sub[0]["substitute_teacher_id"]},
+            )
+            booking["substitute_teacher_name"] = sub_teacher[0]["name"] if sub_teacher else None
+        else:
+            booking["substitute_teacher_name"] = None
+    else:
+        booking["substitute_teacher_name"] = None
+
+    # 檢查是否有 pending 的請假紀錄
+    leave_check = await supabase_service.table_select(
+        table="leave_records",
+        select="id,initiator_type",
+        filters={
+            "booking_id": f"eq.{booking['id']}",
+            "leave_status": "eq.pending",
+            "is_deleted": "eq.false",
+        },
+    )
+    booking["has_pending_leave"] = len(leave_check) > 0
+    booking["pending_leave_initiator_type"] = leave_check[0]["initiator_type"] if leave_check else None
 
     return booking
 
@@ -428,7 +532,7 @@ async def list_bookings(
         # 取得分頁資料
         bookings = await supabase_service.table_select_with_pagination(
             table="bookings_view",
-            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_type,is_trial_to_formal,booking_date,start_time,end_time,notes,created_at,updated_at",
+            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,substitute_detail_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_type,is_trial_to_formal,booking_date,start_time,end_time,notes,created_at,updated_at",
             filters=filters,
             order_by="booking_date.desc,start_time.desc",
             limit=per_page,
@@ -633,7 +737,7 @@ async def get_booking(
     try:
         result = await supabase_service.table_select(
             table="bookings_view",
-            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_type,is_trial_to_formal,booking_date,start_time,end_time,notes,created_at,updated_at",
+            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,substitute_detail_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_type,is_trial_to_formal,booking_date,start_time,end_time,notes,created_at,updated_at",
             filters={"id": booking_id, "is_deleted": "eq.false"},
         )
 
@@ -1263,36 +1367,9 @@ async def update_booking(
                 except Exception as trial_bonus_err:
                     logging.getLogger(__name__).warning(f"Booking {booking_id}: 試上完成獎金記錄失敗: {trial_bonus_err}")
 
-        # 如果狀態變更為取消，恢復堂數
+        # 如果狀態變更為取消，觸發取消副作用
         if new_status == "cancelled" and old_status != "cancelled":
-            booking_lessons = existing[0].get("lessons_used", 1)
-            # 恢復學生合約剩餘堂數
-            contract = await supabase_service.table_select(
-                table="student_contracts",
-                select="remaining_lessons",
-                filters={"id": existing[0]["student_contract_id"]},
-            )
-            if contract:
-                await supabase_service.table_update(
-                    table="student_contracts",
-                    data={"remaining_lessons": contract[0]["remaining_lessons"] + booking_lessons},
-                    filters={"id": existing[0]["student_contract_id"]},
-                )
-
-            # 更新 slot 預約已滿狀態
-            if existing[0].get("teacher_slot_id"):
-                await update_slot_booked_status(existing[0]["teacher_slot_id"])
-
-            # 取消 Zoom 會議
-            try:
-                from app.services.zoom_service import zoom_service
-                from app.config import settings as app_settings
-                if app_settings.zoom_enabled:
-                    asyncio.create_task(
-                        zoom_service.cancel_meeting_for_booking(booking_id)
-                    )
-            except Exception:
-                pass
+            await cancel_booking_side_effects(existing[0])
 
         # 添加關聯名稱
         enriched = await enrich_booking_with_relations(result)
@@ -1421,7 +1498,6 @@ async def batch_delete_bookings(
             message += f"，跳過 {skipped_confirmed} 筆不可刪除的預約"
         if restored_contracts:
             message += f"，恢復 {len(restored_contracts)} 份合約堂數"
-
         return BaseResponse(message=message)
 
     except HTTPException:

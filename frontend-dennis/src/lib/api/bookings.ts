@@ -13,6 +13,7 @@ export interface Booking {
     student_contract_id: string
     teacher_contract_id: string
     teacher_slot_id: string
+    substitute_detail_id?: string | null
     teacher_hourly_rate: number
     teacher_rate_percentage?: number
     booking_status: BookingStatus
@@ -33,6 +34,9 @@ export interface Booking {
     course_name?: string
     student_contract_no?: string
     teacher_contract_no?: string
+    substitute_teacher_name?: string | null
+    has_pending_leave?: boolean
+    pending_leave_initiator_type?: 'student' | 'teacher' | null
 }
 
 export interface BookingListResponse {
