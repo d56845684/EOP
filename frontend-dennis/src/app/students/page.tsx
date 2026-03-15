@@ -412,7 +412,7 @@ export default function StudentsPage() {
                             <p className="text-gray-500">{searchTerm ? '請嘗試其他搜尋條件' : '點擊「新增學生」建立第一位學生'}</p>
                         </div>
                     ) : (
-                        <div className="card overflow-hidden">
+                        <div className="card overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>

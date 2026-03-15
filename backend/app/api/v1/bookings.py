@@ -293,6 +293,48 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
         )
         booking["teacher_name"] = teacher[0]["name"] if teacher else None
 
+    # 計算 regular_lessons / overtime_lessons（從教師合約取得正職工作時段，以 30 分鐘為單位拆分）
+    if booking.get("teacher_contract_id"):
+        tc = await supabase_service.table_select(
+            table="teacher_contracts",
+            select="employment_type,work_start_time,work_end_time",
+            filters={"id": booking["teacher_contract_id"]},
+        )
+        if tc and tc[0].get("employment_type") == "full_time" and tc[0].get("work_start_time") and tc[0].get("work_end_time"):
+            from datetime import time as dt_time
+            work_start = tc[0]["work_start_time"]
+            work_end = tc[0]["work_end_time"]
+            b_start = booking.get("start_time")
+            b_end = booking.get("end_time")
+            if isinstance(b_start, str):
+                b_start = dt_time.fromisoformat(b_start)
+            if isinstance(b_end, str):
+                b_end = dt_time.fromisoformat(b_end)
+            if isinstance(work_start, str):
+                work_start = dt_time.fromisoformat(work_start)
+            if isinstance(work_end, str):
+                work_end = dt_time.fromisoformat(work_end)
+
+            # 以 30 分鐘為單位拆分
+            ws_min = work_start.hour * 60 + work_start.minute
+            we_min = work_end.hour * 60 + work_end.minute
+            bs_min = b_start.hour * 60 + b_start.minute
+            be_min = b_end.hour * 60 + b_end.minute
+
+            regular = 0
+            overtime = 0
+            cursor = bs_min
+            while cursor < be_min:
+                if cursor >= ws_min and cursor + 30 <= we_min:
+                    regular += 1
+                else:
+                    overtime += 1
+                cursor += 30
+
+            booking["regular_lessons"] = regular
+            booking["overtime_lessons"] = overtime
+            booking["is_overtime"] = overtime > 0
+
     # 取得課程名稱
     if booking.get("course_id"):
         course = await supabase_service.table_select(
@@ -855,7 +897,7 @@ async def create_booking(
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
 
-        # 建立預約
+        # 建立預約（試上課不使用時薪計算，薪水以獎金紀錄）
         booking_data = {
             "booking_no": booking_no,
             "student_id": data.student_id,
@@ -864,7 +906,7 @@ async def create_booking(
             "student_contract_id": data.student_contract_id,
             "teacher_contract_id": teacher_contract_id,
             "teacher_slot_id": teacher_slot_id,
-            "teacher_hourly_rate": hourly_rate,
+            "teacher_hourly_rate": 0 if is_trial else hourly_rate,
             "teacher_rate_percentage": rate_percentage,
             "booking_status": "pending",
             "booking_date": data.booking_date.isoformat(),
@@ -1030,7 +1072,7 @@ async def update_booking(
         # 檢查預約是否存在
         existing = await supabase_service.table_select(
             table="bookings",
-            select="id,booking_status,teacher_slot_id,student_contract_id,teacher_id,lessons_used,start_time,end_time,course_id",
+            select="id,booking_status,teacher_slot_id,student_contract_id,teacher_id,student_id,lessons_used,start_time,end_time,course_id,booking_type,teacher_contract_id",
             filters={"id": booking_id, "is_deleted": "eq.false"},
         )
 
@@ -1050,9 +1092,13 @@ async def update_booking(
         elif current_user.is_student():
             raise HTTPException(status_code=403, detail="學生無權更新預約")
 
-        # 已取消的預約不可修改
-        if old_status == "cancelled":
-            raise HTTPException(status_code=400, detail="已取消的預約無法修改")
+        # 非管理員：已完成的預約不可修改
+        if old_status == "completed" and not current_user.is_admin():
+            raise HTTPException(status_code=400, detail="已完成的預約無法修改，僅管理員可變更")
+
+        # 已取消的預約不可修改（管理員除外）
+        if old_status == "cancelled" and not current_user.is_admin():
+            raise HTTPException(status_code=400, detail="已取消的預約無法修改，僅管理員可變更")
 
         # 處理 end_time 縮短預約
         end_time_delta = 0  # 要退回的堂數差額
@@ -1158,6 +1204,64 @@ async def update_booking(
                         )
             except Exception as zoom_err:
                 logging.getLogger(__name__).warning(f"Zoom 會議建立觸發失敗: {zoom_err}")
+
+        # 試上課完成：自動寫入「試上完成」獎金紀錄
+        if new_status == "completed" and old_status != "completed":
+            if existing[0].get("booking_type") == "trial":
+                try:
+                    teacher_id_val = existing[0].get("teacher_id")
+                    tc_id = existing[0].get("teacher_contract_id")
+                    # 從教師合約取得試上完成獎金金額
+                    bonus_amount = 0
+                    if tc_id:
+                        tc_rows = await supabase_service.table_select(
+                            table="teacher_contracts",
+                            select="trial_completed_bonus",
+                            filters={"id": tc_id, "is_deleted": "eq.false"},
+                        )
+                        if tc_rows:
+                            bonus_amount = float(tc_rows[0].get("trial_completed_bonus", 0) or 0)
+                    else:
+                        # 未指定合約時，找教師的 active 合約
+                        tc_rows = await supabase_service.table_select(
+                            table="teacher_contracts",
+                            select="trial_completed_bonus",
+                            filters={
+                                "teacher_id": teacher_id_val,
+                                "contract_status": "eq.active",
+                                "is_deleted": "eq.false",
+                            },
+                        )
+                        if tc_rows:
+                            bonus_amount = float(tc_rows[0].get("trial_completed_bonus", 0) or 0)
+
+                    employee_id_val = await get_user_employee_id(current_user.user_id)
+                    # 查學生名稱
+                    student_name = ""
+                    student_rows = await supabase_service.table_select(
+                        table="students", select="name",
+                        filters={"id": existing[0].get("student_id")},
+                    )
+                    if student_rows:
+                        student_name = student_rows[0].get("name", "")
+
+                    bonus_data = {
+                        "teacher_id": teacher_id_val,
+                        "bonus_type": "trial_completed",
+                        "amount": bonus_amount,
+                        "bonus_date": date.today().isoformat(),
+                        "description": f"學生 {student_name} 試上完成獎金",
+                        "related_student_id": existing[0].get("student_id"),
+                        "related_booking_id": booking_id,
+                    }
+                    if employee_id_val:
+                        bonus_data["created_by"] = employee_id_val
+                    await supabase_service.table_insert(
+                        table="teacher_bonus_records", data=bonus_data,
+                    )
+                    logging.getLogger(__name__).info(f"Booking {booking_id}: 試上完成獎金已記錄 (金額={bonus_amount})")
+                except Exception as trial_bonus_err:
+                    logging.getLogger(__name__).warning(f"Booking {booking_id}: 試上完成獎金記錄失敗: {trial_bonus_err}")
 
         # 如果狀態變更為取消，恢復堂數
         if new_status == "cancelled" and old_status != "cancelled":

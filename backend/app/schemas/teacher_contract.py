@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional
-from datetime import datetime, date
+from datetime import datetime, date, time
 from enum import Enum
 
 
@@ -73,7 +73,10 @@ class TeacherContractBase(BaseModel):
     start_date: date = Field(..., description="合約開始日期")
     end_date: date = Field(..., description="合約結束日期")
     employment_type: EmploymentType = Field(EmploymentType.hourly, description="僱用類型")
-    trial_to_formal_bonus: Optional[float] = Field(0, ge=0, description="試上課轉正式獎金")
+    trial_completed_bonus: Optional[float] = Field(0, ge=0, description="試上完成獎金")
+    trial_to_formal_bonus: Optional[float] = Field(0, ge=0, description="試上轉正獎金（轉正時補發差額）")
+    work_start_time: Optional[time] = Field(None, description="正職上班開始時間")
+    work_end_time: Optional[time] = Field(None, description="正職上班結束時間")
     notes: Optional[str] = Field(None, description="備註")
 
 
@@ -89,7 +92,10 @@ class TeacherContractUpdate(BaseModel):
     start_date: Optional[date] = Field(None, description="合約開始日期")
     end_date: Optional[date] = Field(None, description="合約結束日期")
     employment_type: Optional[EmploymentType] = Field(None, description="僱用類型")
-    trial_to_formal_bonus: Optional[float] = Field(None, ge=0, description="試上課轉正式獎金")
+    trial_completed_bonus: Optional[float] = Field(None, ge=0, description="試上完成獎金")
+    trial_to_formal_bonus: Optional[float] = Field(None, ge=0, description="試上轉正獎金（轉正時補發差額）")
+    work_start_time: Optional[time] = Field(None, description="正職上班開始時間")
+    work_end_time: Optional[time] = Field(None, description="正職上班結束時間")
     notes: Optional[str] = Field(None, description="備註")
 
 
@@ -102,7 +108,10 @@ class TeacherContractResponse(BaseModel):
     start_date: date
     end_date: date
     employment_type: EmploymentType = EmploymentType.hourly
+    trial_completed_bonus: Optional[float] = 0
     trial_to_formal_bonus: Optional[float] = 0
+    work_start_time: Optional[time] = None
+    work_end_time: Optional[time] = None
     notes: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

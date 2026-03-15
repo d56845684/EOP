@@ -274,14 +274,16 @@ async def convert_to_formal(
         if not contract:
             raise HTTPException(status_code=500, detail="建立合約失敗")
 
-        # 4. 若提供 teacher_id，查 trial_to_formal_bonus 並記錄
+        # 4. 若提供 teacher_id，記錄轉正差額獎金
+        #    差額 = trial_to_formal_bonus - trial_completed_bonus
+        #    （試上完成獎金已在 booking completed 時發放）
         bonus_recorded = False
         bonus_amount = None
         if data.teacher_id:
             try:
                 tc_list = await supabase_service.table_select(
                     table="teacher_contracts",
-                    select="id,trial_to_formal_bonus",
+                    select="id,trial_to_formal_bonus,trial_completed_bonus",
                     filters={
                         "teacher_id": data.teacher_id,
                         "contract_status": "eq.active",
@@ -289,17 +291,20 @@ async def convert_to_formal(
                     },
                 )
                 if tc_list:
-                    bonus = tc_list[0].get("trial_to_formal_bonus", 0) or 0
-                    bonus_amount = float(bonus)
+                    formal_bonus = float(tc_list[0].get("trial_to_formal_bonus", 0) or 0)
+                    completed_bonus = float(tc_list[0].get("trial_completed_bonus", 0) or 0)
+                    bonus_amount = formal_bonus - completed_bonus
+                    if bonus_amount < 0:
+                        bonus_amount = 0
                     bonus_recorded = True
-                    # 寫入 teacher_bonus_records
+                    # 寫入差額獎金紀錄
                     try:
                         bonus_data = {
                             "teacher_id": data.teacher_id,
                             "bonus_type": "trial_to_formal",
                             "amount": bonus_amount,
                             "bonus_date": date.today().isoformat(),
-                            "description": f"學生 {student.get('name', '')} 試上轉正獎金",
+                            "description": f"學生 {student.get('name', '')} 試上轉正獎金（差額）",
                             "related_student_id": student_id,
                         }
                         if data.booking_id:

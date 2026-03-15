@@ -84,6 +84,9 @@ class BookingResponse(BaseModel):
     end_time: time
     booking_type: str = "regular"
     is_trial_to_formal: bool = False
+    is_overtime: Optional[bool] = None
+    regular_lessons: Optional[int] = None
+    overtime_lessons: Optional[int] = None
     lessons_used: int = 1
     notes: Optional[str] = None
     created_at: Optional[datetime] = None

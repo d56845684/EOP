@@ -109,7 +109,7 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
     return contract
 
 
-CONTRACT_SELECT = "id,contract_no,teacher_id,contract_status,start_date,end_date,employment_type,trial_to_formal_bonus,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
+CONTRACT_SELECT = "id,contract_no,teacher_id,contract_status,start_date,end_date,employment_type,trial_completed_bonus,trial_to_formal_bonus,work_start_time,work_end_time,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
 
 
 @router.get("/options/teachers", tags=["教師合約管理"])
@@ -327,7 +327,10 @@ async def create_teacher_contract(
             "start_date": data.start_date.isoformat(),
             "end_date": data.end_date.isoformat(),
             "employment_type": data.employment_type.value,
+            "trial_completed_bonus": data.trial_completed_bonus,
             "trial_to_formal_bonus": data.trial_to_formal_bonus,
+            "work_start_time": data.work_start_time.isoformat() if data.work_start_time else None,
+            "work_end_time": data.work_end_time.isoformat() if data.work_end_time else None,
             "notes": data.notes,
         }
 
@@ -405,6 +408,8 @@ async def update_teacher_contract(
                 elif key == "employment_type":
                     update_data[key] = value.value
                 elif key in ["start_date", "end_date"]:
+                    update_data[key] = value.isoformat()
+                elif key in ["work_start_time", "work_end_time"]:
                     update_data[key] = value.isoformat()
                 else:
                     update_data[key] = value

@@ -5,6 +5,7 @@ from enum import Enum
 
 
 class BonusType(str, Enum):
+    trial_completed = "trial_completed"
     trial_to_formal = "trial_to_formal"
     performance = "performance"
     substitute = "substitute"
@@ -13,6 +14,7 @@ class BonusType(str, Enum):
 
 
 BONUS_TYPE_LABELS = {
+    "trial_completed": "試上完成",
     "trial_to_formal": "試上轉正",
     "performance": "績效獎金",
     "substitute": "代課獎金",

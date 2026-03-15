@@ -2,9 +2,10 @@ import { fetchWithAuth } from './fetchWithAuth'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
-export type BonusType = 'trial_to_formal' | 'performance' | 'substitute' | 'referral' | 'other'
+export type BonusType = 'trial_completed' | 'trial_to_formal' | 'performance' | 'substitute' | 'referral' | 'other'
 
 export const BONUS_TYPE_LABELS: Record<BonusType, string> = {
+    trial_completed: '試上完成',
     trial_to_formal: '試上轉正',
     performance: '績效獎金',
     substitute: '代課獎金',

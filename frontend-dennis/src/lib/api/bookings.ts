@@ -18,6 +18,9 @@ export interface Booking {
     booking_status: BookingStatus
     booking_type?: 'trial' | 'regular'
     is_trial_to_formal?: boolean
+    is_overtime?: boolean | null
+    regular_lessons?: number | null
+    overtime_lessons?: number | null
     booking_date: string
     start_time: string
     end_time: string
