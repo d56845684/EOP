@@ -34,7 +34,6 @@ async def readiness_check():
         result = await supabase_service.table_select(
             table="courses",
             select="id",
-            use_service_key=True
         )
         checks["database"] = True
     except:

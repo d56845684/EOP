@@ -58,6 +58,7 @@ class UserInfo(BaseModel):
     id: str
     email: str
     role: str
+    role_id: Optional[str] = Field(None, description="角色 UUID")
     email_confirmed: bool = False
     created_at: Optional[str] = None
     employee_type: Optional[str] = Field(
@@ -72,6 +73,9 @@ class UserInfo(BaseModel):
         False,
         description="是否需要強制變更密碼"
     )
+    teacher_id: Optional[str] = Field(None, description="教師 ID")
+    student_id: Optional[str] = Field(None, description="學生 ID")
+    employee_id: Optional[str] = Field(None, description="員工 ID")
 
 class LoginResponse(BaseModel):
     success: bool = True

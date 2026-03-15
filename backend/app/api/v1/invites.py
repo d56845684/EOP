@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, HTTPException, Depends
 from app.services.supabase_service import supabase_service
 from app.services.invite_service import invite_service
@@ -28,7 +29,6 @@ async def generate_invite(
             table=table,
             select="id,email,name,email_verified_at,is_deleted",
             filters={"id": data.entity_id, "is_deleted": "eq.false"},
-            use_service_key=True,
         )
         if not entities:
             raise HTTPException(status_code=404, detail=f"{data.entity_type} 不存在")
@@ -46,7 +46,6 @@ async def generate_invite(
             table="users",
             select="id",
             filters={"email": entity["email"]},
-            use_service_key=True,
         )
         if existing_users:
             raise HTTPException(status_code=400, detail="此 email 已有登入帳號")
@@ -90,7 +89,6 @@ async def accept_invite(data: AcceptInviteRequest):
             table=table,
             select="id,email,email_verified_at,is_deleted",
             filters={"id": entity_id, "is_deleted": "eq.false"},
-            use_service_key=True,
         )
         if not entities:
             raise HTTPException(status_code=400, detail="資料不存在或已被刪除")
@@ -109,9 +107,16 @@ async def accept_invite(data: AcceptInviteRequest):
         user_id = auth_response.user.id
 
         # 4. INSERT user_profiles 帶入 student_id/teacher_id
+        #    查 roles 表取得 role_id
+        role_row = await supabase_service.pool.fetchrow(
+            "SELECT id FROM roles WHERE key = $1", entity_type
+        )
+        if not role_row:
+            raise HTTPException(status_code=500, detail=f"角色 '{entity_type}' 不存在")
+
         profile_data = {
             "id": user_id,
-            "role": entity_type,
+            "role_id": str(role_row["id"]),
             "must_change_password": True,
         }
         if entity_type == "student":
@@ -123,7 +128,6 @@ async def accept_invite(data: AcceptInviteRequest):
             await supabase_service.table_insert(
                 table="user_profiles",
                 data=profile_data,
-                use_service_key=True,
             )
         except Exception as profile_err:
             # rollback：刪除 public.users
@@ -136,7 +140,6 @@ async def accept_invite(data: AcceptInviteRequest):
             table=table,
             data={"email_verified_at": "now()"},
             filters={"id": entity_id},
-            use_service_key=True,
         )
 
         return AcceptInviteResponse(message="帳號建立成功，請使用 email 和密碼登入")

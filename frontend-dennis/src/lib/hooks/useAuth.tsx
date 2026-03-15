@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react'
 import { authApi } from '../api/auth'
+import { permissionsApi } from '../api/permissions'
 
 interface User {
     id: string
@@ -11,12 +12,16 @@ interface User {
 
 interface UserProfile {
     id: string
-    role: 'admin' | 'teacher' | 'student' | 'employee'
+    role: string
+    role_id?: string
     full_name: string
     email: string
     phone?: string
     avatar_url?: string
     must_change_password?: boolean
+    teacher_id?: string
+    student_id?: string
+    employee_id?: string
 }
 
 interface AuthContextValue {
@@ -31,6 +36,8 @@ interface AuthContextValue {
     isTeacher: boolean
     isStudent: boolean
     isEmployee: boolean
+    pageKeys: string[]
+    hasPage: (key: string) => boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -39,6 +46,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [profile, setProfile] = useState<UserProfile | null>(null)
     const [loading, setLoading] = useState(true)
+    const [pageKeys, setPageKeys] = useState<string[]>([])
+
+    const fetchPermissions = useCallback(async () => {
+        try {
+            const { data, error } = await permissionsApi.getMyPermissions()
+            if (!error && data) {
+                setPageKeys(data.page_keys)
+            }
+        } catch {
+            // 權限取得失敗不影響登入流程
+        }
+    }, [])
 
     const fetchCurrentUser = useCallback(async () => {
         try {
@@ -46,15 +65,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (error || !u) {
                 setUser(null)
                 setProfile(null)
+                setPageKeys([])
                 return
             }
             setUser(u)
             setProfile(p)
+            await fetchPermissions()
         } catch {
             setUser(null)
             setProfile(null)
+            setPageKeys([])
         }
-    }, [])
+    }, [fetchPermissions])
 
     useEffect(() => {
         fetchCurrentUser().finally(() => {
@@ -80,9 +102,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const result = await authApi.signOut()
         setUser(null)
         setProfile(null)
+        setPageKeys([])
         setLoading(false)
         return result
     }, [])
+
+    const hasPage = useCallback((key: string) => pageKeys.includes(key), [pageKeys])
 
     const value: AuthContextValue = {
         user,
@@ -92,10 +117,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signOut,
         refreshUser: fetchCurrentUser,
-        isAdmin: profile?.role === 'admin',
-        isTeacher: profile?.role === 'teacher',
-        isStudent: profile?.role === 'student',
-        isEmployee: profile?.role === 'employee',
+        isAdmin: profile?.employee_id != null && (profile?.role === 'admin' || (profile as any)?.permission_level >= 100),
+        isTeacher: profile?.teacher_id != null,
+        isStudent: profile?.student_id != null,
+        isEmployee: profile?.employee_id != null,
+        pageKeys,
+        hasPage,
     }
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

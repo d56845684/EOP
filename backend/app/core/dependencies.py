@@ -18,18 +18,28 @@ class CurrentUser:
         user_id: str,
         email: str,
         role: str,
-        session_id: str,
-        session_data: SessionData,
+        role_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        session_data: Optional[SessionData] = None,
         employee_type: Optional[str] = None,
-        permission_level: int = 0
+        permission_level: int = 0,
+        is_service_account: bool = False,
+        student_id: Optional[str] = None,
+        teacher_id: Optional[str] = None,
+        employee_id: Optional[str] = None,
     ):
         self.user_id = user_id
         self.email = email
         self.role = role
+        self.role_id = role_id
         self.session_id = session_id
         self.session_data = session_data
         self.employee_type = employee_type
         self.permission_level = permission_level
+        self.is_service_account = is_service_account
+        self.student_id = student_id
+        self.teacher_id = teacher_id
+        self.employee_id = employee_id
 
     def is_admin(self) -> bool:
         """檢查是否為管理員（權限等級 100）"""
@@ -37,15 +47,15 @@ class CurrentUser:
 
     def is_staff(self) -> bool:
         """檢查是否為員工（含管理員）"""
-        return self.role in ["admin", "employee"]
+        return self.employee_id is not None
 
     def is_teacher(self) -> bool:
         """檢查是否為教師"""
-        return self.role == "teacher"
+        return self.teacher_id is not None
 
     def is_student(self) -> bool:
         """檢查是否為學生"""
-        return self.role == "student"
+        return self.student_id is not None
 
     def has_permission(self, required_level: int) -> bool:
         """檢查是否有足夠的權限等級"""
@@ -70,6 +80,18 @@ class CurrentUser:
 
 async def get_current_user(request: Request) -> CurrentUser:
     """取得當前已認證的用戶"""
+    # Service Account：由 middleware 驗證 API Key 後標記
+    if getattr(request.state, "is_service_account", False):
+        return CurrentUser(
+            user_id="service-account",
+            email="service@system.internal",
+            role="employee",
+            is_service_account=True,
+            employee_type="admin",
+            permission_level=100,
+            employee_id="service-account",
+        )
+
     # 1. 取得 Token
     token = get_token_from_request(request)
     if not token:
@@ -107,8 +129,21 @@ async def get_current_user(request: Request) -> CurrentUser:
     employee_type = payload.get("employee_type")
     permission_level = payload.get("permission_level", 0)
 
+    # 取出 entity IDs（從 JWT payload）
+    student_id = payload.get("student_id")
+    teacher_id = payload.get("teacher_id")
+    employee_id = payload.get("employee_id")
+
+    # Fallback：舊 token 沒有 entity IDs，從 DB 查詢
+    if student_id is None and teacher_id is None and employee_id is None:
+        from app.services.auth_service import auth_service
+        identity = await auth_service._get_user_identity(user_id)
+        student_id = identity["student_id"]
+        teacher_id = identity["teacher_id"]
+        employee_id = identity["employee_id"]
+
     # 如果 token 中沒有權限資訊，從服務查詢
-    if permission_level == 0 and payload.get("role") in ["admin", "employee"]:
+    if permission_level == 0 and employee_id is not None:
         permission_level = await permission_service.get_user_permission_level(user_id)
         if not employee_type:
             employee_type = await permission_service.get_user_employee_type(user_id)
@@ -117,10 +152,14 @@ async def get_current_user(request: Request) -> CurrentUser:
         user_id=user_id,
         email=payload.get("email", ""),
         role=payload.get("role", "student"),
+        role_id=payload.get("role_id"),
         session_id=session_id,
         session_data=session_data,
         employee_type=employee_type,
-        permission_level=permission_level
+        permission_level=permission_level,
+        student_id=student_id,
+        teacher_id=teacher_id,
+        employee_id=employee_id,
     )
 
 
@@ -133,11 +172,22 @@ async def get_optional_user(request: Request) -> Optional[CurrentUser]:
 
 
 def require_role(*allowed_roles: str):
-    """角色權限檢查裝飾器"""
+    """角色權限檢查裝飾器（使用 entity ID 判斷）"""
     async def role_checker(
         current_user: CurrentUser = Depends(get_current_user)
     ) -> CurrentUser:
-        if current_user.role not in allowed_roles:
+        has_role = False
+        for role in allowed_roles:
+            if role in ("admin", "employee") and current_user.employee_id is not None:
+                has_role = True
+                break
+            if role == "teacher" and current_user.teacher_id is not None:
+                has_role = True
+                break
+            if role == "student" and current_user.student_id is not None:
+                has_role = True
+                break
+        if not has_role:
             raise PermissionDeniedException(
                 f"需要以下角色之一: {', '.join(allowed_roles)}"
             )
@@ -160,7 +210,7 @@ def require_permission_level(min_level: int):
         current_user: CurrentUser = Depends(get_current_user)
     ) -> CurrentUser:
         # 非員工角色無權限等級
-        if current_user.role not in ['admin', 'employee']:
+        if current_user.employee_id is None:
             raise PermissionDeniedException("此操作需要員工權限")
 
         if current_user.permission_level < min_level:
@@ -185,6 +235,32 @@ require_full_time_level = require_permission_level(30)   # 正式員工以上
 require_admin_level = require_permission_level(100)      # 管理員
 
 
+def require_page_permission(page_key: str):
+    """
+    統一的頁面權限檢查。
+
+    所有角色（含 student/teacher）都透過 role → role_pages → page key 控制。
+    - Service account: 直接通過
+    - 其他: 檢查 page key（含 user overrides）
+    """
+    async def checker(
+        current_user: CurrentUser = Depends(get_current_user)
+    ) -> CurrentUser:
+        # service account bypass
+        if current_user.is_service_account:
+            return current_user
+
+        # 所有角色都走 page key 檢查
+        keys = await permission_service.get_effective_page_keys(
+            current_user.role_id, current_user.user_id
+        )
+        if page_key not in keys:
+            raise PermissionDeniedException(f"缺少頁面權限: {page_key}")
+
+        return current_user
+    return checker
+
+
 async def get_user_employee_id(user_id: str) -> Optional[str]:
     """取得用戶關聯的員工 ID（用於 created_by / deleted_by 欄位）"""
     from app.services.supabase_service import supabase_service
@@ -192,8 +268,33 @@ async def get_user_employee_id(user_id: str) -> Optional[str]:
         table="user_profiles",
         select="employee_id",
         filters={"id": user_id},
-        use_service_key=True
     )
     if profile and profile[0].get("employee_id"):
         return profile[0]["employee_id"]
+    return None
+
+
+async def get_user_student_id(user_id: str) -> Optional[str]:
+    """取得用戶關聯的學生 ID"""
+    from app.services.supabase_service import supabase_service
+    profile = await supabase_service.table_select(
+        table="user_profiles",
+        select="student_id",
+        filters={"id": user_id},
+    )
+    if profile and profile[0].get("student_id"):
+        return profile[0]["student_id"]
+    return None
+
+
+async def get_user_teacher_id(user_id: str) -> Optional[str]:
+    """取得用戶關聯的教師 ID"""
+    from app.services.supabase_service import supabase_service
+    profile = await supabase_service.table_select(
+        table="user_profiles",
+        select="teacher_id",
+        filters={"id": user_id},
+    )
+    if profile and profile[0].get("teacher_id"):
+        return profile[0]["teacher_id"]
     return None

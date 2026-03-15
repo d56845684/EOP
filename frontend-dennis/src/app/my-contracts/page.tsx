@@ -30,7 +30,7 @@ const statusIcons: Record<ContractStatus, React.ReactNode> = {
 
 export default function MyContractsPage() {
     const { user, profile } = useAuth()
-    const role = profile?.role
+    const role = profile?.student_id ? 'student' : profile?.teacher_id ? 'teacher' : profile?.role
 
     // Student contract state
     const [studentContracts, setStudentContracts] = useState<StudentContract[]>([])

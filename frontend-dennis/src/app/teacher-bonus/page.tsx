@@ -15,6 +15,7 @@ import { Plus, Pencil, Trash2, Search, X, DollarSign, Calendar } from 'lucide-re
 import DashboardLayout from '@/components/DashboardLayout'
 
 const bonusTypeColors: Record<BonusType, { bg: string, text: string }> = {
+    trial_completed: { bg: 'bg-teal-100', text: 'text-teal-800' },
     trial_to_formal: { bg: 'bg-green-100', text: 'text-green-800' },
     performance: { bg: 'bg-blue-100', text: 'text-blue-800' },
     substitute: { bg: 'bg-orange-100', text: 'text-orange-800' },
@@ -63,7 +64,7 @@ export default function TeacherBonusPage() {
     const [deleteConfirm, setDeleteConfirm] = useState<TeacherBonus | null>(null)
     const [deleting, setDeleting] = useState(false)
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
+    const isStaff = profile?.employee_id != null
 
     const fetchBonuses = useCallback(async () => {
         setLoading(true)

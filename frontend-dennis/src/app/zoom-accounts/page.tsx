@@ -48,7 +48,7 @@ export default function ZoomAccountsPage() {
     const [testingId, setTestingId] = useState<string | null>(null)
     const [testResult, setTestResult] = useState<{ id: string, success: boolean, message: string } | null>(null)
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
+    const isStaff = profile?.employee_id != null
 
     const fetchAccounts = useCallback(async () => {
         setLoading(true)

@@ -1,6 +1,8 @@
 """
 權限服務 - 管理員工階層式權限
 """
+import json
+import uuid
 from typing import Optional
 from app.services.redis_service import redis_service
 from app.services.supabase_service import supabase_service
@@ -67,7 +69,6 @@ class PermissionService:
                 table="user_profiles",
                 select="employee_subtype",
                 filters={"id": f"eq.{user_id}"},
-                use_service_key=True
             )
 
             if result and len(result) > 0:
@@ -105,7 +106,6 @@ class PermissionService:
                 table="user_profiles",
                 select="employee_subtype",
                 filters={"id": f"eq.{user_id}"},
-                use_service_key=True
             )
 
             if result and len(result) > 0:
@@ -194,6 +194,89 @@ class PermissionService:
 
         # 其他員工只能管理等級比自己低的
         return manager_level > target_level
+
+    # ================================================================
+    # Page Permission 快取
+    # ================================================================
+
+    PAGE_PERM_CACHE_TTL = 300  # 5 分鐘
+
+    async def get_effective_page_keys(self, role_id: str, user_id: str) -> set[str]:
+        """
+        取得用戶有效的 page keys（含 role_pages + user overrides）。
+        effective = (role_pages ∪ user_grants) \\ user_revokes
+
+        結果以 Redis 快取，TTL 300 秒。
+
+        Args:
+            role_id: 角色 UUID
+            user_id: 用戶 UUID
+        """
+        cache_key = f"page_perm:{user_id}"
+        cached = await redis_service.get(cache_key)
+        if cached is not None:
+            return set(json.loads(cached))
+
+        try:
+            uid = uuid.UUID(user_id)
+            rid = uuid.UUID(role_id) if role_id else None
+
+            keys: set[str] = set()
+
+            # role_pages → page keys (use role_id UUID)
+            if rid:
+                role_rows = await supabase_service.pool.fetch(
+                    """
+                    SELECT p.key
+                    FROM role_pages rp
+                    JOIN pages p ON p.id = rp.page_id
+                    WHERE rp.role_id = $1 AND p.is_active = TRUE
+                    """,
+                    rid,
+                )
+                keys = {r["key"] for r in role_rows}
+
+            # user overrides
+            override_rows = await supabase_service.pool.fetch(
+                """
+                SELECT p.key, upo.access_type
+                FROM user_page_overrides upo
+                JOIN pages p ON p.id = upo.page_id
+                WHERE upo.user_id = $1 AND p.is_active = TRUE
+                """,
+                uid,
+            )
+            for row in override_rows:
+                if row["access_type"] == "grant":
+                    keys.add(row["key"])
+                else:  # revoke
+                    keys.discard(row["key"])
+
+            # 快取
+            await redis_service.set(cache_key, json.dumps(sorted(keys)), expire_seconds=self.PAGE_PERM_CACHE_TTL)
+            return keys
+
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).exception("get_effective_page_keys failed for role_id=%s user_id=%s", role_id, user_id)
+            return set()
+
+    async def invalidate_page_perm_cache(self, user_id: str) -> None:
+        """清除單一用戶的 page permission 快取"""
+        await redis_service.delete(f"page_perm:{user_id}")
+
+    async def invalidate_role_page_perm_cache(self, role_id: str) -> None:
+        """清除該角色所有用戶的 page permission 快取"""
+        try:
+            rid = uuid.UUID(role_id)
+            rows = await supabase_service.pool.fetch(
+                "SELECT id FROM user_profiles WHERE role_id = $1",
+                rid,
+            )
+            for row in rows:
+                await redis_service.delete(f"page_perm:{row['id']}")
+        except Exception:
+            pass
 
 
 # 單例

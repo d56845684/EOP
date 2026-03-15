@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.student import (
     StudentCreate, StudentUpdate, StudentResponse, StudentListResponse,
     ConvertToFormalRequest, ConvertToFormalResponse, ConvertToFormalContractInfo,
@@ -9,6 +9,7 @@ from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
 from datetime import datetime, date
 import math
+import uuid
 
 router = APIRouter(prefix="/students", tags=["學生管理"])
 
@@ -22,7 +23,7 @@ async def list_students(
     search: Optional[str] = Query(None, description="搜尋（編號/姓名/email）"),
     is_active: Optional[bool] = Query(None),
     student_type: Optional[str] = Query(None, description="學生類型 (formal/trial)"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.list"))
 ):
     """取得學生列表"""
     try:
@@ -33,7 +34,7 @@ async def list_students(
             filters["student_type"] = f"eq.{student_type}"
 
         all_students = await supabase_service.table_select(
-            table="students", select="id", filters=filters, use_service_key=True
+            table="students", select="id", filters=filters
         )
         total = len(all_students)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
@@ -41,7 +42,7 @@ async def list_students(
 
         students = await supabase_service.table_select_with_pagination(
             table="students", select=STUDENT_SELECT, filters=filters,
-            order_by="created_at.desc", limit=per_page, offset=offset, use_service_key=True
+            order_by="created_at.desc", limit=per_page, offset=offset
         )
 
         if search:
@@ -64,13 +65,13 @@ async def list_students(
 @router.get("/{student_id}", response_model=DataResponse[StudentResponse])
 async def get_student(
     student_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.list"))
 ):
     """取得單一學生"""
     try:
         result = await supabase_service.table_select(
             table="students", select=STUDENT_SELECT,
-            filters={"id": student_id, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"id": student_id, "is_deleted": "eq.false"}
         )
         if not result:
             raise HTTPException(status_code=404, detail="學生不存在")
@@ -84,20 +85,20 @@ async def get_student(
 @router.post("", response_model=DataResponse[StudentResponse])
 async def create_student(
     data: StudentCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.create"))
 ):
     """建立學生（僅限員工）"""
     try:
         existing = await supabase_service.table_select(
             table="students", select="id",
-            filters={"student_no": data.student_no, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"student_no": data.student_no, "is_deleted": "eq.false"}
         )
         if existing:
             raise HTTPException(status_code=400, detail="學生編號已存在")
 
         existing_email = await supabase_service.table_select(
             table="students", select="id",
-            filters={"email": data.email, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if existing_email:
             raise HTTPException(status_code=400, detail="Email 已存在")
@@ -111,7 +112,7 @@ async def create_student(
             student_data["created_by"] = employee_id
 
         result = await supabase_service.table_insert(
-            table="students", data=student_data, use_service_key=True
+            table="students", data=student_data
         )
         if not result:
             raise HTTPException(status_code=500, detail="建立學生失敗")
@@ -127,13 +128,13 @@ async def create_student(
 async def update_student(
     student_id: str,
     data: StudentUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """更新學生（僅限員工）"""
     try:
         existing = await supabase_service.table_select(
             table="students", select="id,student_no,email",
-            filters={"id": student_id, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"id": student_id, "is_deleted": "eq.false"}
         )
         if not existing:
             raise HTTPException(status_code=404, detail="學生不存在")
@@ -141,7 +142,7 @@ async def update_student(
         if data.email and data.email != existing[0]["email"]:
             dup = await supabase_service.table_select(
                 table="students", select="id",
-                filters={"email": data.email, "is_deleted": "eq.false"}, use_service_key=True
+                filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup:
                 raise HTTPException(status_code=400, detail="Email 已存在")
@@ -154,7 +155,7 @@ async def update_student(
             raise HTTPException(status_code=400, detail="沒有要更新的資料")
 
         result = await supabase_service.table_update(
-            table="students", data=update_data, filters={"id": student_id}, use_service_key=True
+            table="students", data=update_data, filters={"id": student_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新學生失敗")
@@ -169,13 +170,13 @@ async def update_student(
 @router.delete("/{student_id}", response_model=BaseResponse)
 async def delete_student(
     student_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.delete"))
 ):
     """刪除學生（軟刪除，僅限員工）"""
     try:
         existing = await supabase_service.table_select(
             table="students", select="id",
-            filters={"id": student_id, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"id": student_id, "is_deleted": "eq.false"}
         )
         if not existing:
             raise HTTPException(status_code=404, detail="學生不存在")
@@ -183,7 +184,7 @@ async def delete_student(
         result = await supabase_service.table_update(
             table="students",
             data={"is_deleted": True, "deleted_at": datetime.utcnow().isoformat()},
-            filters={"id": student_id}, use_service_key=True
+            filters={"id": student_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="刪除學生失敗")
@@ -199,7 +200,7 @@ async def delete_student(
 async def convert_to_formal(
     student_id: str,
     data: ConvertToFormalRequest,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """試上學生轉正式學生（僅限員工）
 
@@ -213,7 +214,6 @@ async def convert_to_formal(
         students = await supabase_service.table_select(
             table="students", select=STUDENT_SELECT,
             filters={"id": student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not students:
             raise HTTPException(status_code=404, detail="學生不存在")
@@ -222,12 +222,31 @@ async def convert_to_formal(
         if student.get("student_type") != "trial":
             raise HTTPException(status_code=400, detail="此學生非試上學生，無法執行轉正")
 
+        # 1.5 驗證 booking_id 為 trial、已完成、且未轉正
+        if data.booking_id:
+            booking_rows = await supabase_service.pool.fetch(
+                """
+                SELECT id, booking_type, booking_status, is_trial_to_formal
+                FROM bookings_view
+                WHERE id = $1 AND is_deleted = FALSE
+                """,
+                uuid.UUID(data.booking_id),
+            )
+            if not booking_rows:
+                raise HTTPException(status_code=404, detail="預約不存在")
+            bk = booking_rows[0]
+            if bk["booking_type"] != "trial":
+                raise HTTPException(status_code=400, detail="只能選擇試上類型的預約")
+            if bk["booking_status"] != "completed":
+                raise HTTPException(status_code=400, detail="預約狀態必須為已完成")
+            if bk["is_trial_to_formal"]:
+                raise HTTPException(status_code=400, detail="此預約已被標記為轉正")
+
         # 2. 更新 student_type → formal
         updated_student = await supabase_service.table_update(
             table="students",
             data={"student_type": "formal"},
             filters={"id": student_id},
-            use_service_key=True
         )
         if not updated_student:
             raise HTTPException(status_code=500, detail="更新學生類型失敗")
@@ -250,50 +269,53 @@ async def convert_to_formal(
             contract_data["created_by"] = employee_id
 
         contract = await supabase_service.table_insert(
-            table="student_contracts", data=contract_data, use_service_key=True
+            table="student_contracts", data=contract_data
         )
         if not contract:
             raise HTTPException(status_code=500, detail="建立合約失敗")
 
-        # 4. 若提供 teacher_id，查 trial_to_formal_bonus 並記錄
+        # 4. 若提供 teacher_id，記錄轉正差額獎金
+        #    差額 = trial_to_formal_bonus - trial_completed_bonus
+        #    （試上完成獎金已在 booking completed 時發放）
         bonus_recorded = False
         bonus_amount = None
         if data.teacher_id:
             try:
                 tc_list = await supabase_service.table_select(
                     table="teacher_contracts",
-                    select="id,trial_to_formal_bonus",
+                    select="id,trial_to_formal_bonus,trial_completed_bonus",
                     filters={
                         "teacher_id": data.teacher_id,
                         "contract_status": "eq.active",
                         "is_deleted": "eq.false",
                     },
-                    use_service_key=True
                 )
                 if tc_list:
-                    bonus = tc_list[0].get("trial_to_formal_bonus", 0) or 0
-                    if bonus > 0:
-                        bonus_amount = float(bonus)
-                        bonus_recorded = True
-                        # 寫入 teacher_bonus_records
-                        try:
-                            bonus_data = {
-                                "teacher_id": data.teacher_id,
-                                "bonus_type": "trial_to_formal",
-                                "amount": bonus_amount,
-                                "bonus_date": date.today().isoformat(),
-                                "description": f"學生 {student.get('name', '')} 試上轉正獎金",
-                                "related_student_id": student_id,
-                            }
-                            if data.booking_id:
-                                bonus_data["related_booking_id"] = data.booking_id
-                            if employee_id:
-                                bonus_data["created_by"] = employee_id
-                            await supabase_service.table_insert(
-                                table="teacher_bonus_records", data=bonus_data, use_service_key=True
-                            )
-                        except Exception:
-                            pass  # 獎金寫入失敗不影響轉正流程
+                    formal_bonus = float(tc_list[0].get("trial_to_formal_bonus", 0) or 0)
+                    completed_bonus = float(tc_list[0].get("trial_completed_bonus", 0) or 0)
+                    bonus_amount = formal_bonus - completed_bonus
+                    if bonus_amount < 0:
+                        bonus_amount = 0
+                    bonus_recorded = True
+                    # 寫入差額獎金紀錄
+                    try:
+                        bonus_data = {
+                            "teacher_id": data.teacher_id,
+                            "bonus_type": "trial_to_formal",
+                            "amount": bonus_amount,
+                            "bonus_date": date.today().isoformat(),
+                            "description": f"學生 {student.get('name', '')} 試上轉正獎金（差額）",
+                            "related_student_id": student_id,
+                        }
+                        if data.booking_id:
+                            bonus_data["related_booking_id"] = data.booking_id
+                        if employee_id:
+                            bonus_data["created_by"] = employee_id
+                        await supabase_service.table_insert(
+                            table="teacher_bonus_records", data=bonus_data
+                        )
+                    except Exception:
+                        pass  # 獎金寫入失敗不影響轉正流程
             except Exception:
                 pass  # 獎金查詢失敗不影響轉正
 

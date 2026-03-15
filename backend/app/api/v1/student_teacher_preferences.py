@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.student_teacher_preference import (
     StudentTeacherPreferenceCreate, StudentTeacherPreferenceUpdate, StudentTeacherPreferenceResponse
 )
@@ -19,7 +19,6 @@ async def enrich_preference(pref: dict) -> dict:
         student = await supabase_service.table_select(
             table="students", select="name",
             filters={"id": pref["student_id"]},
-            use_service_key=True
         )
         pref["student_name"] = student[0]["name"] if student else None
 
@@ -28,7 +27,6 @@ async def enrich_preference(pref: dict) -> dict:
         course = await supabase_service.table_select(
             table="courses", select="course_name",
             filters={"id": pref["course_id"]},
-            use_service_key=True
         )
         pref["course_name"] = course[0]["course_name"] if course else None
     else:
@@ -39,7 +37,6 @@ async def enrich_preference(pref: dict) -> dict:
         teacher = await supabase_service.table_select(
             table="teachers", select="name",
             filters={"id": pref["primary_teacher_id"]},
-            use_service_key=True
         )
         pref["primary_teacher_name"] = teacher[0]["name"] if teacher else None
     else:
@@ -51,7 +48,7 @@ async def enrich_preference(pref: dict) -> dict:
 @router.get("/", tags=["學生教師偏好"])
 async def list_preferences(
     student_id: str = Query(..., description="學生 ID"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """列出學生的教師偏好設定"""
     try:
@@ -62,7 +59,6 @@ async def list_preferences(
                 "student_id": student_id,
                 "is_deleted": "eq.false"
             },
-            use_service_key=True
         )
 
         enriched = []
@@ -77,7 +73,7 @@ async def list_preferences(
 @router.post("/", response_model=DataResponse[StudentTeacherPreferenceResponse])
 async def create_preference(
     data: StudentTeacherPreferenceCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """新增學生教師偏好（僅員工）"""
     try:
@@ -87,7 +83,6 @@ async def create_preference(
         student = await supabase_service.table_select(
             table="students", select="id",
             filters={"id": data.student_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not student:
             raise HTTPException(status_code=400, detail="學生不存在")
@@ -97,7 +92,6 @@ async def create_preference(
             course = await supabase_service.table_select(
                 table="courses", select="id",
                 filters={"id": data.course_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not course:
                 raise HTTPException(status_code=400, detail="課程不存在")
@@ -107,7 +101,6 @@ async def create_preference(
             teacher = await supabase_service.table_select(
                 table="teachers", select="id",
                 filters={"id": data.primary_teacher_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not teacher:
                 raise HTTPException(status_code=400, detail="主要教師不存在")
@@ -124,7 +117,6 @@ async def create_preference(
                 table="student_teacher_preferences",
                 select="id",
                 filters=dup_filters,
-                use_service_key=True
             )
             if existing:
                 raise HTTPException(status_code=400, detail="此學生已指定該教師，請編輯現有設定")
@@ -144,7 +136,6 @@ async def create_preference(
                 table="student_teacher_preferences",
                 select="id",
                 filters=dup_filters,
-                use_service_key=True
             )
             if existing:
                 scope = "全域" if not data.course_id else "該課程"
@@ -162,7 +153,6 @@ async def create_preference(
         result = await supabase_service.table_insert(
             table="student_teacher_preferences",
             data=insert_data,
-            use_service_key=True
         )
 
         if not result:
@@ -185,7 +175,7 @@ async def create_preference(
 async def update_preference(
     preference_id: str,
     data: StudentTeacherPreferenceUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """更新學生教師偏好（僅員工）"""
     try:
@@ -196,7 +186,6 @@ async def update_preference(
             table="student_teacher_preferences",
             select=PREF_SELECT,
             filters={"id": preference_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="偏好設定不存在")
@@ -206,7 +195,6 @@ async def update_preference(
             teacher = await supabase_service.table_select(
                 table="teachers", select="id",
                 filters={"id": data.primary_teacher_id, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if not teacher:
                 raise HTTPException(status_code=400, detail="主要教師不存在")
@@ -228,7 +216,6 @@ async def update_preference(
             table="student_teacher_preferences",
             data=update_data,
             filters={"id": preference_id},
-            use_service_key=True
         )
 
         if not result:
@@ -250,7 +237,7 @@ async def update_preference(
 @router.delete("/{preference_id}", response_model=BaseResponse)
 async def delete_preference(
     preference_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
     """軟刪除學生教師偏好（僅員工）"""
     try:
@@ -261,7 +248,6 @@ async def delete_preference(
             table="student_teacher_preferences",
             select="id",
             filters={"id": preference_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="偏好設定不存在")
@@ -277,7 +263,6 @@ async def delete_preference(
             table="student_teacher_preferences",
             data=delete_data,
             filters={"id": preference_id},
-            use_service_key=True
         )
 
         return BaseResponse(message="偏好刪除成功")

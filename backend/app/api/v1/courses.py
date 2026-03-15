@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.course import (
     CourseCreate, CourseUpdate, CourseResponse, CourseListResponse
 )
@@ -17,7 +17,7 @@ async def list_courses(
     per_page: int = Query(20, ge=1, le=100, description="每頁數量"),
     search: Optional[str] = Query(None, description="搜尋關鍵字（課程代碼或名稱）"),
     is_active: Optional[bool] = Query(None, description="篩選啟用狀態"),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("courses.list"))
 ):
     """取得課程列表"""
     try:
@@ -32,7 +32,6 @@ async def list_courses(
             table="courses",
             select="id",
             filters=filters,
-            use_service_key=True
         )
         total = len(all_courses)
 
@@ -48,7 +47,6 @@ async def list_courses(
             order_by="created_at.desc",
             limit=per_page,
             offset=offset,
-            use_service_key=True
         )
 
         # 如果有搜尋關鍵字，在結果中篩選（PostgREST 的 or 較複雜，這裡簡化處理）
@@ -75,7 +73,7 @@ async def list_courses(
 @router.get("/{course_id}", response_model=DataResponse[CourseResponse])
 async def get_course(
     course_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("courses.list"))
 ):
     """取得單一課程"""
     try:
@@ -83,7 +81,6 @@ async def get_course(
             table="courses",
             select="id,course_code,course_name,description,duration_minutes,is_active,created_at,updated_at",
             filters={"id": course_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not result:
@@ -100,7 +97,7 @@ async def get_course(
 @router.post("", response_model=DataResponse[CourseResponse])
 async def create_course(
     data: CourseCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("courses.create"))
 ):
     """建立課程（僅限員工）"""
     try:
@@ -109,7 +106,6 @@ async def create_course(
             table="courses",
             select="id",
             filters={"course_code": data.course_code, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if existing:
@@ -125,7 +121,6 @@ async def create_course(
         result = await supabase_service.table_insert(
             table="courses",
             data=course_data,
-            use_service_key=True
         )
 
         if not result:
@@ -147,7 +142,7 @@ async def create_course(
 async def update_course(
     course_id: str,
     data: CourseUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("courses.edit"))
 ):
     """更新課程（僅限員工）"""
     try:
@@ -156,7 +151,6 @@ async def update_course(
             table="courses",
             select="id,course_code",
             filters={"id": course_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -168,7 +162,6 @@ async def update_course(
                 table="courses",
                 select="id",
                 filters={"course_code": data.course_code, "is_deleted": "eq.false"},
-                use_service_key=True
             )
             if duplicate:
                 raise HTTPException(status_code=400, detail="課程代碼已存在")
@@ -183,7 +176,6 @@ async def update_course(
             table="courses",
             data=update_data,
             filters={"id": course_id},
-            use_service_key=True
         )
 
         if not result:
@@ -204,7 +196,7 @@ async def update_course(
 @router.delete("/{course_id}", response_model=BaseResponse)
 async def delete_course(
     course_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("courses.delete"))
 ):
     """刪除課程（軟刪除，僅限員工）"""
     try:
@@ -213,7 +205,6 @@ async def delete_course(
             table="courses",
             select="id",
             filters={"id": course_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
 
         if not existing:
@@ -228,7 +219,6 @@ async def delete_course(
                 "deleted_at": datetime.utcnow().isoformat()
             },
             filters={"id": course_id},
-            use_service_key=True
         )
 
         if not result:

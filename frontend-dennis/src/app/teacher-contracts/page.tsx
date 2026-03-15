@@ -94,7 +94,10 @@ export default function TeacherContractsPage() {
         start_date: '',
         end_date: '',
         employment_type: 'hourly',
+        trial_completed_bonus: 0,
         trial_to_formal_bonus: 0,
+        work_start_time: null,
+        work_end_time: null,
         notes: '',
     })
     const [formError, setFormError] = useState<string | null>(null)
@@ -197,7 +200,10 @@ export default function TeacherContractsPage() {
             start_date: today,
             end_date: endDate,
             employment_type: 'hourly',
+            trial_completed_bonus: 0,
             trial_to_formal_bonus: 0,
+            work_start_time: null,
+            work_end_time: null,
             notes: '',
         })
         setFormError(null)
@@ -215,7 +221,10 @@ export default function TeacherContractsPage() {
             start_date: contract.start_date,
             end_date: contract.end_date,
             employment_type: contract.employment_type,
+            trial_completed_bonus: contract.trial_completed_bonus ?? 0,
             trial_to_formal_bonus: contract.trial_to_formal_bonus ?? 0,
+            work_start_time: contract.work_start_time || null,
+            work_end_time: contract.work_end_time || null,
             notes: contract.notes || '',
         })
         setDetails(contract.details || [])
@@ -257,7 +266,10 @@ export default function TeacherContractsPage() {
                 if (formData.start_date !== editingContract.start_date) updateData.start_date = formData.start_date
                 if (formData.end_date !== editingContract.end_date) updateData.end_date = formData.end_date
                 if (formData.employment_type !== editingContract.employment_type) updateData.employment_type = formData.employment_type
+                if (formData.trial_completed_bonus !== (editingContract.trial_completed_bonus ?? 0)) updateData.trial_completed_bonus = formData.trial_completed_bonus
                 if (formData.trial_to_formal_bonus !== (editingContract.trial_to_formal_bonus ?? 0)) updateData.trial_to_formal_bonus = formData.trial_to_formal_bonus
+                if ((formData.work_start_time || '') !== (editingContract.work_start_time || '')) updateData.work_start_time = formData.work_start_time || null
+                if ((formData.work_end_time || '') !== (editingContract.work_end_time || '')) updateData.work_end_time = formData.work_end_time || null
                 if (formData.notes !== (editingContract.notes || '')) updateData.notes = formData.notes
 
                 const { data, error } = await teacherContractsApi.update(editingContract.id, updateData)
@@ -391,7 +403,7 @@ export default function TeacherContractsPage() {
         setUploading(null)
     }
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
+    const isStaff = profile?.employee_id != null
 
     const formatDate = (dateStr: string) => {
         return new Date(dateStr).toLocaleDateString('zh-TW')
@@ -548,7 +560,7 @@ export default function TeacherContractsPage() {
                                                 合約金額
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                轉正獎金
+                                                試上獎金
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 合約檔案
@@ -574,9 +586,16 @@ export default function TeacherContractsPage() {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${employmentTypeColors[contract.employment_type].bg} ${employmentTypeColors[contract.employment_type].text}`}>
-                                                        {employmentTypeLabels[contract.employment_type]}
-                                                    </span>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${employmentTypeColors[contract.employment_type].bg} ${employmentTypeColors[contract.employment_type].text}`}>
+                                                            {employmentTypeLabels[contract.employment_type]}
+                                                        </span>
+                                                        {contract.employment_type === 'full_time' && contract.work_start_time && contract.work_end_time && (
+                                                            <span className="text-xs text-gray-500">
+                                                                {contract.work_start_time.slice(0, 5)} ~ {contract.work_end_time.slice(0, 5)}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[contract.contract_status].bg} ${statusColors[contract.contract_status].text}`}>
@@ -596,9 +615,10 @@ export default function TeacherContractsPage() {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className="text-gray-900">
-                                                        {formatCurrency(contract.trial_to_formal_bonus)}
-                                                    </span>
+                                                    <div className="text-gray-900">
+                                                        <div>{formatCurrency(contract.trial_completed_bonus)}</div>
+                                                        <div className="text-xs text-gray-400">轉正: {formatCurrency(contract.trial_to_formal_bonus)}</div>
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     {contract.contract_file_path ? (
@@ -786,6 +806,23 @@ export default function TeacherContractsPage() {
                                         </div>
                                     </div>
 
+                                    {formData.employment_type === 'full_time' && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">正職工作時段</label>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">上班時間</label>
+                                                    <input type="time" value={formData.work_start_time || ''} onChange={(e) => setFormData({ ...formData, work_start_time: e.target.value || null })} className="input-field" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">下班時間</label>
+                                                    <input type="time" value={formData.work_end_time || ''} onChange={(e) => setFormData({ ...formData, work_end_time: e.target.value || null })} className="input-field" />
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-gray-400 mt-1">設定後，超出此時段的預約將標示為加班</p>
+                                        </div>
+                                    )}
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -814,19 +851,37 @@ export default function TeacherContractsPage() {
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            試上課轉正式獎金
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={formData.trial_to_formal_bonus ?? 0}
-                                            onChange={(e) => setFormData({ ...formData, trial_to_formal_bonus: e.target.value ? parseFloat(e.target.value) : 0 })}
-                                            className="input-field"
-                                            min={0}
-                                            step="1"
-                                            placeholder="0"
-                                        />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                試上完成獎金
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={formData.trial_completed_bonus ?? 0}
+                                                onChange={(e) => setFormData({ ...formData, trial_completed_bonus: e.target.value ? parseFloat(e.target.value) : 0 })}
+                                                className="input-field"
+                                                min={0}
+                                                step="1"
+                                                placeholder="0"
+                                            />
+                                            <p className="text-xs text-gray-400 mt-1">試上課完成時發放</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                試上轉正獎金
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={formData.trial_to_formal_bonus ?? 0}
+                                                onChange={(e) => setFormData({ ...formData, trial_to_formal_bonus: e.target.value ? parseFloat(e.target.value) : 0 })}
+                                                className="input-field"
+                                                min={0}
+                                                step="1"
+                                                placeholder="0"
+                                            />
+                                            <p className="text-xs text-gray-400 mt-1">轉正時補發差額（轉正 - 完成）</p>
+                                        </div>
                                     </div>
 
                                     <div>
@@ -920,23 +975,48 @@ export default function TeacherContractsPage() {
                                                                     </select>
                                                                 </div>
                                                             ) : (
-                                                                /* 正職: base_salary or allowance */
+                                                                /* 正職: base_salary, allowance, or course_rate */
                                                                 <div>
                                                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                                                         明細類型 <span className="text-red-500">*</span>
                                                                     </label>
                                                                     <select
                                                                         value={detailFormData.detail_type}
-                                                                        onChange={(e) => setDetailFormData({
-                                                                            ...detailFormData,
-                                                                            detail_type: e.target.value as DetailType,
-                                                                            course_id: undefined
-                                                                        })}
+                                                                        onChange={(e) => {
+                                                                            const dt = e.target.value as DetailType
+                                                                            setDetailFormData({
+                                                                                ...detailFormData,
+                                                                                detail_type: dt,
+                                                                                course_id: dt === 'course_rate' ? detailFormData.course_id : undefined,
+                                                                            })
+                                                                        }}
                                                                         className="input-field"
                                                                     >
                                                                         <option value="base_salary">底薪</option>
                                                                         <option value="allowance">津貼</option>
+                                                                        <option value="course_rate">課程時薪</option>
                                                                     </select>
+                                                                    {detailFormData.detail_type === 'course_rate' && (
+                                                                        <div className="mt-2">
+                                                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                                                課程 <span className="text-red-500">*</span>
+                                                                            </label>
+                                                                            <select
+                                                                                value={detailFormData.course_id || ''}
+                                                                                onChange={(e) => setDetailFormData({
+                                                                                    ...detailFormData,
+                                                                                    course_id: e.target.value || undefined,
+                                                                                })}
+                                                                                className="input-field"
+                                                                                required
+                                                                            >
+                                                                                <option value="">請選擇課程</option>
+                                                                                {courseOptions.map((c) => (
+                                                                                    <option key={c.id} value={c.id}>{c.course_code} - {c.course_name}</option>
+                                                                                ))}
+                                                                            </select>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             )}
                                                         </>

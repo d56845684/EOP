@@ -26,6 +26,7 @@ interface AuthResponse {
 interface UserProfile {
     id: string
     role: string
+    role_id?: string
     full_name: string
     email: string
     phone?: string
@@ -114,11 +115,15 @@ export const authApi = {
             const profile: UserProfile | null = userData ? {
                 id: userData.id,
                 role: userData.role || 'student',
+                role_id: userData.role_id,
                 full_name: userData.name || userData.full_name || userData.email || '',
                 email: userData.email || '',
                 phone: userData.phone,
                 avatar_url: userData.avatar_url,
                 must_change_password: userData.must_change_password || false,
+                teacher_id: userData.teacher_id,
+                student_id: userData.student_id,
+                employee_id: userData.employee_id,
             } : null
 
             return { user, profile, error: null }

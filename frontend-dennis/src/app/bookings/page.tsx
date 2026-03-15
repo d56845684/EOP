@@ -165,9 +165,9 @@ export default function BookingsPage() {
     const [zoomMeetings, setZoomMeetings] = useState<Record<string, ZoomMeetingLog>>({})
     const [creatingZoomFor, setCreatingZoomFor] = useState<string | null>(null)
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
-    const isStudent = profile?.role === 'student'
-    const isTeacher = profile?.role === 'teacher'
+    const isStaff = profile?.employee_id != null
+    const isStudent = profile?.student_id != null
+    const isTeacher = profile?.teacher_id != null
     const canCreateBooking = isStaff || isStudent
 
     // 判斷選中的學生是否為試上學生
@@ -1352,6 +1352,9 @@ export default function BookingsPage() {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 狀態
                                             </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                類型
+                                            </th>
                                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Zoom
                                             </th>
@@ -1417,6 +1420,32 @@ export default function BookingsPage() {
                                                             {booking.booking_status === 'cancelled' && <XCircle className="w-3 h-3 mr-1" />}
                                                             {status.label}
                                                         </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                                booking.booking_type === 'trial'
+                                                                    ? 'bg-orange-100 text-orange-700'
+                                                                    : 'bg-blue-100 text-blue-700'
+                                                            }`}>
+                                                                {booking.booking_type === 'trial' ? '試上' : '正式'}
+                                                            </span>
+                                                            {booking.is_trial_to_formal && (
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                                                    試上轉正
+                                                                </span>
+                                                            )}
+                                                            {booking.is_overtime && booking.overtime_lessons != null && (
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                                                    {booking.regular_lessons ? `正常${booking.regular_lessons}堂 + 加班${booking.overtime_lessons}堂` : `加班${booking.overtime_lessons}堂`}
+                                                                </span>
+                                                            )}
+                                                            {booking.regular_lessons != null && !booking.is_overtime && (
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                                                    正常{booking.regular_lessons}堂
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
                                                         {(() => {

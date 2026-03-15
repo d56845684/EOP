@@ -33,7 +33,10 @@ export interface TeacherContract {
     start_date: string
     end_date: string
     employment_type: EmploymentType
+    trial_completed_bonus?: number
     trial_to_formal_bonus?: number
+    work_start_time?: string | null
+    work_end_time?: string | null
     notes?: string
     created_at?: string
     updated_at?: string
@@ -66,7 +69,10 @@ export interface CreateTeacherContractData {
     start_date: string
     end_date: string
     employment_type: EmploymentType
+    trial_completed_bonus?: number
     trial_to_formal_bonus?: number
+    work_start_time?: string | null
+    work_end_time?: string | null
     notes?: string
 }
 
@@ -76,7 +82,10 @@ export interface UpdateTeacherContractData {
     start_date?: string
     end_date?: string
     employment_type?: EmploymentType
+    trial_completed_bonus?: number
     trial_to_formal_bonus?: number
+    work_start_time?: string | null
+    work_end_time?: string | null
     notes?: string
 }
 

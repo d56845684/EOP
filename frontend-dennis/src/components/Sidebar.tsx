@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { User, BookOpen, Home, Settings, LogOut, Calendar, FileText, Users, Clock, GraduationCap, DollarSign, Video } from 'lucide-react'
+import { User, BookOpen, Home, Settings, LogOut, Calendar, FileText, Users, Clock, GraduationCap, DollarSign, Video, Shield } from 'lucide-react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 
@@ -10,31 +10,30 @@ interface NavItem {
   href: string
   label: string
   icon: React.ReactNode
+  pageKey?: string  // 對應後端 pages.key，未設定則永遠顯示
 }
 
-interface NavItemWithRoles extends NavItem {
-  roles?: string[]  // If defined, only show for these roles
-}
-
-const navItems: NavItemWithRoles[] = [
-  { href: '/profile', label: '個人設定', icon: <User className="w-5 h-5" /> },
-  { href: '/courses', label: '課程管理', icon: <BookOpen className="w-5 h-5" /> },
-  { href: '/bookings', label: '預約管理', icon: <Calendar className="w-5 h-5" /> },
-  { href: '/teacher-slots', label: '教師時段', icon: <Clock className="w-5 h-5" />, roles: ['admin', 'employee', 'teacher'] },
-  { href: '/my-contracts', label: '我的合約', icon: <FileText className="w-5 h-5" />, roles: ['student', 'teacher'] },
-  { href: '/student-courses', label: '學生選課', icon: <BookOpen className="w-5 h-5" />, roles: ['admin', 'employee'] },
-  { href: '/student-contracts', label: '學生合約', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'employee'] },
-  { href: '/teacher-contracts', label: '教師合約', icon: <Users className="w-5 h-5" />, roles: ['admin', 'employee'] },
-  { href: '/teacher-bonus', label: '教師獎金', icon: <DollarSign className="w-5 h-5" />, roles: ['admin', 'employee', 'teacher'] },
-  { href: '/students', label: '學生管理', icon: <GraduationCap className="w-5 h-5" />, roles: ['admin', 'employee'] },
-  { href: '/teachers', label: '教師管理', icon: <Users className="w-5 h-5" />, roles: ['admin', 'employee'] },
-  { href: '/zoom-accounts', label: 'Zoom 帳號', icon: <Video className="w-5 h-5" />, roles: ['admin', 'employee'] },
+const navItems: NavItem[] = [
+  { href: '/profile', label: '個人設定', icon: <User className="w-5 h-5" />, pageKey: 'profile' },
+  { href: '/courses', label: '課程管理', icon: <BookOpen className="w-5 h-5" />, pageKey: 'courses' },
+  { href: '/bookings', label: '預約管理', icon: <Calendar className="w-5 h-5" />, pageKey: 'bookings' },
+  { href: '/teacher-slots', label: '教師時段', icon: <Clock className="w-5 h-5" />, pageKey: 'teachers.slots' },
+  { href: '/my-contracts', label: '我的合約', icon: <FileText className="w-5 h-5" />, pageKey: 'students.contracts|teachers.contracts' },
+  { href: '/student-courses', label: '學生選課', icon: <BookOpen className="w-5 h-5" />, pageKey: 'students.edit' },
+  { href: '/student-contracts', label: '學生合約', icon: <FileText className="w-5 h-5" />, pageKey: 'students.list' },
+  { href: '/teacher-contracts', label: '教師合約', icon: <Users className="w-5 h-5" />, pageKey: 'teachers.contracts' },
+  { href: '/teacher-bonus', label: '教師獎金', icon: <DollarSign className="w-5 h-5" />, pageKey: 'teachers.bonus' },
+  { href: '/students', label: '學生管理', icon: <GraduationCap className="w-5 h-5" />, pageKey: 'students.list' },
+  { href: '/teachers', label: '教師管理', icon: <Users className="w-5 h-5" />, pageKey: 'teachers.list' },
+  { href: '/zoom-accounts', label: 'Zoom 帳號', icon: <Video className="w-5 h-5" />, pageKey: 'employees.list' },
+  { href: '/accounts', label: '帳號管理', icon: <Shield className="w-5 h-5" />, pageKey: 'permissions.users' },
+  { href: '/role-permissions', label: '角色權限', icon: <Settings className="w-5 h-5" />, pageKey: 'permissions.roles' },
 ]
 
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, signOut, pageKeys } = useAuth()
 
   const handleSignOut = async () => {
     await signOut()
@@ -89,10 +88,11 @@ export default function Sidebar() {
         <ul className="space-y-1">
           {navItems
             .filter((item) => {
-              // If no roles specified, show to everyone
-              if (!item.roles) return true
-              // Otherwise, check if user's role is in the allowed roles
-              return profile?.role && item.roles.includes(profile.role)
+              // 沒有 pageKey 的項目永遠顯示
+              if (!item.pageKey) return true
+              // 支援 | 分隔的多 key（任一符合即顯示）
+              const keys = item.pageKey.split('|')
+              return keys.some((k) => pageKeys.includes(k))
             })
             .map((item) => {
               const isActive = pathname === item.href

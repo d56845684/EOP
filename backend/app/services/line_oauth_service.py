@@ -322,7 +322,6 @@ class LineOAuthService:
                 table="users",
                 select="id,email",
                 filters={"email": email},
-                use_service_key=True
             )
             if result and len(result) > 0:
                 return result[0]
@@ -354,7 +353,6 @@ class LineOAuthService:
                     "channel_type": f"eq.{channel_type}",
                     "binding_status": "eq.active"
                 },
-                use_service_key=True
             )
 
             if result and len(result) > 0:

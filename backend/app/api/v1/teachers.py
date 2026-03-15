@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.config import settings
-from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_teacher, get_user_employee_id
+from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_teacher, require_page_permission, get_user_employee_id
 from app.schemas.teacher import TeacherCreate, TeacherUpdate, TeacherResponse, TeacherListResponse
 from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
@@ -22,7 +22,7 @@ async def list_teachers(
     per_page: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None, description="搜尋（編號/姓名/email）"),
     is_active: Optional[bool] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.list"))
 ):
     """取得教師列表"""
     try:
@@ -31,7 +31,7 @@ async def list_teachers(
             filters["is_active"] = f"eq.{str(is_active).lower()}"
 
         all_teachers = await supabase_service.table_select(
-            table="teachers", select="id", filters=filters, use_service_key=True
+            table="teachers", select="id", filters=filters
         )
         total = len(all_teachers)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
@@ -39,7 +39,7 @@ async def list_teachers(
 
         teachers = await supabase_service.table_select_with_pagination(
             table="teachers", select=TEACHER_SELECT, filters=filters,
-            order_by="created_at.desc", limit=per_page, offset=offset, use_service_key=True
+            order_by="created_at.desc", limit=per_page, offset=offset
         )
 
         if search:
@@ -80,7 +80,6 @@ async def update_teacher_self(
             table="user_profiles",
             select="teacher_id",
             filters={"id": current_user.user_id},
-            use_service_key=True
         )
         if not profiles or not profiles[0].get("teacher_id"):
             raise HTTPException(status_code=403, detail="找不到對應的教師資料")
@@ -94,7 +93,6 @@ async def update_teacher_self(
         result = await supabase_service.table_update(
             table="teachers", data=update_data,
             filters={"id": teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新教師資料失敗")
@@ -109,13 +107,13 @@ async def update_teacher_self(
 @router.get("/{teacher_id}", response_model=DataResponse[TeacherResponse])
 async def get_teacher(
     teacher_id: str,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.list"))
 ):
     """取得單一教師"""
     try:
         result = await supabase_service.table_select(
             table="teachers", select=TEACHER_SELECT,
-            filters={"id": teacher_id, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"id": teacher_id, "is_deleted": "eq.false"}
         )
         if not result:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -129,20 +127,20 @@ async def get_teacher(
 @router.post("", response_model=DataResponse[TeacherResponse])
 async def create_teacher(
     data: TeacherCreate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.create"))
 ):
     """建立教師（僅限員工）"""
     try:
         existing = await supabase_service.table_select(
             table="teachers", select="id",
-            filters={"teacher_no": data.teacher_no, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"teacher_no": data.teacher_no, "is_deleted": "eq.false"}
         )
         if existing:
             raise HTTPException(status_code=400, detail="教師編號已存在")
 
         existing_email = await supabase_service.table_select(
             table="teachers", select="id",
-            filters={"email": data.email, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if existing_email:
             raise HTTPException(status_code=400, detail="Email 已存在")
@@ -153,7 +151,7 @@ async def create_teacher(
             teacher_data["created_by"] = employee_id
 
         result = await supabase_service.table_insert(
-            table="teachers", data=teacher_data, use_service_key=True
+            table="teachers", data=teacher_data
         )
         if not result:
             raise HTTPException(status_code=500, detail="建立教師失敗")
@@ -169,13 +167,13 @@ async def create_teacher(
 async def update_teacher(
     teacher_id: str,
     data: TeacherUpdate,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """更新教師（僅限員工）"""
     try:
         existing = await supabase_service.table_select(
             table="teachers", select="id,teacher_no,email",
-            filters={"id": teacher_id, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"id": teacher_id, "is_deleted": "eq.false"}
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -183,7 +181,7 @@ async def update_teacher(
         if data.email and data.email != existing[0]["email"]:
             dup = await supabase_service.table_select(
                 table="teachers", select="id",
-                filters={"email": data.email, "is_deleted": "eq.false"}, use_service_key=True
+                filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup:
                 raise HTTPException(status_code=400, detail="Email 已存在")
@@ -193,7 +191,7 @@ async def update_teacher(
             raise HTTPException(status_code=400, detail="沒有要更新的資料")
 
         result = await supabase_service.table_update(
-            table="teachers", data=update_data, filters={"id": teacher_id}, use_service_key=True
+            table="teachers", data=update_data, filters={"id": teacher_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新教師失敗")
@@ -208,13 +206,13 @@ async def update_teacher(
 @router.delete("/{teacher_id}", response_model=BaseResponse)
 async def delete_teacher(
     teacher_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.delete"))
 ):
     """刪除教師（軟刪除，僅限員工）"""
     try:
         existing = await supabase_service.table_select(
             table="teachers", select="id",
-            filters={"id": teacher_id, "is_deleted": "eq.false"}, use_service_key=True
+            filters={"id": teacher_id, "is_deleted": "eq.false"}
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -222,7 +220,7 @@ async def delete_teacher(
         result = await supabase_service.table_update(
             table="teachers",
             data={"is_deleted": True, "deleted_at": datetime.utcnow().isoformat()},
-            filters={"id": teacher_id}, use_service_key=True
+            filters={"id": teacher_id}
         )
         if not result:
             raise HTTPException(status_code=500, detail="刪除教師失敗")
@@ -245,14 +243,13 @@ class AvatarConfirmRequest(BaseModel):
 @router.post("/{teacher_id}/avatar/upload-url")
 async def get_teacher_avatar_upload_url(
     teacher_id: str,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """取得教師頭像的 signed upload URL（僅限員工）"""
     try:
         existing = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"id": teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -283,14 +280,13 @@ async def get_teacher_avatar_upload_url(
 async def confirm_teacher_avatar_upload(
     teacher_id: str,
     body: AvatarConfirmRequest,
-    current_user: CurrentUser = Depends(require_staff)
+    current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """確認教師頭像上傳完成（僅限員工）"""
     try:
         existing = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"id": teacher_id, "is_deleted": "eq.false"},
-            use_service_key=True
         )
         if not existing:
             raise HTTPException(status_code=404, detail="教師不存在")
@@ -308,7 +304,6 @@ async def confirm_teacher_avatar_upload(
             table="teachers",
             data={"avatar_url": body.storage_path},
             filters={"id": teacher_id},
-            use_service_key=True
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新頭像失敗")

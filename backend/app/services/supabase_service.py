@@ -405,10 +405,18 @@ class SupabaseService:
         return result
 
     async def admin_delete_user(self, user_id: str) -> bool:
-        """Admin delete user"""
+        """Admin delete user (respects is_protected flag)"""
+        uid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+
+        # 檢查 is_protected
+        row = await self.pool.fetchrow(
+            "SELECT is_protected FROM user_profiles WHERE id = $1", uid
+        )
+        if row and row["is_protected"]:
+            raise Exception("此帳號受保護，無法刪除")
+
         result = await self.pool.execute(
-            "DELETE FROM public.users WHERE id = $1",
-            uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+            "DELETE FROM public.users WHERE id = $1", uid
         )
         return result == "DELETE 1"
 
@@ -465,8 +473,6 @@ class SupabaseService:
         table: str,
         select: str = "*",
         filters: dict = None,
-        use_service_key: bool = False,
-        access_token: str = None
     ) -> list[dict]:
         """Query table"""
         tbl = self._sanitize_identifier(table)
@@ -493,8 +499,6 @@ class SupabaseService:
         order_by: str = None,
         limit: int = 20,
         offset: int = 0,
-        use_service_key: bool = False,
-        access_token: str = None
     ) -> list[dict]:
         """Query table with pagination and ordering"""
         tbl = self._sanitize_identifier(table)
@@ -525,7 +529,6 @@ class SupabaseService:
         self,
         table: str,
         data: dict,
-        use_service_key: bool = False
     ) -> Optional[dict]:
         """Insert data"""
         tbl = self._sanitize_identifier(table)
@@ -556,7 +559,6 @@ class SupabaseService:
         table: str,
         data: dict,
         filters: dict,
-        use_service_key: bool = False
     ) -> Optional[dict]:
         """Update data"""
         tbl = self._sanitize_identifier(table)
@@ -589,7 +591,6 @@ class SupabaseService:
         self,
         table: str,
         filters: dict,
-        use_service_key: bool = False
     ) -> bool:
         """Delete data"""
         tbl = self._sanitize_identifier(table)

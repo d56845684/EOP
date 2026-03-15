@@ -56,7 +56,7 @@ export default function TeachersPage() {
     const [detailSubmitting, setDetailSubmitting] = useState(false)
     const [uploadingDetailId, setUploadingDetailId] = useState<string | null>(null)
 
-    const isStaff = profile?.role === 'admin' || profile?.role === 'employee'
+    const isStaff = profile?.employee_id != null
 
     const fetchTeachers = useCallback(async () => {
         setLoading(true)
@@ -324,7 +324,7 @@ export default function TeachersPage() {
     return (
         <DashboardLayout>
             <div className="py-8">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="mx-auto px-4 sm:px-6 lg:px-8">
                     {/* Header */}
                     <div className="mb-8">
                         <div className="flex items-center justify-between">
@@ -379,7 +379,7 @@ export default function TeachersPage() {
                             <p className="text-gray-500">{searchTerm ? '請嘗試其他搜尋條件' : '點擊「新增教師」建立第一位教師'}</p>
                         </div>
                     ) : (
-                        <div className="card overflow-hidden">
+                        <div className="card overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>

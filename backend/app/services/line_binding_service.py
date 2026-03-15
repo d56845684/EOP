@@ -98,7 +98,6 @@ class LineBindingService:
                     "line_user_id": profile.user_id,
                     "channel_type": channel_type
                 },
-                use_service_key=True
             )
             return self._to_binding(result)
 
@@ -117,7 +116,6 @@ class LineBindingService:
         result = await supabase_service.table_insert(
             table="line_user_bindings",
             data=data,
-            use_service_key=True
         )
 
         return self._to_binding(result)
@@ -145,7 +143,6 @@ class LineBindingService:
                     "line_user_id": f"eq.{line_user_id}",
                     "channel_type": f"eq.{channel_type}"
                 },
-                use_service_key=True
             )
 
             if result and len(result) > 0:
@@ -178,7 +175,6 @@ class LineBindingService:
                 table="line_user_bindings",
                 select="*",
                 filters=filters,
-                use_service_key=True
             )
 
             if result and len(result) > 0:
@@ -211,7 +207,6 @@ class LineBindingService:
                 table="line_user_bindings",
                 select="*",
                 filters=filters,
-                use_service_key=True
             )
 
             if result:
@@ -243,7 +238,6 @@ class LineBindingService:
                     "line_user_id": f"eq.{line_user_id}",
                     "channel_type": f"eq.{channel_type}"
                 },
-                use_service_key=True
             )
 
             if result and len(result) > 0:
@@ -275,7 +269,6 @@ class LineBindingService:
                     "line_user_id": f"eq.{line_user_id}",
                     "binding_status": "eq.active"
                 },
-                use_service_key=True
             )
 
             if result and len(result) > 0:
@@ -307,7 +300,6 @@ class LineBindingService:
                     "line_user_id": f"eq.{line_user_id}",
                     "binding_status": "eq.active"
                 },
-                use_service_key=True
             )
 
             if result and len(result) > 0:
@@ -345,7 +337,6 @@ class LineBindingService:
                     "user_id": f"eq.{user_id}",
                     "channel_type": f"eq.{channel_type}"
                 },
-                use_service_key=True
             )
 
             if result and len(result) > 0:
@@ -387,7 +378,6 @@ class LineBindingService:
                     "user_id": user_id,
                     "channel_type": channel_type
                 },
-                use_service_key=True
             )
             return result is not None
         except Exception as e:
@@ -425,7 +415,6 @@ class LineBindingService:
                     "user_id": f"eq.{user_id}",
                     "channel_type": f"eq.{channel_type}"
                 },
-                use_service_key=True
             )
             return True
         except Exception:
