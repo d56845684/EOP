@@ -57,15 +57,17 @@
     </el-form>
     <template #footer>
       <el-button @click="show = false">取消</el-button>
-      <el-button type="primary" :loading="detailLoading" @click="submitDetailForm">新增</el-button>
+      <el-button type="primary" :loading="detailLoading" @click="submitDetailForm">
+        {{ isEdit ? '更新' : '新增' }}
+      </el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { createContractDetail, type StudentContractDetailCreate, type CourseOption, getContractCourseOptions } from '@/api/contract';
+import { createContractDetail, type StudentContractDetailCreate, type CourseOption, getContractCourseOptions, updateContractDetail, type StudentContractDetail } from '@/api/contract';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, watch, type PropType, nextTick } from 'vue'
 
 const props = defineProps({
     detailVisible: {
@@ -76,9 +78,13 @@ const props = defineProps({
       type: String,
       required: true
     },
-    currentStudent: {
-      type: Object,
+    studentId: {
+      type: String,
       required: true
+    },
+    detailData: {
+      type: Object as PropType<StudentContractDetail | null>,
+      required: false
     }
 })
 
@@ -91,8 +97,9 @@ const detailForm = reactive<StudentContractDetailCreate>({
   notes: ''
 });
 const detailRules = reactive<FormRules>({});
+const isEdit = ref(false);
 
-const emit = defineEmits(['submit-finish', 'update:detailVisible', 'add-detail-finish'])
+const emit = defineEmits(['submit-finish', 'update:detailVisible', 'addDetailFinish'])
 
 const show = computed({
   get: () => props.detailVisible,
@@ -114,22 +121,47 @@ const submitDetailForm = async () => {
         if (payload.detail_type !== 'lesson_price') {
            payload.course_id = null;
         }
-        await createContractDetail(props.contractId, payload);
-        ElMessage.success('新增合約明細成功');
-        emit('add-detail-finish', props.contractId)
+        if (isEdit.value) {
+          await updateContractDetail(props.contractId, props.detailData?.id || '', payload);
+          ElMessage.success('更新合約明細成功');
+        } else {
+          await createContractDetail(props.contractId, payload);
+          ElMessage.success('新增合約明細成功');
+        }
+        emit('addDetailFinish', props.contractId)
+        show.value = false;
       } catch(err) {
         ElMessage.error('新增合約明細失敗');
       } finally {
         detailLoading.value = false;
+        nextTick(() => {
+          detailForm.detail_type = 'lesson_price';
+          detailForm.course_id = '';
+          detailForm.description = '';
+          detailForm.amount = 0;
+          detailForm.notes = '';
+          isEdit.value = false;
+        })
       }
     }
   });
 };
 
+watch(() => props.detailData, (newVal) => {
+  if (newVal) {
+    detailForm.detail_type = newVal.detail_type;
+    detailForm.course_id = newVal.course_id;
+    detailForm.description = newVal.description;
+    detailForm.amount = newVal.amount;
+    detailForm.notes = newVal.notes;
+    isEdit.value = true;
+  }
+})
+
 onMounted(async () => {
-  if (props.currentStudent?.id) {
+  if (props.studentId) {
     try {
-      const cRes = await getContractCourseOptions(props.currentStudent.id);
+      const cRes = await getContractCourseOptions(props.studentId);
       detailCourseOptions.value = (cRes.data as any) || [];
     } catch(err) {
       console.error(err);

@@ -7,12 +7,12 @@
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="-"
+            range-separator="至"
             start-placeholder="開始日期"
             end-placeholder="結束日期"
             value-format="YYYY-MM-DD"
             @change="handleDateRangeChange"
-            style="width: 260px"
+            style="width: 220px"
           />
         </el-form-item>
         <el-form-item label="預約狀態">
@@ -45,7 +45,7 @@
 
     <!-- Data Table (區塊 B) -->
     <el-card shadow="never">
-      <el-table :data="bookingList" v-loading="loading" stripe class="w-full">
+      <el-table :data="bookingList" v-loading="loading" stripe class="w-full" size="small">
         <!-- 預約編號 -->
         <el-table-column prop="booking_no" label="預約編號" min-width="140" />
         
@@ -93,6 +93,7 @@
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
           :total="total"
+          small
           @size-change="fetchBookings"
           @current-change="fetchBookings"
         />

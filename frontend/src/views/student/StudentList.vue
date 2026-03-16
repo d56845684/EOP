@@ -190,7 +190,7 @@
     <el-drawer
       v-model="drawerVisible"
       :title="drawerType !== 'add' ? (currentStudent.student_no + ' - ' + currentStudent.name || $t('student.detailsTitle')) : $t('student.addTitle')"
-      size="660px"
+      :size="drawerType === 'add' ? '480px' : '620px'"
       class="student-drawer"
     >
       <template v-if="drawerType === 'manage'">
@@ -225,13 +225,18 @@
           v-if="contract"
           :contract="contract" 
           :contractLoading="contractLoading"
-          @openAddDetailDialog="detailVisible = true"
-          @submitLeaveForm="submitLeaveForm"
-          @deleteLeave="deleteLeave"
+          :leaveRecords="leaveRecords"
+          :contractDetails="contractDetails"
+          @updateContractDetails="fetchContractDependencies"
           @saveContractData="saveContractData"
+          @updateContent="loadContent"
         />
         <div v-else class="skeleton-content">
           <p class="text-[#909399]" v-if="!contractLoading">目前無合約紀錄</p>
+          <el-button type="primary" @click="openConvertToFormalDialog(currentStudent as StudentResponse)">
+            <template #icon><div class="i-hugeicons:add-square" /></template>
+            新增合約
+          </el-button>
         </div>
       </template>
     </el-drawer>
@@ -243,14 +248,6 @@
        :bookingOptions="bookingOptions"
        :teacherOptions="teacherOptions"
      />
-
-    <!-- Add Contract Detail Dialog -->
-    <AddContractDetails
-      v-model:detailVisible="detailVisible"
-      :currentStudent="currentStudent"
-      :contractId="contract?.id || ''"
-      @add-detail-finish="fetchContractDependencies"
-    />
   </div>
 </template>
 
@@ -273,15 +270,11 @@ import {
   updateStudentContract,
   getContractDetails,
   getContractLeaveRecords,
-  createContractLeaveRecord,
-  deleteContractLeaveRecord,
   getContractTeacherOptions,
-  getContractCourseOptions,
   type StudentContract,
   type StudentContractUpdate,
   type StudentContractDetail,
   type StudentContractLeaveRecord,
-  type StudentContractLeaveRecordCreate
 } from '@/api/contract';
 import { getBookingList, type BookingItem } from '@/api/booking';
 import BaseInfo from './components/BaseInfo.vue';
@@ -289,7 +282,6 @@ import BookingList from './components/BookingList.vue';
 import ContractManagement from './components/ContractManagement.vue';
 import CreateStudent from './components/CreateStudent.vue';
 import CreateContractDialog from './components/CreateContractDialog.vue';
-import AddContractDetails from './components/AddContractDetails.vue';
 
 const { t } = useI18n();
 
@@ -334,29 +326,9 @@ const rules = reactive<FormRules>({
 const contract = ref<StudentContract | null>(null);
 const contractLoading = ref(false);
 const savingContract = ref(false);
-const contractForm = reactive<StudentContractUpdate & { dateRange: [string, string] }>({
-  contract_status: 'pending',
-  is_recurring: false,
-  dateRange: ['', ''],
-  start_date: '',
-  end_date: '',
-  total_lessons: 0,
-  total_amount: 0,
-  total_leave_allowed: 0,
-  notes: ''
-});
 
 const contractDetails = ref<StudentContractDetail[]>([]);
-const detailVisible = ref(false);
-const detailCourseOptions = ref<any[]>([]);
-
-
 const leaveRecords = ref<StudentContractLeaveRecord[]>([]);
-const leaveLoading = ref(false);
-const leaveForm = reactive<StudentContractLeaveRecordCreate>({
-  leave_date: '',
-  reason: ''
-});
 
 // --- Booking Feature State ---
 const booking = ref<BookingItem | null>(null);
@@ -520,18 +492,6 @@ const loadContract = async () => {
     const contracts = res.data || [];
     if (contracts.length > 0) {
       contract.value = contracts[0];
-      Object.assign(contractForm, { 
-        contract_status: contract.value?.contract_status || 'pending',
-        is_recurring: contract.value?.is_recurring || false,
-        total_lessons: contract.value?.total_lessons || 0,
-        total_amount: contract.value?.total_amount || 0,
-        total_leave_allowed: contract.value?.total_leave_allowed,
-        notes: contract.value?.notes || ''
-      });
-      contractForm.dateRange = [(contract.value as any).start_date, (contract.value as any).end_date];
-      if (contractForm.total_leave_allowed == null) {
-        contractForm.total_leave_allowed = contractForm.total_lessons * 2;
-      }
       await fetchContractDependencies(contract.value!.id);
     } else {
       contract.value = null;
@@ -578,19 +538,19 @@ const fetchContractDependencies = async (contractId: string) => {
   }
 };
 
-const saveContractData = async () => {
+const saveContractData = async (data: StudentContractUpdate) => {
    if(!contract.value) return;
    savingContract.value = true;
    try {
      const payload: StudentContractUpdate = {
-       contract_status: contractForm.contract_status,
-       is_recurring: contractForm.is_recurring,
-       start_date: contractForm.dateRange[0],
-       end_date: contractForm.dateRange[1],
-       total_lessons: contractForm.total_lessons,
-       total_amount: contractForm.total_amount,
-       total_leave_allowed: contractForm.total_leave_allowed,
-       notes: contractForm.notes
+       contract_status: data.contract_status,
+       is_recurring: data.is_recurring,
+       start_date: data.start_date,
+       end_date: data.end_date,
+       total_lessons: data.total_lessons,
+       total_amount: data.total_amount,
+       total_leave_allowed: data.total_leave_allowed,
+       notes: data.notes
      };
      await updateStudentContract(contract.value.id, payload);
      ElMessage.success('更新合約成功');
@@ -602,42 +562,6 @@ const saveContractData = async () => {
    } finally {
      savingContract.value = false;
    }
-};
-
-// --- Leave Records API ---
-const submitLeaveForm = async () => {
-  if (!leaveForm.leave_date || !contract.value) {
-     ElMessage.warning('請選擇請假日期');
-     return;
-  }
-  leaveLoading.value = true;
-  try {
-     await createContractLeaveRecord(contract.value.id, {
-        leave_date: leaveForm.leave_date,
-        reason: leaveForm.reason
-     });
-     ElMessage.success('請假紀錄已新增');
-     leaveForm.leave_date = '';
-     leaveForm.reason = '';
-     // Re-fetch to update used leave counts
-     await loadContent('contracts');
-  } catch(err) {
-     ElMessage.error('新增請假紀錄失敗');
-  } finally {
-     leaveLoading.value = false;
-  }
-};
-
-const deleteLeave = async (recordId: string) => {
-  if (!contract.value) return;
-  try {
-      await deleteContractLeaveRecord(contract.value.id, recordId);
-      ElMessage.success('請假紀錄已刪除');
-      // Re-fetch to update used leave counts
-      await loadContent('contracts');
-  } catch(err){
-      ElMessage.error('刪除請假紀錄失敗');
-  }
 };
 
 onMounted(() => {

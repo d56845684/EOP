@@ -9,8 +9,8 @@ export interface ContractOption {
   value: string;
 }
 
-export interface TeacherOption extends ContractOption {}
-export interface CourseOption extends ContractOption {}
+export interface TeacherOption extends ContractOption { }
+export interface CourseOption extends ContractOption { }
 
 export interface StudentContract {
   id: string;
@@ -75,9 +75,9 @@ export interface StudentContractLeaveRecordCreate {
   reason?: string | null;
 }
 
-export interface DownloadUrlResponse {
-  url: string;
-}
+// export interface DownloadUrlResponse {
+//   url: string;
+// }
 
 export interface GetStudentContractsParams {
   student_id: string;
@@ -111,6 +111,14 @@ export function createContractDetail(contractId: string, data: StudentContractDe
   return request.post<StudentContractDetail>(`/v1/student-contracts/${contractId}/details`, data);
 }
 
+export function updateContractDetail(contractId: string, detailId: string, data: StudentContractDetailCreate) {
+  return request.put<StudentContractDetail>(`/v1/student-contracts/${contractId}/details/${detailId}`, data);
+}
+
+export function deleteContractDetail(contractId: string, detailId: string) {
+  return request.delete(`/v1/student-contracts/${contractId}/details/${detailId}`);
+}
+
 export function getContractLeaveRecords(contractId: string) {
   return request.get<StudentContractLeaveRecord[]>(`/v1/student-contracts/${contractId}/leave-records`);
 }
@@ -124,5 +132,5 @@ export function deleteContractLeaveRecord(contractId: string, recordId: string) 
 }
 
 export function getContractDownloadUrl(contractId: string) {
-  return request.get<DownloadUrlResponse>(`/v1/student-contracts/${contractId}/download-url`);
+  return request.get<string>(`/v1/student-contracts/${contractId}/download-url`);
 }

@@ -27,7 +27,13 @@
       <el-row>
         <el-col :span="24">
           <el-form-item label="起迄日期" prop="dateRange">
-            <el-date-picker v-model="convertForm.dateRange" type="daterange" value-format="YYYY-MM-DD" class="w-full"></el-date-picker>
+            <el-date-picker
+              v-model="convertForm.dateRange"
+              type="daterange"
+              value-format="YYYY-MM-DD"
+              range-separator="至"
+              class="w-full"
+            />
           </el-form-item>
         </el-col>
       </el-row>
