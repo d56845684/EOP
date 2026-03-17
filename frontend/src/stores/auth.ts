@@ -3,15 +3,29 @@ import { ref, computed } from 'vue';
 import { loginApi, logout as logoutApi, getMeApi, type LoginRequest, type UserInfo } from '@/api/auth';
 import { usePermissionStore } from '@/stores/permission';
 import router from '@/router';
+import { getUserProfileApi, type UserProfile } from '@/api/user';
+import { ElMessage } from 'element-plus';
 
 export const useAuthStore = defineStore('auth', () => {
-    // State: Only keep userInfo
+    // State: Keep userInfo and add profile
     const userInfo = ref<UserInfo | null>(null);
+    const profile = ref<UserProfile | null>(null);
 
     // Getters: Authenticated if userInfo exists
     const isAuthenticated = computed(() => !!userInfo.value);
 
     // Actions
+    const fetchProfile = async () => {
+        try {
+            const res = await getUserProfileApi();
+            if (res && res.data) {
+                profile.value = res.data;
+            }
+        } catch (error) {
+            console.error('Fetch profile failed:', error);
+            ElMessage.error('Failed to fetch user profile');
+        }
+    };
     const login = async (credentials: LoginRequest) => {
         const res = await loginApi(credentials);
         if (res.success) {
@@ -20,6 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
             } else {
                 await checkAuth();
             }
+            await fetchProfile();
         }
         return res;
     };
@@ -40,8 +55,9 @@ export const useAuthStore = defineStore('auth', () => {
 
     const clearLocalState = () => {
         console.log('clearLocalState');
-        // 1. Clear user info
+        // 1. Clear user info & profile
         userInfo.value = null;
+        profile.value = null;
 
         // 2. Clear permissions and route generation flags
         const permissionStore = usePermissionStore();
@@ -66,5 +82,5 @@ export const useAuthStore = defineStore('auth', () => {
         }
     };
 
-    return { userInfo, isAuthenticated, login, checkAuth, logout, clearLocalState };
+    return { userInfo, profile, isAuthenticated, login, checkAuth, fetchProfile, logout, clearLocalState };
 });

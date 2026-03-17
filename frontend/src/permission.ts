@@ -36,6 +36,11 @@ router.beforeEach(async (to, _from, next) => {
             if (!authStore.userInfo) {
                 await authStore.checkAuth(); // using checkAuth which exists in the store
             }
+            
+            // If profile is missing, fetch it
+            if (!authStore.profile) {
+                await authStore.fetchProfile();
+            }
 
             // Fetch permissions and generate dynamic routes
             const role = authStore.userInfo?.role || '';

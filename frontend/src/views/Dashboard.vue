@@ -1,17 +1,57 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useMockStore } from '../stores/mockStore';
+import { computed, ref } from 'vue';
+import { useAuthStore } from '@/stores/auth';
+import adminAvatar from '@/assets/avatars/admin.svg?url';
+import teacherAvatar from '@/assets/avatars/teacher.svg?url';
+import studentAvatar from '@/assets/avatars/student.svg?url';
+import defaultAvatar from '@/assets/avatars/default.svg?url';
 
-const store = useMockStore();
-const nickname = computed(() => store.currentUser?.nickname || 'User');
-const role = computed(() => store.currentUser?.role === 'super_admin' ? 'Super Administrator' : 'Administrator');
+const isError = ref(false)
+
+const store = useAuthStore();
+const nickname = computed(() => store.profile?.name || 'User');
+const role = computed(() => {
+  switch (store.profile?.role) {
+    case 'admin':
+      return 'Administrator';
+    case 'teacher':
+      return 'Teacher';
+    case 'student':
+      return 'Student';
+    default:
+      return store.profile?.role;
+  }
+});
+const avatarUrl = computed(() => {
+  if (isError.value) return defaultAvatar
+
+  let avatar = '';
+  switch (store.profile?.role) {
+    case 'admin':
+      avatar = adminAvatar;
+      break;
+    case 'teacher':
+      avatar = teacherAvatar;
+      break;
+    case 'student':
+      avatar = studentAvatar;
+      break;
+    default:
+      avatar = defaultAvatar;
+  }
+  return store.profile?.avatar_url || avatar;
+});
+
+const handleAvatarError = () => {
+  isError.value = true;
+};
 </script>
 
 <template>
   <div class="dashboard-container">
     <el-card class="welcome-card" shadow="hover">
       <div class="welcome-content">
-        <el-avatar :size="80" :src="store.currentUser?.avatar || ''" />
+        <el-avatar class="user-avatar" :size="80" :src="avatarUrl" fit="contain" @error="handleAvatarError" />
         <div class="welcome-text">
           <h1>Welcome, {{ nickname }}!</h1>
           <p>You are logged in as <el-tag>{{ role }}</el-tag></p>
@@ -38,6 +78,9 @@ const role = computed(() => store.currentUser?.role === 'super_admin' ? 'Super A
   align-items: center;
   gap: 30px;
   padding: 20px;
+}
+.user-avatar {
+  flex: 0 0 80px;
 }
 .welcome-text h1 {
   margin: 0 0 10px 0;
