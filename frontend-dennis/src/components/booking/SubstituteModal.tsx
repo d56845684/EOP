@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { substituteDetailsApi } from '@/lib/api/substituteDetails'
-import { bookingsApi, TeacherOption, TeacherContractOption } from '@/lib/api/bookings'
+import { bookingsApi, SubstituteTeacherOption, TeacherContractOption } from '@/lib/api/bookings'
 
 interface SubstituteModalProps {
     bookingId: string
@@ -21,23 +21,23 @@ export default function SubstituteModal({ bookingId, bookingNo, studentId, origi
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const [teacherOptions, setTeacherOptions] = useState<TeacherOption[]>([])
+    const [teacherOptions, setTeacherOptions] = useState<SubstituteTeacherOption[]>([])
     const [contractOptions, setContractOptions] = useState<TeacherContractOption[]>([])
     const [loadingTeachers, setLoadingTeachers] = useState(true)
     const [loadingContracts, setLoadingContracts] = useState(false)
 
-    // 載入教師選項（依學生偏好過濾 + 排除原教師）
+    // 載入可用代課教師選項（依 slot / 課程 / 衝堂篩選）
     useEffect(() => {
         const load = async () => {
             setLoadingTeachers(true)
-            const { data } = await bookingsApi.getTeacherOptions({ student_id: studentId })
+            const { data } = await bookingsApi.getSubstituteTeacherOptions(bookingId)
             if (data) {
-                setTeacherOptions(data.filter(t => t.id !== originalTeacherId))
+                setTeacherOptions(data)
             }
             setLoadingTeachers(false)
         }
         load()
-    }, [studentId, originalTeacherId])
+    }, [bookingId])
 
     // 選擇教師後載入合約
     useEffect(() => {
@@ -117,7 +117,7 @@ export default function SubstituteModal({ bookingId, bookingNo, studentId, origi
                                 <option value="">請選擇代課教師</option>
                                 {teacherOptions.map(t => (
                                     <option key={t.id} value={t.id}>
-                                        {t.teacher_no} - {t.name} (Lv.{t.teacher_level || '-'})
+                                        {t.teacher_no} - {t.name} (Lv.{t.teacher_level || '-'}){t.is_preferred ? ' ★' : ''}
                                     </option>
                                 ))}
                             </select>

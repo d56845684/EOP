@@ -88,16 +88,29 @@ async def create_substitute_detail(
         if not sub_teacher:
             raise HTTPException(status_code=400, detail="代課教師不存在或未啟用")
 
-        # 驗證代課教師在學生偏好白名單內
-        from app.api.v1.bookings import get_student_allowed_teachers
-        student_id = booking[0].get("student_id")
-        if student_id:
-            allowed_set, _ = await get_student_allowed_teachers(student_id)
-            if data.substitute_teacher_id not in allowed_set:
-                raise HTTPException(
-                    status_code=400,
-                    detail="代課教師不在該學生的偏好可預約教師範圍內"
-                )
+        # 驗證代課教師在該日有涵蓋時段的 slot
+        booking_date = booking[0].get("booking_date")
+        booking_start = booking[0].get("start_time", "")[:5]
+        booking_end = booking[0].get("end_time", "")[:5]
+        course_id = booking[0].get("course_id")
+
+        slots = await supabase_service.table_select(
+            table="teacher_available_slots",
+            select="id,start_time,end_time",
+            filters={
+                "teacher_id": data.substitute_teacher_id,
+                "slot_date": f"eq.{booking_date}",
+                "is_deleted": "eq.false",
+                "is_available": "eq.true",
+            },
+        )
+        has_covering_slot = any(
+            s.get("start_time", "")[:5] <= booking_start
+            and s.get("end_time", "")[:5] >= booking_end
+            for s in slots
+        )
+        if not has_covering_slot:
+            raise HTTPException(status_code=400, detail="代課教師在該時段沒有可用的預約時段")
 
         # 驗證代課教師合約存在且有效
         sub_contract = await supabase_service.table_select(
@@ -107,10 +120,22 @@ async def create_substitute_detail(
         if not sub_contract:
             raise HTTPException(status_code=400, detail="代課教師合約不存在或非有效狀態")
 
+        # 驗證代課教師合約有該課程的 course_rate
+        if course_id:
+            course_rate = await supabase_service.table_select(
+                table="teacher_contract_details",
+                select="id",
+                filters={
+                    "teacher_contract_id": data.substitute_contract_id,
+                    "course_id": course_id,
+                    "detail_type": "eq.course_rate",
+                    "is_deleted": "eq.false",
+                },
+            )
+            if not course_rate:
+                raise HTTPException(status_code=400, detail="代課教師合約未包含此課程")
+
         # 檢查代課教師同日同時段是否有其他預約（時間衝突）
-        booking_date = booking[0].get("booking_date")
-        booking_start = booking[0].get("start_time", "")[:5]
-        booking_end = booking[0].get("end_time", "")[:5]
 
         # 查代課教師當天所有有效預約
         teacher_bookings = await supabase_service.table_select(

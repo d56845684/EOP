@@ -2281,6 +2281,165 @@ async def get_student_contract_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/options/substitute-teachers", tags=["預約管理"])
+async def get_substitute_teacher_options(
+    booking_id: str = Query(..., description="預約 ID"),
+    current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
+):
+    """取得可用代課教師選項（依 slot / 課程 / 衝堂 三個硬條件篩選）"""
+    try:
+        # 1. 取得預約資料
+        booking = await supabase_service.table_select(
+            table="bookings",
+            select="id,booking_date,start_time,end_time,course_id,teacher_id,student_id",
+            filters={"id": booking_id, "is_deleted": "eq.false"},
+        )
+        if not booking:
+            raise HTTPException(status_code=404, detail="預約不存在")
+        b = booking[0]
+        booking_date = b["booking_date"]
+        booking_start = b.get("start_time", "")[:5]
+        booking_end = b.get("end_time", "")[:5]
+        course_id = b.get("course_id")
+        original_teacher_id = b.get("teacher_id")
+        student_id = b.get("student_id")
+
+        # 2. 取得所有 active 教師（排除原教師）
+        all_teachers = await supabase_service.table_select(
+            table="teachers",
+            select="id,teacher_no,name,teacher_level",
+            filters={"is_deleted": "eq.false", "is_active": "eq.true"},
+        )
+        candidates = [t for t in all_teachers if t["id"] != original_teacher_id]
+
+        # 3. 取得學生偏好集合（僅用於標記 is_preferred）
+        preferred_set: set[str] = set()
+        if student_id:
+            allowed_set, _ = await get_student_allowed_teachers(student_id)
+            if allowed_set:
+                preferred_set = allowed_set
+
+        result = []
+        for teacher in candidates:
+            tid = teacher["id"]
+
+            # 條件 a: 該日有涵蓋 booking 時段的 slot
+            slots = await supabase_service.table_select(
+                table="teacher_available_slots",
+                select="id,start_time,end_time",
+                filters={
+                    "teacher_id": tid,
+                    "slot_date": f"eq.{booking_date}",
+                    "is_deleted": "eq.false",
+                    "is_available": "eq.true",
+                },
+            )
+            has_covering_slot = any(
+                s.get("start_time", "")[:5] <= booking_start
+                and s.get("end_time", "")[:5] >= booking_end
+                for s in slots
+            )
+            if not has_covering_slot:
+                continue
+
+            # 條件 b: active 合約有該 course_id 的 course_rate
+            if course_id:
+                t_contracts = await supabase_service.table_select(
+                    table="teacher_contracts",
+                    select="id",
+                    filters={
+                        "teacher_id": tid,
+                        "is_deleted": "eq.false",
+                        "contract_status": "eq.active",
+                    },
+                )
+                has_course = False
+                for tc in t_contracts:
+                    rate = await supabase_service.table_select(
+                        table="teacher_contract_details",
+                        select="id",
+                        filters={
+                            "teacher_contract_id": tc["id"],
+                            "course_id": course_id,
+                            "detail_type": "eq.course_rate",
+                            "is_deleted": "eq.false",
+                        },
+                    )
+                    if rate:
+                        has_course = True
+                        break
+                if not has_course:
+                    continue
+
+            # 條件 c: 沒有衝堂（正式預約 + 代課安排）
+            teacher_bookings = await supabase_service.table_select(
+                table="bookings",
+                select="id,start_time,end_time,booking_status",
+                filters={
+                    "teacher_id": f"eq.{tid}",
+                    "booking_date": f"eq.{booking_date}",
+                    "is_deleted": "eq.false",
+                },
+            )
+            conflict = False
+            for tb in teacher_bookings:
+                if tb.get("booking_status") in ("cancelled",):
+                    continue
+                tb_start = tb.get("start_time", "")[:5]
+                tb_end = tb.get("end_time", "")[:5]
+                if booking_start < tb_end and booking_end > tb_start:
+                    conflict = True
+                    break
+
+            if not conflict:
+                # 也檢查作為代課者的安排
+                existing_subs = await supabase_service.table_select(
+                    table="substitute_details",
+                    select="id,booking_id",
+                    filters={
+                        "substitute_teacher_id": f"eq.{tid}",
+                        "is_deleted": "eq.false",
+                    },
+                )
+                for sub in existing_subs:
+                    sub_booking = await supabase_service.table_select(
+                        table="bookings",
+                        select="id,booking_date,start_time,end_time,booking_status",
+                        filters={"id": sub["booking_id"], "is_deleted": "eq.false"},
+                    )
+                    if sub_booking:
+                        sb = sub_booking[0]
+                        if sb.get("booking_status") in ("cancelled",):
+                            continue
+                        if sb.get("booking_date") != booking_date:
+                            continue
+                        sb_start = sb.get("start_time", "")[:5]
+                        sb_end = sb.get("end_time", "")[:5]
+                        if booking_start < sb_end and booking_end > sb_start:
+                            conflict = True
+                            break
+
+            if conflict:
+                continue
+
+            result.append({
+                "id": tid,
+                "teacher_no": teacher.get("teacher_no"),
+                "name": teacher.get("name"),
+                "teacher_level": teacher.get("teacher_level"),
+                "is_preferred": tid in preferred_set,
+            })
+
+        # 排序：is_preferred=True 排前面
+        result.sort(key=lambda x: (not x["is_preferred"], x.get("teacher_no", "")))
+        return {"data": result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/options/teacher-contracts/{teacher_id}", tags=["預約管理"])
 async def get_teacher_contract_options(
     teacher_id: str,

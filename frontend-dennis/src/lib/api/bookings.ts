@@ -155,6 +155,14 @@ export interface TeacherContractOption {
     contract_no: string
 }
 
+export interface SubstituteTeacherOption {
+    id: string
+    teacher_no: string
+    name: string
+    teacher_level?: number
+    is_preferred: boolean
+}
+
 export interface TeacherSlotOption {
     id: string
     slot_date: string
@@ -603,6 +611,25 @@ export const bookingsApi = {
 
             const result = await response.json()
             return { data: result.data || null, error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    // 取得可用代課教師選項
+    async getSubstituteTeacherOptions(bookingId: string): Promise<{ data: SubstituteTeacherOption[] | null, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/substitute-teachers?booking_id=${encodeURIComponent(bookingId)}`, {
+                method: 'GET',
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得代課教師選項失敗' } }
+            }
+
+            const result = await response.json()
+            return { data: result.data || [], error: null }
         } catch (err) {
             return { data: null, error: { message: '網路錯誤，請稍後再試' } }
         }
