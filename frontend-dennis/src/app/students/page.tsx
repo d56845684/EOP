@@ -29,7 +29,7 @@ export default function StudentsPage() {
     const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
     const [editingStudent, setEditingStudent] = useState<Student | null>(null)
     const [formData, setFormData] = useState<CreateStudentData>({
-        student_no: '', name: '', email: '', phone: '', address: '',
+        student_no: '', name: '', eng_name: '', email: '', phone: '', address: '',
         birth_date: '', student_type: 'formal', is_active: true,
     })
     const [formError, setFormError] = useState<string | null>(null)
@@ -106,7 +106,7 @@ export default function StudentsPage() {
     const openCreateModal = () => {
         setModalMode('create')
         setEditingStudent(null)
-        setFormData({ student_no: '', name: '', email: '', phone: '', address: '', birth_date: '', student_type: 'formal', is_active: true })
+        setFormData({ student_no: '', name: '', eng_name: '', email: '', phone: '', address: '', birth_date: '', student_type: 'formal', is_active: true })
         setFormError(null)
         setShowModal(true)
     }
@@ -115,8 +115,8 @@ export default function StudentsPage() {
         setModalMode('edit')
         setEditingStudent(student)
         setFormData({
-            student_no: student.student_no, name: student.name, email: student.email,
-            phone: student.phone || '', address: student.address || '',
+            student_no: student.student_no, name: student.name, eng_name: student.eng_name || '',
+            email: student.email, phone: student.phone || '', address: student.address || '',
             birth_date: student.birth_date || '', student_type: student.student_type || 'formal',
             is_active: student.is_active,
         })
@@ -135,12 +135,14 @@ export default function StudentsPage() {
                 const submitData = { ...formData }
                 if (!submitData.birth_date) delete (submitData as any).birth_date
                 if (!submitData.phone) delete (submitData as any).phone
+                if (!submitData.eng_name) delete (submitData as any).eng_name
                 if (!submitData.address) delete (submitData as any).address
                 const { error } = await studentsApi.create(submitData)
                 if (error) { setFormError(error.message) } else { closeModal(); fetchStudents() }
             } else if (editingStudent) {
                 const updateData: UpdateStudentData = {}
                 if (formData.name !== editingStudent.name) updateData.name = formData.name
+                if ((formData.eng_name || '') !== (editingStudent.eng_name || '')) updateData.eng_name = formData.eng_name || undefined
                 if (formData.email !== editingStudent.email) updateData.email = formData.email
                 if ((formData.phone || '') !== (editingStudent.phone || '')) updateData.phone = formData.phone || undefined
                 if ((formData.address || '') !== (editingStudent.address || '')) updateData.address = formData.address || undefined
@@ -418,6 +420,7 @@ export default function StudentsPage() {
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">編號</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">姓名</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">英文名</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">聯絡方式</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">類型</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
@@ -433,6 +436,9 @@ export default function StudentsPage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="font-medium text-gray-900">{student.name}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-600">
+                                                {student.eng_name || '-'}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col gap-0.5">
@@ -514,6 +520,11 @@ export default function StudentsPage() {
                                             <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                                 className="input-field" required />
                                         </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">英文名</label>
+                                        <input type="text" value={formData.eng_name} onChange={(e) => setFormData({ ...formData, eng_name: e.target.value })}
+                                            className="input-field" placeholder="English Name" />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>

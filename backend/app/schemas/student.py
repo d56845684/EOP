@@ -7,6 +7,7 @@ class StudentCreate(BaseModel):
     """建立學生"""
     student_no: str = Field(..., min_length=1, max_length=50, description="學生編號")
     name: str = Field(..., min_length=1, max_length=100, description="姓名")
+    eng_name: Optional[str] = Field(None, max_length=100, description="英文名")
     email: str = Field(..., max_length=255, description="Email")
     phone: Optional[str] = Field(None, max_length=20, description="電話")
     address: Optional[str] = Field(None, description="地址")
@@ -18,6 +19,7 @@ class StudentCreate(BaseModel):
 class StudentUpdate(BaseModel):
     """更新學生"""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
+    eng_name: Optional[str] = Field(None, max_length=100)
     email: Optional[str] = Field(None, max_length=255)
     phone: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
@@ -31,6 +33,7 @@ class StudentResponse(BaseModel):
     id: str
     student_no: str
     name: str
+    eng_name: Optional[str] = None
     email: str
     phone: Optional[str] = None
     address: Optional[str] = None

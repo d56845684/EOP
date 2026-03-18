@@ -6,6 +6,7 @@ export interface Student {
     id: string
     student_no: string
     name: string
+    eng_name?: string
     email: string
     phone?: string
     address?: string
@@ -29,6 +30,7 @@ export interface StudentListResponse {
 export interface CreateStudentData {
     student_no: string
     name: string
+    eng_name?: string
     email: string
     phone?: string
     address?: string
@@ -39,6 +41,7 @@ export interface CreateStudentData {
 
 export interface UpdateStudentData {
     name?: string
+    eng_name?: string
     email?: string
     phone?: string
     address?: string
