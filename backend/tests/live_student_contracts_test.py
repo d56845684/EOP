@@ -407,7 +407,7 @@ class StudentContractsCRUDTester:
                 )
 
                 # 驗證 total_leave_allowed 自動計算
-                expected_leave = 24 * 2  # total_lessons * 2
+                expected_leave = 5  # math.ceil(24 * 0.2)
                 actual_leave = contract.get("total_leave_allowed", 0)
                 self._record_result(
                     f"total_leave_allowed 自動計算 (期望: {expected_leave}, 實際: {actual_leave})",

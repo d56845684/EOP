@@ -42,6 +42,11 @@ class LeaveRecordResponse(BaseModel):
     rejection_reason: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    # 請假類型 + 扣堂
+    leave_type: Optional[str] = None  # normal / emergency
+    deduct_lesson: bool = False
+    emergency_quota: Optional[int] = None  # 該合約緊急請假總額度
+    used_emergency_count: Optional[int] = None  # 已用緊急請假次數
     # 關聯資料
     initiator_name: Optional[str] = None
     booking_no: Optional[str] = None

@@ -149,6 +149,21 @@ export default function LeaveReviewModal({ leaveRecord, onClose, onSuccess }: Le
                     </button>
                 </div>
                 <div className="p-4 space-y-3">
+                    {/* 請假類型 badge */}
+                    {leaveRecord.leave_type && (
+                        <div className="flex items-center gap-2">
+                            {leaveRecord.leave_type === 'normal' ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    正常請假
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    緊急請假
+                                </span>
+                            )}
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="block text-xs font-medium text-gray-500">請假編號</label>

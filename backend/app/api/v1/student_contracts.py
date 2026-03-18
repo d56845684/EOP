@@ -19,7 +19,7 @@ import re
 
 router = APIRouter(prefix="/student-contracts", tags=["學生合約管理"])
 
-CONTRACT_SELECT = "id,contract_no,student_id,contract_status,start_date,end_date,total_lessons,remaining_lessons,total_amount,total_leave_allowed,used_leave_count,is_recurring,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
+CONTRACT_SELECT = "id,contract_no,student_id,contract_status,start_date,end_date,total_lessons,remaining_lessons,total_amount,total_leave_allowed,used_leave_count,used_emergency_leave_count,is_recurring,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
 
 
 async def generate_contract_no() -> str:
@@ -114,6 +114,10 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
         },
     )
     contract["leave_records"] = leave_records
+
+    # 計算緊急請假額度
+    total_lessons = contract.get("total_lessons", 0)
+    contract["emergency_leave_quota"] = math.ceil(total_lessons * 0.2) if total_lessons else 0
 
     return contract
 
@@ -375,7 +379,7 @@ async def create_student_contract(
         contract_no = await generate_contract_no()
 
         # 計算 total_leave_allowed
-        total_leave_allowed = data.total_leave_allowed if data.total_leave_allowed is not None else data.total_lessons * 2
+        total_leave_allowed = data.total_leave_allowed if data.total_leave_allowed is not None else math.ceil(data.total_lessons * 0.2)
 
         # 建立合約
         contract_data = {

@@ -6,7 +6,7 @@ from app.schemas.leave_record import (
 )
 from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import math
 import logging
 
@@ -113,6 +113,52 @@ async def create_leave_record(
         if existing_leave:
             raise HTTPException(status_code=400, detail="此預約已有待審核的請假申請")
 
+        # === 時間判定：正常 / 緊急 / 禁止 ===
+        booking_date_str = booking[0].get("booking_date")  # "2026-03-20" or date obj
+        booking_start_str = booking[0].get("start_time")    # "14:00:00" or time obj
+        if isinstance(booking_date_str, date):
+            booking_date_str = booking_date_str.isoformat()
+        if hasattr(booking_start_str, 'isoformat'):
+            booking_start_str = booking_start_str.isoformat()
+        class_start_dt = datetime.strptime(f"{booking_date_str} {booking_start_str}", "%Y-%m-%d %H:%M:%S")
+        now = datetime.utcnow() + timedelta(hours=8)  # UTC+8 台灣時間
+
+        hours_before = (class_start_dt - now).total_seconds() / 3600
+
+        if hours_before < 0.5:
+            raise HTTPException(status_code=400, detail="課程開始前 30 分鐘內無法請假")
+
+        if hours_before >= 24:
+            leave_type = "normal"
+            deduct_lesson = False
+            emergency_quota = None
+            used_emergency_count = None
+        else:
+            leave_type = "emergency"
+            # 查合約額度
+            student_id_for_quota = booking[0].get("student_id")
+            contract_for_quota = await supabase_service.table_select(
+                table="student_contracts",
+                select="id,total_lessons,used_emergency_leave_count",
+                filters={
+                    "student_id": f"eq.{student_id_for_quota}",
+                    "is_deleted": "eq.false",
+                    "contract_status": "eq.active",
+                },
+            )
+            if contract_for_quota:
+                total_lessons = contract_for_quota[0].get("total_lessons", 0)
+                emergency_quota = math.ceil(total_lessons * 0.2) if total_lessons else 0
+                used_emergency_count = contract_for_quota[0].get("used_emergency_leave_count", 0)
+                if used_emergency_count >= emergency_quota:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"緊急請假額度已用完（{used_emergency_count}/{emergency_quota}），無法請假",
+                    )
+            else:
+                raise HTTPException(status_code=400, detail="查無有效合約，無法申請緊急請假")
+            deduct_lesson = False
+
         # 判斷發起者類型
         if current_user.is_student():
             if booking[0].get("student_id") != current_user.student_id:
@@ -148,6 +194,8 @@ async def create_leave_record(
             "end_time": booking[0].get("end_time"),
             "reason": data.reason,
             "leave_status": "pending",
+            "leave_type": leave_type,
+            "deduct_lesson": deduct_lesson,
         }
         if employee_id:
             leave_data["created_by"] = employee_id
@@ -160,6 +208,9 @@ async def create_leave_record(
             raise HTTPException(status_code=500, detail="建立請假申請失敗")
 
         enriched = await enrich_leave_record(result)
+        # 附帶額度資訊
+        enriched["emergency_quota"] = emergency_quota
+        enriched["used_emergency_count"] = used_emergency_count
         return DataResponse(message="請假申請已送出", data=LeaveRecordResponse(**enriched))
 
     except HTTPException:
@@ -197,7 +248,7 @@ async def list_leave_records(
 
         records = await supabase_service.table_select_with_pagination(
             table="leave_records",
-            select="id,leave_no,initiator_type,initiator_student_id,initiator_teacher_id,booking_id,leave_date,start_time,end_time,reason,leave_status,approver_id,approved_at,rejection_reason,created_at,updated_at",
+            select="id,leave_no,initiator_type,initiator_student_id,initiator_teacher_id,booking_id,leave_date,start_time,end_time,reason,leave_status,leave_type,deduct_lesson,approver_id,approved_at,rejection_reason,created_at,updated_at",
             filters=filters,
             order_by="created_at.desc",
             limit=per_page,
@@ -226,7 +277,7 @@ async def get_leave_record(
     try:
         result = await supabase_service.table_select(
             table="leave_records",
-            select="id,leave_no,initiator_type,initiator_student_id,initiator_teacher_id,booking_id,leave_date,start_time,end_time,reason,leave_status,approver_id,approved_at,rejection_reason,created_at,updated_at",
+            select="id,leave_no,initiator_type,initiator_student_id,initiator_teacher_id,booking_id,leave_date,start_time,end_time,reason,leave_status,leave_type,deduct_lesson,approver_id,approved_at,rejection_reason,created_at,updated_at",
             filters={"id": leave_id, "is_deleted": "eq.false"},
         )
         if not result:
@@ -263,7 +314,7 @@ async def approve_leave_record(
         # 取得請假紀錄
         record = await supabase_service.table_select(
             table="leave_records",
-            select="id,leave_status,booking_id,leave_date,reason",
+            select="id,leave_status,booking_id,leave_date,reason,leave_type,deduct_lesson",
             filters={"id": leave_id, "is_deleted": "eq.false"},
         )
         if not record:
@@ -328,21 +379,30 @@ async def approve_leave_record(
                 # 5. used_leave_count + 1
                 contract = await supabase_service.table_select(
                     table="student_contracts",
-                    select="used_leave_count",
+                    select="used_leave_count,used_emergency_leave_count,remaining_lessons",
                     filters={"id": student_contract_id},
                 )
                 if contract:
                     current_count = contract[0].get("used_leave_count", 0) or 0
+                    update_data = {"used_leave_count": current_count + 1}
+
+                    # 6. 緊急請假：更新 used_emergency_leave_count
+                    rec_leave_type = record[0].get("leave_type", "normal")
+
+                    if rec_leave_type == "emergency":
+                        current_emergency = contract[0].get("used_emergency_leave_count", 0) or 0
+                        update_data["used_emergency_leave_count"] = current_emergency + 1
+
                     await supabase_service.table_update(
                         table="student_contracts",
-                        data={"used_leave_count": current_count + 1},
+                        data=update_data,
                         filters={"id": student_contract_id},
                     )
 
         # 重新取得更新後的紀錄
         updated = await supabase_service.table_select(
             table="leave_records",
-            select="id,leave_no,initiator_type,initiator_student_id,initiator_teacher_id,booking_id,leave_date,start_time,end_time,reason,leave_status,approver_id,approved_at,rejection_reason,created_at,updated_at",
+            select="id,leave_no,initiator_type,initiator_student_id,initiator_teacher_id,booking_id,leave_date,start_time,end_time,reason,leave_status,leave_type,deduct_lesson,approver_id,approved_at,rejection_reason,created_at,updated_at",
             filters={"id": leave_id},
         )
         enriched = await enrich_leave_record(updated[0])
@@ -390,7 +450,7 @@ async def reject_leave_record(
 
         updated = await supabase_service.table_select(
             table="leave_records",
-            select="id,leave_no,initiator_type,initiator_student_id,initiator_teacher_id,booking_id,leave_date,start_time,end_time,reason,leave_status,approver_id,approved_at,rejection_reason,created_at,updated_at",
+            select="id,leave_no,initiator_type,initiator_student_id,initiator_teacher_id,booking_id,leave_date,start_time,end_time,reason,leave_status,leave_type,deduct_lesson,approver_id,approved_at,rejection_reason,created_at,updated_at",
             filters={"id": leave_id},
         )
         enriched = await enrich_leave_record(updated[0])
@@ -437,7 +497,7 @@ async def cancel_leave_record(
 
         updated = await supabase_service.table_select(
             table="leave_records",
-            select="id,leave_no,initiator_type,initiator_student_id,initiator_teacher_id,booking_id,leave_date,start_time,end_time,reason,leave_status,approver_id,approved_at,rejection_reason,created_at,updated_at",
+            select="id,leave_no,initiator_type,initiator_student_id,initiator_teacher_id,booking_id,leave_date,start_time,end_time,reason,leave_status,leave_type,deduct_lesson,approver_id,approved_at,rejection_reason,created_at,updated_at",
             filters={"id": leave_id},
         )
         enriched = await enrich_leave_record(updated[0])

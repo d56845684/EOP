@@ -21,6 +21,11 @@ export interface LeaveRecord {
     rejection_reason?: string
     created_at?: string
     updated_at?: string
+    // 請假類型 + 扣堂
+    leave_type?: 'normal' | 'emergency'
+    deduct_lesson?: boolean
+    emergency_quota?: number
+    used_emergency_count?: number
     // 關聯資料
     initiator_name?: string
     booking_no?: string

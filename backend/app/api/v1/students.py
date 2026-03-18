@@ -262,7 +262,7 @@ async def convert_to_formal(
             "total_lessons": data.total_lessons,
             "total_amount": data.total_amount,
             "remaining_lessons": data.total_lessons,
-            "total_leave_allowed": data.total_lessons * 2,
+            "total_leave_allowed": math.ceil(data.total_lessons * 0.2),
             "notes": data.notes,
         }
         if employee_id:
