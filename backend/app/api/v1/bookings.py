@@ -25,20 +25,24 @@ def calculate_lessons_used(start_time: time, end_time: time, duration_minutes: i
 def calculate_regular_overtime_lessons(
     booking_start: time,
     booking_end: time,
-    work_start: time,
-    work_end: time,
+    work_slots: list[tuple[time, time]],
     duration_minutes: int,
 ) -> tuple[int, int]:
     """依課程時長拆分正班 / 加班堂數
 
     以 duration_minutes 為一堂，從 booking_start 開始逐堂判斷：
-    - 該堂完全落在 [work_start, work_end] 內 → 正班
+    - 該堂完全落在任一 work_slot [start, end] 內 → 正班
     - 否則 → 加班
+
+    work_slots: list of (start_time, end_time) tuples
 
     Returns: (regular_lessons, overtime_lessons)
     """
-    ws_min = work_start.hour * 60 + work_start.minute
-    we_min = work_end.hour * 60 + work_end.minute
+    # 將 work_slots 轉為分鐘區間
+    slot_mins = []
+    for ws, we in work_slots:
+        slot_mins.append((ws.hour * 60 + ws.minute, we.hour * 60 + we.minute))
+
     bs_min = booking_start.hour * 60 + booking_start.minute
     be_min = booking_end.hour * 60 + booking_end.minute
 
@@ -46,7 +50,12 @@ def calculate_regular_overtime_lessons(
     overtime = 0
     cursor = bs_min
     while cursor + duration_minutes <= be_min:
-        if cursor >= ws_min and cursor + duration_minutes <= we_min:
+        lesson_end = cursor + duration_minutes
+        is_regular = any(
+            cursor >= ws_min and lesson_end <= we_min
+            for ws_min, we_min in slot_mins
+        )
+        if is_regular:
             regular += 1
         else:
             overtime += 1
@@ -373,7 +382,7 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
             select="employment_type,work_start_time,work_end_time",
             filters={"id": booking["teacher_contract_id"]},
         )
-        if tc and tc[0].get("employment_type") == "full_time" and tc[0].get("work_start_time") and tc[0].get("work_end_time"):
+        if tc and tc[0].get("employment_type") == "full_time":
             from datetime import time as dt_time
 
             # 取得課程 duration_minutes
@@ -386,26 +395,61 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
                 if course_info and course_info[0].get("duration_minutes"):
                     course_duration = course_info[0]["duration_minutes"]
 
-            work_start = tc[0]["work_start_time"]
-            work_end = tc[0]["work_end_time"]
             b_start = booking.get("start_time")
             b_end = booking.get("end_time")
             if isinstance(b_start, str):
                 b_start = dt_time.fromisoformat(b_start)
             if isinstance(b_end, str):
                 b_end = dt_time.fromisoformat(b_end)
-            if isinstance(work_start, str):
-                work_start = dt_time.fromisoformat(work_start)
-            if isinstance(work_end, str):
-                work_end = dt_time.fromisoformat(work_end)
 
-            regular, overtime = calculate_regular_overtime_lessons(
-                b_start, b_end, work_start, work_end, course_duration
-            )
+            # 先查 teacher_work_schedules（依 booking_date 的 weekday）
+            work_slots: list[tuple[time, time]] = []
+            booking_date_str = booking.get("booking_date")
+            if booking_date_str:
+                from datetime import date as dt_date
+                if isinstance(booking_date_str, str):
+                    bd = dt_date.fromisoformat(booking_date_str)
+                else:
+                    bd = booking_date_str
+                # Python isoweekday(): 1=Mon, 7=Sun → 轉為 0=Mon, 6=Sun
+                weekday = bd.isoweekday() - 1
 
-            booking["regular_lessons"] = regular
-            booking["overtime_lessons"] = overtime
-            booking["is_overtime"] = overtime > 0
+                schedules = await supabase_service.table_select(
+                    table="teacher_work_schedules",
+                    select="start_time,end_time",
+                    filters={
+                        "teacher_contract_id": f"eq.{booking['teacher_contract_id']}",
+                        "weekday": f"eq.{weekday}",
+                        "is_deleted": "eq.false"
+                    },
+                )
+                for s in schedules:
+                    ws = s["start_time"]
+                    we = s["end_time"]
+                    if isinstance(ws, str):
+                        ws = dt_time.fromisoformat(ws)
+                    if isinstance(we, str):
+                        we = dt_time.fromisoformat(we)
+                    work_slots.append((ws, we))
+
+            # Fallback: 若無 work_schedules 資料，使用合約的 work_start_time/work_end_time
+            if not work_slots and tc[0].get("work_start_time") and tc[0].get("work_end_time"):
+                work_start = tc[0]["work_start_time"]
+                work_end = tc[0]["work_end_time"]
+                if isinstance(work_start, str):
+                    work_start = dt_time.fromisoformat(work_start)
+                if isinstance(work_end, str):
+                    work_end = dt_time.fromisoformat(work_end)
+                work_slots.append((work_start, work_end))
+
+            if work_slots:
+                regular, overtime = calculate_regular_overtime_lessons(
+                    b_start, b_end, work_slots, course_duration
+                )
+
+                booking["regular_lessons"] = regular
+                booking["overtime_lessons"] = overtime
+                booking["is_overtime"] = overtime > 0
 
     # 取得課程名稱
     if booking.get("course_id"):

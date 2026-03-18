@@ -7,7 +7,8 @@ from app.core.dependencies import get_current_user, CurrentUser, require_staff, 
 from app.schemas.teacher_contract import (
     TeacherContractCreate, TeacherContractUpdate, TeacherContractResponse,
     TeacherContractListResponse, ContractStatus, EmploymentType,
-    TeacherContractDetailCreate, TeacherContractDetailUpdate, TeacherContractDetailResponse
+    TeacherContractDetailCreate, TeacherContractDetailUpdate, TeacherContractDetailResponse,
+    TeacherWorkScheduleCreate, TeacherWorkScheduleBatchSet, TeacherWorkScheduleResponse
 )
 from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
@@ -105,6 +106,17 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
         contract["total_amount"] = sum(d["amount"] for d in enriched_details)
     else:
         contract["total_amount"] = None
+
+    # 取得工作時段
+    work_schedules = await supabase_service.table_select(
+        table="teacher_work_schedules",
+        select="id,teacher_contract_id,weekday,start_time,end_time,notes,created_at,updated_at",
+        filters={
+            "teacher_contract_id": f"eq.{contract['id']}",
+            "is_deleted": "eq.false"
+        },
+    )
+    contract["work_schedules"] = work_schedules
 
     return contract
 
@@ -460,6 +472,28 @@ async def delete_teacher_contract(
         employee_id = await get_user_employee_id(current_user.user_id)
         now = datetime.utcnow().isoformat()
 
+        # 軟刪除相關工作時段
+        work_schedules = await supabase_service.table_select(
+            table="teacher_work_schedules",
+            select="id",
+            filters={
+                "teacher_contract_id": f"eq.{contract_id}",
+                "is_deleted": "eq.false"
+            },
+        )
+        for ws in work_schedules:
+            ws_update = {
+                "is_deleted": True,
+                "deleted_at": now
+            }
+            if employee_id:
+                ws_update["deleted_by"] = employee_id
+            await supabase_service.table_update(
+                table="teacher_work_schedules",
+                data=ws_update,
+                filters={"id": ws["id"]},
+            )
+
         # 軟刪除相關明細
         details = await supabase_service.table_select(
             table="teacher_contract_details",
@@ -740,6 +774,175 @@ async def delete_contract_detail(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"刪除合約明細失敗: {str(e)}")
+
+
+# ========== Work Schedules CRUD ==========
+
+@router.get("/{contract_id}/work-schedules")
+async def list_work_schedules(
+    contract_id: str,
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
+):
+    """取得合約工作時段列表"""
+    try:
+        if current_user.is_student():
+            raise HTTPException(status_code=403, detail="學生無權查看教師合約工作時段")
+
+        contract = await supabase_service.table_select(
+            table="teacher_contracts",
+            select="id,teacher_id",
+            filters={"id": contract_id, "is_deleted": "eq.false"},
+        )
+        if not contract:
+            raise HTTPException(status_code=404, detail="教師合約不存在")
+
+        if current_user.is_teacher():
+            if contract[0].get("teacher_id") != current_user.teacher_id:
+                raise HTTPException(status_code=403, detail="無權查看此合約工作時段")
+
+        schedules = await supabase_service.table_select(
+            table="teacher_work_schedules",
+            select="id,teacher_contract_id,weekday,start_time,end_time,notes,created_at,updated_at",
+            filters={
+                "teacher_contract_id": f"eq.{contract_id}",
+                "is_deleted": "eq.false"
+            },
+        )
+
+        return {"data": [TeacherWorkScheduleResponse(**s) for s in schedules]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取得工作時段失敗: {str(e)}")
+
+
+@router.put("/{contract_id}/work-schedules")
+async def set_work_schedules(
+    contract_id: str,
+    data: TeacherWorkScheduleBatchSet,
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
+):
+    """全量替換合約工作時段（soft delete 舊的 + insert 新的）"""
+    try:
+        contract = await supabase_service.table_select(
+            table="teacher_contracts",
+            select="id",
+            filters={"id": contract_id, "is_deleted": "eq.false"},
+        )
+        if not contract:
+            raise HTTPException(status_code=404, detail="教師合約不存在")
+
+        # 檢查同 weekday 時段重疊
+        by_weekday: dict[int, list[TeacherWorkScheduleCreate]] = {}
+        for s in data.schedules:
+            by_weekday.setdefault(s.weekday, []).append(s)
+
+        for weekday, slots in by_weekday.items():
+            sorted_slots = sorted(slots, key=lambda x: x.start_time)
+            for i in range(len(sorted_slots) - 1):
+                if sorted_slots[i].end_time > sorted_slots[i + 1].start_time:
+                    weekday_names = ['週一', '週二', '週三', '週四', '週五', '週六', '週日']
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"{weekday_names[weekday]}的工作時段有重疊"
+                    )
+
+        employee_id = await get_user_employee_id(current_user.user_id)
+        now = datetime.utcnow().isoformat()
+
+        # Soft delete 舊的
+        old_schedules = await supabase_service.table_select(
+            table="teacher_work_schedules",
+            select="id",
+            filters={
+                "teacher_contract_id": f"eq.{contract_id}",
+                "is_deleted": "eq.false"
+            },
+        )
+        for old in old_schedules:
+            delete_data = {"is_deleted": True, "deleted_at": now}
+            if employee_id:
+                delete_data["deleted_by"] = employee_id
+            await supabase_service.table_update(
+                table="teacher_work_schedules",
+                data=delete_data,
+                filters={"id": old["id"]},
+            )
+
+        # Insert 新的
+        inserted = []
+        for s in data.schedules:
+            schedule_data = {
+                "teacher_contract_id": contract_id,
+                "weekday": s.weekday,
+                "start_time": s.start_time.isoformat(),
+                "end_time": s.end_time.isoformat(),
+                "notes": s.notes,
+            }
+            if employee_id:
+                schedule_data["created_by"] = employee_id
+
+            result = await supabase_service.table_insert(
+                table="teacher_work_schedules",
+                data=schedule_data,
+            )
+            if result:
+                inserted.append(result)
+
+        return {
+            "message": "工作時段更新成功",
+            "data": [TeacherWorkScheduleResponse(**s) for s in inserted]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新工作時段失敗: {str(e)}")
+
+
+@router.delete("/{contract_id}/work-schedules", response_model=BaseResponse)
+async def clear_work_schedules(
+    contract_id: str,
+    current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
+):
+    """清除合約所有工作時段（soft delete）"""
+    try:
+        contract = await supabase_service.table_select(
+            table="teacher_contracts",
+            select="id",
+            filters={"id": contract_id, "is_deleted": "eq.false"},
+        )
+        if not contract:
+            raise HTTPException(status_code=404, detail="教師合約不存在")
+
+        employee_id = await get_user_employee_id(current_user.user_id)
+        now = datetime.utcnow().isoformat()
+
+        old_schedules = await supabase_service.table_select(
+            table="teacher_work_schedules",
+            select="id",
+            filters={
+                "teacher_contract_id": f"eq.{contract_id}",
+                "is_deleted": "eq.false"
+            },
+        )
+        for old in old_schedules:
+            delete_data = {"is_deleted": True, "deleted_at": now}
+            if employee_id:
+                delete_data["deleted_by"] = employee_id
+            await supabase_service.table_update(
+                table="teacher_work_schedules",
+                data=delete_data,
+                filters={"id": old["id"]},
+            )
+
+        return BaseResponse(message="工作時段已清除")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"清除工作時段失敗: {str(e)}")
 
 
 # ========== File Upload/Download (unchanged) ==========

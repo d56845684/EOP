@@ -25,6 +25,24 @@ export interface CourseOption {
     course_name: string
 }
 
+export interface TeacherWorkSchedule {
+    id: string
+    teacher_contract_id: string
+    weekday: number  // 0=週一, 6=週日
+    start_time: string
+    end_time: string
+    notes?: string
+    created_at?: string
+    updated_at?: string
+}
+
+export interface TeacherWorkScheduleInput {
+    weekday: number
+    start_time: string
+    end_time: string
+    notes?: string
+}
+
 export interface TeacherContract {
     id: string
     contract_no: string
@@ -46,6 +64,7 @@ export interface TeacherContract {
     teacher_name?: string
     details: TeacherContractDetail[]
     total_amount?: number
+    work_schedules: TeacherWorkSchedule[]
 }
 
 export interface TeacherContractListResponse {
@@ -388,6 +407,55 @@ export const teacherContractsApi = {
                 return { success: false, error: { message: error.detail || '刪除合約明細失敗' } }
             }
 
+            return { success: true, error: null }
+        } catch (err) {
+            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async listWorkSchedules(contractId: string): Promise<{ data: TeacherWorkSchedule[], error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/work-schedules`, {
+                method: 'GET',
+            })
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: [], error: { message: error.detail || '取得工作時段失敗' } }
+            }
+            const result = await response.json()
+            return { data: result.data || [], error: null }
+        } catch (err) {
+            return { data: [], error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async setWorkSchedules(contractId: string, schedules: TeacherWorkScheduleInput[]): Promise<{ data: TeacherWorkSchedule[], error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/work-schedules`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schedules }),
+            })
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: [], error: { message: error.detail || '更新工作時段失敗' } }
+            }
+            const result = await response.json()
+            return { data: result.data || [], error: null }
+        } catch (err) {
+            return { data: [], error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async clearWorkSchedules(contractId: string): Promise<{ success: boolean, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/work-schedules`, {
+                method: 'DELETE',
+            })
+            if (!response.ok) {
+                const error = await response.json()
+                return { success: false, error: { message: error.detail || '清除工作時段失敗' } }
+            }
             return { success: true, error: null }
         } catch (err) {
             return { success: false, error: { message: '網路錯誤，請稍後再試' } }

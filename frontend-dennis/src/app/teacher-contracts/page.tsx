@@ -6,6 +6,8 @@ import {
     teacherContractsApi,
     TeacherContract,
     TeacherContractDetail,
+    TeacherWorkSchedule,
+    TeacherWorkScheduleInput,
     CreateTeacherContractData,
     UpdateTeacherContractData,
     CreateDetailData,
@@ -16,7 +18,7 @@ import {
     TeacherOption,
     CourseOption
 } from '@/lib/api/teacherContracts'
-import { Plus, Pencil, Trash2, Search, X, Users, Calendar, CheckCircle, Clock, XCircle, AlertCircle, Upload, Download } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, Users, Calendar, CheckCircle, Clock, XCircle, AlertCircle, Upload, Download, Copy } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 
 const statusLabels: Record<ContractStatus, string> = {
@@ -118,6 +120,12 @@ export default function TeacherContractsPage() {
     const [detailFormError, setDetailFormError] = useState<string | null>(null)
     const [detailSubmitting, setDetailSubmitting] = useState(false)
 
+    // Work schedules state
+    const weekdayNames = ['週一', '週二', '週三', '週四', '週五', '週六', '週日']
+    const [workSchedules, setWorkSchedules] = useState<TeacherWorkScheduleInput[]>([])
+    const [workSchedulesSaving, setWorkSchedulesSaving] = useState(false)
+    const [workSchedulesError, setWorkSchedulesError] = useState<string | null>(null)
+
     // Delete confirmation
     const [deleteConfirm, setDeleteConfirm] = useState<TeacherContract | null>(null)
     const [deleting, setDeleting] = useState(false)
@@ -209,6 +217,8 @@ export default function TeacherContractsPage() {
         setFormError(null)
         setShowDetailForm(false)
         setEditingDetail(null)
+        setWorkSchedules([])
+        setWorkSchedulesError(null)
         setShowModal(true)
     }
 
@@ -228,6 +238,16 @@ export default function TeacherContractsPage() {
             notes: contract.notes || '',
         })
         setDetails(contract.details || [])
+        // Initialize work schedules from contract data
+        setWorkSchedules(
+            (contract.work_schedules || []).map(ws => ({
+                weekday: ws.weekday,
+                start_time: ws.start_time.slice(0, 5),
+                end_time: ws.end_time.slice(0, 5),
+                notes: ws.notes || undefined,
+            }))
+        )
+        setWorkSchedulesError(null)
         setFormError(null)
         setShowDetailForm(false)
         setEditingDetail(null)
@@ -242,6 +262,8 @@ export default function TeacherContractsPage() {
         setFormError(null)
         setShowDetailForm(false)
         setEditingDetail(null)
+        setWorkSchedules([])
+        setWorkSchedulesError(null)
     }
 
     // Form submit
@@ -256,6 +278,10 @@ export default function TeacherContractsPage() {
                 if (error) {
                     setFormError(error.message)
                 } else {
+                    // 建立成功後，如果是正職且有工作時段，儲存工作時段
+                    if (data && formData.employment_type === 'full_time' && workSchedules.length > 0) {
+                        await teacherContractsApi.setWorkSchedules(data.id, workSchedules)
+                    }
                     closeModal()
                     fetchContracts()
                 }
@@ -276,6 +302,15 @@ export default function TeacherContractsPage() {
                 if (error) {
                     setFormError(error.message)
                 } else {
+                    // 儲存工作時段（正職時全量替換，切為時薪時清除）
+                    if (formData.employment_type === 'full_time') {
+                        await teacherContractsApi.setWorkSchedules(editingContract.id, workSchedules)
+                    } else {
+                        // 切換為 hourly 時清除工作時段
+                        if (editingContract.employment_type === 'full_time') {
+                            await teacherContractsApi.clearWorkSchedules(editingContract.id)
+                        }
+                    }
                     closeModal()
                     fetchContracts()
                 }
@@ -590,11 +625,19 @@ export default function TeacherContractsPage() {
                                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${employmentTypeColors[contract.employment_type].bg} ${employmentTypeColors[contract.employment_type].text}`}>
                                                             {employmentTypeLabels[contract.employment_type]}
                                                         </span>
-                                                        {contract.employment_type === 'full_time' && contract.work_start_time && contract.work_end_time && (
+                                                        {contract.employment_type === 'full_time' && (contract.work_schedules?.length > 0 ? (
+                                                            <span className="text-xs text-gray-500">
+                                                                {(() => {
+                                                                    const dayNames = ['一', '二', '三', '四', '五', '六', '日']
+                                                                    const uniqueDays = [...new Set(contract.work_schedules.map(s => s.weekday))].sort()
+                                                                    return `${uniqueDays.map(d => dayNames[d]).join('、')} (${contract.work_schedules.length}段)`
+                                                                })()}
+                                                            </span>
+                                                        ) : contract.work_start_time && contract.work_end_time ? (
                                                             <span className="text-xs text-gray-500">
                                                                 {contract.work_start_time.slice(0, 5)} ~ {contract.work_end_time.slice(0, 5)}
                                                             </span>
-                                                        )}
+                                                        ) : null)}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -808,18 +851,86 @@ export default function TeacherContractsPage() {
 
                                     {formData.employment_type === 'full_time' && (
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">正職工作時段</label>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="block text-xs text-gray-500 mb-1">上班時間</label>
-                                                    <input type="time" value={formData.work_start_time || ''} onChange={(e) => setFormData({ ...formData, work_start_time: e.target.value || null })} className="input-field" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs text-gray-500 mb-1">下班時間</label>
-                                                    <input type="time" value={formData.work_end_time || ''} onChange={(e) => setFormData({ ...formData, work_end_time: e.target.value || null })} className="input-field" />
-                                                </div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="block text-sm font-medium text-gray-700">每週工作時段</label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        // 複製到平日：取週一的時段，套用到週二～週五
+                                                        const monSlots = workSchedules.filter(s => s.weekday === 0)
+                                                        if (monSlots.length === 0) return
+                                                        const newSchedules = workSchedules.filter(s => s.weekday === 0 || s.weekday >= 5)
+                                                        for (let d = 1; d <= 4; d++) {
+                                                            for (const slot of monSlots) {
+                                                                newSchedules.push({ ...slot, weekday: d })
+                                                            }
+                                                        }
+                                                        setWorkSchedules(newSchedules.sort((a, b) => a.weekday - b.weekday || a.start_time.localeCompare(b.start_time)))
+                                                    }}
+                                                    className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800"
+                                                >
+                                                    <Copy className="w-3 h-3 mr-1" />
+                                                    複製週一到平日
+                                                </button>
                                             </div>
-                                            <p className="text-xs text-gray-400 mt-1">設定後，超出此時段的預約將標示為加班</p>
+                                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                                {weekdayNames.map((name, weekday) => {
+                                                    const daySlots = workSchedules
+                                                        .map((s, idx) => ({ ...s, _idx: idx }))
+                                                        .filter(s => s.weekday === weekday)
+                                                        .sort((a, b) => a.start_time.localeCompare(b.start_time))
+                                                    return (
+                                                        <div key={weekday} className="flex items-start gap-2">
+                                                            <span className="text-xs font-medium text-gray-600 w-8 pt-1.5 shrink-0">{name}</span>
+                                                            <div className="flex-1 flex flex-wrap gap-1 items-center min-h-[32px]">
+                                                                {daySlots.map((slot) => (
+                                                                    <span key={slot._idx} className="inline-flex items-center bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded-md">
+                                                                        <input
+                                                                            type="time"
+                                                                            value={slot.start_time}
+                                                                            onChange={(e) => {
+                                                                                const updated = [...workSchedules]
+                                                                                updated[slot._idx] = { ...updated[slot._idx], start_time: e.target.value }
+                                                                                setWorkSchedules(updated)
+                                                                            }}
+                                                                            className="bg-transparent border-none text-xs w-[70px] p-0 focus:ring-0"
+                                                                        />
+                                                                        <span className="mx-0.5">-</span>
+                                                                        <input
+                                                                            type="time"
+                                                                            value={slot.end_time}
+                                                                            onChange={(e) => {
+                                                                                const updated = [...workSchedules]
+                                                                                updated[slot._idx] = { ...updated[slot._idx], end_time: e.target.value }
+                                                                                setWorkSchedules(updated)
+                                                                            }}
+                                                                            className="bg-transparent border-none text-xs w-[70px] p-0 focus:ring-0"
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setWorkSchedules(workSchedules.filter((_, i) => i !== slot._idx))}
+                                                                            className="ml-1 text-blue-400 hover:text-red-500"
+                                                                        >
+                                                                            <X className="w-3 h-3" />
+                                                                        </button>
+                                                                    </span>
+                                                                ))}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setWorkSchedules([...workSchedules, { weekday, start_time: '09:00', end_time: '18:00' }])}
+                                                                    className="text-blue-500 hover:text-blue-700"
+                                                                >
+                                                                    <Plus className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                            {workSchedulesError && (
+                                                <p className="text-xs text-red-500 mt-1">{workSchedulesError}</p>
+                                            )}
+                                            <p className="text-xs text-gray-400 mt-1">設定後，超出時段的預約將標示為加班。每天可設定多個時段。</p>
                                         </div>
                                     )}
 
