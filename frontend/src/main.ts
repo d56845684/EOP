@@ -2,13 +2,13 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import ElementPlus from 'element-plus';
-import 'element-plus/dist/index.css';
+// import 'element-plus/dist/index.css';
 import 'element-plus/theme-chalk/dark/css-vars.css'; // Dark mode
+import './styles/element/index.scss'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 import App from './App.vue';
 import router from './router';
 import './permission'; // Global Navigation Guard
-import './styles/style.scss';
 import 'virtual:uno.css'
 
 import { permission } from './directives/permission';

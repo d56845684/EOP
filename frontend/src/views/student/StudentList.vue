@@ -1,12 +1,14 @@
 <template>
-  <div class="student-list-page">
+  <div class="student-list-page px-2">
     <!-- Search / Filter Bar -->
-    <div class="page-header">
+    <div class="flex justify-between items-center px-1 mb-2">
       <h3 class="my-0">{{ $t('menu.student_mgmt') }}</h3>
-      <el-button 
-        type="primary" 
-        @click="openDrawer(null, 'add')"
+      <el-button
         v-permission="'students.create'"
+        type="primary"
+        round
+        class="h-9 px-1"
+        @click="openDrawer(null, 'add')"
       >
         <template #icon>
           <div class="i-hugeicons:plus-sign-square" />
@@ -14,7 +16,7 @@
         {{ $t('student.add') }}
       </el-button>
     </div>
-    <el-card class="filter-card mb-20px">
+    <el-card class="filter-card mb-14px">
       <el-form :inline="true" :model="queryParams" label-position="top" class="filter-form flex items-end">
         <el-form-item :label="$t('common.searchKeyword')">
           <el-input 
@@ -570,15 +572,6 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.student-list-page {
-  padding: 0 10px;
-}
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-}
 .pagination-footer { 
   display: flex; 
   justify-content: flex-end; 

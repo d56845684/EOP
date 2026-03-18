@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useAuthStore } from '@/stores/auth';
-import adminAvatar from '@/assets/avatars/admin.svg?url';
-import teacherAvatar from '@/assets/avatars/teacher.svg?url';
-import studentAvatar from '@/assets/avatars/student.svg?url';
 import defaultAvatar from '@/assets/avatars/default.svg?url';
 
 const isError = ref(false)
@@ -24,22 +21,7 @@ const role = computed(() => {
 });
 const avatarUrl = computed(() => {
   if (isError.value) return defaultAvatar
-
-  let avatar = '';
-  switch (store.profile?.role) {
-    case 'admin':
-      avatar = adminAvatar;
-      break;
-    case 'teacher':
-      avatar = teacherAvatar;
-      break;
-    case 'student':
-      avatar = studentAvatar;
-      break;
-    default:
-      avatar = defaultAvatar;
-  }
-  return store.profile?.avatar_url || avatar;
+  return store.userAvatar;
 });
 
 const handleAvatarError = () => {

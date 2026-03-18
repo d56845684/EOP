@@ -1,0 +1,27 @@
+@forward 'element-plus/theme-chalk/src/common/var.scss' with ($colors: ('primary': ('base': #0F52BA,
+    ),
+    'success': ('base': #85C79A,
+    ),
+    'warning': ('base': #FF986A,
+    ),
+    'danger': ('base': #FA8072,
+    ),
+    'error': ('base': #FA8072,
+    ),
+  ));
+
+@use "element-plus/theme-chalk/src/index.scss" as *;
+
+// .el-drawer__header {
+//   padding: 20px;
+//   margin-bottom: 0 !important;
+//   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+// }
+
+// .el-divider__text {
+//   color: #6f6f6f !important;
+// }
+
+// .el-card {
+//   border-radius: 12px;
+// }
