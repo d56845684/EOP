@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+import asyncio
 from app.config import settings
 from app.api.v1.router import api_router
 from app.services.redis_service import redis_service
@@ -124,9 +125,30 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"ensure_super_admin error: {e}")
 
+    # 啟動 Zoom 超時會議自動結束排程
+    zoom_task = None
+    if settings.zoom_enabled:
+        async def zoom_auto_end_loop():
+            from app.services.zoom_service import zoom_service
+            while True:
+                try:
+                    await zoom_service.auto_end_overdue_meetings()
+                except Exception as e:
+                    logger.error(f"Zoom auto-end 排程錯誤: {e}")
+                await asyncio.sleep(60)  # 每 60 秒檢查一次
+
+        zoom_task = asyncio.create_task(zoom_auto_end_loop())
+        logger.info("Zoom 超時會議自動結束排程已啟動（每 60 秒）")
+
     yield
-    
+
     # 關閉時
+    if zoom_task:
+        zoom_task.cancel()
+        try:
+            await zoom_task
+        except asyncio.CancelledError:
+            pass
     logger.info("🛑 關閉應用...")
     await redis_service.disconnect()
     

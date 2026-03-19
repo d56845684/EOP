@@ -283,6 +283,13 @@ class ZoomService:
         if not settings.zoom_enabled:
             return None
 
+        # 檢查是否為過去時間，不允許建立過去的會議
+        now = datetime.now()
+        booking_start = datetime.combine(booking_date, start_time_val)
+        if booking_start < now:
+            logger.warning(f"Booking {booking_id}: 無法建立過去的 Zoom 會議 ({booking_start})")
+            return None
+
         # 檢查是否已有會議
         existing = await supabase_service.table_select(
             table="zoom_meeting_logs",
@@ -753,9 +760,134 @@ class ZoomService:
             logger.error(f"取得 Zoom 使用者資訊失敗: {e}")
             return None
 
-    async def cancel_meeting_for_booking(self, booking_id: str) -> bool:
-        """取消 booking 的 Zoom 會議（更新 meeting_status）"""
+    async def end_meeting(self, token: str, meeting_id: str) -> bool:
+        """透過 Zoom API 結束進行中的會議"""
         try:
+            async with httpx.AsyncClient() as client:
+                response = await client.put(
+                    f"{ZOOM_API_BASE}/meetings/{meeting_id}/status",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"action": "end"},
+                    timeout=10.0,
+                )
+            # 204=成功, 404=會議不存在或已結束
+            if response.status_code in (204, 404):
+                return True
+            logger.error(f"Zoom 結束會議失敗: {response.status_code} {response.text}")
+            return False
+        except Exception as e:
+            logger.error(f"Zoom 結束會議異常: {e}")
+            return False
+
+    async def _get_token_for_log(self, log: dict) -> Optional[str]:
+        """根據 meeting log 取得對應的 Zoom token（帳號池或教師 OAuth）"""
+        if log.get("zoom_account_id"):
+            accounts = await supabase_service.table_select(
+                table="zoom_accounts",
+                select="*",
+                filters={"id": log["zoom_account_id"], "is_deleted": "eq.false"},
+            )
+            if accounts:
+                return await self.get_s2s_token(accounts[0])
+        elif log.get("teacher_id"):
+            return await self.get_teacher_token(log["teacher_id"])
+        return None
+
+    async def auto_end_overdue_meetings(self) -> int:
+        """
+        自動結束超過預定時間的會議。
+        查詢 meeting_status = 'started' 且 meeting_date + end_time < now 的會議，
+        呼叫 Zoom API 結束 → 雲端錄影會自動觸發 recording.completed webhook。
+        回傳結束的會議數量。
+        """
+        try:
+            now = datetime.now()
+            today = now.date()
+            current_time = now.time()
+
+            # 查出所有已開始但超過結束時間的會議
+            sql = """
+                SELECT id, zoom_meeting_id, zoom_account_id, teacher_id, booking_id
+                FROM zoom_meeting_logs
+                WHERE meeting_status = 'started'
+                  AND is_deleted = FALSE
+                  AND (
+                      meeting_date < $1
+                      OR (meeting_date = $1 AND end_time <= $2)
+                  )
+            """
+            rows = await supabase_service.pool.fetch(sql, today, current_time)
+
+            ended_count = 0
+            for row in rows:
+                log = dict(row)
+                zoom_meeting_id = log.get("zoom_meeting_id")
+                if not zoom_meeting_id:
+                    continue
+
+                token = await self._get_token_for_log(log)
+                if not token:
+                    logger.warning(f"auto_end: 無法取得 token 結束會議 {zoom_meeting_id}")
+                    continue
+
+                success = await self.end_meeting(token, zoom_meeting_id)
+                if success:
+                    ended_count += 1
+                    logger.info(f"auto_end: 已結束超時會議 {zoom_meeting_id} (booking={log.get('booking_id')})")
+
+            if ended_count > 0:
+                logger.info(f"auto_end: 本次共結束 {ended_count} 場超時會議")
+            return ended_count
+
+        except Exception as e:
+            logger.error(f"auto_end_overdue_meetings 失敗: {e}")
+            return 0
+
+    async def delete_zoom_meeting(self, token: str, meeting_id: str) -> bool:
+        """透過 Zoom API 刪除會議"""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.delete(
+                    f"{ZOOM_API_BASE}/meetings/{meeting_id}",
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=10.0,
+                )
+            # 204=成功刪除, 404=已不存在（都算成功）
+            if response.status_code in (204, 404):
+                return True
+            logger.error(f"Zoom 刪除會議失敗: {response.status_code} {response.text}")
+            return False
+        except Exception as e:
+            logger.error(f"Zoom 刪除會議異常: {e}")
+            return False
+
+    async def cancel_meeting_for_booking(self, booking_id: str) -> bool:
+        """取消 booking 的 Zoom 會議（Zoom API 刪除 + DB 狀態更新）"""
+        try:
+            # 查出該 booking 的 scheduled 會議
+            logs = await supabase_service.table_select(
+                table="zoom_meeting_logs",
+                select="id,zoom_meeting_id,zoom_account_id,teacher_id",
+                filters={
+                    "booking_id": booking_id,
+                    "is_deleted": "eq.false",
+                    "meeting_status": "scheduled",
+                },
+            )
+
+            for log in (logs or []):
+                zoom_meeting_id = log.get("zoom_meeting_id")
+                if zoom_meeting_id:
+                    token = await self._get_token_for_log(log)
+                    if token:
+                        await self.delete_zoom_meeting(token, zoom_meeting_id)
+                    else:
+                        logger.warning(f"Booking {booking_id}: 無法取得 token 刪除 Zoom 會議 {zoom_meeting_id}")
+
+            # 更新 DB 狀態
             await supabase_service.table_update(
                 table="zoom_meeting_logs",
                 data={"meeting_status": "cancelled"},
@@ -765,6 +897,7 @@ class ZoomService:
                     "meeting_status": "scheduled",
                 },
             )
+
             logger.info(f"Booking {booking_id}: Zoom 會議已取消")
             return True
         except Exception as e:

@@ -243,7 +243,17 @@ async def create_zoom_meeting(
         if booking.get("booking_status") not in ("confirmed", "pending"):
             raise HTTPException(status_code=400, detail="只有待確認或已確認的預約可以建立 Zoom 會議")
 
-        from datetime import date as date_type, time as time_type
+        from datetime import date as date_type, time as time_type, datetime as dt_type
+
+        # 檢查是否為過去的預約
+        booking_date_val = booking["booking_date"]
+        start_time_val_check = booking["start_time"]
+        if isinstance(booking_date_val, str):
+            booking_date_val = date_type.fromisoformat(booking_date_val)
+        if isinstance(start_time_val_check, str):
+            start_time_val_check = time_type.fromisoformat(start_time_val_check)
+        if dt_type.combine(booking_date_val, start_time_val_check) < dt_type.now():
+            raise HTTPException(status_code=400, detail="無法為過去的預約建立 Zoom 會議")
         booking_date = booking["booking_date"]
         if isinstance(booking_date, str):
             booking_date = date_type.fromisoformat(booking_date)
