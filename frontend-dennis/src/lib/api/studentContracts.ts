@@ -278,6 +278,36 @@ export const studentContractsApi = {
         }
     },
 
+    async generatePdf(contractId: string): Promise<{ success: boolean, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/generate-pdf`, {
+                method: 'GET',
+            })
+            if (!response.ok) {
+                const error = await response.json()
+                return { success: false, error: { message: error.detail || '產生合約 PDF 失敗' } }
+            }
+            const blob = await response.blob()
+            const contentDisposition = response.headers.get('Content-Disposition')
+            let filename = 'contract.pdf'
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename="?([^"]+)"?/)
+                if (match) filename = match[1]
+            }
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = filename
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            window.URL.revokeObjectURL(url)
+            return { success: true, error: null }
+        } catch (err) {
+            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
     async downloadFile(contractId: string): Promise<{ url: string | null, error: any }> {
         try {
             const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/download-url`, {

@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
+from app.services.contract_pdf_service import generate_student_contract_pdf
 from app.config import settings
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.student_contract import (
@@ -1050,6 +1052,33 @@ async def delete_leave_record(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"刪除請假紀錄失敗: {str(e)}")
+
+
+# ========== PDF Generation ==========
+
+@router.get("/{contract_id}/generate-pdf")
+async def generate_student_pdf(
+    contract_id: str,
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
+):
+    """產生學生合約 PDF（僅限員工）"""
+    try:
+        result = await generate_student_contract_pdf(contract_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="學生合約不存在")
+
+        pdf_bytes, contract_no = result
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{contract_no}.pdf"'
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"產生合約 PDF 失敗: {str(e)}")
 
 
 # ========== File Upload/Download (unchanged) ==========

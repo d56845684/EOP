@@ -18,7 +18,7 @@ import {
     TeacherOption,
     CourseOption
 } from '@/lib/api/teacherContracts'
-import { Plus, Pencil, Trash2, Search, X, Users, Calendar, CheckCircle, Clock, XCircle, AlertCircle, Upload, Download, Copy } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, Users, Calendar, CheckCircle, Clock, XCircle, AlertCircle, Upload, Download, Copy, FileText } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 
 const statusLabels: Record<ContractStatus, string> = {
@@ -416,6 +416,14 @@ export default function TeacherContractsPage() {
         setDeleting(false)
     }
 
+    // Generate PDF handler
+    const handleGeneratePdf = async (contractId: string) => {
+        const { error } = await teacherContractsApi.generatePdf(contractId)
+        if (error) {
+            setError(error.message)
+        }
+    }
+
     // Download handler
     const handleDownload = async (contractId: string) => {
         const { url, error } = await teacherContractsApi.downloadFile(contractId)
@@ -684,39 +692,49 @@ export default function TeacherContractsPage() {
                                                         <span className="text-gray-400 text-sm">-</span>
                                                     )}
                                                     {isStaff && (
-                                                        <>
-                                                            <input
-                                                                type="file"
-                                                                accept=".pdf"
-                                                                id={`upload-${contract.id}`}
-                                                                className="hidden"
-                                                                onChange={(e) => {
-                                                                    const file = e.target.files?.[0]
-                                                                    if (file) {
-                                                                        handleUpload(contract.id, file)
-                                                                        e.target.value = ''
-                                                                    }
-                                                                }}
-                                                            />
+                                                        <div className="flex flex-col gap-1 mt-1">
                                                             <button
-                                                                onClick={() => document.getElementById(`upload-${contract.id}`)?.click()}
-                                                                disabled={uploading === contract.id}
-                                                                className="mt-1 inline-flex items-center text-xs text-blue-600 hover:text-blue-900 disabled:opacity-50"
-                                                                title="上傳合約 PDF"
+                                                                onClick={() => handleGeneratePdf(contract.id)}
+                                                                className="inline-flex items-center text-xs text-purple-600 hover:text-purple-900"
+                                                                title="產生合約 PDF"
                                                             >
-                                                                {uploading === contract.id ? (
-                                                                    <span className="flex items-center">
-                                                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
-                                                                        上傳中...
-                                                                    </span>
-                                                                ) : (
-                                                                    <>
-                                                                        <Upload className="w-3 h-3 mr-1" />
-                                                                        {contract.contract_file_path ? '重新上傳' : '上傳'}
-                                                                    </>
-                                                                )}
+                                                                <FileText className="w-3 h-3 mr-1" />
+                                                                產生 PDF
                                                             </button>
-                                                        </>
+                                                            <div className="flex items-center">
+                                                                <input
+                                                                    type="file"
+                                                                    accept=".pdf"
+                                                                    id={`upload-${contract.id}`}
+                                                                    className="hidden"
+                                                                    onChange={(e) => {
+                                                                        const file = e.target.files?.[0]
+                                                                        if (file) {
+                                                                            handleUpload(contract.id, file)
+                                                                            e.target.value = ''
+                                                                        }
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    onClick={() => document.getElementById(`upload-${contract.id}`)?.click()}
+                                                                    disabled={uploading === contract.id}
+                                                                    className="inline-flex items-center text-xs text-blue-600 hover:text-blue-900 disabled:opacity-50"
+                                                                    title="上傳合約 PDF"
+                                                                >
+                                                                    {uploading === contract.id ? (
+                                                                        <span className="flex items-center">
+                                                                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
+                                                                            上傳中...
+                                                                        </span>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Upload className="w-3 h-3 mr-1" />
+                                                                            {contract.contract_file_path ? '重新上傳' : '上傳'}
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                            </div>
+                                                        </div>
                                                     )}
                                                 </td>
                                                 {isStaff && (
