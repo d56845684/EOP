@@ -1,14 +1,14 @@
 @forward 'element-plus/theme-chalk/src/common/var.scss' with ($colors: ('primary': ('base': #0F52BA,
     ),
-    'success': ('base': #85C79A,
+    'success': ('base': #48A111,
     ),
-    'warning': ('base': #FF986A,
+    'warning': ('base': #FF9B2F,
     ),
-    'danger': ('base': #FA8072,
+    'danger': ('base': #FB4141,
     ),
-    'error': ('base': #FA8072,
+    'error': ('base': #FB4141,
     ),
-  ));
+  ), $pagination: ('hover-color': #FF9B2F, ));
 
 @use "element-plus/theme-chalk/src/index.scss" as *;
 

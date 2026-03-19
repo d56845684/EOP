@@ -60,13 +60,13 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { title: '系統設定', icon: 'i-hugeicons:settings-01' }, // A parent wrapper
         children: [
             {
-                path: '/account',
+                path: 'account',
                 name: 'AccountSettings',
                 component: () => import('../views/settings/AccountList.vue'),
                 meta: { title: '帳號管理', icon: 'i-hugeicons:account-setting-02', pageKey: 'settings.account' }
             },
             {
-                path: '/role',
+                path: 'role',
                 name: 'RoleSettings',
                 component: () => import('../views/settings/RoleList.vue'),
                 meta: { title: '角色權限', icon: 'i-hugeicons:shield-user', pageKey: 'settings.role' }
