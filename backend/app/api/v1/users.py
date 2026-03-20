@@ -65,6 +65,7 @@ async def list_users(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     role: Optional[str] = Query(None, description="角色篩選"),
+    is_active: Optional[bool] = Query(None, description="啟用狀態篩選"),
     search: Optional[str] = Query(None, description="搜尋 email/name"),
     current_user: CurrentUser = Depends(require_page_permission("employees.list")),
 ):
@@ -96,6 +97,10 @@ async def list_users(
         if role:
             params.append(role)
             where_clauses.append(f"r.key = ${len(params)}")
+
+        if is_active is not None:
+            params.append(is_active)
+            where_clauses.append(f"up.is_active = ${len(params)}")
 
         if search:
             params.append(f"%{search}%")
