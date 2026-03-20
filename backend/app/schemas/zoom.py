@@ -83,6 +83,11 @@ class ZoomMeetingLogResponse(BaseModel):
     recording_file_size_bytes: Optional[int] = None
     recording_duration_seconds: Optional[int] = None
     recording_completed_at: Optional[datetime] = None
+    # Google Drive transfer
+    recording_transfer_status: Optional[str] = None
+    drive_file_id: Optional[str] = None
+    drive_view_link: Optional[str] = None
+    transferred_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     # enriched fields
@@ -136,3 +141,17 @@ class ZoomWebhookPayload(BaseModel):
     event: str
     payload: dict = {}
     event_ts: Optional[int] = None
+
+
+# ============================================
+# Recording Callback（Lambda → Backend）
+# ============================================
+
+class RecordingCallbackRequest(BaseModel):
+    """Lambda 錄影轉移完成回呼"""
+    meeting_id: str
+    status: str  # "completed" | "failed"
+    drive_file_id: Optional[str] = None
+    drive_view_link: Optional[str] = None
+    error: Optional[str] = None
+    secret: str

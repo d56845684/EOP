@@ -6,7 +6,8 @@ __pycache__
 secret.md
 .DS_Store
 scripts/notion*
-scripts/setup*
+scripts/setup-aws-resource.sh
+scripts/setup-iam.sh
 .env.prod
 deploy/.rds-endpoint
 .claude

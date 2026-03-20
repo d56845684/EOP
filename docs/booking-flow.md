@@ -63,7 +63,7 @@ flowchart TD
     subgraph SC["學生合約（正式生）"]
         SC1[建立學生合約] --> SC2[設定合約期間]
         SC2 --> SC3["設定總堂數 & 總金額"]
-        SC3 --> SC4["系統自動計算<br/>剩餘堂數 = 總堂數<br/>請假上限 = 總堂數 × 2"]
+        SC3 --> SC4["系統自動計算<br/>剩餘堂數 = 總堂數<br/>請假上限 = ⌈總堂數 × 0.2⌉"]
     end
 ```
 
@@ -345,10 +345,130 @@ flowchart TD
 
 ## 八、Zoom 整合
 
-- 預約狀態變為 `confirmed` 時 → 非同步自動建立 Zoom 會議
-- 預約狀態變為 `cancelled` 時 → 非同步自動取消 Zoom 會議
-- 支援 OAuth 授權綁定 Zoom 帳號
-- 可透過 `ZOOM_ENABLED` 環境變數開關
+> 可透過 `ZOOM_ENABLED` 環境變數開關整個 Zoom 功能。
+
+### 8-1. 會議生命週期
+
+```mermaid
+stateDiagram-v2
+    [*] --> scheduled: 預約 confirmed → 自動建立會議
+    scheduled --> started: Webhook: meeting.started
+    scheduled --> cancelled: 預約取消 / 狀態改 pending
+    started --> ended: Webhook: meeting.ended
+    started --> ended: 排程偵測超時 → API 強制結束
+    ended --> [*]: Webhook: recording.completed → 寫入錄影資訊
+    cancelled --> [*]
+```
+
+### 8-2. 會議建立流程
+
+預約狀態變為 `confirmed` 時，系統非同步建立 Zoom 會議：
+
+```mermaid
+flowchart TD
+    B1[booking_status → confirmed] --> B2{ZOOM_ENABLED?}
+    B2 -->|否| B2X[跳過，不影響預約]
+    B2 -->|是| B3{該 booking 已有會議?}
+    B3 -->|是| B3X[回傳既有會議]
+    B3 -->|否| B4{課程時長 ≤ 30 分鐘<br/>且教師已綁 OAuth?}
+    B4 -->|是| B5[用教師個人 Zoom 帳號建立]
+    B5 --> B5R{成功?}
+    B5R -->|是| B8
+    B5R -->|否| B6
+    B4 -->|否| B6[從帳號池選空閒帳號]
+    B6 --> B7{有可用帳號?}
+    B7 -->|否| B7X[跳過，記 log，預約不受影響]
+    B7 -->|是| B8[呼叫 Zoom API 建立會議]
+    B8 --> B9[INSERT zoom_meeting_logs<br/>meeting_status = scheduled]
+```
+
+**帳號池分配邏輯**：
+- 用 SQL LEFT JOIN 查出指定日期 + 時段無衝突的帳號
+- 依 `daily_meeting_count` 排序，優先分配負載較低的帳號
+- DB EXCLUSION constraint（`excl_zoom_account_no_overlap`）防止 race condition
+
+**會議設定**：
+| 項目 | 值 |
+|------|-----|
+| 類型 | Scheduled（type=2） |
+| 時區 | Asia/Taipei |
+| 加入前免等主持人 | 是（join_before_host=true） |
+| 等候室 | 否（waiting_room=false） |
+| 自動雲端錄影 | 是（auto_recording=cloud） |
+| 入場靜音 | 是（mute_upon_entry=true） |
+
+### 8-3. 會議取消
+
+預約狀態變為 `cancelled` 或 `pending` 時，系統非同步取消 Zoom 會議：
+
+1. 查出該 booking 的 `scheduled` 狀態會議
+2. 取得對應帳號的 token（帳號池或教師 OAuth）
+3. 呼叫 Zoom API 刪除會議
+4. 更新 `zoom_meeting_logs.meeting_status = 'cancelled'`
+
+### 8-4. 超時會議自動結束排程
+
+Backend 啟動時，若 `ZOOM_ENABLED=true`，會啟動背景排程：
+
+- **頻率**：每 60 秒
+- **邏輯**：查詢 `meeting_status='started'` 且已過 `end_time` 的會議
+- **動作**：呼叫 Zoom API 強制結束 → Zoom 自動觸發 `recording.completed` webhook
+
+### 8-5. Webhook 事件處理
+
+接收端點：`POST /api/v1/zoom/webhook`（驗證 HMAC-SHA256 簽名）
+
+| 事件 | 處理 |
+|------|------|
+| `endpoint.url_validation` | 回傳 challenge response（Zoom 設定時驗證用） |
+| `meeting.started` | 更新 `meeting_status → started` |
+| `meeting.ended` | 更新 `meeting_status → ended` |
+| `recording.completed` | 寫入 `recording_url`、`recording_download_url`、`recording_file_type`、`recording_file_size_bytes`、`recording_duration_seconds`、`recording_completed_at` |
+
+> **注意**：錄影資訊完全依賴 Zoom webhook 推送，系統不會主動輪詢。需要在 Zoom Marketplace App 設定 webhook URL 並訂閱上述事件。
+
+### 8-6. 教師 OAuth 綁定
+
+教師可綁定個人 Zoom 帳號，用於短課程（≤30 分鐘）：
+
+```mermaid
+flowchart LR
+    O1[GET /zoom/oauth/authorize] --> O2[教師同意授權]
+    O2 --> O3[Zoom callback 回傳 code]
+    O3 --> O4[換取 token → 存入 teacher_zoom_accounts]
+    O4 --> O5[綁定完成 ✓]
+```
+
+| 端點 | 說明 |
+|------|------|
+| `GET /zoom/oauth/authorize` | 取得 Zoom OAuth 授權 URL |
+| `GET /zoom/oauth/callback` | Zoom 回傳後換 token 並存入 DB |
+| `GET /zoom/oauth/status` | 查詢教師是否已綁定 |
+| `DELETE /zoom/oauth/unlink` | 解除綁定 |
+
+### 8-7. 前端取得會議連結
+
+Zoom 資料不包含在 booking response 中，前端獨立取得：
+
+1. 載入預約列表（`GET /bookings`，不含 Zoom 欄位）
+2. 對每筆 `confirmed` / `completed` 預約呼叫 `GET /zoom/meetings/{booking_id}`
+3. 顯示「加入會議」按鈕 + 密碼 + 錄影連結
+
+**權限控制**：
+- 教師只能查自己的預約會議
+- 學生只能查自己的預約會議
+- 員工可查所有
+
+### 8-8. 資料表
+
+| 表 | 用途 |
+|-----|------|
+| `zoom_accounts` | 帳號池（S2S OAuth），存 client_id/secret/account_id |
+| `zoom_meeting_logs` | 會議記錄（主表），含生命週期、連結、錄影資訊 |
+| `teacher_zoom_accounts` | 教師個人 OAuth token |
+| `booking_details` | 課後回饋（attendance_status / teacher_notes / student_feedback / rating） |
+
+> `booking_details` 不再同步 Zoom 欄位，所有 Zoom 資料以 `zoom_meeting_logs` 為唯一來源。
 
 ---
 

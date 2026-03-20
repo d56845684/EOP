@@ -457,14 +457,6 @@ class ZoomService:
                 data=log_data,
             )
 
-            # 同步更新 booking_details 的 zoom 欄位
-            await self._update_booking_details(
-                booking_id,
-                join_url=meeting.get("join_url", ""),
-                meeting_id=str(meeting.get("id", "")),
-                passcode=meeting.get("password", ""),
-            )
-
             # 更新帳號每日用量
             if zoom_account_id:
                 await self._increment_daily_count(zoom_account_id)
@@ -480,29 +472,6 @@ class ZoomService:
                 return None
             logger.error(f"Booking {booking_id}: 寫入 zoom_meeting_logs 失敗: {e}")
             return None
-
-    async def _update_booking_details(
-        self, booking_id: str, join_url: str, meeting_id: str, passcode: str
-    ):
-        """更新 booking_details 的 Zoom 相關欄位"""
-        try:
-            existing = await supabase_service.table_select(
-                table="booking_details",
-                select="id",
-                filters={"booking_id": booking_id, "is_deleted": "eq.false"},
-            )
-            if existing:
-                await supabase_service.table_update(
-                    table="booking_details",
-                    data={
-                        "zoom_link": join_url,
-                        "zoom_meeting_id": meeting_id,
-                        "zoom_password": passcode,
-                    },
-                    filters={"booking_id": booking_id},
-                )
-        except Exception as e:
-            logger.error(f"更新 booking_details zoom 欄位失敗: {e}")
 
     async def _increment_daily_count(self, zoom_account_id: str):
         """遞增帳號每日用量"""
@@ -606,36 +575,97 @@ class ZoomService:
             result = await supabase_service.table_update(
                 table="zoom_meeting_logs",
                 data=update_data,
-                filters={"zoom_meeting_id": meeting_id, "is_deleted": "eq.false"},
+                filters={"zoom_meeting_id": f"text.{meeting_id}", "is_deleted": "is.false"},
             )
 
-            # 同步更新 booking_details
-            if result and video_file:
-                logs = await supabase_service.table_select(
-                    table="zoom_meeting_logs",
-                    select="booking_id",
-                    filters={"zoom_meeting_id": meeting_id, "is_deleted": "eq.false"},
-                )
-                if logs:
-                    booking_id = logs[0]["booking_id"]
-                    try:
-                        await supabase_service.table_update(
-                            table="booking_details",
-                            data={
-                                "recording_url": video_file.get("play_url", ""),
-                                "recording_duration_seconds": update_data.get("recording_duration_seconds"),
-                            },
-                            filters={"booking_id": booking_id},
-                        )
-                    except Exception:
-                        pass
-
             logger.info(f"recording.completed 處理完成: meeting_id={meeting_id}")
+
+            # 發送 SQS 任務：將錄影轉移至 Google Drive
+            if settings.SQS_QUEUE_URL and video_file:
+                await self._enqueue_recording_transfer(meeting_id, video_file)
+
             return True
 
         except Exception as e:
             logger.error(f"recording.completed 處理失敗: {e}")
             return False
+
+    async def _enqueue_recording_transfer(self, meeting_id: str, video_file: dict):
+        """查詢老師/學生 email，發送 SQS 錄影轉移任務"""
+        try:
+            from app.services.sqs_service import sqs_service
+
+            # 從 zoom_meeting_logs 取 booking_id, teacher_id, zoom_account_id
+            log_rows = await supabase_service.table_select(
+                table="zoom_meeting_logs",
+                select="booking_id,teacher_id,zoom_account_id",
+                filters={"zoom_meeting_id": f"text.{meeting_id}", "is_deleted": "is.false"},
+            )
+            teacher_email, student_email = None, None
+            if log_rows:
+                log = log_rows[0]
+                # teacher email
+                if log.get("teacher_id"):
+                    t = await supabase_service.table_select(
+                        table="teachers", select="email",
+                        filters={"id": log["teacher_id"]},
+                    )
+                    if t:
+                        teacher_email = t[0].get("email")
+                # student email（透過 booking → student_id）
+                if log.get("booking_id"):
+                    b = await supabase_service.table_select(
+                        table="bookings", select="student_id",
+                        filters={"id": log["booking_id"]},
+                    )
+                    if b and b[0].get("student_id"):
+                        s = await supabase_service.table_select(
+                            table="students", select="email",
+                            filters={"id": b[0]["student_id"]},
+                        )
+                        if s:
+                            student_email = s[0].get("email")
+
+            # 取 Zoom access token（供 Lambda 下載錄影用）
+            token = await self._get_token_for_download(log_rows[0] if log_rows else {})
+
+            share_emails = [e for e in [teacher_email, student_email] if e]
+
+            sqs_service.send_message({
+                "meeting_id": meeting_id,
+                "download_url": video_file.get("download_url", ""),
+                "file_type": video_file.get("file_type", "MP4"),
+                "file_size": video_file.get("file_size", 0),
+                "zoom_access_token": token or "",
+                "share_emails": share_emails,
+                "callback_url": f"{settings.BACKEND_BASE_URL}/api/v1/zoom/recording-callback",
+                "callback_secret": settings.RECORDING_CALLBACK_SECRET,
+            })
+
+            await supabase_service.table_update(
+                table="zoom_meeting_logs",
+                data={"recording_transfer_status": "queued"},
+                filters={"zoom_meeting_id": f"text.{meeting_id}", "is_deleted": "is.false"},
+            )
+
+            logger.info(f"錄影轉移任務已發送 SQS: meeting_id={meeting_id}, share_emails={share_emails}")
+
+        except Exception as e:
+            logger.error(f"SQS 發送失敗: {e}")
+
+    async def _get_token_for_download(self, log: dict) -> Optional[str]:
+        """根據 meeting log 取得 Zoom token 供錄影下載"""
+        if log.get("zoom_account_id"):
+            accounts = await supabase_service.table_select(
+                table="zoom_accounts",
+                select="*",
+                filters={"id": log["zoom_account_id"], "is_deleted": "eq.false"},
+            )
+            if accounts:
+                return await self.get_s2s_token(accounts[0])
+        if log.get("teacher_id"):
+            return await self.get_teacher_token(log["teacher_id"])
+        return None
 
     async def handle_meeting_ended(self, payload: dict) -> bool:
         """
@@ -652,7 +682,7 @@ class ZoomService:
             await supabase_service.table_update(
                 table="zoom_meeting_logs",
                 data={"meeting_status": "ended"},
-                filters={"zoom_meeting_id": meeting_id, "is_deleted": "eq.false"},
+                filters={"zoom_meeting_id": f"text.{meeting_id}", "is_deleted": "is.false"},
             )
 
             logger.info(f"meeting.ended 處理完成: meeting_id={meeting_id}")
@@ -677,7 +707,7 @@ class ZoomService:
             await supabase_service.table_update(
                 table="zoom_meeting_logs",
                 data={"meeting_status": "started"},
-                filters={"zoom_meeting_id": meeting_id, "is_deleted": "eq.false"},
+                filters={"zoom_meeting_id": f"text.{meeting_id}", "is_deleted": "is.false"},
             )
 
             logger.info(f"meeting.started 處理完成: meeting_id={meeting_id}")

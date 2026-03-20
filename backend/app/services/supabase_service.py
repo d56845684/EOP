@@ -186,7 +186,7 @@ class SupabaseService:
         """Parse PostgREST-style filter into SQL WHERE clause fragment.
 
         Supports: eq., neq., gt., gte., lt., lte., is.null/true/false,
-                  in.(a,b,c), like., ilike., and bare values (default eq).
+                  in.(a,b,c), like., ilike., text. (no coerce), and bare values (default eq).
         """
         col = f'"{cls._sanitize_identifier(key)}"'
 
@@ -213,6 +213,11 @@ class SupabaseService:
                 params.append(item)
                 placeholders.append(f"${len(params)}")
             return f"{col} IN ({', '.join(placeholders)})"
+
+        # text. operator — keep value as string, skip _coerce_value
+        if value.startswith("text."):
+            params.append(value[5:])
+            return f"{col} = ${len(params)}"
 
         # Operators with value
         operators = {
