@@ -58,7 +58,7 @@
       </el-col>
     </el-row>
     <el-form-item>
-        <el-button type="primary" @click="handleCreateStudent" :loading="saving" v-permission="'students.create'">
+        <el-button round type="primary" @click="handleCreateStudent" :loading="saving" v-permission="'students.create'">
           <template #icon><div class="i-hugeicons:floppy-disk" /></template>
           {{ $t('common.save') }}
         </el-button>

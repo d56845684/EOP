@@ -9,3 +9,12 @@ body,
   padding: 0;
   font-family: 'Inter', system-ui, sans-serif;
 }
+
+:deep(.filter-form) {
+  gap: 20px;
+
+  .el-form-item {
+    margin-right: 0;
+    margin-bottom: 5px;
+  }
+}

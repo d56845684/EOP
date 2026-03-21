@@ -198,6 +198,8 @@ export default {
         createdTime: '建立時間',
         password: '密碼',
         confirmPw: '確認密碼',
+        employeeSubtype: '員工類別',
+        searchPlaceholder: '搜尋 Email帳號 / 暱稱',
     },
     role: {
         title: '角色管理',

@@ -94,7 +94,7 @@
         <el-col :span="24" justify="end">
           <el-form-item class="w-full action-column">
               <el-space :size="10" :spacer="h(ElDivider, { direction: 'vertical' })">
-                <el-button type="primary" :loading="savingContract" @click="saveContractData">
+                <el-button type="primary" round :loading="savingContract" @click="saveContractData">
                   <template #icon>
                     <div class="i-hugeicons:floppy-disk text-lg" />
                   </template>
@@ -103,6 +103,7 @@
                 <el-button
                   color="#626aef"
                   plain
+                  round
                   :loading="savingContract"
                   @click="downloadContractData"
                 >
@@ -114,6 +115,7 @@
                 <el-button
                   color="#626aef"
                   plain
+                  round
                   :loading="savingContract"
                   @click="uploadContractData"
                 >
@@ -129,7 +131,7 @@
     </el-form>
 
     <el-divider content-position="left" class="mt-5 mb-3">合約明細</el-divider>
-    <el-button type="primary" text class="float-right mb-2" @click="openAddDetailDialog">
+    <el-button type="primary" round text class="float-right mb-2" @click="openAddDetailDialog">
       <template #icon><div class="i-hugeicons:add-square" /></template>
       新增明細
     </el-button>
@@ -154,10 +156,10 @@
         <el-table-column prop="notes" label="備註" />
         <el-table-column label="操作" width="80" align="center" fixed="right">
             <template #default="{ row }">
-              <el-button type="primary" link @click="handleEditContractDetail(row)">
+              <el-button type="primary" round link @click="handleEditContractDetail(row)">
                 <div class="i-hugeicons:edit-02" />
               </el-button>
-              <el-button type="danger" link @click="handleDeleteContractDetail(row.id)">
+              <el-button type="danger" round link @click="handleDeleteContractDetail(row.id)">
                 <div class="i-hugeicons:delete-02" />
               </el-button>
             </template>
@@ -165,7 +167,7 @@
     </el-table>
 
     <el-divider content-position="left" class="mt-10 mb-5">請假紀錄</el-divider>
-    <el-button type="primary" text class="float-right mb-2" @click="addLeaveDialogVisible = true">
+    <el-button type="primary" round text class="float-right mb-2" @click="addLeaveDialogVisible = true">
       <template #icon><div class="i-hugeicons:add-square" /></template>
       新增請假
     </el-button>
@@ -174,7 +176,7 @@
       <el-table-column prop="reason" label="事由" />
       <el-table-column label="操作" width="80" align="center">
           <template #default="{ row }">
-            <el-button type="danger" link @click="deleteLeave(row.id)">
+            <el-button type="danger" round link @click="deleteLeave(row.id)">
               <div class="i-hugeicons:delete-02" />
             </el-button>
           </template>

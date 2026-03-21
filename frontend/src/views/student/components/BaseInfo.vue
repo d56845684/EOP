@@ -20,7 +20,7 @@
         />
     </el-form-item>
     <el-form-item class="flex-1 min-w-full">
-        <el-button type="primary" @click="handleSaveBasicInfo" :loading="saving" v-permission="'students.edit'">
+        <el-button round type="primary" @click="handleSaveBasicInfo" :loading="saving" v-permission="'students.edit'">
             {{ $t('common.save') }}
         </el-button>
     </el-form-item>

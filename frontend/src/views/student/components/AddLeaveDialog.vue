@@ -9,8 +9,8 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button type="primary" @click="submitLeaveForm" :loading="leaveLoading">新增</el-button>
-      <el-button type="info" @click="show = false">取消</el-button>
+      <el-button round plain @click="show = false">取消</el-button>
+      <el-button round type="primary" @click="submitLeaveForm" :loading="leaveLoading">新增</el-button>
     </template>
   </el-dialog>
 </template>

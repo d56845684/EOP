@@ -33,7 +33,7 @@
             </template>
             搜尋
           </el-button>
-          <el-button @click="resetQuery">
+          <el-button round @click="resetQuery">
             <template #icon>
               <div class="i-hugeicons:arrow-reload-horizontal" />
             </template>

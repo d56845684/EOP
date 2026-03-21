@@ -196,6 +196,8 @@ export default {
         createdTime: 'Created Time',
         password: 'Password',
         confirmPw: 'Confirm PW',
+        employeeSubtype: 'Employee Subtype',
+        searchPlaceholder: 'Search Email / Name',
     },
     role: {
         title: 'Role Management',

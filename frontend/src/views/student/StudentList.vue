@@ -28,7 +28,7 @@
             @keyup.enter="handleSearch"
           >
             <template #prefix>
-              <div class="i-hugeicons:search-list-02" />
+              <div class="i-hugeicons:search-01" />
             </template>
           </el-input>
         </el-form-item>
@@ -37,7 +37,7 @@
             v-model="queryParams.is_active" 
             :placeholder="$t('student.filter.status')" 
             class="filter-item" 
-            style="width: 160px;"
+            style="width: 140px;"
             @change="handleSearch"
           >
             <el-option :label="$t('common.all')" value="all" />
@@ -50,7 +50,7 @@
             v-model="queryParams.student_type" 
             :placeholder="$t('student.filter.identity')" 
             class="filter-item" 
-            style="width: 160px;"
+            style="width: 140px;"
             @change="handleSearch"
           >
             <el-option :label="$t('common.all')" value="all" />
@@ -59,13 +59,13 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">
+          <el-button type="primary" round @click="handleSearch">
             <template #icon>
-              <div class="i-hugeicons:search-list-02" />
+              <div class="i-hugeicons:search-01" />
             </template>
             {{ $t('common.search') }}
           </el-button>
-          <el-button @click="resetQuery">
+          <el-button round @click="resetQuery">
             <template #icon>
               <div class="i-hugeicons:arrow-reload-horizontal" />
             </template>
@@ -122,7 +122,7 @@
         <!-- Status -->
         <el-table-column :label="$t('common.status')" width="90" align="center">
            <template #default="{ row }">
-             <el-tag :type="row.is_active ? 'success' : 'warning'">
+             <el-tag size="small" :type="row.is_active ? 'success' : 'info'" effect='plain' class="w-50px">
                {{ row.is_active ? $t('common.active') : $t('common.inactive') }}
              </el-tag>
            </template>
@@ -132,7 +132,7 @@
         <el-table-column :label="$t('common.actions')" width="240" fixed="right" class-name="action-column">
           <template #default="{ row }">
             <div>
-              <el-button v-permission="'students.edit'" size="small" @click="openDrawer(row, 'manage')">
+              <el-button v-permission="'students.edit'" round size="small" @click="openDrawer(row, 'manage')">
                 <template #icon>
                   <div class="i-hugeicons:pencil-edit-01" />
                 </template>
@@ -141,6 +141,7 @@
               <el-button 
                 v-if="row.student_type === 'trial' && !row._contract_id"
                 type="primary" 
+                round
                 size="small" 
                 link
                 @click="openConvertToFormalDialog(row)"
@@ -151,9 +152,10 @@
               <el-button
                 v-if="row.student_type === 'formal'"
                 v-permission="'students.contracts'"
-                color="#82aa57"
+                round
                 size="small"
                 plain
+                color="#82aa57"
                 @click="openDrawer(row, 'contract')"
               >
                 <template #icon>
@@ -164,7 +166,7 @@
             </div>
             <el-button 
               type="danger" 
-              size="large" 
+              size="large"
               link
               @click="handleDelete(row)"
               v-permission="'students.delete'"

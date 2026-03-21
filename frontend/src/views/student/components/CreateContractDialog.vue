@@ -62,8 +62,8 @@
       </el-row>
     </el-form>
     <template #footer>
-      <el-button @click="show = false">取消</el-button>
-      <el-button type="primary" :loading="converting" @click="submitConvert">確認轉正</el-button>
+      <el-button round @click="show = false">取消</el-button>
+      <el-button round type="primary" :loading="converting" @click="submitConvert">確認轉正</el-button>
     </template>
   </el-dialog>
 </template>

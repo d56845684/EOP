@@ -56,8 +56,8 @@
       </el-row>
     </el-form>
     <template #footer>
-      <el-button @click="show = false">取消</el-button>
-      <el-button type="primary" :loading="detailLoading" @click="submitDetailForm">
+      <el-button round @click="show = false">取消</el-button>
+      <el-button round type="primary" :loading="detailLoading" @click="submitDetailForm">
         {{ isEdit ? '更新' : '新增' }}
       </el-button>
     </template>

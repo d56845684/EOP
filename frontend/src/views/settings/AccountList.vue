@@ -1,255 +1,302 @@
 <template>
   <div class="account-list">
+    <div class="flex justify-between items-center px-1 mb-2">
+      <h3 class="my-0">{{ $t('menu.account_settings') }}</h3>
+      <el-button
+        v-permission="'accounts.create'"
+        type="primary"
+        round
+        class="h-9 px-1"
+        @click="openDrawer(null, 'add')"
+      >
+        <template #icon>
+          <div class="i-hugeicons:plus-sign-square" />
+        </template>
+        {{ $t('account.add') }}
+      </el-button>
+    </div>
+    <el-card class="filter-card mb-14px">
+      <!-- Area A: Filter Section -->
+      <el-form :inline="true" :model="queryParams" label-position="top" class="filter-form flex items-end" @submit.prevent="handleSearch">
+        <el-form-item :label="$t('common.searchKeyword')">
+          <el-input
+            v-model="queryParams.search"
+            :placeholder="$t('account.searchPlaceholder')"
+            clearable
+            @clear="handleSearch"
+            @keyup.enter="handleSearch"
+          >
+            <template #prefix>
+              <div class="i-hugeicons:search-01" />
+            </template>
+          </el-input>
+        </el-form-item>
+        
+        <el-form-item :label="$t('account.role')">
+          <el-select
+            v-model="queryParams.role"
+            :placeholder="$t('account.role')" 
+            clearable
+            class="w-120px"
+            @clear="handleSearch"
+            @change="handleSearch"
+          >
+            <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.key" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item :label="$t('common.status')">
+          <el-select
+            v-model="queryParams.is_active"
+            :placeholder="$t('common.status')"
+            clearable
+            class="w-120px"
+            @clear="handleSearch"
+            @change="handleSearch"
+          >
+            <el-option :label="$t('common.all')" value="all" />
+            <el-option :label="$t('common.active')" :value="true" />
+            <el-option :label="$t('common.inactive')" :value="false" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">
+            <template #icon>
+              <div class="i-hugeicons:search-01" />
+            </template>
+            {{ $t('common.search') }}
+          </el-button>
+          <el-button @click="resetQuery">
+            <template #icon>
+              <div class="i-hugeicons:arrow-reload-horizontal" />
+            </template>
+            {{ $t('common.btnReset') }}
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
     <el-card>
-      <template #header>
-        <div class="header">
-           <span>{{ $t('account.title') }}</span>
-           <el-button type="primary" @click="openDrawer(null)">{{ $t('account.add') }}</el-button>
-        </div>
-      </template>
-      
-      <el-table :data="paginatedUsers" style="width: 100%">
-        <el-table-column :label="$t('account.avatar')" width="80">
-           <template #default="{ row }"><el-avatar :src="row.avatar" /></template>
+      <!-- Area B: Data Table -->
+      <el-table :data="users" style="width: 100%" v-loading="loading">
+        <el-table-column prop="name" min-width="120" :label="$t('account.nickname')" />
+        <el-table-column prop="email" min-width="200" :label="$t('account.account')" />
+        <!-- <el-table-column prop="role" :label="$t('account.role')" /> -->
+        <el-table-column prop="employee_subtype" min-width="120" :label="$t('account.employeeSubtype')">
+          <template #default="{ row }">
+            {{ row.employee_subtype || '-' }}
+          </template>
         </el-table-column>
-        <el-table-column prop="username" :label="$t('account.account')" />
-        <el-table-column prop="nickname" :label="$t('account.nickname')" />
-        <el-table-column prop="role" :label="$t('account.role')">
+        <el-table-column :label="$t('common.status')" align="center">
            <template #default="{ row }">
-              <el-tag :type="row.role === 'super_admin' ? 'danger' : ''">{{ getRoleName(row.role) }}</el-tag>
+              <el-tag :type="row.is_active ? 'success' : 'danger'">
+                {{ row.is_active ? '啟用' : '停用' }}
+              </el-tag>
            </template>
         </el-table-column>
         <el-table-column :label="$t('account.createdTime')" width="180">
-           <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+           <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column :label="$t('common.status')">
-           <template #default="{ row }">
-              <el-switch v-model="row.status" :disabled="row.role === 'super_admin'" />
-           </template>
-        </el-table-column>
-        <el-table-column :label="$t('common.actions')">
+        <el-table-column :label="$t('common.actions')" width="180" fixed="right">
             <template #default="{ row }">
-               <div v-if="row.role !== 'super_admin'">
-                   <el-button link type="primary" @click="openDrawer(row)">{{ $t('common.edit') }}</el-button>
-                   <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
-               </div>
-               <span v-else class="text-gray">Protected</span>
+              <el-space :size="10" :spacer="spacer">
+                <el-button 
+                   link 
+                   type="primary" 
+                   @click="openDrawer(row, 'edit')" 
+                   :disabled="row.is_protected"
+                >
+                   {{ $t('common.edit') }}
+                </el-button>
+                <el-switch 
+                   v-model="row.is_active" 
+                   :disabled="row.is_protected"
+                   inline-prompt
+                   active-text="啟用" 
+                   inactive-text="停用" 
+                   size="small"
+                   :before-change="() => handleDeactivate(row)"
+                />
+              </el-space>
             </template>
         </el-table-column>
       </el-table>
+      
+      <!-- Area C: Pagination -->
       <div class="pagination-footer">
           <el-pagination
-            v-model:current-page="currentPage"
-            v-model:page-size="pageSize"
+            v-model:current-page="queryParams.page"
+            v-model:page-size="queryParams.per_page"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
-            :total="users.length"
+            :total="total"
+            @size-change="fetchUsers"
+            @current-change="fetchUsers"
           />
       </div>
     </el-card>
 
-    <el-drawer v-model="drawerVisible" :title="isEdit ? $t('account.editTitle') : $t('account.add')">
-       <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
-          <!-- 1. Nickname -->
-          <el-form-item :label="$t('account.nickname')" prop="nickname">
-             <el-input v-model="form.nickname" />
-          </el-form-item>
-          
-          <!-- 2. Account (Username) -->
-          <el-form-item :label="$t('account.account')" prop="username">
-             <el-input v-model="form.username" :disabled="isEdit" />
-          </el-form-item>
-          
-          <!-- 3. Password -->
-          <el-form-item :label="$t('account.password')" prop="password" :required="!isEdit">
-             <el-input 
-                v-model="form.password" 
-                show-password 
-                :placeholder="isEdit ? 'Leave empty to keep unchanged' : 'Required'" 
-             />
-          </el-form-item>
-          <el-form-item :label="$t('account.confirmPw')" prop="confirmPassword" :required="!isEdit || !!form.password">
-              <el-input v-model="form.confirmPassword" show-password :placeholder="$t('account.confirmPw')" />
-          </el-form-item>
-
-          <!-- 4. Role -->
-          <el-form-item :label="$t('account.role')" prop="role">
-             <el-select v-model="form.role">
-                 <el-option 
-                    v-for="r in roles" 
-                    :key="r.id" 
-                    :label="r.name" 
-                    :value="r.id" 
-                    :disabled="r.id === 'super_admin'"
-                 />
-             </el-select>
-          </el-form-item>
-
-          <!-- 5. Avatar -->
-          <el-form-item :label="$t('account.avatar')">
-             <div class="avatar-select">
-                <el-avatar 
-                   v-for="url in PRESET_AVATARS" 
-                   :key="url" 
-                   :src="url" 
-                   :class="{ selected: form.avatar === url }"
-                   @click="form.avatar = url"
-                   size="large"
-                   style="cursor: pointer; margin-right: 15px"
-                />
-             </div>
-          </el-form-item>
-       </el-form>
-       <template #footer>
-          <el-button @click="drawerVisible = false">{{ $t('common.cancel') }}</el-button>
-          <el-button type="primary" @click="handleSave">{{ $t('common.save') }}</el-button>
-       </template>
-    </el-drawer>
+    <!-- Area D: Edit Drawer -->
+     <EditEmployeeDrawer
+      v-model="dialogVisible"
+      :editUserId="editUserId"
+      :roles="roles"
+      @fetch-users="fetchUsers"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, nextTick } from 'vue';
-import { useMockStore, type User } from '../../stores/mockStore';
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { h, ref, reactive, onMounted } from 'vue';
+import { ElMessage, ElMessageBox, ElDivider } from 'element-plus';
 import dayjs from 'dayjs';
+import { getUsersApi, getRolesApi, updateUserApi, deleteUserApi, type AccountInfo, type RoleInfo } from '@/api/user';
+import EditEmployeeDrawer from './components/EditEmployeeDrawer.vue';
 
-const store = useMockStore();
-const users = computed(() => store.users);
-const roles = computed(() => store.roles);
+// State
+const users = ref<AccountInfo[]>([]);
+const roles = ref<RoleInfo[]>([]);
+const total = ref(0);
+const loading = ref(false);
 
-// --- Pagination State ---
-const currentPage = ref(1);
-const pageSize = ref(10);
-const paginatedUsers = computed(() => {
-    const start = (currentPage.value - 1) * pageSize.value;
-    const end = start + pageSize.value;
-    return users.value.slice(start, end);
+interface QueryParams {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  role?: string;
+}
+
+const queryParams = reactive<QueryParams>({
+  page: 1,
+  per_page: 10,
+  search: '',
+  role: 'employee'
 });
-const drawerVisible = ref(false);
-const formRef = ref<FormInstance>();
-const isEdit = ref(false);
+
+// Dialog State
+const dialogVisible = ref(false);
+const editUserId = ref('');
+const spacer = h(ElDivider, { direction: 'vertical' })
 
 const form = reactive({
-    id: '',
-    username: '',
-    password: '',
-    confirmPassword: '',
-    nickname: '',
-    avatar: '',
-    role: '',
-    status: true,
-    createdAt: ''
+  name: '',
+  email: '',
+  role_id: '',
+  employee_subtype: '',
+  is_active: false
 });
 
-const PRESET_AVATARS = [
-    'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png',
-    'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png',
-    'https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png',
-    'https://cube.elemecdn.com/6/94/4d3ea53c084bad6931a56d5158a48jpeg.jpeg',
-    'https://cube.elemecdn.com/f/17/92ae64b6b442b3b0409951336f333png.png'
-];
-
+// Helpers
 const formatTime = (t: string) => t ? dayjs(t).format('YYYY-MM-DD HH:mm') : '-';
-const getRoleName = (id: string) => roles.value.find(r => r.id === id)?.name || id;
 
-// --- Validation Rules ---
-// --- Validation Rules ---
-const validatePass = (_rule: any, value: any, callback: any) => {
-    if (!isEdit.value && !value) {
-        callback(new Error('Password is required'));
+// API Calls
+const fetchRoles = async () => {
+  try {
+    const res = await getRolesApi();
+    if (res.data && Array.isArray(res.data)) {
+      roles.value = res.data;
+    } else if (res.data && Array.isArray((res.data as any).data)) {
+      roles.value = (res.data as any).data;
+    } else if (Array.isArray(res)) {
+      roles.value = res as any;
+    }
+  } catch (error) {
+    ElMessage.error('Failed to load roles');
+  }
+};
+
+const fetchUsers = async () => {
+  loading.value = true;
+  try {
+    const dataToSend = { ...queryParams };
+    if (!dataToSend.search) delete dataToSend.search;
+    if (!dataToSend.role) delete dataToSend.role;
+
+    const res = await getUsersApi(dataToSend);
+    
+    // Adjust based on actual API wrapper
+    if (res.data && res.data.items !== undefined) {
+      users.value = res.data.items;
+      total.value = res.data.total;
+    } else if (res.data && res.data.data && res.data.data.items !== undefined) {
+      users.value = res.data.data.items;
+      total.value = res.data.data.total;
+    } else if (res.items !== undefined) {
+      users.value = (res as any).items;
+      total.value = (res as any).total;
     } else {
-        if (form.confirmPassword !== '') {
-            formRef.value?.validateField('confirmPassword');
+      users.value = res.data || res || [];
+      total.value = users.value.length;
+    }
+  } catch (error) {
+    ElMessage.error('Failed to load users');
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Handlers
+const handleSearch = () => {
+  queryParams.page = 1;
+  fetchUsers();
+};
+
+const resetQuery = () => {
+  queryParams.search = '';
+  queryParams.role = '';
+  handleSearch();
+};
+
+const openDrawer = (row: AccountInfo | null, type: string) => {
+  if (type === 'edit' && row) {
+    const {id, name, email, role_id, employee_subtype, is_active} = row;
+    editUserId.value = id;
+    form.name = name || '';
+    form.email = email;
+    form.role_id = role_id || '';
+    form.employee_subtype = employee_subtype || '';
+    form.is_active = is_active;
+  }
+  
+  if (formRef.value) {
+    formRef.value.clearValidate();
+  }
+  dialogVisible.value = true;
+};
+
+const handleDeactivate = (row: AccountInfo): Promise<boolean> => {
+  return new Promise((resolve, reject) => {
+    ElMessageBox.confirm(`確定要${row.is_active ? '停用' : '啟用'}此帳號嗎？`, 'Warning', {
+      confirmButtonText: '確定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }).then(async () => {
+      try {
+        if (row.is_active) {
+          await deleteUserApi(row.id);
+        } else {
+          await updateUserApi(row.id, {
+            is_active: true
+          });
         }
-        callback();
-    }
+        ElMessage.success('更新成功');
+        fetchUsers();
+        resolve(true)
+      } catch (error) {
+        ElMessage.error('更新失敗');
+        reject(false)
+      }
+    }).catch(() => {reject(false)});
+  });
 };
 
-const validateConfirmPass = (_rule: any, value: any, callback: any) => {
-    if (form.password && value !== form.password) {
-        callback(new Error("Passwords do not match"));
-    } else {
-        callback();
-    }
-};
-
-const rules = reactive<FormRules>({
-    nickname: [{ required: true, message: 'Nickname is required', trigger: 'blur' }],
-    username: [{ required: true, message: 'Account is required', trigger: 'blur' }],
-    role: [{ required: true, message: 'Role is required', trigger: 'change' }],
-    password: [{ validator: validatePass, trigger: 'blur' }],
-    confirmPassword: [{ validator: validateConfirmPass, trigger: 'blur' }]
+onMounted(() => {
+  fetchRoles();
+  fetchUsers();
 });
-
-
-const openDrawer = (u: User | null) => {
-    if (u) {
-        isEdit.value = true;
-        Object.assign(form, u);
-        form.password = ''; // Don't show existing
-        form.confirmPassword = '';
-    } else {
-        isEdit.value = false;
-        Object.assign(form, {
-            id: '',
-            username: '',
-            password: '',
-            confirmPassword: '',
-            nickname: '',
-            avatar: PRESET_AVATARS[0] || '',
-            role: 'admin',
-            status: true,
-            createdAt: ''
-        });
-    }
-    drawerVisible.value = true;
-    nextTick(() => {
-        formRef.value?.clearValidate();
-    });
-};
-
-const handleSave = async () => {
-    if (!formRef.value) return;
-    await formRef.value.validate((valid) => {
-        if (valid) {
-             if (isEdit.value) {
-                const idx = store.users.findIndex(u => u.id === form.id);
-                if (idx !== -1) {
-                    const output = { ...form } as any;
-                    delete output.confirmPassword;
-                    // Preserve old password if not changed
-                    const existing = store.users[idx];
-                    if (existing && !output.password && existing.password) {
-                        output.password = existing.password;
-                    }
-                    store.users[idx] = output;
-                }
-            } else {
-                const newUser = { ...form } as any;
-                delete newUser.confirmPassword;
-                newUser.id = 'u' + Date.now();
-                newUser.createdAt = dayjs().toISOString();
-                store.users.push(newUser);
-            }
-            drawerVisible.value = false;
-            ElMessage.success('Saved');
-        }
-    });
-};
-
-const handleDelete = (u: User) => {
-     ElMessageBox.confirm('Delete user?', 'Warning', { type: 'warning' }).then(() => {
-         store.users = store.users.filter(x => x.id !== u.id);
-         ElMessage.success('Deleted');
-     });
-};
 </script>
 
 <style scoped>
-.header { display: flex; justify-content: space-between; align-items: center; }
-.selected { border: 3px solid var(--el-color-primary); box-shadow: 0 0 5px rgba(0,0,0,0.2); }
 .pagination-footer { display: flex; justify-content: flex-end; margin-top: 20px; }
-.text-gray { color: #909399; font-style: italic; }
-.avatar-select { display: flex; flex-wrap: wrap; }
 </style>
