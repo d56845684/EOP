@@ -38,6 +38,9 @@ export default {
     basicInfo: '基本資料',
     btnReset: '重置',
     searchKeyword: '關鍵字搜尋',
+    convertToFormal: '合約開通',
+    contracts: '合約管理',
+    courses: '選課紀錄',
   },
   menu: {
     dashboard: '儀表板',
@@ -127,10 +130,6 @@ export default {
       formal: '正課生',
       trial: '試上生',
     },
-    convertToFormal: '合約開通',
-    basicInfo: '基本資料',
-    contracts: '合約管理',
-    courses: '選課紀錄',
   },
   booking: {
     title: '預約管理',

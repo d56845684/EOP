@@ -8,13 +8,13 @@ export interface TeacherListParams {
 }
 
 export interface TeacherCreate {
-  teacher_no: string; // Required
+  teacher_no?: string | null; // Optional auto-gen
   name: string;       // Required
   email: string;      // Required
   phone?: string | null;
   address?: string | null;
   bio?: string | null;
-  teacher_level?: number;
+  teacher_level?: number | null;
   is_active?: boolean;
 }
 

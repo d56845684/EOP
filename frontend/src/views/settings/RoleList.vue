@@ -1,5 +1,5 @@
 <template>
-  <div class="role-list">
+  <div class="role-list pl-2 pr-4">
     <div class="flex justify-between items-center px-1 mb-2">
       <h3 class="my-0">{{ $t('menu.role_settings') }}</h3>
       <el-button

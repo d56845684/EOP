@@ -1,5 +1,5 @@
 <template>
-  <div class="student-list-page px-2">
+  <div class="student-list-page pl-2 pr-4">
     <!-- Search / Filter Bar -->
     <div class="flex justify-between items-center px-1 mb-2">
       <h3 class="my-0">{{ $t('menu.student_mgmt') }}</h3>

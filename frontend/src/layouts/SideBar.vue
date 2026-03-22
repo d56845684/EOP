@@ -6,7 +6,7 @@
     </div>
     <div class="w-full flex justify-end items-center">
       <div class="w-[calc(100%-28px)] h-1px bg-[#E5E7EB]"></div>
-      <el-button class="w-28px h-32px rounded-l-4 rounded-r-none border-r-0 !p-4px bg-[#f3f5fa]" @click="isCollapse = !isCollapse">
+      <el-button class="w-28px h-32px rounded-l-4 rounded-r-none border-r-0 !p-4px bg-[#f3f5fa]" @click="handleCollapse">
         <div v-if="isCollapse" class="i-hugeicons:arrow-right-02" />
         <div v-else class="i-hugeicons:arrow-left-02" />
       </el-button>
@@ -64,10 +64,17 @@
   const permissionStore = usePermissionStore();
   const isCollapse = ref(false);
 
+  const emit = defineEmits(['collapse']);
+
   const visibleModules = computed(() => {
     // Read directly from the filtered permission store routes
     return permissionStore.routes;
-});
+  });
+
+  const handleCollapse = () => {
+    isCollapse.value = !isCollapse.value;
+    emit('collapse', isCollapse.value);
+  };
 
 </script>
 

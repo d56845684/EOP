@@ -1,10 +1,10 @@
 <template>
   <el-container class="layout-container">
-    <SideBar />
+    <SideBar @collapse="handleCollapse" />
     <el-container direction="vertical">
       <NavBar @logout="handleLogout" />
 
-      <el-main class="main-content">
+      <el-main class="main-content" :style="{ width: isCollapse ? 'calc(100vw - 64px)' : 'calc(100vw - 180px)' }">
         <router-view v-slot="{ Component }" style="min-height: calc(100vh - 120px);">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import NavBar from './NavBar.vue';
@@ -33,11 +33,17 @@ const authStore = useAuthStore();
 import { useIdle } from '@vueuse/core';
 const { idle } = useIdle(10 * 60 * 1000); 
 
+const isCollapse = ref(false);
+
 watch(idle, (isIdle) => {
   if (isIdle && authStore.userInfo) {
     handleLogout();
   }
 });
+
+const handleCollapse = (status: boolean) => {
+  isCollapse.value = status;
+};
 
 const handleLogout = async () => {
     authStore.logout();

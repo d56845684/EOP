@@ -1,5 +1,5 @@
 <template>
-  <div class="course-list">
+  <div class="course-list pl-2 pr-4">
     <div class="flex justify-between items-center px-1 mb-2">
       <h3 class="my-0">{{ $t('menu.course_mgmt') }}</h3>
       <el-button

@@ -8,7 +8,8 @@
     ),
     'error': ('base': #FB4141,
     ),
-  ), $pagination: ('hover-color': #FF9B2F, ));
+  ), $pagination: ('hover-color': #FF9B2F, ),
+  $card: ('border-radius': 10px, ));
 
 @use "element-plus/theme-chalk/src/index.scss" as *;
 

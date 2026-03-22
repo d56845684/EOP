@@ -36,7 +36,11 @@ export default {
         no: 'No',
         inactive: 'Inactive',
         basicInfo: 'Basic Info',
-        btnReset: 'Reset'
+        btnReset: 'Reset',
+        searchKeyword: 'Search Keyword',
+        convertToFormal: 'Activate Contract',
+        contracts: 'Contract Management',
+        courses: 'Booking Record',
     },
     menu: {
         dashboard: 'Dashboard',
@@ -125,10 +129,6 @@ export default {
             regular: 'Regular Student',
             trial: 'Trial Student',
         },
-        convertToFormal: 'Activate Contract',
-        basicInfo: 'Basic Info',
-        contracts: 'Contract Management',
-        courses: 'Booking Record',
     },
     booking: {
         title: 'Booking Management',
