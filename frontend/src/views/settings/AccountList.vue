@@ -23,6 +23,7 @@
             v-model="queryParams.search"
             :placeholder="$t('account.searchPlaceholder')"
             clearable
+            class="w-240px"
             @clear="handleSearch"
             @keyup.enter="handleSearch"
           >
@@ -61,13 +62,13 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">
+          <el-button type="primary" round @click="handleSearch">
             <template #icon>
               <div class="i-hugeicons:search-01" />
             </template>
             {{ $t('common.search') }}
           </el-button>
-          <el-button @click="resetQuery">
+          <el-button round @click="resetQuery">
             <template #icon>
               <div class="i-hugeicons:arrow-reload-horizontal" />
             </template>
@@ -88,37 +89,38 @@
             {{ row.employee_subtype || '-' }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.status')" align="center">
-           <template #default="{ row }">
-              <el-tag :type="row.is_active ? 'success' : 'danger'">
-                {{ row.is_active ? '啟用' : '停用' }}
-              </el-tag>
-           </template>
-        </el-table-column>
         <el-table-column :label="$t('account.createdTime')" width="180">
            <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column :label="$t('common.actions')" width="180" fixed="right">
+        <el-table-column :label="$t('common.status')" align="center">
+           <template #default="{ row }">
+              <!-- <el-tag size="small" :type="row.is_active ? 'success' : 'info'" effect='plain' class="w-50px">
+                {{ row.is_active ? $t('common.active') : $t('common.inactive') }}
+              </el-tag> -->
+              <el-switch 
+                v-model="row.is_active" 
+                :disabled="row.is_protected"
+                inline-prompt
+                active-text="啟用" 
+                inactive-text="停用" 
+                size="small"
+                :before-change="() => handleDeactivate(row)"
+              />
+           </template>
+        </el-table-column>
+        
+        <el-table-column :label="$t('common.actions')" width="100" fixed="right" align="center">
             <template #default="{ row }">
-              <el-space :size="10" :spacer="spacer">
-                <el-button 
-                   link 
-                   type="primary" 
-                   @click="openDrawer(row, 'edit')" 
-                   :disabled="row.is_protected"
-                >
-                   {{ $t('common.edit') }}
-                </el-button>
-                <el-switch 
-                   v-model="row.is_active" 
-                   :disabled="row.is_protected"
-                   inline-prompt
-                   active-text="啟用" 
-                   inactive-text="停用" 
-                   size="small"
-                   :before-change="() => handleDeactivate(row)"
-                />
-              </el-space>
+              <el-button
+                type="primary" 
+                plain
+                round
+                size="small"
+                @click="openDrawer(row, 'edit')" 
+                :disabled="row.is_protected"
+              >
+                  {{ $t('common.edit') }}
+              </el-button>
             </template>
         </el-table-column>
       </el-table>
@@ -139,17 +141,19 @@
 
     <!-- Area D: Edit Drawer -->
      <EditEmployeeDrawer
-      v-model="dialogVisible"
+      v-model="drawerVisible"
       :editUserId="editUserId"
+      :current-user="currentUser"
       :roles="roles"
       @fetch-users="fetchUsers"
+      @clear-user="clearUser"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { h, ref, reactive, onMounted } from 'vue';
-import { ElMessage, ElMessageBox, ElDivider } from 'element-plus';
+import { ref, reactive, onMounted } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import dayjs from 'dayjs';
 import { getUsersApi, getRolesApi, updateUserApi, deleteUserApi, type AccountInfo, type RoleInfo } from '@/api/user';
 import EditEmployeeDrawer from './components/EditEmployeeDrawer.vue';
@@ -174,17 +178,20 @@ const queryParams = reactive<QueryParams>({
   role: 'employee'
 });
 
-// Dialog State
-const dialogVisible = ref(false);
+// Drawer State
+const drawerVisible = ref(false);
 const editUserId = ref('');
-const spacer = h(ElDivider, { direction: 'vertical' })
 
-const form = reactive({
-  name: '',
+const currentUser = reactive<AccountInfo>({
+  id: '',
   email: '',
+  name: null,
+  role: '',
   role_id: '',
-  employee_subtype: '',
-  is_active: false
+  employee_subtype: null,
+  is_active: false,
+  is_protected: false,
+  created_at: ''
 });
 
 // Helpers
@@ -250,20 +257,25 @@ const resetQuery = () => {
 
 const openDrawer = (row: AccountInfo | null, type: string) => {
   if (type === 'edit' && row) {
-    const {id, name, email, role_id, employee_subtype, is_active} = row;
-    editUserId.value = id;
-    form.name = name || '';
-    form.email = email;
-    form.role_id = role_id || '';
-    form.employee_subtype = employee_subtype || '';
-    form.is_active = is_active;
+    editUserId.value = row.id;
+    Object.assign(currentUser, row);
   }
-  
-  if (formRef.value) {
-    formRef.value.clearValidate();
-  }
-  dialogVisible.value = true;
+  drawerVisible.value = true;
 };
+
+const clearUser = () => {
+  Object.assign(currentUser, {
+    id: '',
+    email: '',
+    name: null,
+    role: '',
+    role_id: '',
+    employee_subtype: null,
+    is_active: false,
+    is_protected: false,
+    created_at: ''
+  })
+}
 
 const handleDeactivate = (row: AccountInfo): Promise<boolean> => {
   return new Promise((resolve, reject) => {

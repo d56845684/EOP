@@ -1,5 +1,5 @@
 <template>
-  <div class="aside w-180px overflow-unset transition-all duration-300" :class="{ '!w-64px': isCollapse }">
+  <div class="aside w-180px  overflow-unset transition-all duration-300" :class="{ '!w-64px': isCollapse }">
     <div class="aside-header relative flex items-center gap-2 pt-3 pb-1.7 px-3 transition-all duration-300">
       <el-image :src="logo" fit="contain" class="w-10 y-10 flex-shrink-0" />
       <div class="w-full text-size-4 line-height-5 font-bold color-[#073572] overflow-hidden transition-all duration-300" :class="{ '!w-0': isCollapse }">EOP<br>ENGLISH</div>

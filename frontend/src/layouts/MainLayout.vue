@@ -5,9 +5,8 @@
       <NavBar @logout="handleLogout" />
 
       <el-main class="main-content">
-        <router-view v-slot="{ Component }">
+        <router-view v-slot="{ Component }" style="min-height: calc(100vh - 120px);">
           <transition name="fade" mode="out-in">
-            <!-- Keep Alive could go here -->
             <component :is="Component" />
           </transition>
         </router-view>

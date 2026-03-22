@@ -1,49 +1,49 @@
 <template>
-  <el-drawer v-model="show">
-    <el-form :model="form" :rules="rules" ref="formRef" label-width="140px" v-loading="submitting">
-      <el-form-item label="Name">
-          <span>{{ form.name || '-' }}</span>
+  <el-drawer v-model="show" :title="editUserId ? `${$t('common.edit')} - ${currentUser.name}` : `${$t('common.add')}${$t('account.account')}`">
+    <el-form :model="form" :rules="rules" ref="formRef" label-position="top" label-width="140px" v-loading="submitting">
+      <el-form-item label="暱稱" prop="name">
+          <el-input v-model="form.name" />
       </el-form-item>
       
-      <el-form-item label="Email">
-          <span>{{ form.email }}</span>
+      <el-form-item label="Email帳號" prop="email">
+          <el-input v-model="form.email" />
       </el-form-item>
 
       <el-form-item :label="$t('account.role')" prop="role_id">
           <el-select v-model="form.role_id" style="width: 100%;">
               <el-option 
                 v-for="r in roles" 
-                :key="r.id" 
+                :key="r.key" 
                 :label="r.name" 
                 :value="r.id" 
               />
           </el-select>
       </el-form-item>
       
-      <el-form-item label="Employee Subtype" prop="employee_subtype">
+      <el-form-item label="員工類別" prop="employee_subtype">
           <el-input v-model="form.employee_subtype" />
       </el-form-item>
 
-      <el-form-item :label="$t('common.status')" prop="is_active">
+      <!-- <el-form-item :label="$t('common.status')" prop="is_active">
           <el-switch 
             v-model="form.is_active" 
             active-text="啟用" 
             inactive-text="停用" 
           />
-      </el-form-item>
+      </el-form-item> -->
 
       <el-form-item>
-        <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="handleSave" :loading="submitting">{{ $t('common.save') }}</el-button>
+        <el-button round @click="handleClose">{{ $t('common.cancel') }}</el-button>
+        <el-button round type="primary" @click="handleSave" :loading="submitting">{{ $t('common.save') }}</el-button>
       </el-form-item>
     </el-form>
   </el-drawer>
 </template>
 
 <script setup lang="ts">
-  import { ref, reactive, computed } from 'vue';
+  import { ref, reactive, computed, watch, type PropType } from 'vue';
   import { ElMessage, type FormRules, type FormInstance } from 'element-plus';
-  import { updateUserApi, type RoleInfo } from '@/api/user';
+  import { updateUserApi, type RoleInfo, type AccountInfo } from '@/api/user';
 
   const submitting = ref(false);
   const formRef = ref<FormInstance>();
@@ -59,24 +59,16 @@
       required: true
     },
     roles: {
-      type: Array<RoleInfo>,
+      type: Array as PropType<RoleInfo[]>,
+      required: true
+    },
+    currentUser: {
+      type: Object as PropType<AccountInfo>,
       required: true
     }
   });
 
-  const show = computed({
-    get: () => props.modelValue,
-    set: (value:boolean) => {
-      emit('update:modelValue', value);
-    }
-  });
-
-
-  const rules = reactive<FormRules>({
-    role_id: [{ required: true, message: 'Role is required', trigger: 'change' }]
-  });
-  
-  const form = reactive({
+  const form = ref({
     name: '',
     email: '',
     role_id: '',
@@ -84,7 +76,39 @@
     is_active: false
   });
 
-  const emit = defineEmits(['update:modelValue', 'fetch-users']);
+  const rules = reactive<FormRules>({
+    role_id: [{ required: true, message: 'Role is required', trigger: 'change' }]
+  });
+
+  watch(() => props.currentUser, (newVal) => {
+    console.log(newVal)
+    if (newVal && newVal.id) {
+      Object.keys(form.value).forEach((key: string) => {
+        (form.value as Record<string, any>)[key] = newVal[key as keyof AccountInfo];
+      });
+    }
+  }, { immediate: true, deep: true });
+  
+  const emit = defineEmits(['update:modelValue', 'fetch-users', 'clear-user']);
+
+  const show = computed({
+    get: () => props.modelValue,
+    set: (value:boolean) => {
+      emit('update:modelValue', value);
+      emit('clear-user')
+    }
+  });
+
+  const resetForm = (formEl: FormInstance | undefined) => {
+    if (!formEl) return
+    formEl.resetFields()
+  }
+
+  const handleClose = () => {
+    resetForm(formRef.value)
+    emit('update:modelValue', false);
+    emit('clear-user')
+  }
 
   const handleSave = async () => {
     if (!formRef.value) return;
@@ -94,14 +118,15 @@
         submitting.value = true;
         try {
           await updateUserApi(props.editUserId, {
-            role_id: form.role_id,
-            employee_subtype: form.employee_subtype || null,
-            is_active: form.is_active
+            role_id: form.value.role_id,
+            employee_subtype: form.value.employee_subtype || null,
+            is_active: form.value.is_active
           });
           ElMessage.success('更新成功');
           dialogVisible.value = false;
           emit('update:modelValue', false);
           emit('fetch-users');
+          emit('clear-user')
         } catch (error) {
           ElMessage.error('更新失敗');
         } finally {

@@ -1,12 +1,27 @@
 <template>
   <div class="course-list">
+    <div class="flex justify-between items-center px-1 mb-2">
+      <h3 class="my-0">{{ $t('menu.course_mgmt') }}</h3>
+      <el-button
+        v-permission="'accounts.create'"
+        type="primary"
+        round
+        class="h-9 px-1"
+        @click="openDrawer(null, 'add')"
+      >
+        <template #icon>
+          <div class="i-hugeicons:plus-sign-square" />
+        </template>
+        {{ $t('course.add') }}
+      </el-button>
+    </div>
     <el-card>
-      <template #header>
+      <!-- <template #header>
         <div class="header">
           <span>{{ $t('course.title') }}</span>
           <el-button type="primary" @click="openDrawer(null)">{{ $t('course.add') }}</el-button>
         </div>
-      </template>
+      </template> -->
       
       <!-- Filter Section -->
       <div class="filter-container" style="margin-bottom: 20px;">
@@ -18,7 +33,11 @@
               clearable
               @keyup.enter="handleSearch"
               style="width: 250px"
-            />
+            >
+              <template #prefix>
+                <div class="i-hugeicons:search-01" />
+              </template>
+            </el-input>
           </el-form-item>
           <el-form-item :label="$t('course.labelStatus')">
             <el-select v-model="queryParams.is_active" style="width: 120px" @change="handleSearch">
@@ -28,8 +47,18 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" :icon="Search" @click="handleSearch">{{ $t('course.btnSearch') }}</el-button>
-            <el-button :icon="Refresh" @click="handleReset">{{ $t('course.btnReset') }}</el-button>
+            <el-button type="primary" round @click="handleSearch">
+              <template #icon>
+                <div class="i-hugeicons:search-01" />
+              </template>
+              {{ $t('course.btnSearch') }}
+            </el-button>
+            <el-button round @click="handleReset">
+              <template #icon>
+                <div class="i-hugeicons:arrow-reload-horizontal" />
+              </template>
+              {{ $t('course.btnReset') }}
+            </el-button>
           </el-form-item>
         </el-form>
       </div>
@@ -44,10 +73,13 @@
             <el-tag :type="row.is_active ? 'success' : 'info'">{{ row.is_active ? 'Yes' : 'No' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.actions')">
+        <el-table-column :label="$t('common.actions')" fixed="right" width="180px" align="center">
           <template #default="{ row }">
-             <el-button link type="primary" @click="openDrawer(row)">{{ $t('common.edit') }}</el-button>
-             <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
+             <el-button type="primary" plain round size="small" @click="openDrawer(row, 'edit')">{{ $t('common.edit') }}</el-button>
+             <el-button type="danger" link size="small" @click="handleDelete(row)">
+              <div class="i-hugeicons:delete-02 mr-2px" />
+              {{ $t('common.delete') }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -94,7 +126,6 @@
 import { ref, reactive, onMounted } from 'vue';
 import { getCourseList, createCourse, updateCourse, deleteCourse, type CourseResponse } from '@/api/course';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Search, Refresh } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -150,8 +181,8 @@ onMounted(() => {
     fetchData();
 });
 
-const openDrawer = (c: CourseResponse | null) => {
-    if (c) {
+const openDrawer = (c: CourseResponse | null, type: string) => {
+    if (type === 'edit' && c) {
         form.value = { ...c };
     } else {
         form.value = { 

@@ -166,13 +166,13 @@
             </div>
             <el-button 
               type="danger" 
-              size="large"
+              size="small"
               link
               @click="handleDelete(row)"
               v-permission="'students.delete'"
             >
-              <div class="i-hugeicons:delete-02" />
-              <!-- {{ $t('common.delete') }} -->
+              <div class="i-hugeicons:delete-02 mr-2px" />
+              {{ $t('common.delete') }}
             </el-button>
           </template>
         </el-table-column>
@@ -608,7 +608,4 @@ onMounted(() => {
     }
   }
 }
-// :deep(.el-drawer__header) {
-//   margin-bottom: 10px !important;
-// }
 </style>

@@ -1,309 +1,381 @@
-<script setup lang="ts">
-import { ref, reactive } from 'vue';
-import { useMockStore, type RoleDef, PERMISSION_TREE_DATA } from '../../stores/mockStore';
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
-import { Plus, Delete, Edit } from '@element-plus/icons-vue';
-import dayjs from 'dayjs';
-
-// --- Store ---
-const store = useMockStore();
-// Ensure we fetch/sync roles mainly if needed, but they are in state. 
-// We can reactively use store.roles
-
-// --- State ---
-const drawerVisible = ref(false);
-const isEdit = ref(false);
-const treeRef = ref<any>(null); // el-tree instance
-
-const formRef = ref<FormInstance>();
-const formData = reactive<RoleDef>({
-  id: '',
-  name: '',
-  note: '',
-  status: true,
-  permissions: [],
-  updatedAt: '',
-});
-
-const rules = reactive<FormRules>({
-  name: [{ required: true, message: 'Role Name is required', trigger: 'blur' }],
-});
-
-// --- Actions ---
-
-const handleAdd = () => {
-  isEdit.value = false;
-  formData.id = '';
-  formData.name = '';
-  formData.note = '';
-  formData.status = true;
-  formData.permissions = [];
-  formData.updatedAt = '';
-  drawerVisible.value = true;
-  // Reset tree checking
-  if (treeRef.value) {
-    treeRef.value.setCheckedKeys([]);
-  }
-};
-
-const handleEdit = (row: RoleDef) => {
-  if (row.id === 'super_admin') return; // Safety check
-  isEdit.value = true;
-  Object.assign(formData, row);
-  drawerVisible.value = true;
-  // Set tree checking
-  // We need to wait for drawer render or use nextTick, but pure v-model on tree works if data bound? 
-  // el-tree setCheckedKeys is more reliable
-  setTimeout(() => {
-    if (treeRef.value) {
-      treeRef.value.setCheckedKeys(row.permissions);
-    }
-  }, 100);
-};
-
-const handleDelete = async (row: RoleDef) => {
-  if (row.id === 'super_admin') return;
-  try {
-    await ElMessageBox.confirm(
-      `Are you sure you want to delete role "${row.name}"?`,
-      'Warning',
-      { type: 'warning' }
-    );
-    await store.deleteRole(row.id);
-  } catch (e) {
-    // cancelled
-  }
-};
-
-const handleStatusChange = async (row: RoleDef, val: boolean) => {
-  if (row.id === 'super_admin') {
-     row.status = true; // Revert visually if somehow triggered
-     return;
-  }
-  // We should update the store
-  await store.saveRole({ ...row, status: val });
-};
-
-const handleSave = async (formEl: FormInstance | undefined) => {
-  if (!formEl) return;
-  await formEl.validate(async (valid) => {
-    if (valid) {
-      // Get permissions from tree
-      const checkedKeys = treeRef.value?.getCheckedKeys() || [];
-      const halfCheckedKeys = treeRef.value?.getHalfCheckedKeys() || [];
-      // Usually we want both or just checked/leafs depending on logic.
-      // Requirements said "checks parent checks children" (standard behavior).
-      // If we only store checked keys, el-tree restores fine.
-      
-      const rolePayload: RoleDef = {
-        ...formData,
-        permissions: [...checkedKeys, ...halfCheckedKeys], // Storing all implies full restoration strategy logic? 
-        // Actually, standard el-tree :default-checked-keys expects leaf nodes mostly, 
-        // or just all checked ids. Let's just store all checked.
-      };
-
-      try {
-        await store.saveRole(rolePayload);
-        drawerVisible.value = false;
-      } catch (e: any) {
-        ElMessage.error(e.message || 'Error saving role');
-      }
-    }
-  });
-};
-
-// --- Tree Actions ---
-const handleCheck = (data: any, { checkedKeys }: { checkedKeys: string[] }) => {
-  if (!treeRef.value) return;
-
-  const id = data.id as string;
-  
-  // Logic 1: If Edit is checked, View MUST be checked.
-  if (id.endsWith(':edit')) {
-     const isChecked = checkedKeys.includes(id);
-     if (isChecked) {
-         const viewId = id.replace(':edit', ':view');
-         if (!checkedKeys.includes(viewId)) {
-             treeRef.value.setChecked(viewId, true, false);
-         }
-     }
-  }
-
-  // Logic 2: If View is unchecked, Edit MUST be unchecked.
-  if (id.endsWith(':view')) {
-      const isChecked = checkedKeys.includes(id);
-      if (!isChecked) {
-           const editId = id.replace(':view', ':edit');
-           if (checkedKeys.includes(editId)) {
-               treeRef.value.setChecked(editId, false, false);
-           }
-      }
-  }
-};
-
-const handleSelectAll = () => {
-  if (treeRef.value) {
-    treeRef.value.setCheckedNodes(PERMISSION_TREE_DATA);
-  }
-};
-
-const handleDeselectAll = () => {
-  if (treeRef.value) {
-    treeRef.value.setCheckedKeys([]);
-  }
-};
-
-// --- Styles ---
-const tableRowClassName = ({ row }: { row: RoleDef }) => {
-  if (row.id === 'super_admin') {
-    return 'super-admin-row';
-  }
-  return '';
-};
-
-const formatTime = (iso: string) => dayjs(iso).format('YYYY-MM-DD HH:mm');
-
-</script>
-
 <template>
-  <div class="role-list-page">
-    <div class="page-header">
-      <h2>{{ $t('role.title') }}</h2>
-      <el-button type="primary" :icon="Plus" @click="handleAdd">{{ $t('role.add') }}</el-button>
-    </div>
-
-    <el-card shadow="never">
-      <el-table 
-        :data="store.roles" 
-        style="width: 100%" 
-        :row-class-name="tableRowClassName" 
-        border
+  <div class="role-list">
+    <div class="flex justify-between items-center px-1 mb-2">
+      <h3 class="my-0">{{ $t('menu.role_settings') }}</h3>
+      <el-button
+        v-permission="'roles.create'"
+        type="primary"
+        round
+        class="h-9 px-1"
+        @click="handleCreate"
       >
-        <el-table-column prop="name" :label="$t('role.roleName')" width="200" />
-        <el-table-column prop="note" :label="$t('role.note')" min-width="250" />
-        <el-table-column :label="$t('common.status')" width="100">
+        <template #icon>
+          <div class="i-hugeicons:plus-sign-square" />
+        </template>
+        {{ $t('role.add') }}
+      </el-button>
+    </div>
+    <el-card>
+      <el-table :data="tableData" v-loading="loading" border stripe>
+        <el-table-column prop="name" :label="$t('role.roleName')" min-width="80" />
+        <el-table-column prop="key" :label="$t('role.roleKey')" width="120" align="center">
           <template #default="{ row }">
-            <el-switch
-              v-model="row.status"
-              :disabled="row.id === 'super_admin'"
-              @change="(val: boolean) => handleStatusChange(row, val)"
-            />
+            <el-tag size="small" :type="roleColor[row.key] || 'info'" class="font-size-10px">
+              <div class="flex items-center gap-1">
+                <i v-if="row.is_system" class="i-hugeicons:security-lock font-size-11px" />
+                {{ row.key }}
+              </div>
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.lastUpdated')" width="180">
+        <el-table-column prop="description" :label="$t('role.description')" min-width="200" />
+        <!-- <el-table-column :label="$t('role.pageCount')" width="100" align="center">
           <template #default="{ row }">
-            {{ formatTime(row.updatedAt) }}
+            <el-tag :type="row.page_count ? 'success' : 'info'">{{ row.page_count || 0 }}</el-tag>
           </template>
-        </el-table-column>
-        
-        <el-table-column :label="$t('common.actions')" width="200" fixed="right">
+        </el-table-column> -->
+        <!-- <el-table-column :label="$t('role.systemRole')" width="100" align="center">
           <template #default="{ row }">
-            <div v-if="row.id !== 'super_admin'">
-              <el-button link type="primary" :icon="Edit" @click="handleEdit(row)">
-                {{ $t('role.settings') }}
-              </el-button>
-              <el-button link type="danger" :icon="Delete" @click="handleDelete(row)">
-                {{ $t('common.delete') }}
-              </el-button>
-            </div>
-            <div v-else>
-              <el-tag type="info" size="small">System Locked</el-tag>
+            <el-tag v-if="row.is_system" type="danger" effect="dark">{{ $t('common.yes') }}</el-tag>
+            <span v-else class="text-gray-400">-</span>
+          </template>
+        </el-table-column> -->
+        <el-table-column :label="$t('common.actions')" width="240" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-space v-if="!needLock(row)" :size="10" style="width: 100%; justify-content: flex-end;">
+              <div class="flex justify-end">
+                <el-button
+                  v-permission="'permissions.pages'"
+                  round
+                  size="small"
+                  type="success"
+                  plain
+                  @click="handlePermission(row)"
+                >
+                  {{ $t('role.settings') }}
+                </el-button>
+                <el-button
+                  v-permission="'permissions.roles'"
+                  round
+                  size="small"
+                  type="primary"
+                  plain
+                  @click="handleEdit(row)"
+                >
+                  {{ $t('common.edit') }}
+                </el-button>
+              </div>
+              <el-popconfirm
+                :title="$t('common.confirm') + $t('common.delete') + '?'"
+                @confirm="handleDelete(row)"
+              >
+                <template #reference>
+                  <el-button v-permission="'permissions.roles'" round link size="small" type="danger" plain>
+                    <div class="i-hugeicons:delete-02 mr-2px" />
+                    {{ $t('common.delete') }}
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </el-space>
+            <div v-else class="flex justify-center">
+              <div class="i-hugeicons:square-lock-01 text-md text-gray-400" />
             </div>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <!-- Role Drawer -->
-    <el-drawer
-      v-model="drawerVisible"
+    <!-- Role Form Dialog -->
+    <el-dialog
+      v-model="dialogVisible"
       :title="isEdit ? $t('role.editTitle') : $t('role.addTitle')"
-      size="500px"
-      append-to-body
+      width="500px"
+      @closed="resetForm"
     >
-      <el-form ref="formRef" :model="formData" :rules="rules" layout="vertical" label-position="top">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+        <el-form-item :label="$t('role.roleKey')" prop="key">
+          <el-input v-model="form.key" :disabled="isEdit" :placeholder="$t('role.roleKeyPlaceholder')" />
+        </el-form-item>
         <el-form-item :label="$t('role.roleName')" prop="name">
-          <el-input v-model="formData.name" placeholder="e.g. Finance Manager" />
+          <el-input v-model="form.name" :placeholder="$t('role.roleNamePlaceholder')" />
         </el-form-item>
-        
-        <el-form-item :label="$t('role.description')" prop="note">
-          <el-input 
-            v-model="formData.note" 
-            type="textarea" 
-            :rows="2" 
-            placeholder="Role responsibilities..." 
-          />
-        </el-form-item>
-        
-        <el-form-item :label="$t('role.permissions')">
-           <div class="tree-tools">
-              <el-button size="small" @click="handleSelectAll">{{ $t('role.selectAll') }}</el-button>
-              <el-button size="small" @click="handleDeselectAll">{{ $t('role.deselectAll') }}</el-button>
-           </div>
-           <div class="tree-container">
-             <el-tree
-                ref="treeRef"
-                :data="PERMISSION_TREE_DATA"
-                show-checkbox
-                node-key="id"
-                default-expand-all
-                :expand-on-click-node="false"
-                @check="handleCheck"
-             />
-           </div>
+        <el-form-item :label="$t('role.description')" prop="description">
+          <el-input v-model="form.description" type="textarea" :rows="3" :placeholder="$t('role.descriptionPlaceholder')" />
         </el-form-item>
       </el-form>
-      
       <template #footer>
-        <div class="drawer-footer">
-          <el-button @click="drawerVisible = false">{{ $t('common.cancel') }}</el-button>
-          <el-button type="primary" @click="handleSave(formRef)">{{ $t('common.confirm') }}</el-button>
-        </div>
+        <span class="dialog-footer">
+          <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
+          <el-button type="primary" :loading="submitLoading" @click="submitForm">
+            {{ $t('common.confirm') }}
+          </el-button>
+        </span>
       </template>
+    </el-dialog>
+
+    <!-- Permission Drawer -->
+    <el-drawer
+      v-model="drawerVisible"
+      :title="`${$t('role.settings')} - ${currentRole?.name}`"
+      size="400px"
+      destroy-on-close
+    >
+      <div class="h-full flex flex-col" v-loading="treeLoading">
+        <div class="flex-1 overflow-y-auto pr-2">
+          <el-tree
+            ref="treeRef"
+            :data="permissionTree"
+            show-checkbox
+            node-key="id"
+            :props="defaultProps"
+            default-expand-all
+            :expand-on-click-node="false"
+          />
+        </div>
+        <div class="mt-4 pt-4 border-t flex justify-end gap-2">
+          <el-button @click="drawerVisible = false">{{ $t('common.cancel') }}</el-button>
+          <el-button type="primary" :loading="saveTreeLoading" @click="savePermissions">
+            {{ $t('common.save') }}
+          </el-button>
+        </div>
+      </div>
     </el-drawer>
   </div>
 </template>
 
+<script setup lang="ts">
+import { ref, reactive, onMounted, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
+import {
+  getRolesApi, createRoleApi, updateRoleApi, deleteRoleApi,
+  getPagesApi, getRolePagesApi, updateRolePagesApi
+} from '@/api/role';
+import type { RoleInfo, RoleCreate, RoleUpdate, PageResponse } from '@/api/role';
+
+const { t } = useI18n();
+
+// --- Role List State ---
+const loading = ref(false);
+const tableData = ref<RoleInfo[]>([]);
+const roleColor: Record<string, string> = {
+  'admin': 'danger',
+  'teacher': 'success',
+  'student': 'warning',
+  'employee': 'primary',
+}
+
+// --- Form State ---
+const dialogVisible = ref(false);
+const isEdit = ref(false);
+const submitLoading = ref(false);
+const formRef = ref<FormInstance>();
+const form = reactive<RoleCreate & { id?: string }>({
+  key: '',
+  name: '',
+  description: '',
+});
+
+const rules = reactive<FormRules>({
+  key: [{ required: true, message: 'Required', trigger: 'blur' }],
+  name: [{ required: true, message: 'Required', trigger: 'blur' }],
+});
+
+// --- Permission Tree State ---
+const drawerVisible = ref(false);
+const treeLoading = ref(false);
+const saveTreeLoading = ref(false);
+const treeRef = ref<any>(null);
+const currentRole = ref<RoleInfo | null>(null);
+const permissionTree = ref<any[]>([]);
+
+const defaultProps = {
+  children: 'children',
+  label: 'name',
+};
+
+// --- Tree Building Logic ---
+interface TreeNode extends PageResponse {
+  children?: TreeNode[];
+}
+
+const buildTree = (pages: PageResponse[]): TreeNode[] => {
+  const map = new Map<string, TreeNode>();
+  const tree: TreeNode[] = [];
+
+  // First pass: create node objects
+  pages.forEach(page => {
+    map.set(page.key, { ...page, children: [] });
+  });
+
+  // Second pass: attach to parents
+  pages.forEach(page => {
+    const node = map.get(page.key);
+    if (node) {
+      if (page.parent_key && map.has(page.parent_key)) {
+        map.get(page.parent_key)!.children!.push(node);
+      } else {
+        tree.push(node);
+      }
+    }
+  });
+
+  return tree;
+};
+
+// --- Methods ---
+
+const needLock = (row: RoleInfo) => {
+  return ['admin', 'teacher', 'student', 'employee'].includes(row.key)
+}
+
+const fetchRoles = async () => {
+  loading.value = true;
+  try {
+    const res = await getRolesApi();
+    if (res?.data) {
+      tableData.value = res?.data;
+    }
+  } catch (error) {
+    console.error('Failed to fetch roles:', error);
+    ElMessage.error('Failed to load roles');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const handleCreate = () => {
+  isEdit.value = false;
+  dialogVisible.value = true;
+};
+
+const handleEdit = (row: RoleInfo) => {
+  isEdit.value = true;
+  form.id = row.id;
+  form.key = row.key;
+  form.name = row.name;
+  form.description = row.description || '';
+  dialogVisible.value = true;
+};
+
+const handleDelete = async (row: RoleInfo) => {
+  try {
+    await deleteRoleApi(row.id);
+    ElMessage.success(t('common.done'));
+    fetchRoles();
+  } catch (error) {
+    console.error('Failed to delete role:', error);
+  }
+};
+
+const resetForm = () => {
+  if (formRef.value) formRef.value.resetFields();
+  form.id = undefined;
+  form.key = '';
+  form.name = '';
+  form.description = '';
+};
+
+const submitForm = async () => {
+  if (!formRef.value) return;
+  await formRef.value.validate(async (valid) => {
+    if (valid) {
+      submitLoading.value = true;
+      try {
+        if (isEdit.value && form.id) {
+          const updateData: RoleUpdate = {
+            name: form.name,
+            description: form.description,
+          };
+          await updateRoleApi(form.id, updateData);
+          ElMessage.success(t('common.done'));
+        } else {
+          await createRoleApi(form);
+          ElMessage.success(t('common.done'));
+        }
+        dialogVisible.value = false;
+        fetchRoles();
+      } catch (error) {
+        console.error('Failed to save role:', error);
+      } finally {
+        submitLoading.value = false;
+      }
+    }
+  });
+};
+
+const handlePermission = async (row: RoleInfo) => {
+  currentRole.value = row;
+  drawerVisible.value = true;
+  treeLoading.value = true;
+  try {
+    // 1. Fetch all pages and build tree
+    const pagesRes = await getPagesApi();
+    let allPages: PageResponse[] = [];
+    if (pagesRes.data) {
+      allPages = pagesRes.data;
+      permissionTree.value = buildTree(allPages);
+    }
+
+    // 2. Fetch current role permissions
+    const rolePagesRes = await getRolePagesApi(row.id);
+    const existingPages = rolePagesRes?.pages || [];
+    
+    // We only want to set checked keys for leaf nodes in element-plus tree, 
+    // otherwise parent nodes will auto-select all children.
+    const parentKeys = new Set(allPages.map(p => p.parent_key).filter(Boolean));
+    const leafIds = existingPages
+        .filter(p => !parentKeys.has(p.key)) // only keys that are not parents of any other node
+        .map(p => p.id);
+    
+    // Wait for the drawer and tree to be rendered
+    nextTick(() => {
+      // Element Plus Drawer might have a transition delay, so nextTick + small timeout is safest for treeRef
+      setTimeout(() => {
+        if (treeRef.value) {
+          treeRef.value.setCheckedKeys(leafIds);
+        }
+      }, 50);
+    });
+
+  } catch (error) {
+    console.error('Failed to load permissions:', error);
+    ElMessage.error('Failed to load permissions');
+  } finally {
+    treeLoading.value = false;
+  }
+};
+
+const savePermissions = async () => {
+  if (!currentRole.value || !treeRef.value) return;
+  
+  saveTreeLoading.value = true;
+  try {
+    // Get both fully checked and half checked (indeterminate) keys
+    const checkedKeys = treeRef.value.getCheckedKeys();
+    const halfCheckedKeys = treeRef.value.getHalfCheckedKeys();
+    const allPageIds = [...checkedKeys, ...halfCheckedKeys];
+
+    await updateRolePagesApi({
+      role_id: currentRole.value.id,
+      page_ids: allPageIds,
+    });
+    
+    ElMessage.success(t('common.done'));
+    drawerVisible.value = false;
+    fetchRoles(); // Refresh table to update page_count
+  } catch (error) {
+    console.error('Failed to save permissions:', error);
+  } finally {
+    saveTreeLoading.value = false;
+  }
+};
+
+onMounted(() => {
+  fetchRoles();
+});
+</script>
+
 <style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.tree-tools {
-  margin-bottom: 10px;
-}
-.tree-container {
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  padding: 10px;
-  max-height: 300px;
-  overflow-y: auto;
-}
-.drawer-footer {
-  display: flex;
-  justify-content: flex-end;
-}
-
-/* Super Admin Highlight */
-/* Super Admin Highlight */
-:deep(.super-admin-row) {
-  --super-admin-bg: #fdfdfd;
-  background-color: var(--super-admin-bg) !important;
-}
-
-html.dark :deep(.super-admin-row) {
-  --super-admin-bg: #1d1e1f; /* Dark background matching Element fast dark theme */
-  background-color: var(--super-admin-bg) !important;
-}
-
-:deep(.super-admin-row:hover > td) {
-  background-color: rgba(0, 0, 0, 0.05) !important;
-}
-
-html.dark :deep(.super-admin-row:hover > td) {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-}
 </style>
