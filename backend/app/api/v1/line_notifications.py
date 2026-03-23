@@ -20,6 +20,9 @@ from app.schemas.line import (
     TestNotificationResponse,
     NotificationLogItem,
     NotificationHistoryResponse,
+    LineBindingAdminItem,
+    LineBindingsAdminResponse,
+    SendLineMessageRequest,
 )
 from app.schemas.response import BaseResponse
 
@@ -245,4 +248,90 @@ async def get_notification_history(
             total=0,
             page=page,
             page_size=page_size,
+        )
+
+
+@router.get("/bindings", response_model=LineBindingsAdminResponse)
+async def list_line_bindings(
+    channel: Optional[ChannelType] = Query(None, description="頻道類型篩選"),
+    current_user: CurrentUser = Depends(require_staff),
+):
+    """
+    列出 LINE 綁定用戶（員工/管理員專用）
+
+    可依頻道類型篩選，回傳綁定的用戶資訊。
+    """
+    try:
+        pool = supabase_service.pool
+        query = """
+            SELECT
+                lb.user_id::text,
+                u.email,
+                COALESCE(s.name, t.name, e.name) AS name,
+                lb.line_user_id,
+                lb.line_display_name,
+                lb.channel_type
+            FROM line_user_bindings lb
+            LEFT JOIN users u ON lb.user_id = u.id
+            LEFT JOIN user_profiles up ON u.id = up.id
+            LEFT JOIN students s ON up.student_id = s.id
+            LEFT JOIN teachers t ON up.teacher_id = t.id
+            LEFT JOIN employees e ON up.employee_id = e.id
+            WHERE lb.binding_status = 'active'
+        """
+        params = []
+        if channel:
+            query += " AND lb.channel_type = $1"
+            params.append(channel)
+        query += " ORDER BY lb.channel_type, lb.line_display_name"
+
+        rows = await pool.fetch(query, *params)
+        items = [
+            LineBindingAdminItem(
+                user_id=row["user_id"],
+                email=row["email"],
+                name=row["name"],
+                line_user_id=row["line_user_id"],
+                line_display_name=row["line_display_name"],
+                channel_type=row["channel_type"],
+            )
+            for row in rows
+        ]
+        return LineBindingsAdminResponse(items=items)
+    except Exception:
+        return LineBindingsAdminResponse(success=False, items=[])
+
+
+@router.post("/send", response_model=TestNotificationResponse)
+async def send_line_message(
+    data: SendLineMessageRequest,
+    current_user: CurrentUser = Depends(require_staff),
+):
+    """
+    發送 LINE 訊息給指定用戶（員工/管理員專用）
+
+    直接透過 LINE Messaging API 發送文字訊息。
+    """
+    if not line_message_service.is_channel_configured(data.channel):
+        return TestNotificationResponse(
+            success=False,
+            message=f"LINE {data.channel} 頻道未設定",
+            channel_type=data.channel,
+        )
+
+    result = await line_message_service.send_text_message(
+        data.line_user_id, data.message, data.channel
+    )
+
+    if result:
+        return TestNotificationResponse(
+            success=True,
+            message="訊息已發送",
+            channel_type=data.channel,
+        )
+    else:
+        return TestNotificationResponse(
+            success=False,
+            message="發送失敗",
+            channel_type=data.channel,
         )

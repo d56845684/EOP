@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { User, BookOpen, Home, Settings, LogOut, Calendar, FileText, Users, Clock, GraduationCap, DollarSign, Video, Shield } from 'lucide-react'
+import { User, BookOpen, Home, Settings, LogOut, Calendar, FileText, Users, Clock, GraduationCap, DollarSign, Video, Shield, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 
@@ -26,6 +26,7 @@ const navItems: NavItem[] = [
   { href: '/students', label: '學生管理', icon: <GraduationCap className="w-5 h-5" />, pageKey: 'students.list' },
   { href: '/teachers', label: '教師管理', icon: <Users className="w-5 h-5" />, pageKey: 'teachers.list' },
   { href: '/zoom-accounts', label: 'Zoom 帳號', icon: <Video className="w-5 h-5" />, pageKey: 'employees.list' },
+  { href: '/line-testing', label: 'LINE 測試', icon: <MessageSquare className="w-5 h-5" />, pageKey: 'employees.list' },
   { href: '/accounts', label: '帳號管理', icon: <Shield className="w-5 h-5" />, pageKey: 'permissions.users' },
   { href: '/role-permissions', label: '角色權限', icon: <Settings className="w-5 h-5" />, pageKey: 'permissions.roles' },
 ]

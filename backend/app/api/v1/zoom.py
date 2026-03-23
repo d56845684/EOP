@@ -433,24 +433,16 @@ async def oauth_callback(
     if not state:
         raise HTTPException(status_code=400, detail="缺少 state 參數")
 
-    # 根據 user_id 找 teacher
-    users_profile = await supabase_service.table_select(
-        table="users_profile",
-        select="email",
-        filters={"user_id": state},
+    # 根據 user_id 直接從 user_profiles 取 teacher_id
+    profile = await supabase_service.table_select(
+        table="user_profiles",
+        select="teacher_id",
+        filters={"id": state},
     )
-    if not users_profile:
-        raise HTTPException(status_code=404, detail="找不到使用者")
-
-    teachers = await supabase_service.table_select(
-        table="teachers",
-        select="id",
-        filters={"email": users_profile[0]["email"]},
-    )
-    if not teachers:
+    if not profile or not profile[0].get("teacher_id"):
         raise HTTPException(status_code=404, detail="找不到對應的教師紀錄")
 
-    teacher_id = teachers[0]["id"]
+    teacher_id = profile[0]["teacher_id"]
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
     zoom_data = {
