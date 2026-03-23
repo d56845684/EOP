@@ -10,15 +10,16 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('common.email')" prop="email">
-              <el-input v-model="basicForm.email" />
+            <el-form-item :label="$t('common.phone')" prop="phone">
+              <el-input v-model="basicForm.phone" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
+          
           <el-col :span="12">
-            <el-form-item :label="$t('common.phone')" prop="phone">
-              <el-input v-model="basicForm.phone" />
+            <el-form-item :label="$t('common.email')" prop="email">
+              <el-input v-model="basicForm.email" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -44,7 +45,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { getTeacherList, updateTeacher, type TeacherUpdate } from '@/api/teacher';
+import { getTeacherById, updateTeacher, type TeacherUpdate } from '@/api/teacher';
 import { getCourseOptions, type CourseOption } from '@/api/teacherContract';
 
 const props = defineProps<{
@@ -65,7 +66,7 @@ const saving = ref(false);
 const teacherName = ref('');
 
 const drawerTitle = computed(() => {
-  return teacherName.value ? `${teacherName.value}` : 'Teacher Details';
+  return (basicForm.name ? `${basicForm.name}` : 'Teacher Details') + ` 詳情`;
 });
 
 // --- Tab 1: Basic Info ---
@@ -97,8 +98,8 @@ const fetchData = async () => {
     // Since we don't have a GET /teachers/{id} strictly defined in the snippet, we fetch from list.
     // In a real scenario there might be a getTeacher(id).
     // Assuming backend returns it in the list endpoint.
-    const res = await getTeacherList({ search: props.teacherId }); // pseudo fetch. Or pass full teacher object from parent
-    const target = res.data.find(t => t.id === props.teacherId);
+    const res = await getTeacherById(props.teacherId); // pseudo fetch. Or pass full teacher object from parent
+    const target = res.data;
     if (target) {
       teacherName.value = target.name;
       basicForm.name = target.name;

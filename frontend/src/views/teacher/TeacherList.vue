@@ -3,7 +3,7 @@
     <div class="flex justify-between items-center px-1 mb-2">
       <h3 class="my-0">{{ $t('teacher.title') }}</h3>
       <el-button
-        v-permission="'accounts.create'"
+        v-permission="'teachers.create'"
         type="primary"
         round
         class="h-9 px-1"
@@ -16,8 +16,8 @@
       </el-button>
     </div>
 
-    <el-card shadow="never" class="mb-4">
-      <el-form :inline="true" :model="queryParams" label-position="top" class="flex gap-4 items-end">
+    <el-card shadow="never" class="mb-14px">
+      <el-form :inline="true" :model="queryParams" label-position="top" class="flex items-end">
         <el-form-item label="關鍵字" class="mb-0">
           <el-input 
             v-model="queryParams.search" 
@@ -58,13 +58,10 @@
 
     <div v-loading="loading">
       <el-row :gutter="20">
-        <el-col :xs="24" :sm="12" :md="12" :lg="12" :xl="12" v-for="teacher in teachersData" :key="teacher.id" class="mb-4">
+        <el-col :xs="24" :sm="24" :md="24" :lg="12" :xl="12" v-for="teacher in teachersData" :key="teacher.id" class="mb-4">
           <el-card shadow="hover" class="h-full relative flex flex-col h-full card-bg">
-            <el-descriptions :title="teacher.name" :column="1" border size="small" class="flex-1">
-              <el-descriptions-item label="編號 (No.)">{{ teacher.teacher_no || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="Email">{{ teacher.email }}</el-descriptions-item>
-              <el-descriptions-item label="電話 (Phone)">{{ teacher.phone || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="狀態 (Status)">
+            <el-descriptions :title="teacher.name" direction="vertical" :column="3" border size="small" class="flex-1">
+              <template #extra>
                 <el-switch 
                   v-model="teacher.is_active" 
                   inline-prompt
@@ -73,23 +70,63 @@
                   size="small"
                   :before-change="() => handleToggleStatus(teacher)"
                 />
+              </template>
+              <el-descriptions-item
+                :rowspan="2"
+                :width="100"
+                label="Photo"
+                align="center"
+              >
+                <el-image
+                  style="width: 100px; height: 100px"
+                  src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"
+                />
+              </el-descriptions-item>
+              <el-descriptions-item label="編號 (No.)">{{ teacher.teacher_no || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="等級" align="center" :width="100">
+                <template #label>
+                  <div class="flex items-center justify-center gap-1">
+                    <div class="i-hugeicons:star-award-02 font-size-14px" />
+                    等級
+                  </div>
+                </template>
+                LV.{{ teacher.teacher_level }}
+              </el-descriptions-item>
+              <el-descriptions-item label="電話 (Phone)" :span="2">{{ teacher.phone || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="Email" :span="3">
+                <div class="text-wrap break-all">{{ teacher.email }}</div>
               </el-descriptions-item>
             </el-descriptions>
-            <div class="flex justify-end mt-4 gap-2">
-              <el-button type="success" plain round size="small">{{ $t('common.contracts') }}</el-button>
-              <el-button type="primary" plain round size="small" @click="openManageDrawer(teacher)">
-                {{ $t('common.viewDetails') }}
-              </el-button>
-              <el-button 
-                v-permission="'teachers.delete'" 
-                type="danger" 
-                link 
-                size="small" 
-                @click="handleDelete(teacher)"
-              >
-                <div class="i-hugeicons:delete-02 mr-2px" />
-                {{ $t('common.delete') }}
-              </el-button>
+            <div class="flex justify-between mt-3 gap-2 px-2">
+              <div class="left">
+                <el-button
+                  v-permission="'teachers.contracts'"
+                  :type="!teacher.email_verified_at ? 'warning' : 'success'"
+                  plain
+                  round
+                  size="small"
+                  @click="openContractDrawer(teacher)"
+                >
+                  <div v-if="!teacher.email_verified_at" class="i-hugeicons:add-circle-half-dot mr-2px" />
+                  <div v-else class="i-hugeicons:legal-document-02 mr-2px" />
+                  {{ !teacher.email_verified_at ? $t('common.addContract') : $t('common.contracts') }}
+                </el-button>
+              </div>
+              <div class="right">
+                <el-button v-permission="'teachers.details'" type="primary" plain round size="small" @click="openDetailDrawer(teacher)">
+                  {{ $t('common.viewDetails') }}
+                </el-button>
+                <el-button 
+                  v-permission="'teachers.delete'" 
+                  type="danger" 
+                  link 
+                  size="small" 
+                  @click="handleDelete(teacher)"
+                >
+                  <div class="i-hugeicons:delete-02 mr-2px" />
+                  {{ $t('common.delete') }}
+                </el-button>
+              </div>
             </div>
           </el-card>
         </el-col>
@@ -111,8 +148,14 @@
 
     <!-- Inner Drawer Component -->
     <TeacherDetailDrawer 
-      v-model="drawerVisible" 
+      v-model="detailDrawerVisible" 
       :teacherId="selectedTeacherId" 
+      @saved="fetchTeachersList" 
+    />
+
+    <TeacherContractDrawer 
+      v-model="contractDrawerVisible"
+      :teacherId="selectedTeacherId"
       @saved="fetchTeachersList" 
     />
 
@@ -147,6 +190,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { getTeacherList, createTeacher, updateTeacher, deleteTeacher, type TeacherListParams, type TeacherResponse, type TeacherCreate } from '@/api/teacher';
 import TeacherDetailDrawer from './components/TeacherDetailDrawer.vue';
+import TeacherContractDrawer from './components/TeacherContractDrawer.vue';
 
 const teachersData = ref<TeacherResponse[]>([]);
 const totalTeachers = ref(0);
@@ -159,7 +203,8 @@ const queryParams = reactive({
   is_active: 'all' as 'all' | boolean
 });
 
-const drawerVisible = ref(false);
+const detailDrawerVisible = ref(false);
+const contractDrawerVisible = ref(false);
 const selectedTeacherId = ref<string | null>(null);
 
 const addDialogVisible = ref(false);
@@ -210,9 +255,14 @@ onMounted(() => {
   fetchTeachersList();
 });
 
-const openManageDrawer = (teacher: TeacherResponse) => {
+const openDetailDrawer = (teacher: TeacherResponse) => {
   selectedTeacherId.value = teacher.id;
-  drawerVisible.value = true;
+  detailDrawerVisible.value = true;
+};
+
+const openContractDrawer = (teacher: TeacherResponse) => {
+  selectedTeacherId.value = teacher.id;
+  contractDrawerVisible.value = true;
 };
 
 const openAddDialog = () => {
@@ -239,7 +289,7 @@ const handleAdd = async () => {
         addDialogVisible.value = false;
         fetchTeachersList();
         // optionally open drawer for newly created teacher if API returned it:
-        // if (res.data?.id) { selectedTeacherId.value = res.data.id; drawerVisible.value = true; }
+        // if (res.data?.id) { selectedTeacherId.value = res.data.id; detailDrawerVisible.value = true; }
       } catch (e: any) {
         ElMessage.error('Failed to add teacher');
       } finally {

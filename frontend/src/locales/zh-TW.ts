@@ -40,6 +40,7 @@ export default {
     searchKeyword: '關鍵字搜尋',
     convertToFormal: '合約開通',
     contracts: '合約管理',
+    addContract: '新增合約',
     courses: '選課紀錄',
   },
   menu: {

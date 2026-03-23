@@ -9,15 +9,15 @@
     'error': ('base': #FB4141,
     ),
   ), $pagination: ('hover-color': #FF9B2F, ),
-  $card: ('border-radius': 10px, ));
+  $card: ('border-radius': 10px, ), );
 
 @use "element-plus/theme-chalk/src/index.scss" as *;
 
-// .el-drawer__header {
-//   padding: 20px;
-//   margin-bottom: 0 !important;
-//   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
-// }
+.el-drawer__header {
+  padding: 20px;
+  margin-bottom: 0 !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+}
 
 // .el-divider__text {
 //   color: #6f6f6f !important;

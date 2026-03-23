@@ -13,7 +13,7 @@
         <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="$t('common.status')" prop="status">
-          <el-select v-model="contractForm.status" class="w-full">
+          <el-select v-model="contractForm.contract_status" class="w-full">
             <el-option label="Pending" value="pending" />
             <el-option label="Active" value="active" />
             <el-option label="Expired" value="expired" />
@@ -149,7 +149,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
-import { getTeacherList, updateTeacher, type TeacherUpdate } from '@/api/teacher';
 import { 
   getTeacherContracts, 
   createTeacherContract, 
@@ -159,12 +158,12 @@ import {
   getTeacherContractDetails,
   createTeacherContractDetail,
   deleteTeacherContractDetail,
-  getCourseOptions,
   type TeacherWorkScheduleCreate,
   type CourseOption,
   type TeacherContractDetailResponse,
   type TeacherContractCreate,
-  type TeacherContractUpdate
+  type TeacherContractUpdate,
+  type TeacherContractResponse
 } from '@/api/teacherContract';
 
 const props = defineProps<{
@@ -181,41 +180,23 @@ const isVisible = computed({
 
 // UI State
 const loading = ref(false);
-const saving = ref(false);
 const savingContract = ref(false);
 const savingSchedules = ref(false);
-const activeTab = ref('basic');
 const teacherName = ref('');
 
-const drawerTitle = computed(() => {
-  return teacherName.value ? `${teacherName.value}` : 'Teacher Details';
-});
-
-// --- Tab 1: Basic Info ---
-const basicFormRef = ref<FormInstance>();
-const basicForm = reactive<TeacherUpdate>({
-  name: '',
-  email: '',
-  phone: '',
-  address: '',
-  bio: '',
-  teacher_level: 1
-});
-
-const basicRules = reactive<FormRules>({
-  name: [{ required: true, message: 'Name is required', trigger: 'blur' }],
-  email: [{ required: true, message: 'Email is required', trigger: 'blur', type: 'email' }]
-});
-
-// --- Tab 2: Contracts ---
 const hasContract = ref(false);
 const contractId = ref<string | null>(null);
 const contractFormRef = ref<FormInstance>();
+const contract = ref<TeacherContractResponse | null>(null);
+
+const drawerTitle = computed(() => {
+  return (contract.value?.teacher_name ? `${contract.value?.teacher_name}` : 'Teacher') + '合約';
+});
 
 const contractDates = ref<[string, string] | null>(null);
 
 const contractForm = reactive({
-  status: 'pending' as any,
+  contract_status: 'pending' as any,
   employment_type: 'hourly' as any,
   trial_completed_bonus: 0,
   trial_to_formal_bonus: 0
@@ -228,13 +209,13 @@ const contractRules = reactive<FormRules>({
 
 // Schedules
 const weekdaysInfo = [
-  { value: 0, label: '星期一 (Mon)' },
-  { value: 1, label: '星期二 (Tue)' },
-  { value: 2, label: '星期三 (Wed)' },
-  { value: 3, label: '星期四 (Thu)' },
-  { value: 4, label: '星期五 (Fri)' },
-  { value: 5, label: '星期六 (Sat)' },
-  { value: 6, label: '星期日 (Sun)' }
+  { value: 0, label: '週一 (Mon)' },
+  { value: 1, label: '週二 (Tue)' },
+  { value: 2, label: '週三 (Wed)' },
+  { value: 3, label: '週四 (Thu)' },
+  { value: 4, label: '週五 (Fri)' },
+  { value: 5, label: '週六 (Sat)' },
+  { value: 6, label: '週日 (Sun)' }
 ];
 
 type ScheduleSlot = { start_time: string | null; end_time: string | null; notes: string };
@@ -261,67 +242,30 @@ const rateRules = reactive<FormRules>({
 });
 
 // --- Methods ---
-
-const fetchData = async () => {
-  if (!props.teacherId) return;
-  loading.value = true;
-  try {
-    // 1. Fetch Teacher Basic Info
-    // Since we don't have a GET /teachers/{id} strictly defined in the snippet, we fetch from list.
-    // In a real scenario there might be a getTeacher(id).
-    // Assuming backend returns it in the list endpoint.
-    const res = await getTeacherList({ search: props.teacherId }); // pseudo fetch. Or pass full teacher object from parent
-    const target = res.data.find(t => t.id === props.teacherId);
-    if (target) {
-      teacherName.value = target.name;
-      basicForm.name = target.name;
-      basicForm.email = target.email;
-      basicForm.phone = target.phone || '';
-      basicForm.address = target.address || '';
-      basicForm.bio = target.bio || '';
-      basicForm.teacher_level = target.teacher_level;
-    }
-
-    // 2. Fetch Options
-    if (courseOptions.value.length === 0) {
-      const optRes = await getCourseOptions();
-      if (optRes.success) courseOptions.value = optRes.data;
-    }
-
-    // 3. Fetch Contracts
-    await loadContracts();
-
-  } catch (error) {
-    ElMessage.error('Failed to load teacher data');
-  } finally {
-    loading.value = false;
-  }
-};
-
 const loadContracts = async () => {
   if (!props.teacherId) return;
   const cRes = await getTeacherContracts(props.teacherId);
   if (cRes.success && cRes.data.length > 0) {
     // Take the most recent contract for simplicity, or active one
-    const contract = cRes.data[0];
-    if (!contract) return;
-    contractId.value = contract.id;
+    contract.value = cRes.data[0] || null;
+    if (!contract.value) return;
+    contractId.value = contract.value.id;
     hasContract.value = true;
     
-    contractForm.status = contract.status;
-    contractForm.employment_type = contract.employment_type || 'hourly';
-    contractForm.trial_completed_bonus = contract.trial_completed_bonus;
-    contractForm.trial_to_formal_bonus = contract.trial_to_formal_bonus;
+    contractForm.contract_status = contract.value.contract_status;
+    contractForm.employment_type = contract.value.employment_type || 'hourly';
+    contractForm.trial_completed_bonus = contract.value.trial_completed_bonus;
+    contractForm.trial_to_formal_bonus = contract.value.trial_to_formal_bonus;
     
-    if (contract.start_date && contract.end_date) {
-      contractDates.value = [contract.start_date, contract.end_date];
+    if (contract.value.start_date && contract.value.end_date) {
+      contractDates.value = [contract.value.start_date, contract.value.end_date];
     } else {
       contractDates.value = null;
     }
 
     // Load Schedules
-    if (contract.employment_type === 'full_time') {
-      const sRes = await getTeacherWorkSchedules(contract.id);
+    if (contract.value.employment_type === 'full_time') {
+      const sRes = await getTeacherWorkSchedules(contract.value.id);
       groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
       if (sRes.success) {
         sRes.data.forEach(s => {
@@ -342,7 +286,7 @@ const loadContracts = async () => {
     }
 
     // Load Course Rates
-    const dRes = await getTeacherContractDetails(contract.id);
+    const dRes = await getTeacherContractDetails(contract.value.id);
     if (dRes.success) {
       // Filter just to be safe, though details API might return all detail types
       courseRates.value = dRes.data.filter(d => d.detail_type === 'course_rate');
@@ -351,33 +295,13 @@ const loadContracts = async () => {
     hasContract.value = false;
     contractId.value = null;
     contractDates.value = null;
-    contractForm.status = 'pending';
+    contractForm.contract_status = 'pending';
     contractForm.employment_type = 'hourly';
     contractForm.trial_completed_bonus = 0;
     contractForm.trial_to_formal_bonus = 0;
     groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
     courseRates.value = [];
   }
-};
-
-const saveBasicInfo = async () => {
-  const tId = props.teacherId;
-  if (!basicFormRef.value || !tId) return;
-  await basicFormRef.value.validate(async (valid) => {
-    if (valid) {
-      saving.value = true;
-      try {
-        await updateTeacher(tId, basicForm);
-        ElMessage.success('Basic info updated successfully');
-        teacherName.value = basicForm.name || teacherName.value;
-        emit('saved');
-      } catch (e) {
-        ElMessage.error('Failed to update basic info');
-      } finally {
-        saving.value = false;
-      }
-    }
-  });
 };
 
 const saveContract = async () => {
@@ -388,7 +312,7 @@ const saveContract = async () => {
       savingContract.value = true;
       try {
         const payload: any = {
-          status: contractForm.status,
+          contract_status: contractForm.contract_status,
           employment_type: contractForm.employment_type,
           trial_completed_bonus: contractForm.trial_completed_bonus,
           trial_to_formal_bonus: contractForm.trial_to_formal_bonus,
@@ -516,13 +440,12 @@ const getCourseName = (id: string | null | undefined) => {
 };
 
 const handleClosed = () => {
-  activeTab.value = 'basic';
   teacherName.value = '';
 };
 
 watch(() => props.modelValue, (val) => {
   if (val && props.teacherId) {
-    fetchData();
+    loadContracts();
   }
 });
 </script>

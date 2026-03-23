@@ -52,6 +52,12 @@ export interface TeacherListResponse {
   total_pages: number;
 }
 
+export interface TeacherDetailResponse {
+  success: boolean;
+  message: string;
+  data: TeacherResponse;
+}
+
 export function getTeacherList(params: TeacherListParams) {
   return request.get<any, TeacherListResponse>('/v1/teachers', { params });
 }
@@ -63,4 +69,13 @@ export function updateTeacher(teacherId: string, data: TeacherUpdate) {
 }
 export function deleteTeacher(teacherId: string) {
   return request.delete(`/v1/teachers/${teacherId}`);
+}
+export function getTeacherById(teacherId: string) {
+  return request.get<any, TeacherDetailResponse>(`/v1/teachers/${teacherId}`);
+}
+export function getTeacherAvatarUploadUrl(teacherId: string) {
+  return request.get<any, string>(`/v1/teachers/${teacherId}/avatar/upload-url`);
+}
+export function confirmTeacherAvatar(teacherId: string) {
+  return request.post<any, { storage_path: string, file_name: string }>(`/v1/teachers/${teacherId}/avatar/confirm-upload`);
 }

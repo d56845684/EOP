@@ -8,7 +8,7 @@ export type DetailType = 'course_rate'; // Based on app__schemas__teacher_contra
 // Contracts
 export interface TeacherContractCreate {
   teacher_id: string; // Required
-  status?: ContractStatus;
+  contract_status?: ContractStatus;
   start_date?: string | null; // date format
   end_date?: string | null; // date format
   employment_type?: EmploymentType | null;
@@ -20,7 +20,7 @@ export interface TeacherContractCreate {
 }
 
 export interface TeacherContractUpdate {
-  status?: ContractStatus | null;
+  contract_status?: ContractStatus | null;
   start_date?: string | null;
   end_date?: string | null;
   employment_type?: EmploymentType | null;
@@ -34,7 +34,8 @@ export interface TeacherContractUpdate {
 export interface TeacherContractResponse {
   id: string;
   teacher_id: string;
-  status: ContractStatus;
+  teacher_name: string;
+  contract_status: ContractStatus;
   start_date?: string | null;
   end_date?: string | null;
   employment_type?: EmploymentType | null;

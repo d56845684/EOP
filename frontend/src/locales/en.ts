@@ -40,6 +40,7 @@ export default {
         searchKeyword: 'Search Keyword',
         convertToFormal: 'Activate Contract',
         contracts: 'Contract Management',
+        addContract: 'Add Contract',
         courses: 'Booking Record',
     },
     menu: {
