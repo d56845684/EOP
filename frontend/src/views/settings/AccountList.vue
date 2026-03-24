@@ -42,7 +42,7 @@
             @clear="handleSearch"
             @change="handleSearch"
           >
-            <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.key" />
+            <el-option v-for="r in roleList" :key="r.id" :label="r.name" :value="r.key" />
           </el-select>
         </el-form-item>
 
@@ -144,7 +144,7 @@
       v-model="drawerVisible"
       :editUserId="editUserId"
       :current-user="currentUser"
-      :roles="roles"
+      :roles="roleList"
       @fetch-users="fetchUsers"
       @clear-user="clearUser"
     />
@@ -152,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import dayjs from 'dayjs';
 import { getUsersApi, getRolesApi, updateUserApi, deleteUserApi, type AccountInfo, type RoleInfo } from '@/api/user';
@@ -169,13 +169,15 @@ interface QueryParams {
   per_page?: number;
   search?: string;
   role?: string;
+  is_active?: boolean | string;
 }
 
 const queryParams = reactive<QueryParams>({
   page: 1,
   per_page: 10,
   search: '',
-  role: 'employee'
+  role: 'employee',
+  is_active: 'all'
 });
 
 // Drawer State
@@ -196,6 +198,11 @@ const currentUser = reactive<AccountInfo>({
 
 // Helpers
 const formatTime = (t: string) => t ? dayjs(t).format('YYYY-MM-DD HH:mm') : '-';
+
+const roleList = computed(() => {
+  const exception = ['teacher', 'student']
+  return roles.value.filter(r => !exception.includes(r.key));
+});
 
 // API Calls
 const fetchRoles = async () => {
@@ -219,6 +226,7 @@ const fetchUsers = async () => {
     const dataToSend = { ...queryParams };
     if (!dataToSend.search) delete dataToSend.search;
     if (!dataToSend.role) delete dataToSend.role;
+    if (dataToSend.is_active === 'all') delete dataToSend.is_active;
 
     const res = await getUsersApi(dataToSend);
     
