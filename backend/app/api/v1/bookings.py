@@ -1522,6 +1522,17 @@ async def batch_delete_bookings(
                 if booking.get("teacher_slot_id"):
                     affected_slot_ids.add(booking["teacher_slot_id"])
 
+                # 取消 Zoom 會議
+                try:
+                    from app.services.zoom_service import zoom_service
+                    from app.config import settings as app_settings
+                    if app_settings.zoom_enabled:
+                        asyncio.create_task(
+                            zoom_service.cancel_meeting_for_booking(booking["id"])
+                        )
+                except Exception:
+                    pass
+
                 # 如果預約尚未取消或完成，恢復堂數
                 if old_status not in ["cancelled", "completed"]:
                     booking_lessons = booking.get("lessons_used", 1)
@@ -1618,6 +1629,17 @@ async def delete_booking(
         # 更新 slot 預約已滿狀態
         if existing[0].get("teacher_slot_id"):
             await update_slot_booked_status(existing[0]["teacher_slot_id"])
+
+        # 取消 Zoom 會議
+        try:
+            from app.services.zoom_service import zoom_service
+            from app.config import settings as app_settings
+            if app_settings.zoom_enabled:
+                asyncio.create_task(
+                    zoom_service.cancel_meeting_for_booking(booking_id)
+                )
+        except Exception:
+            pass
 
         return BaseResponse(message="預約刪除成功")
 
@@ -2085,6 +2107,17 @@ async def batch_delete_bookings_by_ids(
 
                 if existing[0].get("teacher_slot_id"):
                     affected_slot_ids.add(existing[0]["teacher_slot_id"])
+
+                # 取消 Zoom 會議
+                try:
+                    from app.services.zoom_service import zoom_service
+                    from app.config import settings as app_settings
+                    if app_settings.zoom_enabled:
+                        asyncio.create_task(
+                            zoom_service.cancel_meeting_for_booking(booking_id)
+                        )
+                except Exception:
+                    pass
 
                 # 如果預約尚未取消或完成，恢復堂數
                 if old_status not in ["cancelled", "completed"]:
