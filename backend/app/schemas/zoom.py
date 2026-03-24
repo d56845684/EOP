@@ -14,6 +14,7 @@ class ZoomAccountCreate(BaseModel):
     zoom_client_id: str = Field(..., max_length=200, description="Zoom Client ID")
     zoom_client_secret: str = Field(..., max_length=200, description="Zoom Client Secret")
     zoom_user_email: Optional[str] = Field(None, max_length=255, description="Zoom 使用者 Email")
+    account_tier: str = Field("basic", description="帳號等級 (basic/pro/business)")
     is_active: bool = Field(True, description="是否啟用")
     notes: Optional[str] = Field(None, description="備註")
 
@@ -25,6 +26,7 @@ class ZoomAccountUpdate(BaseModel):
     zoom_client_id: Optional[str] = Field(None, max_length=200, description="Zoom Client ID")
     zoom_client_secret: Optional[str] = Field(None, max_length=200, description="Zoom Client Secret")
     zoom_user_email: Optional[str] = Field(None, max_length=255, description="Zoom 使用者 Email")
+    account_tier: Optional[str] = Field(None, description="帳號等級 (basic/pro/business)")
     is_active: Optional[bool] = Field(None, description="是否啟用")
     notes: Optional[str] = Field(None, description="備註")
 
@@ -36,6 +38,7 @@ class ZoomAccountResponse(BaseModel):
     zoom_account_id: str
     zoom_client_id: str
     zoom_user_email: Optional[str] = None
+    account_tier: str = "basic"
     is_active: bool = True
     daily_meeting_count: int = 0
     daily_count_reset_at: Optional[date] = None

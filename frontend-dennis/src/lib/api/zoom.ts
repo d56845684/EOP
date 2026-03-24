@@ -6,12 +6,15 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 // Types
 // ============================================
 
+export type AccountTier = 'basic' | 'pro' | 'business'
+
 export interface ZoomAccount {
     id: string
     account_name: string
     zoom_account_id: string
     zoom_client_id: string
     zoom_user_email?: string
+    account_tier: AccountTier
     is_active: boolean
     daily_meeting_count: number
     daily_count_reset_at?: string
@@ -36,6 +39,7 @@ export interface CreateZoomAccountData {
     zoom_client_id: string
     zoom_client_secret: string
     zoom_user_email?: string
+    account_tier?: AccountTier
     is_active?: boolean
     notes?: string
 }
@@ -46,6 +50,7 @@ export interface UpdateZoomAccountData {
     zoom_client_id?: string
     zoom_client_secret?: string
     zoom_user_email?: string
+    account_tier?: AccountTier
     is_active?: boolean
     notes?: string
 }

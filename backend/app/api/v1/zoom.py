@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/zoom", tags=["Zoom 管理"])
 
 # 不暴露 secret 的欄位列表
-ACCOUNT_SELECT = "id,account_name,zoom_account_id,zoom_client_id,zoom_user_email,is_active,daily_meeting_count,daily_count_reset_at,notes,created_at,created_by,updated_at"
+ACCOUNT_SELECT = "id,account_name,zoom_account_id,zoom_client_id,zoom_user_email,account_tier,is_active,daily_meeting_count,daily_count_reset_at,notes,created_at,created_by,updated_at"
 
 MEETING_LOG_SELECT = "id,booking_id,zoom_account_id,teacher_id,zoom_meeting_id,zoom_meeting_uuid,join_url,start_url,passcode,meeting_date,start_time,end_time,meeting_status,recording_url,recording_download_url,recording_file_type,recording_file_size_bytes,recording_duration_seconds,recording_completed_at,recording_transfer_status,drive_file_id,drive_view_link,transferred_at,created_at,updated_at"
 

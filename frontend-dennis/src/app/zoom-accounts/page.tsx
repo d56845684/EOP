@@ -34,6 +34,7 @@ export default function ZoomAccountsPage() {
         zoom_client_id: '',
         zoom_client_secret: '',
         zoom_user_email: '',
+        account_tier: 'basic',
         is_active: true,
         notes: '',
     })
@@ -78,6 +79,7 @@ export default function ZoomAccountsPage() {
             zoom_client_id: '',
             zoom_client_secret: '',
             zoom_user_email: '',
+            account_tier: 'basic',
             is_active: true,
             notes: '',
         })
@@ -94,6 +96,7 @@ export default function ZoomAccountsPage() {
             zoom_client_id: account.zoom_client_id,
             zoom_client_secret: '',
             zoom_user_email: account.zoom_user_email || '',
+            account_tier: account.account_tier || 'basic',
             is_active: account.is_active,
             notes: account.notes || '',
         })
@@ -117,6 +120,7 @@ export default function ZoomAccountsPage() {
             if (formData.zoom_client_id) updateData.zoom_client_id = formData.zoom_client_id
             if (formData.zoom_client_secret) updateData.zoom_client_secret = formData.zoom_client_secret
             if (formData.zoom_user_email !== undefined) updateData.zoom_user_email = formData.zoom_user_email
+            if (formData.account_tier) updateData.account_tier = formData.account_tier
             if (formData.is_active !== undefined) updateData.is_active = formData.is_active
             if (formData.notes !== undefined) updateData.notes = formData.notes
 
@@ -195,6 +199,7 @@ export default function ZoomAccountsPage() {
                                     <tr>
                                         <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">帳號名稱</th>
                                         <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Zoom Email</th>
+                                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">帳號等級</th>
                                         <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">狀態</th>
                                         <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">今日用量</th>
                                         <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">連線測試</th>
@@ -210,6 +215,16 @@ export default function ZoomAccountsPage() {
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-600">
                                                 {account.zoom_user_email || '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${
+                                                    account.account_tier === 'business' ? 'bg-purple-100 text-purple-800' :
+                                                    account.account_tier === 'pro' ? 'bg-blue-100 text-blue-800' :
+                                                    'bg-gray-100 text-gray-800'
+                                                }`}>
+                                                    {account.account_tier === 'business' ? 'Business' :
+                                                     account.account_tier === 'pro' ? 'Pro' : 'Basic'}
+                                                </span>
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 {account.is_active ? (
@@ -359,6 +374,18 @@ export default function ZoomAccountsPage() {
                                             className="input-field"
                                             placeholder="建立會議用的使用者 Email（選填）"
                                         />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">帳號等級</label>
+                                        <select
+                                            value={formData.account_tier || 'basic'}
+                                            onChange={(e) => setFormData({ ...formData, account_tier: e.target.value as any })}
+                                            className="input-field"
+                                        >
+                                            <option value="basic">Basic（一般）</option>
+                                            <option value="pro">Pro（專業版）</option>
+                                            <option value="business">Business（商業版）</option>
+                                        </select>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <input
