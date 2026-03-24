@@ -25,6 +25,7 @@ const navItems: NavItem[] = [
   { href: '/teacher-bonus', label: '教師獎金', icon: <DollarSign className="w-5 h-5" />, pageKey: 'teachers.bonus' },
   { href: '/students', label: '學生管理', icon: <GraduationCap className="w-5 h-5" />, pageKey: 'students.list' },
   { href: '/teachers', label: '教師管理', icon: <Users className="w-5 h-5" />, pageKey: 'teachers.list' },
+  { href: '/employees', label: '員工管理', icon: <Users className="w-5 h-5" />, pageKey: 'employees.list' },
   { href: '/zoom-accounts', label: 'Zoom 帳號', icon: <Video className="w-5 h-5" />, pageKey: 'employees.list' },
   { href: '/line-testing', label: 'LINE 測試', icon: <MessageSquare className="w-5 h-5" />, pageKey: 'employees.list' },
   { href: '/accounts', label: '帳號管理', icon: <Shield className="w-5 h-5" />, pageKey: 'permissions.users' },

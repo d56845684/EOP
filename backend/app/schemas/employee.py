@@ -40,6 +40,7 @@ class EmployeeResponse(BaseModel):
     hire_date: Optional[date] = None
     termination_date: Optional[date] = None
     is_active: bool = True
+    email_verified_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

@@ -22,7 +22,7 @@ function parseErrorDetail(detail: unknown): string {
 }
 
 export const invitesApi = {
-    async generate(entityType: 'student' | 'teacher', entityId: string): Promise<{ data: GenerateInviteResponse | null, error: any }> {
+    async generate(entityType: 'student' | 'teacher' | 'employee', entityId: string): Promise<{ data: GenerateInviteResponse | null, error: any }> {
         try {
             const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/invites/generate`, {
                 method: 'POST',

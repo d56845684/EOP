@@ -6,10 +6,13 @@ from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
 from datetime import datetime
 import math
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/employees", tags=["員工管理"])
 
-EMPLOYEE_SELECT = "id,employee_no,employee_type,name,email,phone,address,hire_date,termination_date,is_active,created_at,updated_at"
+EMPLOYEE_SELECT = "id,employee_no,employee_type,name,email,phone,address,hire_date,termination_date,is_active,email_verified_at,created_at,updated_at"
 
 
 @router.get("", response_model=EmployeeListResponse)
@@ -139,7 +142,7 @@ async def update_employee(
         raise HTTPException(status_code=403, detail="僅限管理員操作")
     try:
         existing = await supabase_service.table_select(
-            table="employees", select="id,employee_no,email",
+            table="employees", select="id,employee_no,email,employee_type",
             filters={"id": employee_id, "is_deleted": "eq.false"}
         )
         if not existing:
@@ -167,6 +170,33 @@ async def update_employee(
         )
         if not result:
             raise HTTPException(status_code=500, detail="更新員工失敗")
+
+        # 同步 user_profiles 角色（當 employee_type 變更時）
+        new_type = data.employee_type
+        old_type = existing[0].get("employee_type")
+        if new_type and new_type != old_type:
+            try:
+                profile = await supabase_service.table_select(
+                    table="user_profiles", select="id,role_id",
+                    filters={"employee_id": employee_id},
+                )
+                if profile:
+                    role_key = "admin" if new_type == "admin" else "employee"
+                    role_row = await supabase_service.pool.fetchrow(
+                        "SELECT id FROM roles WHERE key = $1", role_key
+                    )
+                    if role_row:
+                        await supabase_service.table_update(
+                            table="user_profiles",
+                            data={
+                                "role_id": str(role_row["id"]),
+                                "employee_subtype": new_type,
+                            },
+                            filters={"id": profile[0]["id"]},
+                        )
+                        logger.info(f"Employee {employee_id}: 角色同步為 {role_key} (employee_type={new_type})")
+            except Exception as sync_err:
+                logger.warning(f"Employee {employee_id}: 同步角色失敗: {sync_err}")
 
         return DataResponse(message="員工更新成功", data=EmployeeResponse(**result))
     except HTTPException:

@@ -5,7 +5,7 @@ from datetime import datetime
 
 class GenerateInviteRequest(BaseModel):
     """產生邀請連結請求"""
-    entity_type: Literal["student", "teacher"] = Field(..., description="實體類型")
+    entity_type: Literal["student", "teacher", "employee"] = Field(..., description="實體類型")
     entity_id: str = Field(..., description="實體 ID")
 
 
@@ -29,7 +29,7 @@ class AcceptInviteResponse(BaseModel):
 
 class InviteTokenData(BaseModel):
     """邀請 Token 資料（存在 Redis）"""
-    entity_type: Literal["student", "teacher"]
+    entity_type: Literal["student", "teacher", "employee"]
     entity_id: str
     email: str
     name: str
