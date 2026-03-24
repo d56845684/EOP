@@ -162,6 +162,8 @@ class TeacherContractResponse(BaseModel):
     total_amount: Optional[float] = None
     # 工作時段
     work_schedules: list[TeacherWorkScheduleResponse] = []
+    # 附約
+    addendums: list[dict] = []
 
     class Config:
         from_attributes = True

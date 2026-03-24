@@ -65,6 +65,7 @@ export interface TeacherContract {
     details: TeacherContractDetail[]
     total_amount?: number
     work_schedules: TeacherWorkSchedule[]
+    addendums?: any[]
 }
 
 export interface TeacherContractListResponse {

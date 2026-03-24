@@ -142,6 +142,8 @@ class StudentContractResponse(BaseModel):
     # 明細 + 請假
     details: list[StudentContractDetailResponse] = []
     leave_records: list[StudentContractLeaveRecordResponse] = []
+    # 附約
+    addendums: list[dict] = []
 
     class Config:
         from_attributes = True

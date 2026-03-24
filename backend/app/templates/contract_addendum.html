@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<style>
+    @page {
+        size: A4;
+        margin: 2cm;
+    }
+    body {
+        font-family: 'Noto Sans CJK TC', 'Noto Sans TC', sans-serif;
+        font-size: 12pt;
+        line-height: 1.6;
+        color: #333;
+    }
+    h1 {
+        text-align: center;
+        font-size: 20pt;
+        margin-bottom: 0.5em;
+        border-bottom: 2px solid #333;
+        padding-bottom: 0.3em;
+    }
+    .contract-info {
+        margin-bottom: 1.5em;
+    }
+    .info-row {
+        display: flex;
+        margin-bottom: 0.3em;
+    }
+    .info-label {
+        font-weight: bold;
+        width: 140px;
+        flex-shrink: 0;
+    }
+    .info-value {
+        flex: 1;
+    }
+    .extension-section {
+        margin: 2em 0;
+        padding: 15px;
+        border: 2px solid #333;
+        border-radius: 6px;
+    }
+    .extension-section h2 {
+        margin-top: 0;
+        font-size: 14pt;
+    }
+    .extension-row {
+        display: flex;
+        align-items: center;
+        margin: 0.5em 0;
+        font-size: 13pt;
+    }
+    .arrow {
+        margin: 0 15px;
+        font-size: 16pt;
+        font-weight: bold;
+    }
+    .notes-section {
+        margin: 1.5em 0;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        min-height: 40px;
+    }
+    .signature-section {
+        margin-top: 3em;
+        page-break-inside: avoid;
+    }
+    .signature-row {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 2em;
+    }
+    .signature-box {
+        width: 45%;
+        text-align: center;
+    }
+    .signature-line {
+        border-top: 1px solid #333;
+        margin-top: 60px;
+        padding-top: 5px;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 10pt;
+        font-weight: bold;
+    }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-active { background: #d1fae5; color: #065f46; }
+    .status-expired { background: #f3f4f6; color: #374151; }
+    .status-terminated { background: #fee2e2; color: #991b1b; }
+</style>
+</head>
+<body>
+
+<h1>{{ title }}合約附約書（展延）</h1>
+
+<div class="contract-info">
+    <div class="info-row">
+        <span class="info-label">附約編號：</span>
+        <span class="info-value">{{ addendum.addendum_no }}</span>
+    </div>
+    <div class="info-row">
+        <span class="info-label">附約狀態：</span>
+        <span class="info-value">
+            <span class="status-badge status-{{ addendum.addendum_status }}">{{ status_label }}</span>
+        </span>
+    </div>
+    <div class="info-row">
+        <span class="info-label">母約編號：</span>
+        <span class="info-value">{{ parent_contract_no }}</span>
+    </div>
+    <div class="info-row">
+        <span class="info-label">{{ person_label }}姓名：</span>
+        <span class="info-value">{{ person_name or '-' }}</span>
+    </div>
+</div>
+
+<div class="extension-section">
+    <h2>展延內容</h2>
+    <div class="extension-row">
+        <span class="info-label">原結束日期：</span>
+        <span class="info-value">{{ addendum.original_end_date }}</span>
+    </div>
+    <div class="extension-row">
+        <span class="info-label">新結束日期：</span>
+        <span class="info-value" style="font-weight: bold; color: #065f46;">{{ addendum.new_end_date }}</span>
+    </div>
+</div>
+
+<div>
+    <h2>備註</h2>
+    <div class="notes-section">{{ addendum.notes or '' }}</div>
+</div>
+
+<div class="signature-section">
+    <div class="signature-row">
+        <div class="signature-box">
+            <div class="signature-line">{{ person_label }}簽名</div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line">公司簽章</div>
+        </div>
+    </div>
+    <div class="signature-row">
+        <div class="signature-box">
+            <div class="signature-line">日期</div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line">日期</div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

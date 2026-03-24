@@ -48,6 +48,7 @@ export interface StudentContract {
     student_name?: string
     details: StudentContractDetail[]
     leave_records: StudentContractLeaveRecord[]
+    addendums?: any[]
 }
 
 export interface StudentContractListResponse {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import {
     studentContractsApi,
@@ -17,7 +17,8 @@ import {
     StudentOption,
     CourseOption,
 } from '@/lib/api/studentContracts'
-import { Plus, Pencil, Trash2, Search, X, FileText, Calendar, CheckCircle, Clock, XCircle, AlertCircle, Upload, Download } from 'lucide-react'
+import { contractAddendumsApi, ContractAddendum, CreateAddendumData } from '@/lib/api/contractAddendums'
+import { Plus, Pencil, Trash2, Search, X, FileText, Calendar, CheckCircle, Clock, XCircle, AlertCircle, Upload, Download, ChevronDown, ChevronRight } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 
 const statusLabels: Record<ContractStatus, string> = {
@@ -126,6 +127,15 @@ export default function StudentContractsPage() {
 
     // Upload state
     const [uploading, setUploading] = useState<string | null>(null)
+
+    // Addendum state
+    const [expandedAddendums, setExpandedAddendums] = useState<Set<string>>(new Set())
+    const [showAddendumModal, setShowAddendumModal] = useState(false)
+    const [addendumTargetContract, setAddendumTargetContract] = useState<StudentContract | null>(null)
+    const [addendumFormData, setAddendumFormData] = useState<CreateAddendumData>({ new_end_date: '', notes: '' })
+    const [addendumFormError, setAddendumFormError] = useState<string | null>(null)
+    const [addendumSubmitting, setAddendumSubmitting] = useState(false)
+    const [addendumUploading, setAddendumUploading] = useState<string | null>(null)
 
     // Fetch options
     const fetchOptions = useCallback(async () => {
@@ -488,6 +498,91 @@ export default function StudentContractsPage() {
         setUploading(null)
     }
 
+    // Addendum handlers
+    const toggleAddendums = (contractId: string) => {
+        setExpandedAddendums(prev => {
+            const next = new Set(prev)
+            if (next.has(contractId)) {
+                next.delete(contractId)
+            } else {
+                next.add(contractId)
+            }
+            return next
+        })
+    }
+
+    const openAddendumModal = (contract: StudentContract) => {
+        setAddendumTargetContract(contract)
+        const tomorrow = new Date()
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        // Default new_end_date to contract.end_date + 3 months
+        const defaultEnd = new Date(contract.end_date)
+        defaultEnd.setMonth(defaultEnd.getMonth() + 3)
+        setAddendumFormData({
+            new_end_date: defaultEnd.toISOString().split('T')[0],
+            notes: '',
+        })
+        setAddendumFormError(null)
+        setShowAddendumModal(true)
+    }
+
+    const handleCreateAddendum = async () => {
+        if (!addendumTargetContract) return
+        setAddendumSubmitting(true)
+        setAddendumFormError(null)
+
+        const { data, error } = await contractAddendumsApi.create(
+            'student',
+            addendumTargetContract.id,
+            addendumFormData
+        )
+
+        if (error) {
+            setAddendumFormError(error.message)
+        } else {
+            setShowAddendumModal(false)
+            fetchContracts()
+            // Auto expand the addendums
+            setExpandedAddendums(prev => new Set(prev).add(addendumTargetContract.id))
+        }
+        setAddendumSubmitting(false)
+    }
+
+    const handleDeleteAddendum = async (contractId: string, addendumId: string) => {
+        if (!confirm('確定要刪除此附約嗎？')) return
+        const { error } = await contractAddendumsApi.delete('student', contractId, addendumId)
+        if (error) {
+            setError(error.message)
+        } else {
+            fetchContracts()
+        }
+    }
+
+    const handleAddendumGeneratePdf = async (contractId: string, addendumId: string) => {
+        const { error } = await contractAddendumsApi.generatePdf('student', contractId, addendumId)
+        if (error) setError(error.message)
+    }
+
+    const handleAddendumUpload = async (contractId: string, addendumId: string, file: File) => {
+        setAddendumUploading(addendumId)
+        const { error } = await contractAddendumsApi.uploadFile('student', contractId, addendumId, file)
+        if (error) {
+            setError(error.message)
+        } else {
+            fetchContracts()
+        }
+        setAddendumUploading(null)
+    }
+
+    const handleAddendumDownload = async (contractId: string, addendumId: string) => {
+        const { url, error } = await contractAddendumsApi.downloadFile('student', contractId, addendumId)
+        if (error) {
+            setError(error.message)
+        } else if (url) {
+            window.open(url, '_blank')
+        }
+    }
+
     const isStaff = profile?.employee_id != null
 
     const formatDate = (dateStr: string) => {
@@ -644,11 +739,30 @@ export default function StudentContractsPage() {
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {contracts.map((contract) => (
-                                            <tr key={contract.id} className="hover:bg-gray-50">
+                                            <React.Fragment key={contract.id}>
+                                            <tr className="hover:bg-gray-50">
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
-                                                        {contract.contract_no}
-                                                    </span>
+                                                    <div className="flex items-center gap-1">
+                                                        {(contract.addendums && contract.addendums.length > 0) && (
+                                                            <button
+                                                                onClick={() => toggleAddendums(contract.id)}
+                                                                className="text-gray-400 hover:text-gray-600 -ml-1"
+                                                                title="展開附約"
+                                                            >
+                                                                {expandedAddendums.has(contract.id) ? (
+                                                                    <ChevronDown className="w-4 h-4" />
+                                                                ) : (
+                                                                    <ChevronRight className="w-4 h-4" />
+                                                                )}
+                                                            </button>
+                                                        )}
+                                                        <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
+                                                            {contract.contract_no}
+                                                        </span>
+                                                        {contract.addendums && contract.addendums.length > 0 && (
+                                                            <span className="text-xs text-orange-600 font-medium">({contract.addendums.length} 附約)</span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className="font-medium text-gray-900">
@@ -755,23 +869,124 @@ export default function StudentContractsPage() {
                                                 </td>
                                                 {isStaff && (
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <button
-                                                            onClick={() => openEditModal(contract)}
-                                                            className="text-blue-600 hover:text-blue-900 mr-4"
-                                                            title="編輯"
-                                                        >
-                                                            <Pencil className="w-5 h-5" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setDeleteConfirm(contract)}
-                                                            className="text-red-600 hover:text-red-900"
-                                                            title="刪除"
-                                                        >
-                                                            <Trash2 className="w-5 h-5" />
-                                                        </button>
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {contract.contract_status === 'active' && (
+                                                                <button
+                                                                    onClick={() => openAddendumModal(contract)}
+                                                                    className="inline-flex items-center text-xs text-orange-600 hover:text-orange-900 border border-orange-300 rounded px-2 py-1"
+                                                                    title="新增附約"
+                                                                >
+                                                                    <Plus className="w-3 h-3 mr-1" />
+                                                                    附約
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => openEditModal(contract)}
+                                                                className="text-blue-600 hover:text-blue-900"
+                                                                title="編輯"
+                                                            >
+                                                                <Pencil className="w-5 h-5" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setDeleteConfirm(contract)}
+                                                                className="text-red-600 hover:text-red-900"
+                                                                title="刪除"
+                                                            >
+                                                                <Trash2 className="w-5 h-5" />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 )}
                                             </tr>
+                                            {/* Addendum expansion rows */}
+                                            {expandedAddendums.has(contract.id) && contract.addendums && contract.addendums.map((addendum: ContractAddendum) => (
+                                                <tr key={addendum.id} className="bg-orange-50">
+                                                    <td colSpan={isStaff ? 10 : 9} className="px-6 py-3">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-4 text-sm">
+                                                                <span className="font-mono text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded">
+                                                                    {addendum.addendum_no}
+                                                                </span>
+                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[addendum.addendum_status as ContractStatus]?.bg || 'bg-gray-100'} ${statusColors[addendum.addendum_status as ContractStatus]?.text || 'text-gray-800'}`}>
+                                                                    {statusLabels[addendum.addendum_status as ContractStatus] || addendum.addendum_status}
+                                                                </span>
+                                                                <span className="text-gray-600">
+                                                                    {formatDate(addendum.original_end_date)} → <span className="font-medium text-green-700">{formatDate(addendum.new_end_date)}</span>
+                                                                </span>
+                                                                {addendum.notes && (
+                                                                    <span className="text-gray-500 truncate max-w-xs" title={addendum.notes}>{addendum.notes}</span>
+                                                                )}
+                                                            </div>
+                                                            {isStaff && (
+                                                                <div className="flex items-center gap-2">
+                                                                    {/* PDF actions */}
+                                                                    <button
+                                                                        onClick={() => handleAddendumGeneratePdf(contract.id, addendum.id)}
+                                                                        className="inline-flex items-center text-xs text-purple-600 hover:text-purple-900"
+                                                                        title="產生附約 PDF"
+                                                                    >
+                                                                        <FileText className="w-3 h-3 mr-1" />
+                                                                        PDF
+                                                                    </button>
+                                                                    {addendum.file_path ? (
+                                                                        <button
+                                                                            onClick={() => handleAddendumDownload(contract.id, addendum.id)}
+                                                                            className="inline-flex items-center text-xs text-blue-600 hover:text-blue-900"
+                                                                            title="下載"
+                                                                        >
+                                                                            <Download className="w-3 h-3 mr-1" />
+                                                                            下載
+                                                                        </button>
+                                                                    ) : null}
+                                                                    <div>
+                                                                        <input
+                                                                            type="file"
+                                                                            accept=".pdf"
+                                                                            id={`addendum-upload-${addendum.id}`}
+                                                                            className="hidden"
+                                                                            onChange={(e) => {
+                                                                                const file = e.target.files?.[0]
+                                                                                if (file) {
+                                                                                    handleAddendumUpload(contract.id, addendum.id, file)
+                                                                                    e.target.value = ''
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                        <button
+                                                                            onClick={() => document.getElementById(`addendum-upload-${addendum.id}`)?.click()}
+                                                                            disabled={addendumUploading === addendum.id}
+                                                                            className="inline-flex items-center text-xs text-blue-600 hover:text-blue-900 disabled:opacity-50"
+                                                                            title="上傳簽名版"
+                                                                        >
+                                                                            {addendumUploading === addendum.id ? (
+                                                                                <span className="flex items-center">
+                                                                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
+                                                                                    上傳中
+                                                                                </span>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <Upload className="w-3 h-3 mr-1" />
+                                                                                    {addendum.file_path ? '重傳' : '上傳'}
+                                                                                </>
+                                                                            )}
+                                                                        </button>
+                                                                    </div>
+                                                                    {addendum.addendum_status === 'pending' && (
+                                                                        <button
+                                                                            onClick={() => handleDeleteAddendum(contract.id, addendum.id)}
+                                                                            className="text-red-600 hover:text-red-900"
+                                                                            title="刪除附約"
+                                                                        >
+                                                                            <Trash2 className="w-3 h-3" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            </React.Fragment>
                                         ))}
                                     </tbody>
                                 </table>
@@ -1299,6 +1514,76 @@ export default function StudentContractsPage() {
                                             刪除中...
                                         </span>
                                     ) : '確認刪除'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* Addendum Create Modal */}
+                {showAddendumModal && addendumTargetContract && (
+                    <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-medium text-gray-900">
+                                    新增附約（展延）
+                                </h3>
+                                <button onClick={() => setShowAddendumModal(false)} className="text-gray-400 hover:text-gray-500">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="mb-3 text-sm text-gray-600 bg-gray-50 p-3 rounded">
+                                <div>母約：<span className="font-mono font-medium">{addendumTargetContract.contract_no}</span></div>
+                                <div>學生：{addendumTargetContract.student_name || '-'}</div>
+                                <div>目前結束日期：{formatDate(addendumTargetContract.end_date)}</div>
+                            </div>
+
+                            {addendumFormError && (
+                                <div className="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
+                                    {addendumFormError}
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        新結束日期 *
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={addendumFormData.new_end_date}
+                                        onChange={(e) => setAddendumFormData(prev => ({ ...prev, new_end_date: e.target.value }))}
+                                        min={addendumTargetContract.end_date}
+                                        className="form-input w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        備註
+                                    </label>
+                                    <textarea
+                                        value={addendumFormData.notes || ''}
+                                        onChange={(e) => setAddendumFormData(prev => ({ ...prev, notes: e.target.value }))}
+                                        rows={3}
+                                        className="form-input w-full"
+                                        placeholder="附約備註..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button
+                                    onClick={() => setShowAddendumModal(false)}
+                                    className="btn-secondary"
+                                >
+                                    取消
+                                </button>
+                                <button
+                                    onClick={handleCreateAddendum}
+                                    disabled={addendumSubmitting || !addendumFormData.new_end_date}
+                                    className="btn-primary disabled:opacity-50"
+                                >
+                                    {addendumSubmitting ? '建立中...' : '建立附約'}
                                 </button>
                             </div>
                         </div>

@@ -150,6 +150,71 @@ async def generate_student_contract_pdf(contract_id: str) -> tuple[bytes, str] |
     return pdf_bytes, data["contract"]["contract_no"]
 
 
+async def generate_addendum_pdf(addendum_id: str) -> tuple[bytes, str] | None:
+    """產生附約 PDF，回傳 (pdf_bytes, addendum_no) 或 None"""
+    result = await supabase_service.table_select(
+        table="contract_addendums",
+        select="id,addendum_no,contract_type,parent_contract_id,original_end_date,new_end_date,addendum_status,notes",
+        filters={"id": addendum_id, "is_deleted": "eq.false"},
+    )
+    if not result:
+        return None
+
+    addendum = result[0]
+    contract_type = addendum["contract_type"]
+
+    # 取得母約編號和人名
+    if contract_type == "student":
+        parent = await supabase_service.table_select(
+            table="student_contracts",
+            select="contract_no,student_id",
+            filters={"id": addendum["parent_contract_id"], "is_deleted": "eq.false"},
+        )
+        if not parent:
+            return None
+        parent_contract_no = parent[0]["contract_no"]
+        person_name = None
+        if parent[0].get("student_id"):
+            student = await supabase_service.table_select(
+                table="students", select="name",
+                filters={"id": parent[0]["student_id"]},
+            )
+            person_name = student[0]["name"] if student else None
+        title = "學生"
+        person_label = "學生"
+    else:
+        parent = await supabase_service.table_select(
+            table="teacher_contracts",
+            select="contract_no,teacher_id",
+            filters={"id": addendum["parent_contract_id"], "is_deleted": "eq.false"},
+        )
+        if not parent:
+            return None
+        parent_contract_no = parent[0]["contract_no"]
+        person_name = None
+        if parent[0].get("teacher_id"):
+            teacher = await supabase_service.table_select(
+                table="teachers", select="name",
+                filters={"id": parent[0]["teacher_id"]},
+            )
+            person_name = teacher[0]["name"] if teacher else None
+        title = "教師"
+        person_label = "教師"
+
+    template = env.get_template("contract_addendum.html")
+    html_str = template.render(
+        addendum=addendum,
+        title=title,
+        person_label=person_label,
+        parent_contract_no=parent_contract_no,
+        person_name=person_name,
+        status_label=STATUS_LABELS.get(addendum["addendum_status"], addendum["addendum_status"]),
+    )
+
+    pdf_bytes = HTML(string=html_str).write_pdf()
+    return pdf_bytes, addendum["addendum_no"]
+
+
 async def generate_teacher_contract_pdf(contract_id: str) -> tuple[bytes, str] | None:
     """產生教師合約 PDF，回傳 (pdf_bytes, contract_no) 或 None"""
     data = await _fetch_teacher_contract_data(contract_id)

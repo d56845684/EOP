@@ -3,7 +3,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
-from app.services.contract_pdf_service import generate_student_contract_pdf
+from app.services.contract_pdf_service import generate_student_contract_pdf, generate_addendum_pdf
 from app.config import settings
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.student_contract import (
@@ -11,6 +11,10 @@ from app.schemas.student_contract import (
     StudentContractListResponse, ContractStatus,
     StudentContractDetailCreate, StudentContractDetailUpdate, StudentContractDetailResponse,
     StudentContractLeaveRecordCreate, StudentContractLeaveRecordResponse
+)
+from app.schemas.contract_addendum import (
+    ContractAddendumCreate, ContractAddendumUpdate,
+    ContractAddendumResponse, ContractAddendumListResponse,
 )
 from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
@@ -120,6 +124,21 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
     # 計算緊急請假額度
     total_lessons = contract.get("total_lessons", 0)
     contract["emergency_leave_quota"] = math.ceil(total_lessons * 0.2) if total_lessons else 0
+
+    # 取得附約列表
+    addendums = await supabase_service.table_select(
+        table="contract_addendums",
+        select="id,addendum_no,contract_type,parent_contract_id,original_end_date,new_end_date,addendum_status,file_path,file_name,file_uploaded_at,notes,created_at,updated_at",
+        filters={
+            "contract_type": "eq.student",
+            "parent_contract_id": f"eq.{contract['id']}",
+            "is_deleted": "eq.false",
+        },
+    )
+    for a in addendums:
+        a["parent_contract_no"] = contract.get("contract_no")
+        a["person_name"] = contract.get("student_name")
+    contract["addendums"] = addendums
 
     return contract
 
@@ -1262,6 +1281,496 @@ async def get_student_contract_download_url(
         return {
             "download_url": signed_url,
             "file_name": contract.get("contract_file_name", "contract.pdf"),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取得下載連結失敗: {str(e)}")
+
+
+# ========== Contract Addendums (附約) ==========
+
+ADDENDUM_SELECT = "id,addendum_no,contract_type,parent_contract_id,original_end_date,new_end_date,addendum_status,file_path,file_name,file_uploaded_at,notes,created_at,updated_at"
+
+
+async def _enrich_student_addendum(addendum: dict, contract: dict = None) -> dict:
+    """為附約添加 parent_contract_no 和 person_name"""
+    if not contract:
+        result = await supabase_service.table_select(
+            table="student_contracts",
+            select="contract_no,student_id",
+            filters={"id": addendum["parent_contract_id"], "is_deleted": "eq.false"},
+        )
+        contract = result[0] if result else {}
+
+    addendum["parent_contract_no"] = contract.get("contract_no")
+    if contract.get("student_id"):
+        student = await supabase_service.table_select(
+            table="students", select="name",
+            filters={"id": contract["student_id"]},
+        )
+        addendum["person_name"] = student[0]["name"] if student else None
+    return addendum
+
+
+async def _generate_addendum_no(parent_contract_no: str, parent_contract_id: str) -> str:
+    """生成附約編號: {母約編號}-A{序號}（序號計入已刪除的）"""
+    result = await supabase_service.table_select(
+        table="contract_addendums",
+        select="addendum_no",
+        filters={
+            "parent_contract_id": f"eq.{parent_contract_id}",
+        },
+    )
+    max_seq = 0
+    prefix = f"{parent_contract_no}-A"
+    for item in result:
+        no = item.get("addendum_no", "")
+        if no.startswith(prefix):
+            try:
+                seq = int(no[len(prefix):])
+                max_seq = max(max_seq, seq)
+            except ValueError:
+                pass
+    return f"{prefix}{max_seq + 1}"
+
+
+@router.get("/{contract_id}/addendums", response_model=ContractAddendumListResponse)
+async def list_student_addendums(
+    contract_id: str,
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
+):
+    """取得學生合約附約列表"""
+    try:
+        contract = await supabase_service.table_select(
+            table="student_contracts",
+            select="id,contract_no,student_id",
+            filters={"id": contract_id, "is_deleted": "eq.false"},
+        )
+        if not contract:
+            raise HTTPException(status_code=404, detail="學生合約不存在")
+
+        addendums = await supabase_service.table_select(
+            table="contract_addendums",
+            select=ADDENDUM_SELECT,
+            filters={
+                "contract_type": "eq.student",
+                "parent_contract_id": f"eq.{contract_id}",
+                "is_deleted": "eq.false",
+            },
+        )
+
+        enriched = []
+        for a in addendums:
+            a = await _enrich_student_addendum(a, contract[0])
+            enriched.append(ContractAddendumResponse(**a))
+
+        return ContractAddendumListResponse(data=enriched)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取得附約列表失敗: {str(e)}")
+
+
+@router.post("/{contract_id}/addendums", response_model=DataResponse[ContractAddendumResponse])
+async def create_student_addendum(
+    contract_id: str,
+    data: ContractAddendumCreate,
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
+):
+    """建立學生合約附約（僅限員工）"""
+    try:
+        contract = await supabase_service.table_select(
+            table="student_contracts",
+            select="id,contract_no,student_id,contract_status,end_date",
+            filters={"id": contract_id, "is_deleted": "eq.false"},
+        )
+        if not contract:
+            raise HTTPException(status_code=404, detail="學生合約不存在")
+
+        parent = contract[0]
+        if parent["contract_status"] != "active":
+            raise HTTPException(status_code=400, detail="只有生效中的合約才能建立附約")
+
+        if data.new_end_date.isoformat() <= parent["end_date"]:
+            raise HTTPException(status_code=400, detail="新結束日期必須大於母約當前結束日期")
+
+        addendum_no = await _generate_addendum_no(parent["contract_no"], contract_id)
+
+        addendum_data = {
+            "addendum_no": addendum_no,
+            "contract_type": "student",
+            "parent_contract_id": contract_id,
+            "original_end_date": parent["end_date"],
+            "new_end_date": data.new_end_date.isoformat(),
+            "addendum_status": "pending",
+            "notes": data.notes,
+        }
+
+        employee_id = await get_user_employee_id(current_user.user_id)
+        if employee_id:
+            addendum_data["created_by"] = employee_id
+
+        result = await supabase_service.table_insert(
+            table="contract_addendums",
+            data=addendum_data,
+        )
+        if not result:
+            raise HTTPException(status_code=500, detail="建立附約失敗")
+
+        result = await _enrich_student_addendum(result, parent)
+        return DataResponse(message="附約建立成功", data=ContractAddendumResponse(**result))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"建立附約失敗: {str(e)}")
+
+
+@router.get("/{contract_id}/addendums/{addendum_id}", response_model=DataResponse[ContractAddendumResponse])
+async def get_student_addendum(
+    contract_id: str,
+    addendum_id: str,
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
+):
+    """取得單一學生合約附約"""
+    try:
+        result = await supabase_service.table_select(
+            table="contract_addendums",
+            select=ADDENDUM_SELECT,
+            filters={
+                "id": addendum_id,
+                "parent_contract_id": f"eq.{contract_id}",
+                "contract_type": "eq.student",
+                "is_deleted": "eq.false",
+            },
+        )
+        if not result:
+            raise HTTPException(status_code=404, detail="附約不存在")
+
+        enriched = await _enrich_student_addendum(result[0])
+        return DataResponse(data=ContractAddendumResponse(**enriched))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取得附約失敗: {str(e)}")
+
+
+@router.put("/{contract_id}/addendums/{addendum_id}", response_model=DataResponse[ContractAddendumResponse])
+async def update_student_addendum(
+    contract_id: str,
+    addendum_id: str,
+    data: ContractAddendumUpdate,
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
+):
+    """更新學生合約附約（僅限員工，pending 狀態才可修改）"""
+    try:
+        existing = await supabase_service.table_select(
+            table="contract_addendums",
+            select="id,addendum_status,original_end_date,parent_contract_id",
+            filters={
+                "id": addendum_id,
+                "parent_contract_id": f"eq.{contract_id}",
+                "contract_type": "eq.student",
+                "is_deleted": "eq.false",
+            },
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="附約不存在")
+
+        if existing[0]["addendum_status"] != "pending":
+            raise HTTPException(status_code=400, detail="只有待生效狀態的附約才可修改")
+
+        update_data = {}
+        if data.new_end_date is not None:
+            original = existing[0]["original_end_date"]
+            if data.new_end_date.isoformat() <= original:
+                raise HTTPException(status_code=400, detail="新結束日期必須大於原結束日期")
+            update_data["new_end_date"] = data.new_end_date.isoformat()
+        if data.notes is not None:
+            update_data["notes"] = data.notes
+
+        if not update_data:
+            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+
+        employee_id = await get_user_employee_id(current_user.user_id)
+        if employee_id:
+            update_data["updated_by"] = employee_id
+
+        result = await supabase_service.table_update(
+            table="contract_addendums",
+            data=update_data,
+            filters={"id": addendum_id},
+        )
+        if not result:
+            raise HTTPException(status_code=500, detail="更新附約失敗")
+
+        enriched = await _enrich_student_addendum(result)
+        return DataResponse(message="附約更新成功", data=ContractAddendumResponse(**enriched))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新附約失敗: {str(e)}")
+
+
+@router.delete("/{contract_id}/addendums/{addendum_id}", response_model=BaseResponse)
+async def delete_student_addendum(
+    contract_id: str,
+    addendum_id: str,
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
+):
+    """刪除學生合約附約（軟刪除，僅限員工）"""
+    try:
+        existing = await supabase_service.table_select(
+            table="contract_addendums",
+            select="id",
+            filters={
+                "id": addendum_id,
+                "parent_contract_id": f"eq.{contract_id}",
+                "contract_type": "eq.student",
+                "is_deleted": "eq.false",
+            },
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="附約不存在")
+
+        employee_id = await get_user_employee_id(current_user.user_id)
+        delete_data = {
+            "is_deleted": True,
+            "deleted_at": datetime.utcnow().isoformat(),
+        }
+        if employee_id:
+            delete_data["deleted_by"] = employee_id
+
+        result = await supabase_service.table_update(
+            table="contract_addendums",
+            data=delete_data,
+            filters={"id": addendum_id},
+        )
+        if not result:
+            raise HTTPException(status_code=500, detail="刪除附約失敗")
+
+        return BaseResponse(message="附約刪除成功")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"刪除附約失敗: {str(e)}")
+
+
+@router.get("/{contract_id}/addendums/{addendum_id}/generate-pdf")
+async def generate_student_addendum_pdf(
+    contract_id: str,
+    addendum_id: str,
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
+):
+    """產生學生合約附約 PDF"""
+    try:
+        # 確認附約存在且屬於此合約
+        existing = await supabase_service.table_select(
+            table="contract_addendums",
+            select="id",
+            filters={
+                "id": addendum_id,
+                "parent_contract_id": f"eq.{contract_id}",
+                "contract_type": "eq.student",
+                "is_deleted": "eq.false",
+            },
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="附約不存在")
+
+        result = await generate_addendum_pdf(addendum_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="產生附約 PDF 失敗")
+
+        pdf_bytes, addendum_no = result
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{addendum_no}.pdf"'
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"產生附約 PDF 失敗: {str(e)}")
+
+
+class AddendumConfirmUploadRequest(BaseModel):
+    """附約確認上傳請求"""
+    storage_path: str
+    file_name: str
+
+
+@router.post("/{contract_id}/addendums/{addendum_id}/upload-url")
+async def get_student_addendum_upload_url(
+    contract_id: str,
+    addendum_id: str,
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
+):
+    """取得學生合約附約的 S3 上傳 URL"""
+    try:
+        existing = await supabase_service.table_select(
+            table="contract_addendums",
+            select="id",
+            filters={
+                "id": addendum_id,
+                "parent_contract_id": f"eq.{contract_id}",
+                "contract_type": "eq.student",
+                "is_deleted": "eq.false",
+            },
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="附約不存在")
+
+        await storage_service.ensure_bucket_exists(settings.AWS_S3_BUCKET)
+
+        safe_filename = f"{uuid.uuid4().hex}.pdf"
+        storage_path = f"contract-addendums/{addendum_id}/{safe_filename}"
+
+        signed = await storage_service.create_signed_upload_url(
+            bucket=settings.AWS_S3_BUCKET,
+            path=storage_path,
+        )
+        if not signed:
+            raise HTTPException(status_code=500, detail="產生上傳連結失敗")
+
+        return {
+            "upload_url": signed["upload_url"],
+            "storage_path": storage_path,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"產生上傳連結失敗: {str(e)}")
+
+
+@router.post("/{contract_id}/addendums/{addendum_id}/confirm-upload", response_model=DataResponse[ContractAddendumResponse])
+async def confirm_student_addendum_upload(
+    contract_id: str,
+    addendum_id: str,
+    body: AddendumConfirmUploadRequest,
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
+):
+    """確認學生合約附約上傳完成 → active + 更新母約 end_date"""
+    try:
+        existing = await supabase_service.table_select(
+            table="contract_addendums",
+            select="id,new_end_date",
+            filters={
+                "id": addendum_id,
+                "parent_contract_id": f"eq.{contract_id}",
+                "contract_type": "eq.student",
+                "is_deleted": "eq.false",
+            },
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="附約不存在")
+
+        # 驗證 storage_path 格式
+        if not re.match(r'^contract-addendums/[a-f0-9\-]+/[a-f0-9]+\.pdf$', body.storage_path):
+            raise HTTPException(status_code=400, detail="無效的檔案路徑格式")
+
+        # 確認檔案已上傳
+        file_exists = await storage_service.verify_file_exists(
+            bucket=settings.AWS_S3_BUCKET,
+            path=body.storage_path,
+        )
+        if not file_exists:
+            raise HTTPException(status_code=400, detail="檔案尚未上傳至 S3，請重新上傳")
+
+        # 再次驗證母約仍為 active
+        parent = await supabase_service.table_select(
+            table="student_contracts",
+            select="id,contract_status",
+            filters={"id": contract_id, "is_deleted": "eq.false"},
+        )
+        if not parent or parent[0]["contract_status"] != "active":
+            raise HTTPException(status_code=400, detail="母約狀態不是生效中，無法確認附約")
+
+        employee_id = await get_user_employee_id(current_user.user_id)
+
+        # 更新附約
+        update_data = {
+            "file_path": body.storage_path,
+            "file_name": body.file_name,
+            "file_uploaded_at": datetime.utcnow().isoformat(),
+            "addendum_status": "active",
+        }
+        if employee_id:
+            update_data["updated_by"] = employee_id
+
+        result = await supabase_service.table_update(
+            table="contract_addendums",
+            data=update_data,
+            filters={"id": addendum_id},
+        )
+        if not result:
+            raise HTTPException(status_code=500, detail="更新附約失敗")
+
+        # 更新母約 end_date
+        new_end_date = existing[0]["new_end_date"]
+        await supabase_service.table_update(
+            table="student_contracts",
+            data={"end_date": new_end_date},
+            filters={"id": contract_id},
+        )
+
+        enriched = await _enrich_student_addendum(result)
+        return DataResponse(
+            message="附約上傳成功，母約結束日期已更新",
+            data=ContractAddendumResponse(**enriched)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"確認上傳失敗: {str(e)}")
+
+
+@router.get("/{contract_id}/addendums/{addendum_id}/download-url")
+async def get_student_addendum_download_url(
+    contract_id: str,
+    addendum_id: str,
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
+):
+    """取得學生合約附約的下載 URL"""
+    try:
+        result = await supabase_service.table_select(
+            table="contract_addendums",
+            select="id,file_path,file_name",
+            filters={
+                "id": addendum_id,
+                "parent_contract_id": f"eq.{contract_id}",
+                "contract_type": "eq.student",
+                "is_deleted": "eq.false",
+            },
+        )
+        if not result:
+            raise HTTPException(status_code=404, detail="附約不存在")
+
+        file_path = result[0].get("file_path")
+        if not file_path:
+            raise HTTPException(status_code=404, detail="此附約尚未上傳檔案")
+
+        signed_url = await storage_service.create_signed_download_url(
+            bucket=settings.AWS_S3_BUCKET,
+            path=file_path,
+            expires_in=3600,
+        )
+        if not signed_url:
+            raise HTTPException(status_code=500, detail="產生下載連結失敗")
+
+        return {
+            "download_url": signed_url,
+            "file_name": result[0].get("file_name", "addendum.pdf"),
         }
 
     except HTTPException:
