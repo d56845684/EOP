@@ -200,16 +200,21 @@ async def update_user(
             update_data["role_id"] = uuid.UUID(update_data["role_id"])
 
         # Update user_profiles
+        ALLOWED_COLUMNS = {"role_id", "employee_subtype", "is_active"}
         sets = []
         params = [uid]
         for k, v in update_data.items():
+            if k not in ALLOWED_COLUMNS:
+                continue
+            safe_col = supabase_service._sanitize_identifier(k)
             params.append(v)
-            sets.append(f"{k} = ${len(params)}")
+            sets.append(f'"{safe_col}" = ${len(params)}')
 
-        await supabase_service.pool.execute(
-            f"UPDATE user_profiles SET {', '.join(sets)} WHERE id = $1",
-            *params,
-        )
+        if sets:
+            await supabase_service.pool.execute(
+                f"UPDATE user_profiles SET {', '.join(sets)} WHERE id = $1",
+                *params,
+            )
 
         # Re-fetch full account info
         row = await supabase_service.pool.fetchrow(

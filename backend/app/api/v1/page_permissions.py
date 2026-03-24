@@ -239,11 +239,18 @@ async def update_role(
             raise HTTPException(status_code=400, detail="沒有要更新的資料")
 
         # Build SET clause
+        ALLOWED_COLUMNS = {"key", "name", "description"}
         sets = []
         params = [rid]
         for k, v in update_data.items():
+            if k not in ALLOWED_COLUMNS:
+                continue
+            safe_col = supabase_service._sanitize_identifier(k)
             params.append(v)
-            sets.append(f"{k} = ${len(params)}")
+            sets.append(f'"{safe_col}" = ${len(params)}')
+
+        if not sets:
+            raise HTTPException(status_code=400, detail="沒有可更新的欄位")
 
         row = await supabase_service.pool.fetchrow(
             f"UPDATE roles SET {', '.join(sets)} WHERE id = $1 RETURNING id, key, name, description, is_system",
