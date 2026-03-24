@@ -50,49 +50,43 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col">
-      {/* Logo / Title */}
-      <div className="p-4 border-b border-gray-200">
-        <h1 className="text-xl font-bold text-gray-800">教學管理系統</h1>
-      </div>
-
-      {/* User Info */}
+    <aside className="w-60 bg-white border-r flex flex-col" style={{ borderColor: 'var(--ep-border-color)', minHeight: '100vh' }}>
+      {/* Avatar + User Info (top section) */}
       {user && (
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-              {profile?.avatar_url ? (
-                <img
-                  src={profile.avatar_url}
-                  alt="Avatar"
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-              ) : (
-                <User className="w-5 h-5 text-blue-600" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {profile?.full_name || user.email}
-              </p>
-              {profile?.role && (
-                <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
-                  {roleLabels[profile.role] || profile.role}
-                </span>
-              )}
-            </div>
+        <div className="py-5 px-4 text-center" style={{ borderBottom: '1px solid var(--ep-border-color)' }}>
+          <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-2">
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt="Avatar"
+                className="w-12 h-12 rounded-full object-cover"
+              />
+            ) : (
+              <User className="w-6 h-6 text-primary-500" />
+            )}
           </div>
+          <p className="text-sm font-medium truncate" style={{ color: 'var(--ep-text-color-primary)' }}>
+            {profile?.full_name || user.email}
+          </p>
+          {profile?.role && (
+            <span className="inline-block mt-1 px-2 py-0.5 text-xs rounded"
+              style={{
+                backgroundColor: 'var(--ep-color-primary)',
+                color: '#fff',
+                borderRadius: 'var(--ep-border-radius-small)',
+              }}>
+              {roleLabels[profile.role] || profile.role}
+            </span>
+          )}
         </div>
       )}
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4">
-        <ul className="space-y-1">
+      {/* Navigation Menu */}
+      <nav className="flex-1 overflow-y-auto py-2">
+        <ul className="space-y-0.5 px-2">
           {navItems
             .filter((item) => {
-              // 沒有 pageKey 的項目永遠顯示
               if (!item.pageKey) return true
-              // 支援 | 分隔的多 key（任一符合即顯示）
               const keys = item.pageKey.split('|')
               return keys.some((k) => pageKeys.includes(k))
             })
@@ -102,11 +96,25 @@ export default function Sidebar() {
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                      isActive
-                        ? 'bg-blue-50 text-blue-700 font-medium'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
+                    className="flex items-center gap-3 px-3 py-2 text-sm transition-colors"
+                    style={{
+                      borderRadius: 'var(--ep-border-radius)',
+                      color: isActive ? 'var(--ep-color-primary)' : 'var(--ep-text-color-primary)',
+                      backgroundColor: isActive ? 'var(--ep-color-primary, #409eff)10' : 'transparent',
+                      fontWeight: isActive ? 500 : 400,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = 'var(--ep-bg-color-page)'
+                        e.currentTarget.style.color = 'var(--ep-color-primary)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                        e.currentTarget.style.color = 'var(--ep-text-color-primary)'
+                      }
+                    }}
                   >
                     {item.icon}
                     {item.label}
@@ -117,13 +125,27 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      {/* Sign Out Button */}
-      <div className="p-4 border-t border-gray-200">
+      {/* Bottom — Logout */}
+      <div className="px-4 py-4" style={{ borderTop: '1px solid var(--ep-border-color)' }}>
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 w-full px-3 py-2 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-colors"
+          className="flex items-center justify-center gap-2 w-full py-2 text-sm font-medium transition-colors"
+          style={{
+            color: 'var(--ep-color-danger)',
+            border: '1px solid var(--ep-color-danger)',
+            borderRadius: 'var(--ep-border-radius)',
+            backgroundColor: 'transparent',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--ep-color-danger)'
+            e.currentTarget.style.color = '#fff'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+            e.currentTarget.style.color = 'var(--ep-color-danger)'
+          }}
         >
-          <LogOut className="w-5 h-5" />
+          <LogOut className="w-4 h-4" />
           登出
         </button>
       </div>

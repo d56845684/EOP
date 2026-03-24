@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { authApi } from '@/lib/api/auth'
 import Sidebar from './Sidebar'
-import { Lock } from 'lucide-react'
+import { Lock, ChevronRight } from 'lucide-react'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -54,10 +54,34 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     setPwSubmitting(false)
   }
 
+  const pathname = usePathname()
+
+  // 路由 → 麵包屑標籤
+  const pageLabels: Record<string, string> = {
+    '/profile': '個人設定',
+    '/courses': '課程管理',
+    '/bookings': '預約管理',
+    '/teacher-slots': '教師時段',
+    '/my-contracts': '我的合約',
+    '/student-courses': '學生選課',
+    '/student-contracts': '學生合約',
+    '/teacher-contracts': '教師合約',
+    '/teacher-bonus': '教師獎金',
+    '/students': '學生管理',
+    '/teachers': '教師管理',
+    '/employees': '員工管理',
+    '/zoom-accounts': 'Zoom 帳號',
+    '/line-testing': 'LINE 測試',
+    '/accounts': '帳號管理',
+    '/role-permissions': '角色權限',
+  }
+
+  const currentPageLabel = pageLabels[pathname] || ''
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--ep-bg-color-page)' }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--ep-color-primary)' }}></div>
       </div>
     )
   }
@@ -67,11 +91,40 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen flex" style={{ backgroundColor: 'var(--ep-bg-color-page)' }}>
       <Sidebar />
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header — breadcrumb bar */}
+        <header className="h-12 flex items-center px-5 shrink-0"
+          style={{
+            backgroundColor: 'var(--ep-bg-color)',
+            borderBottom: '1px solid var(--ep-border-color)',
+          }}>
+          <nav className="flex items-center text-sm" style={{ color: 'var(--ep-text-color-secondary)' }}>
+            <span className="cursor-pointer hover:opacity-80" style={{ color: 'var(--ep-text-color-primary)' }}>首頁</span>
+            {currentPageLabel && (
+              <>
+                <ChevronRight className="w-4 h-4 mx-1" />
+                <span style={{ color: 'var(--ep-text-color-secondary)' }}>{currentPageLabel}</span>
+              </>
+            )}
+          </nav>
+        </header>
+
+        {/* Main content */}
+        <main className="flex-1 overflow-auto p-5">
+          {children}
+        </main>
+
+        {/* Footer */}
+        <footer className="h-10 flex items-center justify-center shrink-0 text-xs"
+          style={{
+            borderTop: '1px solid var(--ep-border-color)',
+            color: 'var(--ep-text-color-secondary)',
+          }}>
+          © 2024 EOP System
+        </footer>
+      </div>
 
       {/* Forced Password Change Modal */}
       {mustChangePassword && (

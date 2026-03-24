@@ -3,43 +3,159 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 245, 245, 245;
-  --background-end-rgb: 255, 255, 255;
+  --ep-color-primary: #409eff;
+  --ep-color-primary-light: #66b1ff;
+  --ep-color-primary-dark: #337ecc;
+  --ep-color-success: #67c23a;
+  --ep-color-warning: #e6a23c;
+  --ep-color-danger: #f56c6c;
+  --ep-color-info: #909399;
+  --ep-bg-color: #ffffff;
+  --ep-bg-color-page: #f5f7fa;
+  --ep-border-color: #dcdfe6;
+  --ep-border-color-light: #e4e7ed;
+  --ep-text-color-primary: #303133;
+  --ep-text-color-regular: #606266;
+  --ep-text-color-secondary: #909399;
+  --ep-font-size-base: 14px;
+  --ep-border-radius: 4px;
+  --ep-border-radius-small: 2px;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  color: var(--ep-text-color-primary);
+  background: var(--ep-bg-color-page);
   min-height: 100vh;
+  font-size: var(--ep-font-size-base);
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', '微軟雅黑', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Line 綠色主題 */
-.btn-line {
-  @apply bg-[#06C755] hover:bg-[#05a847] text-white font-medium py-2 px-4 rounded-lg transition-colors;
-}
-
+/* ============================================
+   Buttons — Element Plus style
+   ============================================ */
 .btn-primary {
-  @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+  @apply text-white font-medium py-2 px-4 text-sm transition-colors;
+  background-color: var(--ep-color-primary);
+  border: 1px solid var(--ep-color-primary);
+  border-radius: var(--ep-border-radius);
+}
+.btn-primary:hover {
+  background-color: var(--ep-color-primary-light);
+  border-color: var(--ep-color-primary-light);
+}
+.btn-primary:disabled {
+  @apply opacity-50 cursor-not-allowed;
 }
 
 .btn-secondary {
-  @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors;
+  @apply font-medium py-2 px-4 text-sm transition-colors;
+  background-color: #fff;
+  border: 1px solid var(--ep-border-color);
+  border-radius: var(--ep-border-radius);
+  color: var(--ep-text-color-regular);
+}
+.btn-secondary:hover {
+  color: var(--ep-color-primary);
+  border-color: var(--ep-color-primary-light);
+  background-color: var(--ep-bg-color-page);
 }
 
 .btn-danger {
-  @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+  @apply text-white font-medium py-2 px-4 text-sm transition-colors;
+  background-color: var(--ep-color-danger);
+  border: 1px solid var(--ep-color-danger);
+  border-radius: var(--ep-border-radius);
+}
+.btn-danger:hover {
+  background-color: #f78989;
+  border-color: #f78989;
 }
 
+.btn-line {
+  @apply bg-[#06C755] hover:bg-[#05a847] text-white font-medium py-2 px-4 text-sm transition-colors;
+  border-radius: var(--ep-border-radius);
+}
+
+/* ============================================
+   Card — Element Plus style
+   ============================================ */
 .card {
-  @apply bg-white rounded-xl shadow-md p-6;
+  background-color: var(--ep-bg-color);
+  border: 1px solid var(--ep-border-color-light);
+  border-radius: var(--ep-border-radius);
+  padding: 20px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.3s;
 }
 
+/* ============================================
+   Input — Element Plus style
+   ============================================ */
 .input-field {
-  @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all;
+  @apply w-full px-3 py-2 text-sm outline-none transition-all;
+  border: 1px solid var(--ep-border-color);
+  border-radius: var(--ep-border-radius);
+  color: var(--ep-text-color-primary);
+  background-color: #fff;
+  height: 32px;
+  line-height: 32px;
+  box-sizing: border-box;
+}
+.input-field:hover {
+  border-color: #c0c4cc;
+}
+.input-field:focus {
+  border-color: var(--ep-color-primary);
+  box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.2);
+}
+select.input-field {
+  height: 32px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+textarea.input-field {
+  height: auto;
+  line-height: 1.5;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+/* ============================================
+   Table — Element Plus style
+   ============================================ */
+table thead th {
+  font-weight: 600;
+  color: var(--ep-text-color-regular);
+  font-size: 13px;
+}
+table tbody td {
+  color: var(--ep-text-color-primary);
+  font-size: 14px;
+}
+
+/* ============================================
+   Tags / Badges — Element Plus style
+   ============================================ */
+.inline-flex.items-center.rounded-full {
+  border-radius: var(--ep-border-radius-small) !important;
+}
+
+/* ============================================
+   Scrollbar — subtle
+   ============================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #c1c1c1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: #a8a8a8;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
