@@ -23,6 +23,7 @@ const navItems: NavItem[] = [
   { href: '/student-contracts', label: '學生合約', icon: <FileText className="w-5 h-5" />, pageKey: 'students.list' },
   { href: '/teacher-contracts', label: '教師合約', icon: <Users className="w-5 h-5" />, pageKey: 'teachers.contracts' },
   { href: '/teacher-bonus', label: '教師獎金', icon: <DollarSign className="w-5 h-5" />, pageKey: 'teachers.bonus' },
+  { href: '/student-overview', label: '學生總覽', icon: <GraduationCap className="w-5 h-5" />, pageKey: 'students.list' },
   { href: '/students', label: '學生管理', icon: <GraduationCap className="w-5 h-5" />, pageKey: 'students.list' },
   { href: '/teachers', label: '教師管理', icon: <Users className="w-5 h-5" />, pageKey: 'teachers.list' },
   { href: '/employees', label: '員工管理', icon: <Users className="w-5 h-5" />, pageKey: 'employees.list' },

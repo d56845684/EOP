@@ -67,6 +67,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     '/student-contracts': '學生合約',
     '/teacher-contracts': '教師合約',
     '/teacher-bonus': '教師獎金',
+    '/student-overview': '學生總覽',
     '/students': '學生管理',
     '/teachers': '教師管理',
     '/employees': '員工管理',
