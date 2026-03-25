@@ -41,7 +41,7 @@ export default {
     convertToFormal: '合約開通',
     contracts: '合約管理',
     addContract: '新增合約',
-    courses: '選課紀錄',
+    courses: '預約課程',
   },
   menu: {
     dashboard: '儀表板',

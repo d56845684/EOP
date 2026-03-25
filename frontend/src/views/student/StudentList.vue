@@ -129,7 +129,7 @@
         </el-table-column>
 
         <!-- Actions -->
-        <el-table-column :label="$t('common.actions')" width="240" fixed="right" class-name="action-column">
+        <el-table-column :label="$t('common.actions')" label-class-name="text-center" width="240" fixed="right" class-name="action-column">
           <template #default="{ row }">
             <div>
               <el-button v-permission="'students.edit'" round size="small" @click="openDrawer(row, 'manage')">
@@ -200,7 +200,7 @@
       <template v-if="drawerType === 'manage'">
         <el-tabs v-model="activeTab"  @tab-change="loadContent">
           <!-- Tab 1: Basic Info -->
-          <el-tab-pane :label="$t('student.basicInfo')" name="basic">
+          <el-tab-pane :label="$t('common.basicInfo')" name="basic">
             <BaseInfo
               :form="form"
               :rules="rules"
@@ -210,7 +210,7 @@
           </el-tab-pane>
 
           <!-- Tab 2: Courses -->
-          <el-tab-pane v-permission="'bookings.list'" :label="$t('student.courses')" name="courses">
+          <el-tab-pane v-permission="'bookings.list'" :label="$t('common.courses')" name="courses">
             <BookingList 
               v-if="activeTab === 'courses' && currentStudent?.id" 
               :student-id="currentStudent.id" 
@@ -260,12 +260,15 @@ import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormRules } from 'element-plus';
 import { 
-  getStudentList, 
+  getStudentOverviewList,
+  getStudentView,
   createStudent, 
   updateStudent, 
   deleteStudent,
-  type StudentListParams,
+  type StudentOverviewListParams,
   type StudentResponse,
+  type StudentOverviewListResponse,
+  type StudentOverviewResponse,
   type StudentCreate,
   type StudentUpdate,
 } from '@/api/student';
@@ -294,19 +297,22 @@ const loading = ref(false);
 const studentList = ref<any[]>([]);
 const total = ref(0);
 
-const queryParams = reactive<StudentListParams>({
+const queryParams = reactive<StudentOverviewListParams>({
   page: 1,
   per_page: 10,
   search: '',
   is_active: 'all',
-  student_type: 'all'
+  student_type: 'all',
+  has_account: 'all',
+  has_active_contract: 'all',
+  role: 'all',
 });
 
 // --- Drawer State ---
 const drawerVisible = ref(false);
 const drawerType = ref('manage');
 const activeTab = ref('basic');
-const currentStudent = ref<Partial<StudentResponse>>({});
+const currentStudent = ref<Partial<StudentOverviewListResponse>>({});
 const saving = ref(false);
 
 // --- Forms ---
@@ -325,6 +331,8 @@ const rules = reactive<FormRules>({
   birth_date: [{ required: true, message: 'Birth Date is required' }],
 });
 
+const basicLoading = ref(false);
+const studentView = ref<StudentOverviewResponse['data'] | null>(null);
 
 // --- Contracts Feature State ---
 const contract = ref<StudentContract | null>(null);
@@ -355,8 +363,11 @@ const fetchData = async () => {
     const params: any = { ...queryParams };
     if (params.is_active === 'all') delete params.is_active;
     if (params.student_type === 'all') delete params.student_type;
+    if (params.has_account === 'all') delete params.has_account;
+    if (params.has_active_contract === 'all') delete params.has_active_contract;
+    if (params.role === 'all') delete params.role;
     
-    const res: any = await getStudentList(params);
+    const res: any = await getStudentOverviewList(params);
     
     studentList.value = res?.data?.items || res?.data || [];
     total.value = res?.total || 0;
@@ -381,7 +392,7 @@ const resetQuery = () => {
   fetchData();
 };
 
-const openDrawer = async (row: StudentResponse | null, type: string) => {
+const openDrawer = async (row: StudentOverviewListResponse | null, type: string) => {
   drawerType.value = type;
   if (row) {
     currentStudent.value = row;
@@ -389,13 +400,7 @@ const openDrawer = async (row: StudentResponse | null, type: string) => {
 
   if (type === 'manage' && row) {
     activeTab.value = 'basic';
-    Object.assign(form, {
-      name: row.name,
-      email: row.email,
-      phone: row.phone,
-      address: row.address,
-      birth_date: row.birth_date
-    });
+    await loadContent('basic');
   }
 
   if (type === 'contract' && row) {
@@ -482,11 +487,32 @@ const loadContent = async (tabName: string | number) => {
     case 'records':
       await loadBookingList()
       break;
-  
     default:
+      await loadBasicInfo()
       break;
   }
 };
+
+const loadBasicInfo = async () => {
+  if (!currentStudent.value?.id) return;
+  basicLoading.value = true;
+  try {
+    const res: any = await getStudentView(currentStudent.value.id);
+    studentView.value = res.data;
+    Object.assign(form, {
+      name: studentView.value?.student?.name,
+      email: studentView.value?.student?.email,
+      phone: studentView.value?.student?.phone,
+      address: studentView.value?.student?.address,
+      birth_date: studentView.value?.student?.birth_date
+    });
+  } catch (err) {
+    console.error(err);
+    ElMessage.error('載入基本資料失敗');
+  } finally {
+    basicLoading.value = false;
+  }
+}
 
 const loadContract = async () => {
   if (!currentStudent.value?.id) return;
@@ -600,6 +626,14 @@ onMounted(() => {
    }
 }
 :deep(.el-table) {
+  .text-center {
+    text-align: center;
+    justify-content: center;
+    .cell {
+      text-align: center !important;
+      justify-content: center !important;
+    }
+  }
   .action-column {
     .cell {
       display: flex;
