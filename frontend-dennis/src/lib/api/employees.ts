@@ -15,6 +15,9 @@ export interface Employee {
     hire_date?: string
     termination_date?: string
     is_active: boolean
+    has_account: boolean
+    role_id?: string
+    role_name?: string
     email_verified_at?: string
     created_at?: string
     updated_at?: string
@@ -40,7 +43,14 @@ export interface UpdateEmployeeData {
     address?: string
     hire_date?: string
     termination_date?: string
+    role_id?: string
     is_active?: boolean
+}
+
+export interface Role {
+    id: string
+    key: string
+    name: string
 }
 
 export interface EmployeeListResponse {
@@ -112,6 +122,17 @@ export const employeesApi = {
             return { data: result.data, error: null }
         } catch (err) {
             return { data: null, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async listRoles(): Promise<{ data: Role[], error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/employees/roles`)
+            if (!response.ok) return { data: [], error: null }
+            const result = await response.json()
+            return { data: result.data || [], error: null }
+        } catch {
+            return { data: [], error: null }
         }
     },
 

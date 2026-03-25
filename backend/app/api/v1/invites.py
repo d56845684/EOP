@@ -51,12 +51,13 @@ async def generate_invite(
         if existing_users:
             raise HTTPException(status_code=400, detail="此 email 已有登入帳號")
 
-        # 3. 產生 token
+        # 3. 產生 token（員工可附帶指定角色）
         token, expires_at = await invite_service.generate_token(
             entity_type=data.entity_type,
             entity_id=data.entity_id,
             email=entity["email"],
             name=entity["name"],
+            role_id=data.role_id if data.entity_type == "employee" else None,
         )
 
         invite_url = f"{settings.FRONTEND_URL}/accept-invite?token={token}"
@@ -114,23 +115,26 @@ async def accept_invite(data: AcceptInviteRequest):
         user_id = auth_response.user.id
 
         # 4. INSERT user_profiles 帶入 student_id/teacher_id/employee_id
-        #    查 roles 表取得 role_id
-        if entity_type == "employee":
-            # 員工：根據 employee_type 決定角色（admin → admin, 其他 → employee）
-            employee_type = entity.get("employee_type", "full_time")
-            role_key = "admin" if employee_type == "admin" else "employee"
+        #    角色決定：token 有指定 role_id → 直接用；否則從 employee_type 推導
+        token_role_id = token_data.get("role_id")
+        if token_role_id:
+            assigned_role_id = token_role_id
         else:
-            role_key = entity_type
-
-        role_row = await supabase_service.pool.fetchrow(
-            "SELECT id FROM roles WHERE key = $1", role_key
-        )
-        if not role_row:
-            raise HTTPException(status_code=500, detail=f"角色 '{role_key}' 不存在")
+            if entity_type == "employee":
+                employee_type = entity.get("employee_type", "full_time")
+                role_key = "admin" if employee_type == "admin" else "employee"
+            else:
+                role_key = entity_type
+            role_row = await supabase_service.pool.fetchrow(
+                "SELECT id FROM roles WHERE key = $1", role_key
+            )
+            if not role_row:
+                raise HTTPException(status_code=500, detail=f"角色 '{role_key}' 不存在")
+            assigned_role_id = str(role_row["id"])
 
         profile_data = {
             "id": user_id,
-            "role_id": str(role_row["id"]),
+            "role_id": assigned_role_id,
             "must_change_password": True,
         }
         if entity_type == "student":

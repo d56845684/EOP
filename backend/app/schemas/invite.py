@@ -7,6 +7,7 @@ class GenerateInviteRequest(BaseModel):
     """產生邀請連結請求"""
     entity_type: Literal["student", "teacher", "employee"] = Field(..., description="實體類型")
     entity_id: str = Field(..., description="實體 ID")
+    role_id: Optional[str] = Field(None, description="指定角色 ID（僅 employee 適用）")
 
 
 class GenerateInviteResponse(BaseModel):

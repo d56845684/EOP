@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
-import { employeesApi, Employee, CreateEmployeeData, UpdateEmployeeData } from '@/lib/api/employees'
+import { employeesApi, Employee, CreateEmployeeData, UpdateEmployeeData, Role } from '@/lib/api/employees'
 import { invitesApi } from '@/lib/api/invites'
 import { Plus, Pencil, Trash2, Search, X, Users, CheckCircle, XCircle, Mail, Phone, UserPlus, Copy, Check } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
@@ -48,6 +48,10 @@ export default function EmployeesPage() {
     const [inviteLoading, setInviteLoading] = useState(false)
     const [inviteError, setInviteError] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
+    const [inviteRoleId, setInviteRoleId] = useState<string>('')
+
+    // 角色列表
+    const [roles, setRoles] = useState<Role[]>([])
 
     const isAdmin = profile?.role === 'admin'
 
@@ -71,7 +75,10 @@ export default function EmployeesPage() {
     }, [page, searchTerm, filterActive, filterType])
 
     useEffect(() => {
-        if (user) fetchEmployees()
+        if (user) {
+            fetchEmployees()
+            employeesApi.listRoles().then(({ data }) => setRoles(data))
+        }
     }, [user, fetchEmployees])
 
     useEffect(() => {
@@ -102,6 +109,7 @@ export default function EmployeesPage() {
             address: emp.address || '',
             hire_date: emp.hire_date || '',
             termination_date: emp.termination_date || undefined,
+            role_id: undefined,
             is_active: emp.is_active,
         })
         setFormError(null)
@@ -131,6 +139,7 @@ export default function EmployeesPage() {
                 if ((formData.address || '') !== (editingEmployee.address || '')) updateData.address = formData.address || undefined
                 if ((formData.hire_date || '') !== (editingEmployee.hire_date || '')) updateData.hire_date = formData.hire_date || undefined
                 if ((formData.termination_date || '') !== (editingEmployee.termination_date || '')) updateData.termination_date = formData.termination_date || undefined
+                if ((formData.role_id || '') !== (editingEmployee.role_id || '')) updateData.role_id = formData.role_id || undefined
                 if (formData.is_active !== editingEmployee.is_active) updateData.is_active = formData.is_active
                 const { error } = await employeesApi.update(editingEmployee.id, updateData)
                 if (error) { setFormError(error.message) } else { closeModal(); fetchEmployees() }
@@ -147,14 +156,21 @@ export default function EmployeesPage() {
     }
 
     // === 邀請連結 ===
-    const handleGenerateInvite = async (emp: Employee) => {
+    const openInviteModal = (emp: Employee) => {
         setInviteEmployee(emp)
         setInviteUrl(null)
         setInviteError(null)
-        setInviteLoading(true)
+        setInviteLoading(false)
         setCopied(false)
+        setInviteRoleId('')
+    }
 
-        const { data, error } = await invitesApi.generate('employee', emp.id)
+    const handleGenerateInvite = async () => {
+        if (!inviteEmployee) return
+        setInviteLoading(true)
+        setInviteError(null)
+
+        const { data, error } = await invitesApi.generate('employee', inviteEmployee.id, inviteRoleId || undefined)
         if (error) {
             setInviteError(error.message)
         } else if (data) {
@@ -168,6 +184,7 @@ export default function EmployeesPage() {
         setInviteUrl(null)
         setInviteError(null)
         setCopied(false)
+        setInviteRoleId('')
     }
 
     const handleCopyUrl = async () => {
@@ -234,11 +251,11 @@ export default function EmployeesPage() {
                             <select value={filterType}
                                 onChange={(e) => { setFilterType(e.target.value); setPage(1) }}
                                 className="input-field w-full sm:w-40">
-                                <option value="">全部類型</option>
+                                <option value="">全部角色</option>
                                 <option value="admin">管理員</option>
-                                <option value="full_time">全職</option>
-                                <option value="part_time">兼職</option>
-                                <option value="intern">實習</option>
+                                <option value="full_time">全職員工</option>
+                                <option value="part_time">兼職員工</option>
+                                <option value="intern">實習員工</option>
                             </select>
                         </div>
                     </div>
@@ -262,7 +279,7 @@ export default function EmployeesPage() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">編號</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">姓名</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">聯絡方式</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">類型</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">角色</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">到職日</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">帳號</th>
@@ -285,14 +302,20 @@ export default function EmployeesPage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                    emp.employee_type === 'admin' ? 'bg-red-100 text-red-800' :
-                                                    emp.employee_type === 'full_time' ? 'bg-blue-100 text-blue-800' :
-                                                    emp.employee_type === 'part_time' ? 'bg-yellow-100 text-yellow-800' :
-                                                    'bg-gray-100 text-gray-800'
-                                                }`}>
-                                                    {employeeTypeLabels[emp.employee_type] || emp.employee_type}
-                                                </span>
+                                                <div className="flex flex-col gap-1">
+                                                    {emp.role_name ? (
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${
+                                                            emp.role_name === '管理員' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                                                        }`}>
+                                                            {emp.role_name}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">未指定</span>
+                                                    )}
+                                                    <span className="text-xs text-gray-400">
+                                                        {employeeTypeLabels[emp.employee_type] || emp.employee_type}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                 {emp.hire_date || '-'}
@@ -314,7 +337,7 @@ export default function EmployeesPage() {
                                             {isAdmin && (
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                     {!emp.email_verified_at && (
-                                                        <button onClick={() => handleGenerateInvite(emp)} className="text-green-600 hover:text-green-900 mr-4" title="產生邀請連結"><UserPlus className="w-5 h-5" /></button>
+                                                        <button onClick={() => openInviteModal(emp)} className="text-green-600 hover:text-green-900 mr-4" title="產生邀請連結"><UserPlus className="w-5 h-5" /></button>
                                                     )}
                                                     <button onClick={() => openEditModal(emp)} className="text-blue-600 hover:text-blue-900 mr-4" title="編輯"><Pencil className="w-5 h-5" /></button>
                                                     <button onClick={() => setDeleteConfirm(emp)} className="text-red-600 hover:text-red-900" title="刪除"><Trash2 className="w-5 h-5" /></button>
@@ -383,6 +406,22 @@ export default function EmployeesPage() {
                                             </select>
                                         </div>
                                     </div>
+                                    {modalMode === 'edit' && editingEmployee?.has_account && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">系統角色（決定權限）</label>
+                                            <select value={formData.role_id || ''} onChange={(e) => setFormData({ ...formData, role_id: e.target.value || undefined })} className="input-field">
+                                                <option value="">不變更</option>
+                                                {roles.map(r => (
+                                                    <option key={r.id} value={r.id}>{r.name}（{r.key}）</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                    {modalMode === 'edit' && editingEmployee && !editingEmployee.has_account && (
+                                        <p className="text-xs px-1" style={{ color: 'var(--ep-text-color-secondary)' }}>
+                                            此員工尚未接受邀請建立帳號，無法設定系統角色
+                                        </p>
+                                    )}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">地址</label>
                                         <input type="text" value={formData.address || ''} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="input-field" />
@@ -439,7 +478,7 @@ export default function EmployeesPage() {
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                         <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-bold text-gray-900">邀請連結</h3>
+                                <h3 className="text-lg font-bold text-gray-900">產生邀請連結</h3>
                                 <button onClick={closeInviteModal} className="text-gray-400 hover:text-gray-600">
                                     <X className="w-6 h-6" />
                                 </button>
@@ -448,14 +487,35 @@ export default function EmployeesPage() {
                                 員工：<span className="font-medium">{inviteEmployee.name}</span>（{inviteEmployee.email}）
                             </p>
 
+                            {/* 角色選擇（產生前） */}
+                            {!inviteUrl && !inviteLoading && (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">預設角色</label>
+                                        <select value={inviteRoleId} onChange={e => setInviteRoleId(e.target.value)} className="input-field">
+                                            <option value="">自動（依員工類型推導）</option>
+                                            {roles.map(r => (
+                                                <option key={r.id} value={r.id}>{r.name}（{r.key}）</option>
+                                            ))}
+                                        </select>
+                                        <p className="text-xs mt-1" style={{ color: 'var(--ep-text-color-secondary)' }}>
+                                            員工接受邀請後將被分配此角色
+                                        </p>
+                                    </div>
+                                    <button onClick={handleGenerateInvite} className="btn-primary w-full">
+                                        產生邀請連結
+                                    </button>
+                                </div>
+                            )}
+
                             {inviteLoading && (
                                 <div className="flex justify-center py-8">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--ep-color-primary)' }}></div>
                                 </div>
                             )}
 
                             {inviteError && (
-                                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">
+                                <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm mb-4">
                                     {inviteError}
                                 </div>
                             )}
@@ -467,11 +527,16 @@ export default function EmployeesPage() {
                                         <input type="text" readOnly value={inviteUrl}
                                             className="input-field flex-1 text-sm bg-gray-50" />
                                         <button onClick={handleCopyUrl}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1 ${copied ? 'bg-green-100 text-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                                            className={`px-4 py-2 rounded text-sm font-medium flex items-center gap-1 ${copied ? 'bg-green-100 text-green-700' : 'btn-primary'}`}>
                                             {copied ? <><Check className="w-4 h-4" />已複製</> : <><Copy className="w-4 h-4" />複製</>}
                                         </button>
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-2">此連結有效期為 7 天，僅可使用一次</p>
+                                    <p className="text-xs mt-2" style={{ color: 'var(--ep-text-color-secondary)' }}>
+                                        此連結有效期為 7 天，僅可使用一次
+                                        {inviteRoleId && roles.find(r => r.id === inviteRoleId) && (
+                                            <> · 預設角色：<strong>{roles.find(r => r.id === inviteRoleId)!.name}</strong></>
+                                        )}
+                                    </p>
                                 </div>
                             )}
 

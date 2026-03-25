@@ -23,6 +23,7 @@ class InviteService:
         entity_id: str,
         email: str,
         name: str,
+        role_id: str = None,
     ) -> tuple[str, datetime]:
         """產生邀請 token，回傳 (token, expires_at)"""
         # 失效該 entity 的舊 token
@@ -42,6 +43,8 @@ class InviteService:
             "name": name,
             "created_at": datetime.utcnow().isoformat(),
         }
+        if role_id:
+            data["role_id"] = role_id
 
         await redis_service.set_json(self._token_key(token), data, expire_seconds=INVITE_TTL)
         await redis_service.set(entity_key, token, expire_seconds=INVITE_TTL)
