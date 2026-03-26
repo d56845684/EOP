@@ -281,16 +281,16 @@ export const studentContractsApi = {
 
     async generatePdf(contractId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/generate-pdf`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/generate-docx`, {
                 method: 'GET',
             })
             if (!response.ok) {
                 const error = await response.json()
-                return { success: false, error: { message: error.detail || '產生合約 PDF 失敗' } }
+                return { success: false, error: { message: error.detail || '產生合約文件失敗' } }
             }
             const blob = await response.blob()
             const contentDisposition = response.headers.get('Content-Disposition')
-            let filename = 'contract.pdf'
+            let filename = 'contract.docx'
             if (contentDisposition) {
                 const match = contentDisposition.match(/filename="?([^"]+)"?/)
                 if (match) filename = match[1]

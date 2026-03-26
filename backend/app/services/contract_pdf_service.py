@@ -1,6 +1,11 @@
 import os
+import math
+import re
+from datetime import date
+from io import BytesIO
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
+from docx import Document as DocxDocument
 from app.services.supabase_service import supabase_service
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
@@ -234,3 +239,141 @@ async def generate_teacher_contract_pdf(contract_id: str) -> tuple[bytes, str] |
 
     pdf_bytes = HTML(string=html_str).write_pdf()
     return pdf_bytes, data["contract"]["contract_no"]
+
+
+# ============================================
+# DOCX 合約產生（基於 2026 新 EOP 課程合約範本）
+# ============================================
+
+def _replace_in_paragraph(paragraph, replacements: dict):
+    """替換段落中的佔位符，保留格式"""
+    for run in paragraph.runs:
+        for key, value in replacements.items():
+            if key in run.text:
+                run.text = run.text.replace(key, str(value))
+
+
+def _replace_in_cell(cell, replacements: dict):
+    """替換表格儲存格中的佔位符"""
+    for paragraph in cell.paragraphs:
+        _replace_in_paragraph(paragraph, replacements)
+
+
+async def generate_student_contract_docx(contract_id: str) -> tuple[bytes, str] | None:
+    """
+    從 docx 範本產生學生合約文件。
+    回傳 (docx_bytes, filename) 或 None。
+    """
+    data = await _fetch_student_contract_data(contract_id)
+    if not data:
+        return None
+
+    contract = data["contract"]
+    details = data["details"]
+
+    # 計算欄位值
+    student_name = contract.get("student_name", "")
+    total_lessons = contract.get("total_lessons", 0)
+    total_amount = contract.get("total_amount", 0)
+
+    # 學生聯絡資訊
+    student_info = {"phone": "", "email": ""}
+    if contract.get("student_id"):
+        student_rows = await supabase_service.table_select(
+            table="students", select="phone,email",
+            filters={"id": contract["student_id"]},
+        )
+        if student_rows:
+            student_info = student_rows[0]
+
+    # 贈送堂數（compensation 類型的明細）
+    bonus_lessons = 0
+    for d in details:
+        if d.get("detail_type") == "compensation":
+            bonus_lessons += int(d.get("amount", 0))
+
+    # 購買堂數 = 總堂數 - 贈送堂數
+    purchased_lessons = total_lessons - bonus_lessons
+
+    # 課程名稱 + 時長（從 lesson_price 明細取第一筆）
+    course_name = ""
+    duration_minutes = 50  # 預設
+    for d in details:
+        if d.get("detail_type") == "lesson_price" and d.get("course_name"):
+            course_name = d["course_name"]
+            if d.get("course_id"):
+                course_rows = await supabase_service.table_select(
+                    table="courses", select="duration_minutes",
+                    filters={"id": d["course_id"]},
+                )
+                if course_rows and course_rows[0].get("duration_minutes"):
+                    duration_minutes = course_rows[0]["duration_minutes"]
+            break
+
+    # 日期計算
+    start_date = contract.get("start_date", "")
+    end_date = contract.get("end_date", "")
+    if isinstance(start_date, date):
+        start_date_str = start_date.strftime("%Y/%m/%d")
+    else:
+        start_date_str = str(start_date).replace("-", "/") if start_date else ""
+
+    # 期限月數
+    period_months = 0
+    if start_date and end_date:
+        sd = start_date if isinstance(start_date, date) else date.fromisoformat(str(start_date))
+        ed = end_date if isinstance(end_date, date) else date.fromisoformat(str(end_date))
+        period_months = max(1, round((ed - sd).days / 30))
+
+    # 請假額度
+    leave_quota = math.ceil(total_lessons * 0.2) if total_lessons else 0
+
+    # 金額格式化
+    if total_amount:
+        total_amount_str = f"{int(total_amount):,}"
+    else:
+        total_amount_str = "0"
+
+    # 簽約日期
+    sign_date = date.today().strftime("%Y/%m/%d")
+
+    # 佔位符對照
+    replacements = {
+        "{{course_name}}": course_name or "（課程名稱）",
+        "{{purchased_lessons}}": str(purchased_lessons),
+        "{{duration_minutes}}": str(duration_minutes),
+        "{{bonus_lessons}}": str(bonus_lessons),
+        "{{total_amount}}": total_amount_str,
+        "{{start_date}}": start_date_str or "____/____/____",
+        "{{all_lessons}}": str(total_lessons),
+        "{{period_months}}": str(period_months),
+        "{{leave_quota}}": str(leave_quota),
+        "{{sign_date}}": sign_date,
+        "{{student_name}}": student_name or "",  # 用於合約內文（非簽署欄）
+        "{{student_phone}}": student_info.get("phone", "") or "",
+        "{{student_email}}": student_info.get("email", "") or "",
+    }
+
+    # 讀取範本並替換
+    template_path = os.path.join(TEMPLATE_DIR, "contract_template.docx")
+    doc = DocxDocument(template_path)
+
+    for paragraph in doc.paragraphs:
+        if "{{" in paragraph.text:
+            _replace_in_paragraph(paragraph, replacements)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                if "{{" in cell.text:
+                    _replace_in_cell(cell, replacements)
+
+    # 輸出 bytes
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+
+    contract_no = contract.get("contract_no", "contract")
+    filename = f"{contract_no}_{student_name}_合約.docx"
+
+    return buffer.getvalue(), filename

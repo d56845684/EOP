@@ -18,26 +18,29 @@ import {
     CourseOption,
 } from '@/lib/api/studentContracts'
 import { contractAddendumsApi, ContractAddendum, CreateAddendumData } from '@/lib/api/contractAddendums'
-import { Plus, Pencil, Trash2, Search, X, FileText, Calendar, CheckCircle, Clock, XCircle, AlertCircle, Upload, Download, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, FileText, Calendar, CheckCircle, Clock, XCircle, AlertCircle, PauseCircle, Upload, Download, ChevronDown, ChevronRight } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 
 const statusLabels: Record<ContractStatus, string> = {
     pending: '待生效',
     active: '生效中',
+    suspended: '暫停中',
     expired: '已過期',
     terminated: '已終止',
 }
 
-const statusColors: Record<ContractStatus, { bg: string, text: string }> = {
+const statusColors: Record<string, { bg: string, text: string }> = {
     pending: { bg: 'bg-yellow-100', text: 'text-yellow-800' },
     active: { bg: 'bg-green-100', text: 'text-green-800' },
+    suspended: { bg: 'bg-orange-100', text: 'text-orange-800' },
     expired: { bg: 'bg-gray-100', text: 'text-gray-800' },
     terminated: { bg: 'bg-red-100', text: 'text-red-800' },
 }
 
-const statusIcons: Record<ContractStatus, React.ReactNode> = {
+const statusIcons: Record<string, React.ReactNode> = {
     pending: <Clock className="w-3 h-3 mr-1" />,
     active: <CheckCircle className="w-3 h-3 mr-1" />,
+    suspended: <PauseCircle className="w-3 h-3 mr-1" />,
     expired: <XCircle className="w-3 h-3 mr-1" />,
     terminated: <AlertCircle className="w-3 h-3 mr-1" />,
 }
@@ -656,6 +659,7 @@ export default function StudentContractsPage() {
                                 <option value="">全部狀態</option>
                                 <option value="pending">待生效</option>
                                 <option value="active">生效中</option>
+                                <option value="suspended">暫停中</option>
                                 <option value="expired">已過期</option>
                                 <option value="terminated">已終止</option>
                             </select>
@@ -826,10 +830,10 @@ export default function StudentContractsPage() {
                                                             <button
                                                                 onClick={() => handleGeneratePdf(contract.id)}
                                                                 className="inline-flex items-center text-xs text-purple-600 hover:text-purple-900"
-                                                                title="產生合約 PDF"
+                                                                title="產生合約文件"
                                                             >
                                                                 <FileText className="w-3 h-3 mr-1" />
-                                                                產生 PDF
+                                                                產生合約
                                                             </button>
                                                             <div className="flex items-center">
                                                                 <input

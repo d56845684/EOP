@@ -3,7 +3,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
-from app.services.contract_pdf_service import generate_student_contract_pdf, generate_addendum_pdf
+from app.services.contract_pdf_service import generate_student_contract_pdf, generate_addendum_pdf, generate_student_contract_docx
 from app.config import settings
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.student_contract import (
@@ -429,6 +429,11 @@ async def create_student_contract(
         if not result:
             raise HTTPException(status_code=500, detail="建立學生合約失敗")
 
+        # 同步學生狀態
+        from app.services.student_status_service import sync_student_status
+        if contract_data.get("student_id"):
+            await sync_student_status(str(contract_data["student_id"]))
+
         # 添加關聯名稱
         enriched = await enrich_contract_with_relations(result)
 
@@ -504,6 +509,13 @@ async def update_student_contract(
 
         if not result:
             raise HTTPException(status_code=500, detail="更新學生合約失敗")
+
+        # 合約狀態變更 → 同步學生狀態
+        if data.contract_status:
+            from app.services.student_status_service import sync_student_status
+            student_id = data.student_id or existing[0].get("student_id")
+            if student_id:
+                await sync_student_status(str(student_id))
 
         # 添加關聯名稱
         enriched = await enrich_contract_with_relations(result)
@@ -599,6 +611,12 @@ async def delete_student_contract(
 
         if not result:
             raise HTTPException(status_code=500, detail="刪除學生合約失敗")
+
+        # 同步學生狀態
+        from app.services.student_status_service import sync_student_status
+        student_id = existing[0].get("student_id")
+        if student_id:
+            await sync_student_status(str(student_id))
 
         return BaseResponse(message="學生合約刪除成功")
 
@@ -1098,6 +1116,33 @@ async def generate_student_pdf(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"產生合約 PDF 失敗: {str(e)}")
+
+
+@router.get("/{contract_id}/generate-docx")
+async def generate_student_docx(
+    contract_id: str,
+    current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
+):
+    """產生學生合約 DOCX（基於 2026 新 EOP 課程合約範本）"""
+    try:
+        result = await generate_student_contract_docx(contract_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="學生合約不存在")
+
+        docx_bytes, filename = result
+        from urllib.parse import quote
+        encoded_filename = quote(filename)
+        return Response(
+            content=docx_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"產生合約 DOCX 失敗: {str(e)}")
 
 
 # ========== File Upload/Download (unchanged) ==========
