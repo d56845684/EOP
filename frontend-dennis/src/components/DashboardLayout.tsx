@@ -69,6 +69,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     '/teacher-bonus': '教師獎金',
     '/student-overview': '學生總覽',
     '/students': '學生管理',
+    '/teacher-overview': '教師總覽',
     '/teachers': '教師管理',
     '/employees': '員工管理',
     '/zoom-accounts': 'Zoom 帳號',
