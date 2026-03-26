@@ -517,87 +517,91 @@ async def get_student_view(
         pool = supabase_service.pool
         sid = uuid.UUID(student_id)
 
-        # ── 1. 學生基本資料 ──
+        # ── 1. 學生基本資料 + 帳號 + LINE（合併為 1 query） ──
         student_row = await pool.fetchrow(
-            """SELECT id,student_no,name,eng_name,email,phone,address,birth_date,
-                      student_type,is_active,email_verified_at,created_at
-               FROM students WHERE id = $1 AND is_deleted = FALSE""",
+            """SELECT s.id, s.student_no, s.name, s.eng_name, s.email, s.phone,
+                      s.address, s.birth_date, s.student_type, s.is_active,
+                      s.email_verified_at, s.created_at,
+                      up.is_active AS account_active, r.key AS role,
+                      lb.line_display_name, lb.line_picture_url, lb.binding_status
+               FROM students s
+               LEFT JOIN user_profiles up ON up.student_id = s.id
+               LEFT JOIN roles r ON r.id = up.role_id
+               LEFT JOIN LATERAL (
+                   SELECT line_display_name, line_picture_url, binding_status
+                   FROM line_user_bindings
+                   WHERE user_id = up.id AND channel_type = 'student'
+                   LIMIT 1
+               ) lb ON TRUE
+               WHERE s.id = $1 AND s.is_deleted = FALSE""",
             sid,
         )
         if not student_row:
             raise HTTPException(status_code=404, detail="學生不存在")
 
-        student = dict(student_row)
-        student["id"] = str(student["id"])
-
-        # ── 2. 帳號狀態 ──
-        account_row = await pool.fetchrow(
-            """SELECT up.is_active, r.key AS role
-               FROM user_profiles up
-               JOIN roles r ON r.id = up.role_id
-               WHERE up.student_id = $1""",
-            sid,
-        )
+        student = {
+            "id": str(student_row["id"]),
+            "student_no": student_row["student_no"],
+            "name": student_row["name"],
+            "eng_name": student_row["eng_name"],
+            "email": student_row["email"],
+            "phone": student_row["phone"],
+            "address": student_row["address"],
+            "birth_date": student_row["birth_date"],
+            "student_type": student_row["student_type"],
+            "is_active": student_row["is_active"],
+            "email_verified_at": student_row["email_verified_at"],
+            "created_at": student_row["created_at"],
+        }
         account_info = {
-            "has_account": account_row is not None,
-            "is_active": account_row["is_active"] if account_row else None,
-            "role": account_row["role"] if account_row else None,
+            "has_account": student_row["role"] is not None,
+            "is_active": student_row["account_active"],
+            "role": student_row["role"],
         }
-
-        # ── 3. LINE 綁定 ──
-        line_row = await pool.fetchrow(
-            """SELECT line_display_name, line_picture_url, binding_status
-               FROM line_user_bindings
-               WHERE user_id = (SELECT id FROM user_profiles WHERE student_id = $1 LIMIT 1)
-                 AND channel_type = 'student'
-               LIMIT 1""",
-            sid,
-        )
         line_info = {
-            "bound": line_row is not None,
-            "line_display_name": line_row["line_display_name"] if line_row else None,
-            "line_picture_url": line_row["line_picture_url"] if line_row else None,
-            "binding_status": line_row["binding_status"] if line_row else None,
+            "bound": student_row["line_display_name"] is not None,
+            "line_display_name": student_row["line_display_name"],
+            "line_picture_url": student_row["line_picture_url"],
+            "binding_status": student_row["binding_status"],
         }
 
-        # ── 4. 合約（含教師名、附約數） ──
+        # ── 2. 合約（含教師名、附約數，單一查詢消除 N+1） ──
         contract_rows = await pool.fetch(
             """SELECT sc.id, sc.contract_no, sc.contract_status,
                       sc.start_date, sc.end_date,
                       sc.total_lessons, sc.remaining_lessons, sc.total_amount,
                       sc.total_leave_allowed, sc.used_leave_count,
-                      sc.used_emergency_leave_count, sc.is_recurring
+                      sc.used_emergency_leave_count, sc.is_recurring,
+                      COALESCE(ta.teachers, '{}') AS teachers,
+                      COALESCE(ca.addendum_count, 0) AS addendum_count
                FROM student_contracts sc
+               LEFT JOIN LATERAL (
+                   SELECT ARRAY_AGG(DISTINCT t.name) AS teachers
+                   FROM bookings b
+                   JOIN teachers t ON t.id = b.teacher_id
+                   WHERE b.student_contract_id = sc.id AND b.is_deleted = FALSE
+               ) ta ON TRUE
+               LEFT JOIN LATERAL (
+                   SELECT COUNT(*) AS addendum_count
+                   FROM contract_addendums
+                   WHERE contract_type = 'student' AND parent_contract_id = sc.id
+                     AND is_deleted = FALSE
+               ) ca ON TRUE
                WHERE sc.student_id = $1 AND sc.is_deleted = FALSE
                ORDER BY sc.start_date DESC""",
             sid,
         )
         contracts = []
         for cr in contract_rows:
-            cid = cr["id"]
-            # 教師名（從該合約的預約記錄取得不重複教師）
-            teacher_rows = await pool.fetch(
-                """SELECT DISTINCT t.name FROM bookings b
-                   JOIN teachers t ON t.id = b.teacher_id
-                   WHERE b.student_contract_id = $1 AND b.is_deleted = FALSE""",
-                cid,
-            )
-            # 附約數
-            addendum_count = await pool.fetchval(
-                """SELECT COUNT(*) FROM contract_addendums
-                   WHERE contract_type = 'student' AND parent_contract_id = $1
-                     AND is_deleted = FALSE""",
-                cid,
-            )
             c = dict(cr)
-            c["id"] = str(cid)
-            c["teachers"] = [r["name"] for r in teacher_rows]
-            c["addendum_count"] = addendum_count or 0
+            c["id"] = str(cr["id"])
+            c["teachers"] = list(cr["teachers"]) if cr["teachers"] else []
+            c["addendum_count"] = cr["addendum_count"]
             if c.get("total_amount") is not None:
                 c["total_amount"] = float(c["total_amount"])
             contracts.append(c)
 
-        # ── 5. 預約（最近 20 筆） ──
+        # ── 3. 預約（最近 20 筆） ──
         booking_rows = await pool.fetch(
             """SELECT b.id, b.booking_date, b.start_time, b.end_time,
                       b.booking_status, b.booking_type,
@@ -618,7 +622,7 @@ async def get_student_view(
             b["end_time"] = b["end_time"].strftime("%H:%M") if b["end_time"] else None
             bookings_recent.append(b)
 
-        # ── 6. 選課 ──
+        # ── 4. 選課 ──
         course_rows = await pool.fetch(
             """SELECT sc.id, sc.course_id, c.course_name AS course_name,
                       c.course_code, sc.enrolled_at
@@ -633,7 +637,7 @@ async def get_student_view(
             for r in course_rows
         ]
 
-        # ── 7. 教師偏好 ──
+        # ── 5. 教師偏好 ──
         pref_rows = await pool.fetch(
             """SELECT stp.id, c.course_name AS course_name,
                       stp.min_teacher_level,
@@ -649,7 +653,7 @@ async def get_student_view(
             for r in pref_rows
         ]
 
-        # ── 8. 請假記錄（最近 10 筆） ──
+        # ── 6. 請假記錄（最近 10 筆） ──
         leave_rows = await pool.fetch(
             """SELECT lr.id, lr.leave_date, lr.leave_status, lr.leave_type,
                       lr.reason, b.booking_date
@@ -665,30 +669,32 @@ async def get_student_view(
             for r in leave_rows
         ]
 
-        # ── 9. 統計 ──
+        # ── 7. 統計（合併為 1 query） ──
         stats_row = await pool.fetchrow(
             """SELECT
-                 COUNT(*) FILTER (WHERE is_deleted = FALSE) AS total_bookings,
-                 COUNT(*) FILTER (WHERE booking_status = 'completed' AND is_deleted = FALSE) AS completed_bookings,
-                 COUNT(*) FILTER (WHERE booking_status = 'cancelled' AND is_deleted = FALSE) AS cancelled_bookings,
-                 COUNT(*) FILTER (WHERE booking_status = 'pending' AND is_deleted = FALSE) AS pending_bookings,
-                 COUNT(*) FILTER (WHERE booking_status IN ('pending','confirmed')
-                                    AND booking_date >= CURRENT_DATE AND is_deleted = FALSE) AS upcoming_bookings
-               FROM bookings WHERE student_id = $1""",
-            sid,
-        )
-        contract_stats = await pool.fetchrow(
-            """SELECT
-                 COUNT(*) AS total_contracts,
-                 COUNT(*) FILTER (WHERE contract_status = 'active') AS active_contracts,
-                 COALESCE(SUM(remaining_lessons) FILTER (WHERE contract_status = 'active'), 0) AS total_remaining_lessons,
-                 COALESCE(SUM(used_leave_count), 0) AS total_leaves_used
-               FROM student_contracts
-               WHERE student_id = $1 AND is_deleted = FALSE""",
-            sid,
-        )
-        course_count = await pool.fetchval(
-            "SELECT COUNT(*) FROM student_courses WHERE student_id = $1 AND is_deleted = FALSE",
+                 (SELECT COUNT(*) FROM bookings
+                  WHERE student_id = $1 AND is_deleted = FALSE) AS total_bookings,
+                 (SELECT COUNT(*) FROM bookings
+                  WHERE student_id = $1 AND is_deleted = FALSE AND booking_status = 'completed') AS completed_bookings,
+                 (SELECT COUNT(*) FROM bookings
+                  WHERE student_id = $1 AND is_deleted = FALSE AND booking_status = 'cancelled') AS cancelled_bookings,
+                 (SELECT COUNT(*) FROM bookings
+                  WHERE student_id = $1 AND is_deleted = FALSE AND booking_status = 'pending') AS pending_bookings,
+                 (SELECT COUNT(*) FROM bookings
+                  WHERE student_id = $1 AND is_deleted = FALSE
+                    AND booking_status IN ('pending','confirmed')
+                    AND booking_date >= CURRENT_DATE) AS upcoming_bookings,
+                 (SELECT COUNT(*) FROM student_contracts
+                  WHERE student_id = $1 AND is_deleted = FALSE) AS total_contracts,
+                 (SELECT COUNT(*) FROM student_contracts
+                  WHERE student_id = $1 AND is_deleted = FALSE AND contract_status = 'active') AS active_contracts,
+                 (SELECT COALESCE(SUM(remaining_lessons) FILTER (WHERE contract_status = 'active'), 0)
+                  FROM student_contracts
+                  WHERE student_id = $1 AND is_deleted = FALSE) AS total_remaining_lessons,
+                 (SELECT COALESCE(SUM(used_leave_count), 0) FROM student_contracts
+                  WHERE student_id = $1 AND is_deleted = FALSE) AS total_leaves_used,
+                 (SELECT COUNT(*) FROM student_courses
+                  WHERE student_id = $1 AND is_deleted = FALSE) AS total_courses_enrolled""",
             sid,
         )
         stats = {
@@ -697,11 +703,11 @@ async def get_student_view(
             "cancelled_bookings": stats_row["cancelled_bookings"],
             "pending_bookings": stats_row["pending_bookings"],
             "upcoming_bookings": stats_row["upcoming_bookings"],
-            "total_contracts": contract_stats["total_contracts"],
-            "active_contracts": contract_stats["active_contracts"],
-            "total_remaining_lessons": int(contract_stats["total_remaining_lessons"]),
-            "total_leaves_used": int(contract_stats["total_leaves_used"]),
-            "total_courses_enrolled": course_count or 0,
+            "total_contracts": stats_row["total_contracts"],
+            "active_contracts": stats_row["active_contracts"],
+            "total_remaining_lessons": int(stats_row["total_remaining_lessons"]),
+            "total_leaves_used": int(stats_row["total_leaves_used"]),
+            "total_courses_enrolled": stats_row["total_courses_enrolled"],
         }
 
         return DataResponse(
