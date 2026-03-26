@@ -271,11 +271,10 @@ class ZoomService:
         """
         為預約建立 Zoom 會議（主流程）
 
-        優先順序：
-        1. 教師有 Zoom OAuth 綁定 → 用教師帳號
-        2. 教師 token 過期 → 嘗試 refresh
-        3. Fallback 帳號池 → 找空閒帳號
-        4. 無帳號可用 → log warning，不影響 booking
+        帳號選擇規則：
+        - 時長 < 40 分鐘 → 優先 basic，無可用則 fallback pro/business
+        - 時長 >= 40 分鐘 → 只用 pro / business 帳號
+        - 無帳號可用 → log warning，不影響 booking
 
         Returns:
             zoom_meeting_logs 記錄 或 None
@@ -339,75 +338,65 @@ class ZoomService:
             parts.append(f"{booking_date.strftime('%m/%d')} {start_time_val.strftime('%H:%M')}")
             topic = " ".join(parts)
 
-        token = None
-        zoom_account_id = None
-        used_teacher_account = False
+        # 根據時長決定帳號等級優先順序：
+        # < 40 分鐘 → 優先 basic，沒有才 fallback pro/business
+        # >= 40 分鐘 → 只用 pro/business
+        if duration < 40:
+            tier_priority = [["basic"], ["pro", "business"]]
+        else:
+            tier_priority = [["pro", "business"]]
 
-        # 1. 嘗試教師自用帳號（僅課程時長 <= 30 分鐘時啟用）
-        if duration <= 30:
-            teacher_token = await self.get_teacher_token(teacher_id)
-            if teacher_token:
-                token = teacher_token
-                used_teacher_account = True
+        # 帳號池：依 tier 優先順序逐一嘗試，DB EXCLUSION constraint 防止重疊
+        for tiers in tier_priority:
+            accounts = await self._get_available_accounts(booking_date, start_time_val, end_time_val, tiers)
+            for account in accounts:
+                pool_token = await self.get_s2s_token(account)
+                if not pool_token:
+                    continue
 
-        if token and used_teacher_account:
-            # 教師自用帳號：直接建立
-            result = await self._create_and_insert_meeting(
-                token=token,
-                booking_id=booking_id,
-                teacher_id=teacher_id,
-                zoom_account_id=None,
-                used_teacher_account=True,
-                booking_date=booking_date,
-                start_time_val=start_time_val,
-                end_time_val=end_time_val,
-                start_iso=start_iso,
-                duration=duration,
-                topic=topic,
-            )
-            if result:
-                return result
-            # 教師帳號失敗（含時段衝突），fallback 帳號池
-            logger.info(f"Booking {booking_id}: 教師帳號失敗，嘗試帳號池")
+                result = await self._create_and_insert_meeting(
+                    token=pool_token,
+                    booking_id=booking_id,
+                    teacher_id=teacher_id,
+                    zoom_account_id=account["id"],
+                    used_teacher_account=False,
+                    booking_date=booking_date,
+                    start_time_val=start_time_val,
+                    end_time_val=end_time_val,
+                    start_iso=start_iso,
+                    duration=duration,
+                    topic=topic,
+                )
+                if result:
+                    return result
+                logger.info(f"Booking {booking_id}: 帳號 {account['id']} 時段衝突，嘗試下一個")
 
-        # 2. 帳號池：逐一嘗試，DB EXCLUSION constraint 防止重疊
-        accounts = await self._get_available_accounts(booking_date, start_time_val, end_time_val)
-        for account in accounts:
-            pool_token = await self.get_s2s_token(account)
-            if not pool_token:
-                continue
-
-            result = await self._create_and_insert_meeting(
-                token=pool_token,
-                booking_id=booking_id,
-                teacher_id=teacher_id,
-                zoom_account_id=account["id"],
-                used_teacher_account=False,
-                booking_date=booking_date,
-                start_time_val=start_time_val,
-                end_time_val=end_time_val,
-                start_iso=start_iso,
-                duration=duration,
-                topic=topic,
-            )
-            if result:
-                return result
-            # 此帳號衝突（race condition），嘗試下一個
-            logger.info(f"Booking {booking_id}: 帳號 {account['id']} 時段衝突，嘗試下一個")
+            if accounts:
+                logger.info(f"Booking {booking_id}: {tiers} 帳號皆衝突，嘗試下一等級")
 
         logger.warning(f"Booking {booking_id}: 無可用 Zoom 帳號，跳過建立會議")
         return None
 
     async def _get_available_accounts(
-        self, meeting_date: date, start_time_val: time, end_time_val: time
+        self, meeting_date: date, start_time_val: time, end_time_val: time,
+        required_tiers: list[str] | None = None,
     ) -> list:
         """
         一條 SQL 查出在指定時段無衝突的空閒帳號。
         用 LEFT JOIN + 時段重疊過濾，避免 N+1 查詢。
         DB EXCLUSION constraint 仍為最終保障。
+
+        required_tiers: 限定帳號等級，例如 ['basic'] 或 ['pro', 'business']
         """
         try:
-            sql = """
+            tier_clause = ""
+            params: list = [meeting_date, start_time_val, end_time_val]
+            if required_tiers:
+                placeholders = ", ".join(f"${i}" for i in range(4, 4 + len(required_tiers)))
+                tier_clause = f"AND a.account_tier IN ({placeholders})"
+                params.extend(required_tiers)
+
+            sql = f"""
                 SELECT a.*
                 FROM zoom_accounts a
                 LEFT JOIN zoom_meeting_logs l
@@ -419,12 +408,11 @@ class ZoomService:
                     AND l.end_time > $2
                 WHERE a.is_active = TRUE
                     AND a.is_deleted = FALSE
+                    {tier_clause}
                     AND l.id IS NULL
                 ORDER BY a.daily_meeting_count ASC
             """
-            rows = await supabase_service.pool.fetch(
-                sql, meeting_date, start_time_val, end_time_val
-            )
+            rows = await supabase_service.pool.fetch(sql, *params)
             return [dict(r) for r in rows]
 
         except Exception as e:
