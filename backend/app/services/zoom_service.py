@@ -314,7 +314,30 @@ class ZoomService:
         # 構建開始時間 ISO 格式
         start_iso = start_dt.strftime("%Y-%m-%dT%H:%M:%S")
         if not topic:
-            topic = f"課程預約 {booking_date.strftime('%Y/%m/%d')} {start_time_val.strftime('%H:%M')}"
+            # 查詢預約相關的學生/教師/課程名稱
+            booking_info = await supabase_service.pool.fetchrow(
+                """SELECT b.booking_no, s.name AS student_name,
+                          t.name AS teacher_name, c.course_name
+                   FROM bookings b
+                   LEFT JOIN students s ON s.id = b.student_id
+                   LEFT JOIN teachers t ON t.id = b.teacher_id
+                   LEFT JOIN courses c ON c.id = b.course_id
+                   WHERE b.id = $1""",
+                __import__('uuid').UUID(booking_id),
+            )
+            if not booking_info:
+                logger.error(f"Booking {booking_id}: 查無預約資料，無法建立 Zoom 會議")
+                return None
+
+            parts = [f"[{booking_info['booking_no'] or booking_id[:8]}]"]
+            if booking_info["course_name"]:
+                parts.append(booking_info["course_name"])
+            if booking_info["student_name"]:
+                parts.append(booking_info["student_name"])
+            if booking_info["teacher_name"]:
+                parts.append(f"/ {booking_info['teacher_name']}")
+            parts.append(f"{booking_date.strftime('%m/%d')} {start_time_val.strftime('%H:%M')}")
+            topic = " ".join(parts)
 
         token = None
         zoom_account_id = None
