@@ -11,6 +11,15 @@ import {
 
 const roleLabels: Record<string, string> = { admin: '管理員', employee: '員工', teacher: '老師', student: '學生' }
 const typeLabels: Record<string, string> = { formal: '正式', trial: '試上' }
+const statusLabels: Record<string, { label: string; color: string }> = {
+    trial: { label: '試上', color: 'yellow' },
+    pending: { label: '待開課', color: 'blue' },
+    active: { label: '上課中', color: 'green' },
+    suspended: { label: '暫停', color: 'yellow' },
+    terminated: { label: '解約', color: 'red' },
+    extended: { label: '展延', color: 'purple' },
+    completed: { label: '已結業', color: 'gray' },
+}
 
 function Tag({ label, color }: { label: string; color: string }) {
     const map: Record<string, string> = {
@@ -147,6 +156,7 @@ export default function StudentOverviewPage() {
                                     <tr className="bg-gray-50 border-b" style={{ borderColor: 'var(--ep-border-color)' }}>
                                         <th className="text-left px-4 py-2.5 font-medium text-xs uppercase" style={{ color: 'var(--ep-text-color-secondary)' }}>學生</th>
                                         <th className="text-center px-3 py-2.5 font-medium text-xs uppercase" style={{ color: 'var(--ep-text-color-secondary)' }}>類型</th>
+                                        <th className="text-center px-3 py-2.5 font-medium text-xs uppercase" style={{ color: 'var(--ep-text-color-secondary)' }}>學習狀態</th>
                                         <th className="text-center px-3 py-2.5 font-medium text-xs uppercase" style={{ color: 'var(--ep-text-color-secondary)' }}>帳號</th>
                                         <th className="text-center px-3 py-2.5 font-medium text-xs uppercase" style={{ color: 'var(--ep-text-color-secondary)' }}>LINE</th>
                                         <th className="text-center px-3 py-2.5 font-medium text-xs uppercase" style={{ color: 'var(--ep-text-color-secondary)' }}>合約</th>
@@ -180,6 +190,13 @@ export default function StudentOverviewPage() {
                                             <td className="px-3 py-2.5 text-center">
                                                 <Tag label={typeLabels[s.student_type || ''] || s.student_type || '-'}
                                                     color={s.student_type === 'trial' ? 'yellow' : 'blue'} />
+                                            </td>
+                                            {/* 學習狀態 */}
+                                            <td className="px-3 py-2.5 text-center">
+                                                {(() => {
+                                                    const info = statusLabels[s.student_status || 'trial'] || { label: s.student_status || '-', color: 'gray' }
+                                                    return <Tag label={info.label} color={info.color} />
+                                                })()}
                                             </td>
                                             {/* 帳號 */}
                                             <td className="px-3 py-2.5 text-center">

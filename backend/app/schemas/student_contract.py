@@ -7,6 +7,7 @@ from enum import Enum
 class ContractStatus(str, Enum):
     pending = "pending"
     active = "active"
+    suspended = "suspended"
     expired = "expired"
     terminated = "terminated"
 

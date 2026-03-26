@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/students", tags=["學生管理"])
 
-STUDENT_SELECT = "id,student_no,name,eng_name,email,phone,address,birth_date,student_type,is_active,email_verified_at,created_at,updated_at"
+STUDENT_SELECT = "id,student_no,name,eng_name,email,phone,address,birth_date,student_type,student_status,is_active,email_verified_at,created_at,updated_at"
 
 
 @router.get("", response_model=StudentListResponse)
@@ -246,10 +246,10 @@ async def convert_to_formal(
             if bk["is_trial_to_formal"]:
                 raise HTTPException(status_code=400, detail="此預約已被標記為轉正")
 
-        # 2. 更新 student_type → formal
+        # 2. 更新 student_type → formal, student_status → active
         updated_student = await supabase_service.table_update(
             table="students",
-            data={"student_type": "formal"},
+            data={"student_type": "formal", "student_status": "active"},
             filters={"id": student_id},
         )
         if not updated_student:
@@ -384,7 +384,7 @@ async def list_students_overview(
         base_sql = f"""
             SELECT
                 s.id, s.student_no, s.name, s.eng_name, s.email, s.phone,
-                s.student_type, s.is_active, s.email_verified_at, s.created_at,
+                s.student_type, s.student_status, s.is_active, s.email_verified_at, s.created_at,
                 -- 帳號
                 (up.id IS NOT NULL) AS has_account,
                 up.is_active AS account_active,
@@ -471,6 +471,7 @@ async def list_students_overview(
                 "email": row["email"],
                 "phone": row["phone"],
                 "student_type": row["student_type"],
+                "student_status": row["student_status"],
                 "is_active": row["is_active"],
                 "email_verified_at": row["email_verified_at"].isoformat() if row["email_verified_at"] else None,
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,

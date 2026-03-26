@@ -12,6 +12,7 @@ export interface Student {
     address?: string
     birth_date?: string
     student_type?: 'formal' | 'trial'
+    student_status?: 'trial' | 'pending' | 'active' | 'suspended' | 'terminated' | 'extended' | 'completed'
     is_active: boolean
     email_verified_at?: string | null
     created_at?: string
@@ -23,7 +24,7 @@ export interface Student {
 // ============================================
 export interface StudentOverviewItem {
     id: string; student_no: string; name: string; eng_name?: string
-    email: string; phone?: string; student_type?: string; is_active: boolean
+    email: string; phone?: string; student_type?: string; student_status?: string; is_active: boolean
     email_verified_at?: string; created_at?: string
     has_account: boolean; account_active?: boolean; role?: string
     line_bound: boolean; line_display_name?: string

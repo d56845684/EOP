@@ -423,7 +423,8 @@ export default function StudentsPage() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">英文名</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">聯絡方式</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">類型</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">學習狀態</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">啟用</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">帳號</th>
                                         {isStaff && <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">操作</th>}
                                     </tr>
@@ -447,15 +448,31 @@ export default function StudentsPage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${student.student_type === 'trial' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${student.student_type === 'trial' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>
                                                     {student.student_type === 'trial' ? '試上' : '正式'}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
+                                                {(() => {
+                                                    const s = student.student_status || 'trial'
+                                                    const map: Record<string, { label: string; color: string }> = {
+                                                        trial: { label: '試上', color: 'bg-yellow-100 text-yellow-800' },
+                                                        pending: { label: '待開課', color: 'bg-blue-100 text-blue-800' },
+                                                        active: { label: '上課中', color: 'bg-green-100 text-green-800' },
+                                                        suspended: { label: '暫停', color: 'bg-orange-100 text-orange-800' },
+                                                        terminated: { label: '解約', color: 'bg-red-100 text-red-800' },
+                                                        extended: { label: '展延', color: 'bg-purple-100 text-purple-800' },
+                                                        completed: { label: '已結業', color: 'bg-gray-100 text-gray-600' },
+                                                    }
+                                                    const info = map[s] || { label: s, color: 'bg-gray-100 text-gray-600' }
+                                                    return <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${info.color}`}>{info.label}</span>
+                                                })()}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
                                                 {student.is_active ? (
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />啟用中</span>
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />啟用</span>
                                                 ) : (
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"><XCircle className="w-3 h-3 mr-1" />已停用</span>
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"><XCircle className="w-3 h-3 mr-1" />停用</span>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">

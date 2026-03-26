@@ -22,12 +22,20 @@ const statusColors: Record<string, string> = {
     cancelled: 'bg-gray-100 text-gray-600',
     approved: 'bg-green-100 text-green-800',
     rejected: 'bg-red-100 text-red-800',
+    pending: 'bg-blue-100 text-blue-800',
+    suspended: 'bg-orange-100 text-orange-800',
+    extended: 'bg-purple-100 text-purple-800',
 }
 const statusLabels: Record<string, string> = {
     active: '生效中', pending: '待確認', expired: '已到期', terminated: '已終止',
-    confirmed: '已確認', completed: '已完成', cancelled: '已取消',
+    suspended: '暫停', extended: '展延',
+    confirmed: '已確認', completed: '已結業', cancelled: '已取消',
     formal: '正式', trial: '試上', approved: '已核准', rejected: '已拒絕',
     normal: '一般', emergency: '緊急',
+}
+const studentStatusLabels: Record<string, string> = {
+    trial: '試上', pending: '待開課', active: '上課中', suspended: '暫停',
+    terminated: '解約', extended: '展延', completed: '已結業',
 }
 
 function Tag({ status }: { status: string }) {
@@ -136,7 +144,7 @@ function StudentViewContent() {
                             {s.name} {s.eng_name ? `(${s.eng_name})` : ''}
                         </h1>
                         <p className="text-xs mt-0.5" style={{ color: 'var(--ep-text-color-secondary)' }}>
-                            {s.student_no} &middot; <Tag status={s.student_type || 'formal'} />
+                            {s.student_no} &middot; <Tag status={s.student_type || 'formal'} /> <Tag status={s.student_status || 'trial'} />
                             {!s.is_active && <span className="ml-2 text-red-500 font-medium">已停用</span>}
                         </p>
                     </div>
