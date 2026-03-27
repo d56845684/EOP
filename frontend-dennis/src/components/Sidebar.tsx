@@ -13,6 +13,11 @@ interface NavItem {
   pageKey?: string  // 對應後端 pages.key，未設定則永遠顯示
 }
 
+interface SidebarProps {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
 const navItems: NavItem[] = [
   { href: '/profile', label: '個人設定', icon: <User className="w-[18px] h-[18px]" />, pageKey: 'profile' },
   { href: '/courses', label: '課程管理', icon: <BookOpen className="w-[18px] h-[18px]" />, pageKey: 'courses' },
@@ -34,7 +39,7 @@ const navItems: NavItem[] = [
   { href: '/role-permissions', label: '角色權限', icon: <Settings className="w-[18px] h-[18px]" />, pageKey: 'permissions.roles' },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, profile, signOut, pageKeys } = useAuth()
@@ -59,7 +64,12 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-[248px] bg-white flex flex-col shrink-0"
+    <aside className={`
+      w-[248px] bg-white flex flex-col shrink-0
+      fixed md:relative inset-y-0 left-0 z-40
+      transform transition-transform duration-200 ease-in-out
+      ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
+    `}
       style={{
         minHeight: '100vh',
         borderRight: '1px solid var(--ep-border-color)',
@@ -123,6 +133,7 @@ export default function Sidebar() {
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    onClick={onClose}
                     className={`
                       flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-lg
                       transition-all duration-150

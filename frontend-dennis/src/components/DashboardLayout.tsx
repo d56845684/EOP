@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { authApi } from '@/lib/api/auth'
 import Sidebar from './Sidebar'
-import { Lock, ChevronRight, Home } from 'lucide-react'
+import { Lock, ChevronRight, Home, Menu } from 'lucide-react'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -14,6 +14,8 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter()
   const { user, loading, mustChangePassword, refreshUser } = useAuth()
+
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Password change modal state
   const [currentPassword, setCurrentPassword] = useState('')
@@ -97,11 +99,21 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: 'var(--ep-bg-color-page)' }}>
-      <Sidebar />
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/30 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Header — breadcrumb bar */}
         <header className="h-14 flex items-center px-6 shrink-0 bg-white"
           style={{ borderBottom: '1px solid var(--ep-border-color)' }}>
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="md:hidden mr-3 p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <nav className="flex items-center text-sm gap-1.5">
             <Home className="w-4 h-4 text-slate-400" />
             <span className="text-slate-400 font-medium cursor-pointer hover:text-primary-500 transition-colors">
@@ -124,7 +136,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Footer */}
         <footer className="h-10 flex items-center justify-center shrink-0 text-xs text-slate-400"
           style={{ borderTop: '1px solid var(--ep-border-color-light)' }}>
-          &copy; 2024 EOP System
+          &copy; {new Date().getFullYear()} EOP System
         </footer>
       </div>
 
