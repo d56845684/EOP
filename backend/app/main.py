@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import asyncio
 from app.config import settings
@@ -206,10 +207,31 @@ async def auth_exception_handler(request: Request, exc: AuthException):
         }
     )
 
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """攔截所有 HTTPException：5xx 錯誤隱藏內部細節，4xx 正常回傳"""
+    if exc.status_code >= 500:
+        logger.error(f"HTTP {exc.status_code} on {request.method} {request.url.path}: {exc.detail}")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "success": False,
+                "message": "伺服器內部錯誤，請稍後再試",
+                "error_code": "INTERNAL_ERROR"
+            }
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "message": exc.detail,
+        }
+    )
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception(f"未處理的例外: {exc}")
-    
+
     return JSONResponse(
         status_code=500,
         content={
