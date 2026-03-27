@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { authApi } from '@/lib/api/auth'
 import Sidebar from './Sidebar'
+import ErrorBoundary from './ErrorBoundary'
 import { Lock, ChevronRight, Home, Menu } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -130,7 +131,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Main content */}
         <main className="flex-1 overflow-auto p-6">
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </main>
 
         {/* Footer */}
