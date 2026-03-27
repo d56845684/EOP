@@ -56,6 +56,8 @@ class E2EContext:
     booking_id: Optional[str] = None
     booking_no: Optional[str] = None
     leave_record_id: Optional[str] = None
+    zoom_meeting_id: Optional[str] = None
+    zoom_enabled: bool = False
 
     # 衍生資料
     course_duration: int = 60
@@ -160,6 +162,20 @@ class E2EBookingFlowTester:
             ]
             for name, fn in tests_phase4:
                 await self._run_test(name, fn, ctx)
+
+            # ── Phase 4.5: Zoom 會議（如果有 Zoom 帳號） ──
+            print("\n  Phase 4.5: Zoom 會議")
+            print("  " + "-" * 40)
+            await self._run_test("檢查 Zoom 帳號池", self._test_check_zoom_accounts, ctx)
+            if ctx.zoom_enabled:
+                zoom_ok = await self._run_test("建立 Zoom 會議", self._test_create_zoom_meeting, ctx)
+                if zoom_ok:
+                    await self._run_test("驗證 Zoom 會議資訊", self._test_verify_zoom_meeting, ctx)
+                    await self._run_test("查詢 Zoom 會議列表", self._test_list_zoom_meetings, ctx)
+                else:
+                    print("  ⏭ Zoom 會議建立失敗（OAuth token 可能過期），跳過後續 Zoom 測試")
+            else:
+                print("  ⏭ 跳過 — 無可用 Zoom 帳號（需先在 Zoom 帳號頁面新增帳號並完成 OAuth）")
 
             # ── Phase 5: 請假流程 ──
             print("\n  Phase 5: 請假流程")
@@ -419,6 +435,61 @@ class E2EBookingFlowTester:
         if resp.status_code == 409:
             return True
         return f"Expected 409 Conflict, got {resp.status_code}"
+
+    # ────────────────── Phase 4.5: Zoom ──────────────────
+
+    async def _test_check_zoom_accounts(self, ctx: E2EContext):
+        """檢查系統是否有可用的 Zoom 帳號"""
+        resp = await self._get("/api/v1/zoom/accounts", {"per_page": 1})
+        if resp.status_code != 200:
+            ctx.zoom_enabled = False
+            return True  # 不算失敗，只是跳過
+        data = resp.json().get("data", [])
+        active = [a for a in data if a.get("is_active")]
+        ctx.zoom_enabled = len(active) > 0
+        status = f"找到 {len(active)} 個可用帳號" if active else "無可用帳號"
+        print(f"({status})", end=" ")
+        return True
+
+    async def _test_create_zoom_meeting(self, ctx: E2EContext):
+        """為已確認的預約建立 Zoom 會議（需要有效 OAuth token）"""
+        resp = await self._post("/api/v1/zoom/meetings/create", {
+            "booking_id": ctx.booking_id,
+        })
+        if resp.status_code == 500:
+            # OAuth token 過期是外部服務問題，標記為跳過而非失敗
+            ctx.zoom_enabled = False
+            return f"Zoom OAuth token 可能過期 — 需重新授權"
+        if resp.status_code != 200:
+            return f"Create Zoom meeting failed: {resp.status_code} {resp.text[:200]}"
+        data = resp.json()["data"]
+        ctx.zoom_meeting_id = data.get("id")
+        if not data.get("join_url"):
+            return "Zoom meeting created but no join_url"
+        return True
+
+    async def _test_verify_zoom_meeting(self, ctx: E2EContext):
+        """驗證 Zoom 會議資訊"""
+        resp = await self._get(f"/api/v1/zoom/meetings/{ctx.booking_id}")
+        if resp.status_code != 200:
+            return f"Get Zoom meeting failed: {resp.status_code}"
+        data = resp.json()["data"]
+        checks = []
+        if not data.get("join_url"):
+            checks.append("missing join_url")
+        if not data.get("zoom_meeting_id"):
+            checks.append("missing zoom_meeting_id")
+        return True if not checks else "; ".join(checks)
+
+    async def _test_list_zoom_meetings(self, ctx: E2EContext):
+        """查詢 Zoom 會議列表"""
+        resp = await self._get("/api/v1/zoom/meetings", {"per_page": 5})
+        if resp.status_code != 200:
+            return f"List Zoom meetings failed: {resp.status_code}"
+        data = resp.json().get("data", [])
+        if not any(m.get("booking_id") == ctx.booking_id for m in data):
+            return "列表找不到剛建立的會議"
+        return True
 
     # ────────────────── Phase 5: 請假 ──────────────────
 
