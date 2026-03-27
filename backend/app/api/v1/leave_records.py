@@ -42,7 +42,7 @@ async def generate_leave_no() -> str:
 
 
 async def enrich_leave_record(record: dict) -> dict:
-    """為請假紀錄添加關聯名稱"""
+    """為請假紀錄添加關聯名稱（單筆用，列表用 batch 版本）"""
     # 發起者名稱
     if record.get("initiator_type") == "student" and record.get("initiator_student_id"):
         student = await supabase_service.table_select(
@@ -80,6 +80,75 @@ async def enrich_leave_record(record: dict) -> dict:
         record["approver_name"] = None
 
     return record
+
+
+async def list_leave_records_with_joins(
+    filters: dict,
+    per_page: int,
+    offset: int,
+) -> tuple[list[dict], int]:
+    """使用 JOIN 一次查詢請假紀錄 + 關聯名稱 + 總筆數（消除 N+1）"""
+    conditions = ["lr.is_deleted = false"]
+    params: list = []
+    idx = 1
+
+    if filters.get("leave_status"):
+        conditions.append(f"lr.leave_status = ${idx}")
+        params.append(filters["leave_status"].replace("eq.", ""))
+        idx += 1
+    if filters.get("initiator_student_id"):
+        conditions.append(f"lr.initiator_student_id = ${idx}::uuid")
+        params.append(filters["initiator_student_id"].replace("eq.", ""))
+        idx += 1
+    if filters.get("initiator_teacher_id"):
+        conditions.append(f"lr.initiator_teacher_id = ${idx}::uuid")
+        params.append(filters["initiator_teacher_id"].replace("eq.", ""))
+        idx += 1
+
+    where_clause = " AND ".join(conditions)
+
+    sql = f"""
+        SELECT
+            lr.id, lr.leave_no, lr.initiator_type,
+            lr.initiator_student_id, lr.initiator_teacher_id,
+            lr.booking_id, lr.leave_date, lr.start_time, lr.end_time,
+            lr.reason, lr.leave_status, lr.leave_type, lr.deduct_lesson,
+            lr.approver_id, lr.approved_at, lr.rejection_reason,
+            lr.created_at, lr.updated_at,
+            COALESCE(s.name, t.name) AS initiator_name,
+            b.booking_no,
+            e.name AS approver_name,
+            COUNT(*) OVER() AS _total
+        FROM leave_records lr
+        LEFT JOIN students s ON lr.initiator_student_id = s.id AND lr.initiator_type = 'student'
+        LEFT JOIN teachers t ON lr.initiator_teacher_id = t.id AND lr.initiator_type = 'teacher'
+        LEFT JOIN bookings b ON lr.booking_id = b.id
+        LEFT JOIN employees e ON lr.approver_id = e.id
+        WHERE {where_clause}
+        ORDER BY lr.created_at DESC
+        LIMIT ${idx} OFFSET ${idx + 1}
+    """
+    params.extend([per_page, offset])
+
+    rows = await supabase_service.pool.fetch(sql, *params)
+
+    if not rows:
+        return [], 0
+
+    total = rows[0]["_total"]
+    records = []
+    for row in rows:
+        record = dict(row)
+        del record["_total"]
+        # UUID / date 轉字串
+        for key, val in record.items():
+            if hasattr(val, 'hex'):  # UUID
+                record[key] = str(val)
+            elif hasattr(val, 'isoformat'):
+                record[key] = val.isoformat()
+        records.append(record)
+
+    return records, total
 
 
 @router.post("", response_model=DataResponse[LeaveRecordResponse])
@@ -226,9 +295,9 @@ async def list_leave_records(
     leave_status: Optional[str] = Query(None),
     current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
-    """取得請假紀錄列表（依角色過濾）"""
+    """取得請假紀錄列表（依角色過濾）— 使用 JOIN 消除 N+1"""
     try:
-        filters = {"is_deleted": "eq.false"}
+        filters: dict = {}
 
         if leave_status:
             filters["leave_status"] = f"eq.{leave_status}"
@@ -239,31 +308,17 @@ async def list_leave_records(
         elif current_user.is_teacher():
             filters["initiator_teacher_id"] = f"eq.{current_user.teacher_id}"
 
-        all_records = await supabase_service.table_select(
-            table="leave_records", select="id", filters=filters,
-        )
-        total = len(all_records)
-        total_pages = math.ceil(total / per_page) if total > 0 else 1
         offset = (page - 1) * per_page
-
-        records = await supabase_service.table_select_with_pagination(
-            table="leave_records",
-            select="id,leave_no,initiator_type,initiator_student_id,initiator_teacher_id,booking_id,leave_date,start_time,end_time,reason,leave_status,leave_type,deduct_lesson,approver_id,approved_at,rejection_reason,created_at,updated_at",
-            filters=filters,
-            order_by="created_at.desc",
-            limit=per_page,
-            offset=offset,
-        )
-
-        enriched = []
-        for record in records:
-            enriched.append(await enrich_leave_record(record))
+        records, total = await list_leave_records_with_joins(filters, per_page, offset)
+        total_pages = math.ceil(total / per_page) if total > 0 else 1
 
         return LeaveRecordListResponse(
-            data=[LeaveRecordResponse(**r) for r in enriched],
+            data=[LeaveRecordResponse(**r) for r in records],
             total=total, page=page, per_page=per_page, total_pages=total_pages,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"取得請假紀錄失敗: {str(e)}")
 
