@@ -22,7 +22,7 @@ services:
       # 覆寫：.env 變數名有 BACKEND_ prefix，但 app 期望不帶 prefix
       APP_NAME: ${BACKEND_APP_NAME:-Education Management System}
       APP_ENV: ${BACKEND_APP_ENV:-development}
-      DEBUG: ${BACKEND_DEBUG:-true}
+      DEBUG: ${BACKEND_DEBUG:-false}
       SECRET_KEY: ${BACKEND_SECRET_KEY}
       COOKIE_DOMAIN: ${BACKEND_COOKIE_DOMAIN:-localhost}
       COOKIE_SECURE: ${BACKEND_COOKIE_SECURE:-false}
@@ -131,10 +131,10 @@ services:
       db:
         condition: service_healthy
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@local.dev
-      PGADMIN_DEFAULT_PASSWORD: admin
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@local.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "True"
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ./pgadmin/servers.json:/pgadmin4/servers.json:ro

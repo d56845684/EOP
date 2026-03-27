@@ -11,3 +11,5 @@ scripts/setup-iam.sh
 .env.prod
 deploy/.rds-endpoint
 .claude
+.gstack/
+backups/
