@@ -497,7 +497,7 @@ async def get_teacher_view(
     teacher_id: str,
     current_user: CurrentUser = Depends(require_page_permission("teachers.list"))
 ):
-    """教師綜合檢視：一次取得該教師所有相關資料"""
+    """教師綜合檢視：一次取得該教師所有相關資料（已優化：並行查詢 + 統計合併）"""
     try:
         pool = supabase_service.pool
         tid = uuid.UUID(teacher_id)
@@ -524,33 +524,30 @@ async def get_teacher_view(
         if not teacher_row:
             raise HTTPException(status_code=404, detail="教師不存在")
 
+        r = teacher_row
         teacher = {
-            "id": str(teacher_row["id"]),
-            "teacher_no": teacher_row["teacher_no"],
-            "name": teacher_row["name"],
-            "email": teacher_row["email"],
-            "phone": teacher_row["phone"],
-            "address": teacher_row["address"],
-            "bio": teacher_row["bio"],
-            "teacher_level": teacher_row["teacher_level"],
-            "is_active": teacher_row["is_active"],
-            "email_verified_at": teacher_row["email_verified_at"],
-            "created_at": teacher_row["created_at"],
+            "id": str(r["id"]), "teacher_no": r["teacher_no"], "name": r["name"],
+            "email": r["email"], "phone": r["phone"], "address": r["address"],
+            "bio": r["bio"], "teacher_level": r["teacher_level"],
+            "is_active": r["is_active"], "email_verified_at": r["email_verified_at"],
+            "created_at": r["created_at"],
         }
         account_info = {
-            "has_account": teacher_row["role"] is not None,
-            "is_active": teacher_row["account_active"],
-            "role": teacher_row["role"],
+            "has_account": r["role"] is not None,
+            "is_active": r["account_active"],
+            "role": r["role"],
         }
         line_info = {
-            "bound": teacher_row["line_display_name"] is not None,
-            "line_display_name": teacher_row["line_display_name"],
-            "line_picture_url": teacher_row["line_picture_url"],
-            "binding_status": teacher_row["binding_status"],
+            "bound": r["line_display_name"] is not None,
+            "line_display_name": r["line_display_name"],
+            "line_picture_url": r["line_picture_url"],
+            "binding_status": r["binding_status"],
         }
 
-        # ── 2. 合約（含附約數，單一查詢消除 N+1） ──
-        contract_rows = await pool.fetch(
+        # ── 2~6. 並行查詢（無依賴關係） ──
+        import asyncio
+
+        contracts_task = pool.fetch(
             """SELECT tc.id, tc.contract_no, tc.contract_status,
                       tc.start_date, tc.end_date, tc.employment_type, tc.notes,
                       COALESCE(ca.addendum_count, 0) AS addendum_count
@@ -565,15 +562,8 @@ async def get_teacher_view(
                ORDER BY tc.start_date DESC""",
             tid,
         )
-        contracts = []
-        for cr in contract_rows:
-            c = dict(cr)
-            c["id"] = str(cr["id"])
-            c["addendum_count"] = cr["addendum_count"]
-            contracts.append(c)
 
-        # ── 3. 預約（最近 20 筆） ──
-        booking_rows = await pool.fetch(
+        bookings_task = pool.fetch(
             """SELECT b.id, b.booking_date, b.start_time, b.end_time,
                       b.booking_status, b.booking_type,
                       s.name AS student_name, c.course_name AS course_name
@@ -585,16 +575,8 @@ async def get_teacher_view(
                LIMIT 20""",
             tid,
         )
-        bookings_recent = []
-        for br in booking_rows:
-            b = dict(br)
-            b["id"] = str(b["id"])
-            b["start_time"] = b["start_time"].strftime("%H:%M") if b["start_time"] else None
-            b["end_time"] = b["end_time"].strftime("%H:%M") if b["end_time"] else None
-            bookings_recent.append(b)
 
-        # ── 4. 獎金記錄（最近 20 筆） ──
-        bonus_rows = await pool.fetch(
+        bonus_task = pool.fetch(
             """SELECT tbr.id, tbr.bonus_type, tbr.amount, tbr.bonus_date,
                       tbr.description, s.name AS student_name
                FROM teacher_bonus_records tbr
@@ -604,29 +586,32 @@ async def get_teacher_view(
                LIMIT 20""",
             tid,
         )
-        bonus_records = []
-        for br in bonus_rows:
-            b = dict(br)
-            b["id"] = str(b["id"])
-            if b.get("amount") is not None:
-                b["amount"] = float(b["amount"])
-            bonus_records.append(b)
 
-        # ── 5. 統計（合併為 1 query） ──
-        stats_row = await pool.fetchrow(
-            """SELECT
-                 (SELECT COUNT(*) FROM bookings
-                  WHERE teacher_id = $1 AND is_deleted = FALSE) AS total_bookings,
-                 (SELECT COUNT(*) FROM bookings
-                  WHERE teacher_id = $1 AND is_deleted = FALSE AND booking_status = 'completed') AS completed_bookings,
-                 (SELECT COUNT(*) FROM bookings
-                  WHERE teacher_id = $1 AND is_deleted = FALSE AND booking_status = 'cancelled') AS cancelled_bookings,
-                 (SELECT COUNT(*) FROM bookings
-                  WHERE teacher_id = $1 AND is_deleted = FALSE AND booking_status = 'pending') AS pending_bookings,
-                 (SELECT COUNT(*) FROM bookings
-                  WHERE teacher_id = $1 AND is_deleted = FALSE
-                    AND booking_status IN ('pending','confirmed')
-                    AND booking_date >= CURRENT_DATE) AS upcoming_bookings,
+        schedules_task = pool.fetch(
+            """SELECT id, weekday, start_time, end_time, notes
+               FROM teacher_work_schedules
+               WHERE teacher_contract_id IN (
+                   SELECT id FROM teacher_contracts
+                   WHERE teacher_id = $1 AND contract_status = 'active' AND is_deleted = FALSE
+               ) AND is_deleted = FALSE
+               ORDER BY weekday, start_time""",
+            tid,
+        )
+
+        # 統計：bookings 單次掃描 + FILTER，teacher_contracts / bonus 各掃一次（共 3 次而非 10 次）
+        stats_task = pool.fetchrow(
+            """WITH bk AS (
+                   SELECT booking_status, booking_date, student_id
+                   FROM bookings WHERE teacher_id = $1 AND is_deleted = FALSE
+               )
+               SELECT
+                 (SELECT COUNT(*) FROM bk) AS total_bookings,
+                 (SELECT COUNT(*) FROM bk WHERE booking_status = 'completed') AS completed_bookings,
+                 (SELECT COUNT(*) FROM bk WHERE booking_status = 'cancelled') AS cancelled_bookings,
+                 (SELECT COUNT(*) FROM bk WHERE booking_status = 'pending') AS pending_bookings,
+                 (SELECT COUNT(*) FROM bk WHERE booking_status IN ('pending','confirmed')
+                                            AND booking_date >= CURRENT_DATE) AS upcoming_bookings,
+                 (SELECT COUNT(DISTINCT student_id) FROM bk WHERE booking_status = 'completed') AS total_students_taught,
                  (SELECT COUNT(*) FROM teacher_contracts
                   WHERE teacher_id = $1 AND is_deleted = FALSE) AS total_contracts,
                  (SELECT COUNT(*) FROM teacher_contracts
@@ -634,11 +619,40 @@ async def get_teacher_view(
                  (SELECT COALESCE(SUM(amount), 0) FROM teacher_bonus_records
                   WHERE teacher_id = $1 AND is_deleted = FALSE) AS total_bonus_amount,
                  (SELECT COUNT(*) FROM teacher_bonus_records
-                  WHERE teacher_id = $1 AND is_deleted = FALSE) AS total_bonus_count,
-                 (SELECT COUNT(DISTINCT student_id) FROM bookings
-                  WHERE teacher_id = $1 AND is_deleted = FALSE AND booking_status = 'completed') AS total_students_taught""",
+                  WHERE teacher_id = $1 AND is_deleted = FALSE) AS total_bonus_count""",
             tid,
         )
+
+        contract_rows, booking_rows, bonus_rows, schedule_rows, stats_row = await asyncio.gather(
+            contracts_task, bookings_task, bonus_task, schedules_task, stats_task
+        )
+
+        # ── 整理結果 ──
+        contracts = [
+            {**dict(cr), "id": str(cr["id"])}
+            for cr in contract_rows
+        ]
+
+        bookings_recent = [
+            {**dict(br), "id": str(br["id"]),
+             "start_time": br["start_time"].strftime("%H:%M") if br["start_time"] else None,
+             "end_time": br["end_time"].strftime("%H:%M") if br["end_time"] else None}
+            for br in booking_rows
+        ]
+
+        bonus_records = [
+            {**dict(br), "id": str(br["id"]),
+             "amount": float(br["amount"]) if br.get("amount") is not None else None}
+            for br in bonus_rows
+        ]
+
+        work_schedules = [
+            {**dict(sr), "id": str(sr["id"]),
+             "start_time": sr["start_time"].strftime("%H:%M") if sr["start_time"] else None,
+             "end_time": sr["end_time"].strftime("%H:%M") if sr["end_time"] else None}
+            for sr in schedule_rows
+        ]
+
         stats = {
             "total_bookings": stats_row["total_bookings"],
             "completed_bookings": stats_row["completed_bookings"],
@@ -660,6 +674,7 @@ async def get_teacher_view(
                 contracts=contracts,
                 bookings_recent=bookings_recent,
                 bonus_records_recent=bonus_records,
+                work_schedules=work_schedules,
                 stats=stats,
             )
         )

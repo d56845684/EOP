@@ -565,8 +565,10 @@ async def get_student_view(
             "binding_status": student_row["binding_status"],
         }
 
-        # ── 2. 合約（含教師名、附約數，單一查詢消除 N+1） ──
-        contract_rows = await pool.fetch(
+        # ── 2~7. 並行查詢（無依賴關係） ──
+        import asyncio
+
+        contracts_task = pool.fetch(
             """SELECT sc.id, sc.contract_no, sc.contract_status,
                       sc.start_date, sc.end_date,
                       sc.total_lessons, sc.remaining_lessons, sc.total_amount,
@@ -591,18 +593,8 @@ async def get_student_view(
                ORDER BY sc.start_date DESC""",
             sid,
         )
-        contracts = []
-        for cr in contract_rows:
-            c = dict(cr)
-            c["id"] = str(cr["id"])
-            c["teachers"] = list(cr["teachers"]) if cr["teachers"] else []
-            c["addendum_count"] = cr["addendum_count"]
-            if c.get("total_amount") is not None:
-                c["total_amount"] = float(c["total_amount"])
-            contracts.append(c)
 
-        # ── 3. 預約（最近 20 筆） ──
-        booking_rows = await pool.fetch(
+        bookings_task = pool.fetch(
             """SELECT b.id, b.booking_date, b.start_time, b.end_time,
                       b.booking_status, b.booking_type,
                       t.name AS teacher_name, c.course_name AS course_name
@@ -614,16 +606,8 @@ async def get_student_view(
                LIMIT 20""",
             sid,
         )
-        bookings_recent = []
-        for br in booking_rows:
-            b = dict(br)
-            b["id"] = str(b["id"])
-            b["start_time"] = b["start_time"].strftime("%H:%M") if b["start_time"] else None
-            b["end_time"] = b["end_time"].strftime("%H:%M") if b["end_time"] else None
-            bookings_recent.append(b)
 
-        # ── 4. 選課 ──
-        course_rows = await pool.fetch(
+        courses_task = pool.fetch(
             """SELECT sc.id, sc.course_id, c.course_name AS course_name,
                       c.course_code, sc.enrolled_at
                FROM student_courses sc
@@ -632,13 +616,8 @@ async def get_student_view(
                ORDER BY sc.enrolled_at DESC""",
             sid,
         )
-        courses = [
-            {**dict(r), "id": str(r["id"]), "course_id": str(r["course_id"])}
-            for r in course_rows
-        ]
 
-        # ── 5. 教師偏好 ──
-        pref_rows = await pool.fetch(
+        prefs_task = pool.fetch(
             """SELECT stp.id, c.course_name AS course_name,
                       stp.min_teacher_level,
                       t.name AS primary_teacher_name
@@ -648,13 +627,8 @@ async def get_student_view(
                WHERE stp.student_id = $1 AND stp.is_deleted = FALSE""",
             sid,
         )
-        preferences = [
-            {**dict(r), "id": str(r["id"])}
-            for r in pref_rows
-        ]
 
-        # ── 6. 請假記錄（最近 10 筆） ──
-        leave_rows = await pool.fetch(
+        leaves_task = pool.fetch(
             """SELECT lr.id, lr.leave_date, lr.leave_status, lr.leave_type,
                       lr.reason, b.booking_date
                FROM leave_records lr
@@ -664,39 +638,67 @@ async def get_student_view(
                LIMIT 10""",
             sid,
         )
-        leave_records = [
-            {**dict(r), "id": str(r["id"])}
-            for r in leave_rows
-        ]
 
-        # ── 7. 統計（合併為 1 query） ──
-        stats_row = await pool.fetchrow(
-            """SELECT
-                 (SELECT COUNT(*) FROM bookings
-                  WHERE student_id = $1 AND is_deleted = FALSE) AS total_bookings,
-                 (SELECT COUNT(*) FROM bookings
-                  WHERE student_id = $1 AND is_deleted = FALSE AND booking_status = 'completed') AS completed_bookings,
-                 (SELECT COUNT(*) FROM bookings
-                  WHERE student_id = $1 AND is_deleted = FALSE AND booking_status = 'cancelled') AS cancelled_bookings,
-                 (SELECT COUNT(*) FROM bookings
-                  WHERE student_id = $1 AND is_deleted = FALSE AND booking_status = 'pending') AS pending_bookings,
-                 (SELECT COUNT(*) FROM bookings
-                  WHERE student_id = $1 AND is_deleted = FALSE
-                    AND booking_status IN ('pending','confirmed')
-                    AND booking_date >= CURRENT_DATE) AS upcoming_bookings,
+        # 統計：bookings 用 CTE 單次掃描，student_contracts / student_courses 各掃一次
+        stats_task = pool.fetchrow(
+            """WITH bk AS (
+                   SELECT booking_status, booking_date
+                   FROM bookings WHERE student_id = $1 AND is_deleted = FALSE
+               )
+               SELECT
+                 (SELECT COUNT(*) FROM bk) AS total_bookings,
+                 (SELECT COUNT(*) FROM bk WHERE booking_status = 'completed') AS completed_bookings,
+                 (SELECT COUNT(*) FROM bk WHERE booking_status = 'cancelled') AS cancelled_bookings,
+                 (SELECT COUNT(*) FROM bk WHERE booking_status = 'pending') AS pending_bookings,
+                 (SELECT COUNT(*) FROM bk WHERE booking_status IN ('pending','confirmed')
+                                            AND booking_date >= CURRENT_DATE) AS upcoming_bookings,
                  (SELECT COUNT(*) FROM student_contracts
                   WHERE student_id = $1 AND is_deleted = FALSE) AS total_contracts,
                  (SELECT COUNT(*) FROM student_contracts
                   WHERE student_id = $1 AND is_deleted = FALSE AND contract_status = 'active') AS active_contracts,
-                 (SELECT COALESCE(SUM(remaining_lessons) FILTER (WHERE contract_status = 'active'), 0)
-                  FROM student_contracts
-                  WHERE student_id = $1 AND is_deleted = FALSE) AS total_remaining_lessons,
+                 (SELECT COALESCE(SUM(remaining_lessons), 0) FROM student_contracts
+                  WHERE student_id = $1 AND is_deleted = FALSE AND contract_status = 'active') AS total_remaining_lessons,
                  (SELECT COALESCE(SUM(used_leave_count), 0) FROM student_contracts
                   WHERE student_id = $1 AND is_deleted = FALSE) AS total_leaves_used,
                  (SELECT COUNT(*) FROM student_courses
                   WHERE student_id = $1 AND is_deleted = FALSE) AS total_courses_enrolled""",
             sid,
         )
+
+        contract_rows, booking_rows, course_rows, pref_rows, leave_rows, stats_row = await asyncio.gather(
+            contracts_task, bookings_task, courses_task, prefs_task, leaves_task, stats_task
+        )
+
+        # ── 整理結果 ──
+        contracts = [
+            {**dict(cr), "id": str(cr["id"]),
+             "teachers": list(cr["teachers"]) if cr["teachers"] else [],
+             "total_amount": float(cr["total_amount"]) if cr.get("total_amount") is not None else None}
+            for cr in contract_rows
+        ]
+
+        bookings_recent = [
+            {**dict(br), "id": str(br["id"]),
+             "start_time": br["start_time"].strftime("%H:%M") if br["start_time"] else None,
+             "end_time": br["end_time"].strftime("%H:%M") if br["end_time"] else None}
+            for br in booking_rows
+        ]
+
+        courses = [
+            {**dict(r), "id": str(r["id"]), "course_id": str(r["course_id"])}
+            for r in course_rows
+        ]
+
+        preferences = [
+            {**dict(r), "id": str(r["id"])}
+            for r in pref_rows
+        ]
+
+        leave_records = [
+            {**dict(r), "id": str(r["id"])}
+            for r in leave_rows
+        ]
+
         stats = {
             "total_bookings": stats_row["total_bookings"],
             "completed_bookings": stats_row["completed_bookings"],
