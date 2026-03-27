@@ -12,6 +12,7 @@ from datetime import date, datetime, time
 import asyncio
 import logging
 import math
+import uuid
 
 router = APIRouter(prefix="/bookings", tags=["預約管理"])
 
@@ -1039,54 +1040,130 @@ async def create_booking(
             if not teacher_contract_id and matching_slot.get("teacher_contract_id"):
                 teacher_contract_id = matching_slot["teacher_contract_id"]
 
-        # 生成預約編號
-        booking_no = await generate_booking_no()
-
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
 
-        # 建立預約（試上課不使用時薪計算，薪水以獎金紀錄）
-        booking_data = {
-            "booking_no": booking_no,
-            "student_id": data.student_id,
-            "teacher_id": data.teacher_id,
-            "course_id": data.course_id,
-            "student_contract_id": data.student_contract_id,
-            "teacher_contract_id": teacher_contract_id,
-            "teacher_slot_id": teacher_slot_id,
-            "teacher_hourly_rate": 0 if is_trial else hourly_rate,
-            "teacher_rate_percentage": rate_percentage,
-            "booking_status": "pending",
-            "booking_date": data.booking_date.isoformat(),
-            "start_time": data.start_time.isoformat(),
-            "end_time": data.end_time.isoformat(),
-            "booking_type": "trial" if is_trial else "regular",
-            "lessons_used": lessons_used,
-            "notes": data.notes,
-        }
-        if employee_id:
-            booking_data["created_by"] = employee_id
+        # ── 交易區段：鎖定時段 + 重新檢查衝突 + 寫入 ──
+        # 使用 database transaction 防止同一時段被並發預約
+        async with supabase_service.pool.acquire() as conn:
+            async with conn.transaction():
+                # 鎖定教師時段（FOR UPDATE 防止並發）
+                slot_lock = await conn.fetchrow(
+                    "SELECT id FROM teacher_available_slots WHERE id = $1 FOR UPDATE",
+                    uuid.UUID(teacher_slot_id)
+                )
+                if not slot_lock:
+                    raise HTTPException(status_code=400, detail="教師時段不存在")
 
-        result = await supabase_service.table_insert(
-            table="bookings",
-            data=booking_data,
-        )
+                # 在交易內重新檢查時間衝突（確保無 race condition）
+                overlap_rows = await conn.fetch(
+                    """SELECT id FROM bookings
+                       WHERE teacher_slot_id = $1
+                       AND is_deleted = false
+                       AND booking_status != 'cancelled'
+                       AND start_time::time < $3::time
+                       AND end_time::time > $2::time""",
+                    uuid.UUID(teacher_slot_id),
+                    data.start_time,
+                    data.end_time
+                )
+                if overlap_rows:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"預約時間 ({booking_start}-{booking_end}) 與現有預約衝突"
+                    )
 
-        if not result:
-            raise HTTPException(status_code=500, detail="建立預約失敗")
+                # 在交易內生成預約編號（防止序號衝突）
+                today = datetime.utcnow().strftime("%Y%m%d")
+                prefix = f"BK{today}"
+                seq_row = await conn.fetchrow(
+                    """SELECT booking_no FROM bookings
+                       WHERE booking_no LIKE $1
+                       ORDER BY booking_no DESC LIMIT 1""",
+                    f"{prefix}%"
+                )
+                if seq_row:
+                    try:
+                        max_seq = int(seq_row["booking_no"][len(prefix):])
+                    except ValueError:
+                        max_seq = 0
+                    booking_no = f"{prefix}{str(max_seq + 1).zfill(3)}"
+                else:
+                    booking_no = f"{prefix}001"
 
-        # 扣除學生合約剩餘堂數（試上學生無合約則跳過）
-        if student_contract and data.student_contract_id:
-            await supabase_service.table_update(
-                table="student_contracts",
-                data={"remaining_lessons": student_contract[0]["remaining_lessons"] - lessons_used},
-                filters={"id": data.student_contract_id},
-            )
+                # 寫入預約
+                result_row = await conn.fetchrow(
+                    """INSERT INTO bookings (
+                        booking_no, student_id, teacher_id, course_id,
+                        student_contract_id, teacher_contract_id, teacher_slot_id,
+                        teacher_hourly_rate, teacher_rate_percentage,
+                        booking_status, booking_date, start_time, end_time,
+                        booking_type, lessons_used, notes, created_by
+                    ) VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+                    ) RETURNING *""",
+                    booking_no,
+                    uuid.UUID(data.student_id),
+                    uuid.UUID(data.teacher_id),
+                    uuid.UUID(data.course_id),
+                    uuid.UUID(data.student_contract_id) if data.student_contract_id else None,
+                    uuid.UUID(teacher_contract_id) if teacher_contract_id else None,
+                    uuid.UUID(teacher_slot_id),
+                    0 if is_trial else hourly_rate,
+                    rate_percentage,
+                    "pending",
+                    data.booking_date,
+                    data.start_time,
+                    data.end_time,
+                    "trial" if is_trial else "regular",
+                    lessons_used,
+                    data.notes,
+                    uuid.UUID(employee_id) if employee_id else None,
+                )
 
-        # 更新 slot 預約已滿狀態
-        await update_slot_booked_status(teacher_slot_id)
+                if not result_row:
+                    raise HTTPException(status_code=500, detail="建立預約失敗")
 
-        # 添加關聯名稱
+                # 扣除學生合約剩餘堂數
+                if student_contract and data.student_contract_id:
+                    await conn.execute(
+                        "UPDATE student_contracts SET remaining_lessons = remaining_lessons - $1 WHERE id = $2",
+                        lessons_used,
+                        uuid.UUID(data.student_contract_id)
+                    )
+
+                # 更新 slot 預約已滿狀態
+                booked_count = await conn.fetchval(
+                    """SELECT COUNT(*) FROM bookings
+                       WHERE teacher_slot_id = $1 AND is_deleted = false AND booking_status != 'cancelled'""",
+                    uuid.UUID(teacher_slot_id)
+                )
+                slot_info = await conn.fetchrow(
+                    "SELECT start_time, end_time FROM teacher_available_slots WHERE id = $1",
+                    uuid.UUID(teacher_slot_id)
+                )
+                if slot_info:
+                    slot_duration = (datetime.combine(date.today(), slot_info["end_time"]) -
+                                    datetime.combine(date.today(), slot_info["start_time"])).total_seconds() / 60
+                    max_bookings = max(1, int(slot_duration / course_duration))
+                    is_fully_booked = booked_count >= max_bookings
+                    await conn.execute(
+                        "UPDATE teacher_available_slots SET is_fully_booked = $1 WHERE id = $2",
+                        is_fully_booked,
+                        uuid.UUID(teacher_slot_id)
+                    )
+
+        # 交易結束後：enrichment（只需讀取，不需在交易內）
+        result = dict(result_row)
+        # 轉換 UUID 為字串
+        for key, val in result.items():
+            if isinstance(val, uuid.UUID):
+                result[key] = str(val)
+            elif isinstance(val, (date, datetime)):
+                result[key] = val.isoformat()
+            elif isinstance(val, time):
+                result[key] = val.isoformat()
+
         enriched = await enrich_booking_with_relations(result)
 
         return DataResponse(
