@@ -1143,7 +1143,7 @@ async def create_booking(
                     max_bookings = max(1, int(slot_duration / course_duration))
                     is_fully_booked = booked_count >= max_bookings
                     await conn.execute(
-                        "UPDATE teacher_available_slots SET is_fully_booked = $1 WHERE id = $2",
+                        "UPDATE teacher_available_slots SET is_booked = $1 WHERE id = $2",
                         is_fully_booked,
                         uuid.UUID(teacher_slot_id)
                     )
