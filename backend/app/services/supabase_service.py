@@ -496,6 +496,26 @@ class SupabaseService:
         rows = await self.pool.fetch(sql, *params)
         return [self._row_to_dict(r) for r in rows]
 
+    async def table_count(
+        self,
+        table: str,
+        filters: dict = None,
+    ) -> int:
+        """Count rows matching filters (replaces len(table_select(..., select='id')))"""
+        tbl = self._sanitize_identifier(table)
+        params = []
+        where_clauses = []
+
+        if filters:
+            for key, value in filters.items():
+                where_clauses.append(self._parse_filter(key, value, params))
+
+        sql = f'SELECT COUNT(*) FROM "{tbl}"'
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
+
+        return await self.pool.fetchval(sql, *params)
+
     async def table_select_with_pagination(
         self,
         table: str,

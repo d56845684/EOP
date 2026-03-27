@@ -75,10 +75,7 @@ async def list_employees(
         if employee_type:
             filters["employee_type"] = f"eq.{employee_type}"
 
-        all_employees = await supabase_service.table_select(
-            table="employees", select="id", filters=filters
-        )
-        total = len(all_employees)
+        total = await supabase_service.table_count(table="employees", filters=filters)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
         offset = (page - 1) * per_page
 

@@ -234,12 +234,7 @@ async def list_teacher_contracts(
             filters["teacher_id"] = f"eq.{teacher_id}"
 
         # 取得總數
-        all_contracts = await supabase_service.table_select(
-            table="teacher_contracts",
-            select="id",
-            filters=filters,
-        )
-        total = len(all_contracts)
+        total = await supabase_service.table_count(table="teacher_contracts", filters=filters)
 
         # 計算分頁
         total_pages = math.ceil(total / per_page) if total > 0 else 1

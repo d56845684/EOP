@@ -562,13 +562,8 @@ async def list_bookings(
             if current_user.teacher_id:
                 filters["teacher_id"] = f"eq.{current_user.teacher_id}"
 
-        # 取得總數
-        all_bookings = await supabase_service.table_select(
-            table="bookings_view",
-            select="id",
-            filters=filters,
-        )
-        total = len(all_bookings)
+        # 取得總數（使用 COUNT 而非撈全部資料）
+        total = await supabase_service.table_count(table="bookings_view", filters=filters)
 
         # 計算分頁
         total_pages = math.ceil(total / per_page) if total > 0 else 1

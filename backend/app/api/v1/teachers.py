@@ -34,10 +34,7 @@ async def list_teachers(
         if is_active is not None:
             filters["is_active"] = f"eq.{str(is_active).lower()}"
 
-        all_teachers = await supabase_service.table_select(
-            table="teachers", select="id", filters=filters
-        )
-        total = len(all_teachers)
+        total = await supabase_service.table_count(table="teachers", filters=filters)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
         offset = (page - 1) * per_page
 

@@ -49,11 +49,7 @@ async def list_zoom_accounts(
             filters["is_active"] = f"eq.{str(is_active).lower()}"
 
         # 計算 total
-        all_records = await supabase_service.table_select(
-            table="zoom_accounts", select="id",
-            filters=filters,
-        )
-        total = len(all_records)
+        total = await supabase_service.table_count(table="zoom_accounts", filters=filters)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
 
         items = await supabase_service.table_select_with_pagination(
@@ -308,11 +304,7 @@ async def list_zoom_meetings(
                 filters["meeting_date"] = f"lte.{date_to}"
 
         # 計算 total
-        all_records = await supabase_service.table_select(
-            table="zoom_meeting_logs", select="id",
-            filters=filters,
-        )
-        total = len(all_records)
+        total = await supabase_service.table_count(table="zoom_meeting_logs", filters=filters)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
 
         items = await supabase_service.table_select_with_pagination(

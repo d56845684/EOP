@@ -251,10 +251,7 @@ async def list_substitute_details(
     try:
         filters = {"is_deleted": "eq.false"}
 
-        all_records = await supabase_service.table_select(
-            table="substitute_details", select="id", filters=filters,
-        )
-        total = len(all_records)
+        total = await supabase_service.table_count(table="substitute_details", filters=filters)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
         offset = (page - 1) * per_page
 

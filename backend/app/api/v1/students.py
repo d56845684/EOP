@@ -37,10 +37,7 @@ async def list_students(
         if student_type:
             filters["student_type"] = f"eq.{student_type}"
 
-        all_students = await supabase_service.table_select(
-            table="students", select="id", filters=filters
-        )
-        total = len(all_students)
+        total = await supabase_service.table_count(table="students", filters=filters)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
         offset = (page - 1) * per_page
 
