@@ -381,6 +381,44 @@ async def get_meeting_by_booking(
         raise HTTPException(status_code=500, detail=f"查詢 Zoom 會議失敗: {str(e)}")
 
 
+@router.post("/meetings/{booking_id}/fetch-recording", response_model=DataResponse[ZoomMeetingLogResponse])
+async def fetch_recording(
+    booking_id: str,
+    current_user: CurrentUser = Depends(require_staff),
+):
+    """手動從 Zoom API 取得會議錄影資訊（僅限員工）"""
+    try:
+        # 確認 booking 存在
+        bookings = await supabase_service.table_select(
+            table="bookings",
+            select="id,booking_status",
+            filters={"id": booking_id, "is_deleted": "eq.false"},
+        )
+        if not bookings:
+            raise HTTPException(status_code=404, detail="預約不存在")
+
+        result = await zoom_service.fetch_meeting_recording(booking_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="尚無可用的錄影，請確認會議已結束且有雲端錄影")
+
+        # 重新查詢完整資料
+        logs = await supabase_service.table_select(
+            table="zoom_meeting_logs",
+            select=MEETING_LOG_SELECT,
+            filters={"booking_id": booking_id, "is_deleted": "eq.false"},
+        )
+        if not logs:
+            raise HTTPException(status_code=500, detail="錄影資訊更新失敗")
+
+        enriched = await enrich_meeting_log(logs[0])
+        return DataResponse(message="錄影資訊取得成功", data=ZoomMeetingLogResponse(**enriched))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取得錄影失敗: {str(e)}")
+
+
 # ============================================
 # 教師 OAuth
 # ============================================

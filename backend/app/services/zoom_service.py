@@ -601,6 +601,120 @@ class ZoomService:
             logger.error(f"recording.completed 處理失敗: {e}")
             return False
 
+    async def fetch_meeting_recording(self, booking_id: str) -> Optional[dict]:
+        """
+        手動呼叫 Zoom API 取得會議錄影資訊
+
+        用於 webhook 漏掉或延遲時，主動抓取錄影 URL。
+        """
+        try:
+            # 1. 取得該 booking 的 zoom meeting log
+            meeting_logs = await supabase_service.table_select(
+                table="zoom_meeting_logs",
+                select="id,zoom_meeting_id,zoom_account_id,teacher_id,recording_url",
+                filters={"booking_id": f"eq.{booking_id}", "is_deleted": "eq.false"},
+            )
+            if not meeting_logs:
+                logger.warning(f"fetch_recording: booking {booking_id} 無 Zoom 會議紀錄")
+                return None
+
+            log = meeting_logs[0]
+            zoom_meeting_id = log.get("zoom_meeting_id")
+            if not zoom_meeting_id:
+                return None
+
+            # 2. 取得 access token（帳號池 S2S 優先）
+            token = None
+            zoom_account_id = log.get("zoom_account_id")
+            if zoom_account_id:
+                accounts = await supabase_service.table_select(
+                    table="zoom_accounts",
+                    select="id,zoom_account_id,zoom_client_id,zoom_client_secret",
+                    filters={"id": zoom_account_id},
+                )
+                if accounts:
+                    token = await self.get_s2s_token(accounts[0])
+
+            if not token and log.get("teacher_id"):
+                token = await self.refresh_teacher_token(str(log["teacher_id"]))
+
+            if not token:
+                logger.error(f"fetch_recording: 無法取得 Zoom token (booking={booking_id})")
+                return None
+
+            # 3. 呼叫 Zoom API 取得錄影
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{ZOOM_API_BASE}/meetings/{zoom_meeting_id}/recordings",
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=15.0,
+                )
+
+            if response.status_code == 404:
+                logger.info(f"fetch_recording: 會議 {zoom_meeting_id} 尚無錄影")
+                return None
+
+            if response.status_code != 200:
+                logger.error(f"fetch_recording: Zoom API 回傳 {response.status_code}: {response.text[:200]}")
+                return None
+
+            data = response.json()
+            recording_files = data.get("recording_files", [])
+
+            # 4. 選取最佳錄影檔（複用 webhook 邏輯）
+            video_file = None
+            for f in recording_files:
+                if f.get("file_type") == "MP4" and f.get("recording_type") == "shared_screen_with_speaker_view":
+                    video_file = f
+                    break
+            if not video_file:
+                for f in recording_files:
+                    if f.get("file_type") == "MP4":
+                        video_file = f
+                        break
+            if not video_file and recording_files:
+                video_file = recording_files[0]
+
+            if not video_file:
+                logger.info(f"fetch_recording: 會議 {zoom_meeting_id} 無可用錄影檔案")
+                return None
+
+            # 5. 更新 DB
+            update_data = {
+                "recording_url": video_file.get("play_url", ""),
+                "recording_download_url": video_file.get("download_url", ""),
+                "recording_file_type": video_file.get("file_type", ""),
+                "recording_file_size_bytes": video_file.get("file_size", 0),
+                "recording_completed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            recording_start = video_file.get("recording_start", "")
+            recording_end = video_file.get("recording_end", "")
+            if recording_start and recording_end:
+                try:
+                    start_dt = datetime.fromisoformat(recording_start.replace("Z", "+00:00"))
+                    end_dt = datetime.fromisoformat(recording_end.replace("Z", "+00:00"))
+                    update_data["recording_duration_seconds"] = int((end_dt - start_dt).total_seconds())
+                except Exception:
+                    pass
+
+            result = await supabase_service.table_update(
+                table="zoom_meeting_logs",
+                data=update_data,
+                filters={"id": log["id"]},
+            )
+
+            logger.info(f"fetch_recording: 成功取得錄影 meeting={zoom_meeting_id}, url={video_file.get('play_url', '')[:60]}")
+
+            # 6. 觸發 Google Drive 轉存
+            if settings.SQS_QUEUE_URL and video_file.get("download_url"):
+                await self._enqueue_recording_transfer(zoom_meeting_id, video_file)
+
+            return result if result else None
+
+        except Exception as e:
+            logger.error(f"fetch_recording 失敗: {e}")
+            return None
+
     async def _enqueue_recording_transfer(self, meeting_id: str, video_file: dict):
         """查詢老師/學生 email，發送 SQS 錄影轉移任務"""
         try:

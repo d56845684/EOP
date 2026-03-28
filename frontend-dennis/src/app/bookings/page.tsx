@@ -176,6 +176,7 @@ export default function BookingsPage() {
     // Zoom meeting info
     const [zoomMeetings, setZoomMeetings] = useState<Record<string, ZoomMeetingLog>>({})
     const [creatingZoomFor, setCreatingZoomFor] = useState<string | null>(null)
+    const [fetchingRecordingFor, setFetchingRecordingFor] = useState<string | null>(null)
 
     const isStaff = profile?.employee_id != null
     const isStudent = profile?.student_id != null
@@ -303,6 +304,17 @@ export default function BookingsPage() {
             setError(error.message)
         }
         setCreatingZoomFor(null)
+    }
+
+    const handleFetchRecording = async (bookingId: string) => {
+        setFetchingRecordingFor(bookingId)
+        const { data, error } = await zoomApi.fetchRecording(bookingId)
+        if (data) {
+            setZoomMeetings(prev => ({ ...prev, [bookingId]: data }))
+        } else if (error) {
+            setError(error.message)
+        }
+        setFetchingRecordingFor(null)
     }
 
     const handleReviewLeave = async (bookingId: string) => {
@@ -1535,17 +1547,38 @@ export default function BookingsPage() {
                                                                         {zoom.passcode && (
                                                                             <span className="text-xs text-gray-500">密碼: {zoom.passcode}</span>
                                                                         )}
-                                                                        {zoom.recording_url && (
+                                                                        {zoom.drive_view_link ? (
+                                                                            <a
+                                                                                href={zoom.drive_view_link}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-700 bg-green-50 rounded-md hover:bg-green-100"
+                                                                            >
+                                                                                <Film className="w-3 h-3" />
+                                                                                Google Drive 錄影
+                                                                                <ExternalLink className="w-3 h-3" />
+                                                                            </a>
+                                                                        ) : zoom.recording_url ? (
                                                                             <a
                                                                                 href={zoom.recording_url}
                                                                                 target="_blank"
                                                                                 rel="noopener noreferrer"
-                                                                                className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800"
+                                                                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-700 bg-purple-50 rounded-md hover:bg-purple-100"
                                                                             >
                                                                                 <Film className="w-3 h-3" />
-                                                                                錄影
+                                                                                Zoom 雲端錄影
+                                                                                <ExternalLink className="w-3 h-3" />
                                                                             </a>
-                                                                        )}
+                                                                        ) : isStaff ? (
+                                                                            <button
+                                                                                onClick={() => handleFetchRecording(booking.id)}
+                                                                                disabled={fetchingRecordingFor === booking.id}
+                                                                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-orange-700 bg-orange-50 rounded-md hover:bg-orange-100 disabled:opacity-50"
+                                                                            >
+                                                                                <Film className="w-3 h-3" />
+                                                                                {fetchingRecordingFor === booking.id ? '取得中...' : '取得錄影'}
+                                                                            </button>
+                                                                        ) : null}
                                                                     </div>
                                                                 )
                                                             }

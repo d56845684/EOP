@@ -291,6 +291,27 @@ export const zoomApi = {
         }
     },
 
+    async fetchRecording(bookingId: string): Promise<{ data: ZoomMeetingLog | null, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/zoom/meetings/${bookingId}/fetch-recording`, {
+                method: 'POST',
+            })
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    return { data: null, error: { message: '尚無可用的錄影，請確認會議已結束' } }
+                }
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得錄影失敗' } }
+            }
+
+            const result = await response.json()
+            return { data: result.data || null, error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
     // --- 教師 OAuth ---
 
     async getOAuthStatus(): Promise<{ data: ZoomTeacherLinkStatus | null, error: any }> {
