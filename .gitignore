@@ -13,3 +13,6 @@ deploy/.rds-endpoint
 .claude
 .gstack/
 backups/
+.env.lambda
+lambda/**/function.zip
+lambda/**/build/
