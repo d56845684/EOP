@@ -13,16 +13,38 @@
 
 @use "element-plus/theme-chalk/src/index.scss" as *;
 
+.filter-form {
+  gap: 20px;
+
+  .el-form-item {
+    margin-right: 0;
+    margin-bottom: 5px;
+  }
+}
+
+.el-table--small .el-table__cell {
+  padding: 8px 0;
+}
+
 .el-drawer__header {
   padding: 20px;
   margin-bottom: 0 !important;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+  // box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
 }
 
-// .el-divider__text {
-//   color: #6f6f6f !important;
-// }
+.el-popper.is-customized {
+  /* Set padding to ensure the height is 32px */
+  padding: 2px 10px;
+  background: #778da9;
+  color: #fff;
+  font-size: 12px;
+}
 
-// .el-card {
-//   border-radius: 12px;
-// }
+.el-popper.is-customized .el-popper__arrow::before {
+  background: #778da9;
+  right: 0;
+}
+
+.el-select--small .el-select__wrapper {
+  min-height: 30px;
+}

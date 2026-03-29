@@ -15,8 +15,12 @@ export interface CourseOption extends ContractOption { }
 export interface StudentContract {
   id: string;
   student_id: string;
+  student_name: string;
   contract_no: string;
   contract_status: 'pending' | 'active' | 'expired' | 'terminated';
+  contract_file_uploaded_at?: string | null;
+  contract_file_name?: string | null;
+  contract_file_path?: string | null;
   is_recurring: boolean;
   start_date: string;
   end_date: string;
@@ -28,7 +32,11 @@ export interface StudentContract {
   notes?: string | null;
   created_at: string;
   updated_at: string;
-  contract_url?: string | null;
+  details: StudentContractDetail[];
+  leave_records: StudentContractLeaveRecord[];
+  emergency_leave_quota: number;
+  used_emergency_leave_count: number;
+  addendums: [];
 }
 
 export interface StudentContractUpdate {
@@ -73,6 +81,35 @@ export interface StudentContractLeaveRecord {
 export interface StudentContractLeaveRecordCreate {
   leave_date: string;
   reason?: string | null;
+}
+
+export interface StudentContractAddendum {
+  id: string;
+  addendum_no: string;
+  contract_type: string;
+  parent_contract_id: string;
+  original_end_date: string;
+  new_end_date: string;
+  addendum_status: string;
+  file_path: string;
+  file_name: string;
+  file_uploaded_at: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+  parent_contract_no: string;
+  person_name: string;
+}
+
+export interface StudentContractAddendumUpdate {
+  new_end_date: string;
+  notes: string;
+}
+
+interface ResData<T> {
+  data: T;
+  message: string;
+  success: boolean;
 }
 
 // export interface DownloadUrlResponse {
@@ -133,4 +170,28 @@ export function deleteContractLeaveRecord(contractId: string, recordId: string) 
 
 export function getContractDownloadUrl(contractId: string) {
   return request.get<string>(`/v1/student-contracts/${contractId}/download-url`);
+}
+
+export function generateContract(contractId: string) {
+  return request.post(`/v1/student-contracts/${contractId}/generate-pdf`);
+}
+
+export function uploadContract(contractId: string, data: FormData) {
+  return request.post(`/v1/student-contracts/${contractId}/upload-url`, data);
+}
+
+export function getAddendum(contractId: string, addendumId: string) {
+  return request.get<any, ResData<StudentContractAddendum>>(`/v1/student-contracts/${contractId}/addendums/${addendumId}`);
+}
+
+export function createAddendum(contractId: string, data: StudentContractAddendumUpdate) {
+  return request.post<any, ResData<StudentContractAddendum>>(`/v1/student-contracts/${contractId}/addendums`, data);
+}
+
+export function updateAddendum(contractId: string, addendumId: string, data: StudentContractAddendumUpdate) {
+  return request.put<any, ResData<StudentContractAddendum>>(`/v1/student-contracts/${contractId}/addendums/${addendumId}`, data);
+}
+
+export function deleteAddendum(contractId: string, addendumId: string) {
+  return request.delete(`/v1/student-contracts/${contractId}/addendums/${addendumId}`);
 }

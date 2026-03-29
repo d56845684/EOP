@@ -41,6 +41,7 @@ export const usePermissionStore = defineStore('permission', () => {
         } catch (error) {
             console.warn('Failed to fetch permissions, defaulting to empty array', error);
             pageKeys.value = [];
+            clearLocalState();
         }
 
         let accessedRoutes: RouteRecordRaw[] = [];
@@ -82,3 +83,7 @@ export const usePermissionStore = defineStore('permission', () => {
 
     return { routes, addRoutes, isRoutesGenerated, generateRoutes, generateRoutesUnfiltered, resetState, menuModules: SYSTEM_MODULES, pageKeys, hasPermission };
 });
+function clearLocalState() {
+    throw new Error('Function not implemented.');
+}
+

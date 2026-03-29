@@ -2,13 +2,14 @@
   <div class="student-list-page pl-2 pr-4">
     <!-- Search / Filter Bar -->
     <div class="flex justify-between items-center px-1 mb-2">
-      <h3 class="my-0">{{ $t('menu.student_mgmt') }}</h3>
+      <h3 class="text-lg my-0">{{ $t('menu.student_mgmt') }}</h3>
       <el-button
         v-permission="'students.create'"
         type="primary"
         round
-        class="h-9 px-1"
-        @click="openDrawer(null, 'add')"
+        size="small"
+        class="h-30px px-2"
+        @click="openDrawer(null, drawerTypeMap.CREATE)"
       >
         <template #icon>
           <div class="i-hugeicons:plus-sign-square" />
@@ -17,14 +18,13 @@
       </el-button>
     </div>
     <el-card class="filter-card mb-14px">
-      <el-form :inline="true" :model="queryParams" label-position="top" class="filter-form flex items-end">
+      <el-form :inline="true" :model="queryParams" size="small" label-position="top" class="filter-form flex items-end">
         <el-form-item :label="$t('common.searchKeyword')">
           <el-input 
             v-model="queryParams.search" 
             :placeholder="$t('student.filter.keyword')" 
-            class="filter-item" 
+            class="filter-item w-250px h-30px" 
             clearable 
-            style="width: 300px;" 
             @keyup.enter="handleSearch"
           >
             <template #prefix>
@@ -59,13 +59,13 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" round @click="handleSearch">
+          <el-button type="primary" round class="h-30px" @click="handleSearch">
             <template #icon>
               <div class="i-hugeicons:search-01" />
             </template>
             {{ $t('common.search') }}
           </el-button>
-          <el-button round @click="resetQuery">
+          <el-button round class="h-30px" @click="resetQuery">
             <template #icon>
               <div class="i-hugeicons:arrow-reload-horizontal" />
             </template>
@@ -79,20 +79,24 @@
 
     <!-- Student Table -->
     <el-card>
-      <el-table :data="studentList" class="w-full" v-loading="loading" stripe>
+      <el-table :data="studentList" size="small" class="w-full" v-loading="loading" stripe>
         <!-- Student No -->
-        <el-table-column prop="student_no" :label="$t('student.studentNo')" min-width="120" />
+        <el-table-column prop="student_no" :label="$t('student.studentNo')" min-width="100" />
         
         <!-- Name -->
-        <el-table-column prop="name" :label="$t('common.name')" width="180">
+        <el-table-column prop="name" :label="$t('common.name')" min-width="120">
           <template #default="{ row }">
             <div class="flex items-center justify-between gap-2">
-              <span>{{ row.name }}</span>
+              <div class="flex flex-col">
+                <span>{{ row.name }}</span>
+                <span class="text-xs italic text-gray-500">{{ row.eng_name }}</span>
+              </div>
               <el-tag 
                 :type="row.student_type === 'formal' ? 'success' : 'info'" 
                 :color="row.student_type === 'formal' ? '#d5f0e1' : '#dfe0f2'" 
                 effect="dark" 
                 size="small"
+                class="font-size-10px h-16px w-40px opacity-80"
                 :style="{ 
                   borderColor: row.student_type === 'formal'? '#91b5a1' : '#afb0c4' ,
                   color: row.student_type === 'formal'? '#288a52' : '#707187' 
@@ -103,28 +107,52 @@
             </div>
           </template>
         </el-table-column>
-
-        <!-- Type -->
-        <!-- <el-table-column :label="$t('student.filter.identity')" width="100" align="center">
-           <template #default="{ row }">
-             <el-tag :type="row.student_type === 'formal' ? 'success' : 'info'" :color="row.student_type === 'formal' ? '#66c18c' : '#a7a8bd'" effect="dark">
-               {{ row.student_type === 'formal' ? $t('student.type.formal') : $t('student.type.trial') }}
-             </el-tag>
-           </template>
-        </el-table-column> -->
         
         <!-- Email -->
-        <el-table-column prop="email" :label="$t('common.email')" min-width="240" />
+        <el-table-column prop="email" :label="$t('common.contactInfo')" min-width="250">
+          <template #default="{ row }">
+            <div class="flex flex-col">
+              <div v-show="row.email" class="flex items-center gap-4px">
+                <div class="i-hugeicons:mail-01 w-12px h-12px color-gray-500 flex-shrink-0" />
+                <el-text class="text-xs" truncated>{{ row.email }}</el-text>
+                <el-button type="text" size="small" round class="!px-1" @click="copyEmail(row.email)">
+                  <template #icon>
+                    <div class="i-hugeicons:copy-01" />
+                  </template>
+                </el-button>
+              </div>
+              <div v-show="row.phone" class="flex items-center gap-4px">
+                <div class="i-hugeicons:call-02 w-12px h-12px color-gray-500" />
+                <el-text class="text-xs" truncated>{{ row.phone }}</el-text>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
 
-        <!-- Phone -->
-        <el-table-column prop="phone" :label="$t('common.phone')" min-width="120" />
-        
-        <!-- Status -->
-        <el-table-column :label="$t('common.status')" width="90" align="center">
+        <!-- Student Status -->
+        <el-table-column prop="student_status" :label="$t('student.status')" width="80" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="STUDENT_STATUS_COLOR[row.student_status]" class="w-50px">
+              {{ STUDENT_STATUS_LABEL[row.student_status] }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column :label="$t('common.accountVerified')" width="90" align="center">
            <template #default="{ row }">
-             <el-tag size="small" :type="row.is_active ? 'success' : 'info'" effect='plain' class="w-50px">
-               {{ row.is_active ? $t('common.active') : $t('common.inactive') }}
-             </el-tag>
+            <template v-if="row.email_verified_at">
+              <el-tag size="small" type="success" effect='plain'>
+                <div class="flex items-center gap-2px">
+                  <div class="i-hugeicons:checkmark-badge-01 w-14px h-14px" />
+                  <span>{{ $t('common.verified') }}</span>
+                </div>
+              </el-tag>
+            </template>
+            <template v-else>
+              <el-button type="text" size="small" round @click="handleVerify(row)">
+                {{ $t('common.verify') }}
+              </el-button>
+            </template>
            </template>
         </el-table-column>
 
@@ -132,7 +160,7 @@
         <el-table-column :label="$t('common.actions')" label-class-name="text-center" width="240" fixed="right" class-name="action-column">
           <template #default="{ row }">
             <div>
-              <el-button v-permission="'students.edit'" round size="small" @click="openDrawer(row, 'manage')">
+              <el-button v-permission="'students.edit'" round size="small" @click="openDrawer(row, drawerTypeMap.MANAGE)">
                 <template #icon>
                   <div class="i-hugeicons:pencil-edit-01" />
                 </template>
@@ -156,7 +184,7 @@
                 size="small"
                 plain
                 color="#82aa57"
-                @click="openDrawer(row, 'contract')"
+                @click="openDrawer(row, TAB_MAP.CONTRACT)"
               >
                 <template #icon>
                   <div class="i-hugeicons:legal-document-02" />
@@ -176,11 +204,26 @@
             </el-button>
           </template>
         </el-table-column>
+
+        <!-- Status -->
+        <el-table-column :label="$t('common.status')" width="80" align="center" fixed="right">
+           <template #default="{ row }">
+            <template v-if="hasPermission('students.edit')">
+              <el-switch v-model="row.is_active" size="small" @change="handleStatusChange(row)" />
+            </template>
+            <template v-else>
+              <el-tag size="small" :type="row.is_active ? 'success' : 'info'" effect='plain' class="w-50px">
+                {{ row.is_active ? $t('common.active') : $t('common.inactive') }}
+              </el-tag>
+            </template>
+           </template>
+        </el-table-column>
       </el-table>
       <div class="pagination-footer">
          <el-pagination
             v-model:current-page="queryParams.page"
             v-model:page-size="queryParams.per_page"
+            size="small"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
             :total="total"
@@ -193,14 +236,14 @@
     <!-- Manage / Details Drawer -->
     <el-drawer
       v-model="drawerVisible"
-      :title="drawerType !== 'add' ? (currentStudent.student_no + ' - ' + currentStudent.name || $t('student.detailsTitle')) : $t('student.addTitle')"
-      :size="drawerType === 'add' ? '480px' : '620px'"
+      :title="drawerType !== drawerTypeMap.CREATE ? (currentStudent.student_no + ' - ' + currentStudent.name || $t('student.detailsTitle')) : $t('student.addTitle')"
+      :size="drawerType === drawerTypeMap.CREATE ? '480px' : '620px'"
       class="student-drawer"
     >
-      <template v-if="drawerType === 'manage'">
+      <template v-if="drawerType === drawerTypeMap.MANAGE">
         <el-tabs v-model="activeTab"  @tab-change="loadContent">
           <!-- Tab 1: Basic Info -->
-          <el-tab-pane :label="$t('common.basicInfo')" name="basic">
+          <el-tab-pane :label="$t('common.basicInfo')" :name="tabType.BASIC">
             <BaseInfo
               :form="form"
               :rules="rules"
@@ -210,30 +253,32 @@
           </el-tab-pane>
 
           <!-- Tab 2: Courses -->
-          <el-tab-pane v-permission="'bookings.list'" :label="$t('common.courses')" name="courses">
+          <el-tab-pane v-permission="'bookings.list'" :label="$t('common.courses')" :name="tabType.RECORDS">
             <BookingList 
-              v-if="activeTab === 'courses' && currentStudent?.id" 
+              v-if="activeTab === tabType.RECORDS && currentStudent?.id" 
               :student-id="currentStudent.id" 
             />
           </el-tab-pane>
         </el-tabs>
       </template>
-      <template v-if="drawerType === 'add'">
+      <template v-if="drawerType === drawerTypeMap.CREATE">
         <CreateStudent
           :saving="saving"
           @createStudent="handleCreateStudent"
         />
       </template>
-      <template v-else-if="drawerType === 'contract'">
+      <template v-else-if="drawerType === drawerTypeMap.CONTRACT">
         <ContractManagement
-          v-if="contract"
-          :contract="contract" 
+          v-if="contracts.length > 0"
+          :contracts="contracts" 
           :contractLoading="contractLoading"
+          :hasActive="(currentStudent.active_contracts || 0) > 0"
           :leaveRecords="leaveRecords"
           :contractDetails="contractDetails"
           @updateContractDetails="fetchContractDependencies"
           @saveContractData="saveContractData"
           @updateContent="loadContent"
+          @openAddContractDialog="openConvertToFormalDialog(currentStudent as StudentResponse)"
         />
         <div v-else class="skeleton-content">
           <p class="text-[#909399]" v-if="!contractLoading">目前無合約紀錄</p>
@@ -251,6 +296,14 @@
        :currentStudent="currentConvertStudent"
        :bookingOptions="bookingOptions"
        :teacherOptions="teacherOptions"
+     />
+
+     <VerifyInviteDialog
+       v-model:inviteVisible="verifyInviteVisible"
+       role="student"
+       :name="currentStudent?.name || ''"
+       :email="currentStudent?.email || ''"
+       :inviteUrl="inviteUrl"
      />
   </div>
 </template>
@@ -284,13 +337,54 @@ import {
   type StudentContractLeaveRecord,
 } from '@/api/contract';
 import { getBookingList, type BookingItem } from '@/api/booking';
-import BaseInfo from './components/BaseInfo.vue';
-import BookingList from './components/BookingList.vue';
-import ContractManagement from './components/ContractManagement.vue';
-import CreateStudent from './components/CreateStudent.vue';
-import CreateContractDialog from './components/CreateContractDialog.vue';
+import BaseInfo from './components/Drawer/BaseInfo.vue';
+import BookingList from './components/Drawer/BookingList.vue';
+import ContractManagement from './components/Drawer/ContractManagement.vue';
+import CreateStudent from './components/Drawer/CreateStudent.vue';
+import CreateContractDialog from './components/Dialog/CreateContractDialog.vue';
+import VerifyInviteDialog from '@/components/Auth/VerifyInviteDialog.vue';
+import { STUDENT_STATUS } from '@/constants/student';
+import { usePermissionStore } from '@/stores/permission';
+import { generateInviteLinkApi } from '@/api/auth';
+
+const STUDENT_STATUS_LABEL: Record<string, string> = {
+  [STUDENT_STATUS.ACTIVE]: '課程中',
+  [STUDENT_STATUS.TERMINATED]: '解約',
+  [STUDENT_STATUS.TRIAL]: '試上'
+};
+
+const OPTION_MAP = {
+ ALL: 'all' 
+} as const
+
+const TAB_MAP = {
+  BASIC: 'basic',
+  RECORDS: 'records',
+  CONTRACT: 'contract',
+} as const;
+
+// Alias to patch incomplete IDE rename operation
+const tabType = TAB_MAP;
+
+const DRAWER_TYPE_MAP = {
+  CREATE: 'create',
+  MANAGE: 'manage',
+  CONTRACT: 'contract',
+} as const;
+
+// Alias to patch incomplete IDE rename operation
+const drawerTypeMap = DRAWER_TYPE_MAP;
+
+const STUDENT_STATUS_COLOR: Record<string, string> = {
+  [STUDENT_STATUS.ACTIVE]: 'success',
+  [STUDENT_STATUS.TERMINATED]: 'info',
+  [STUDENT_STATUS.TRIAL]: 'warning'
+}
 
 const { t } = useI18n();
+
+const permissionStore = usePermissionStore();
+const hasPermission = permissionStore.hasPermission;
 
 // --- List State ---
 const loading = ref(false);
@@ -301,17 +395,19 @@ const queryParams = reactive<StudentOverviewListParams>({
   page: 1,
   per_page: 10,
   search: '',
-  is_active: 'all',
-  student_type: 'all',
-  has_account: 'all',
-  has_active_contract: 'all',
-  role: 'all',
+  is_active: OPTION_MAP.ALL,
+  student_type: OPTION_MAP.ALL,
+  has_account: OPTION_MAP.ALL,
+  has_active_contract: OPTION_MAP.ALL,
+  role: OPTION_MAP.ALL,
 });
 
 // --- Drawer State ---
 const drawerVisible = ref(false);
-const drawerType = ref('manage');
-const activeTab = ref('basic');
+type DrawerType = typeof DRAWER_TYPE_MAP[keyof typeof DRAWER_TYPE_MAP] | string;
+const drawerType = ref<DrawerType>(DRAWER_TYPE_MAP.MANAGE);
+type TabValue = typeof TAB_MAP[keyof typeof TAB_MAP];
+const activeTab = ref<TabValue>(TAB_MAP.BASIC);
 const currentStudent = ref<Partial<StudentOverviewListResponse>>({});
 const saving = ref(false);
 
@@ -319,6 +415,7 @@ const saving = ref(false);
 // Basic Info Update Form
 const form = reactive<StudentUpdate>({
   name: '',
+  eng_name: '',
   email: '',
   phone: '',
   address: '',
@@ -335,7 +432,7 @@ const basicLoading = ref(false);
 const studentView = ref<StudentOverviewResponse['data'] | null>(null);
 
 // --- Contracts Feature State ---
-const contract = ref<StudentContract | null>(null);
+const contracts = ref<StudentContract[]>([]);
 const contractLoading = ref(false);
 const savingContract = ref(false);
 
@@ -355,17 +452,20 @@ const currentConvertStudent = ref<StudentResponse | null>(null);
 const bookingOptions = ref<any[]>([]);
 const teacherOptions = ref<any[]>([]);
 
+const verifyInviteVisible = ref(false);
+const inviteUrl = ref('');
+
 // --- Methods ---
 
 const fetchData = async () => {
   loading.value = true;
   try {
     const params: any = { ...queryParams };
-    if (params.is_active === 'all') delete params.is_active;
-    if (params.student_type === 'all') delete params.student_type;
-    if (params.has_account === 'all') delete params.has_account;
-    if (params.has_active_contract === 'all') delete params.has_active_contract;
-    if (params.role === 'all') delete params.role;
+    if (params.is_active === OPTION_MAP.ALL) delete params.is_active;
+    if (params.student_type === OPTION_MAP.ALL) delete params.student_type;
+    if (params.has_account === OPTION_MAP.ALL) delete params.has_account;
+    if (params.has_active_contract === OPTION_MAP.ALL) delete params.has_active_contract;
+    if (params.role === OPTION_MAP.ALL) delete params.role;
     
     const res: any = await getStudentOverviewList(params);
     
@@ -387,10 +487,40 @@ const handleSearch = () => {
 const resetQuery = () => {
   queryParams.page = 1;
   queryParams.search = '';
-  queryParams.is_active = 'all';
-  queryParams.student_type = 'all';
+  queryParams.is_active = OPTION_MAP.ALL;
+  queryParams.student_type = OPTION_MAP.ALL;
   fetchData();
 };
+
+const copyEmail = (email: string) => {
+  navigator.clipboard.writeText(email);
+  ElMessage.success('Email 已複製');
+};
+
+const handleVerify = async (row: StudentOverviewListResponse) => {
+  try {
+    const res = await generateInviteLinkApi({ entity_type: 'student', entity_id: row.id });
+    inviteUrl.value = res.invite_url;
+    currentStudent.value = row;
+    verifyInviteVisible.value = true;
+  } catch (err) {
+    console.error(err);
+    ElMessage.error('獲取邀請連結失敗');
+  }
+}
+
+const handleStatusChange = async (row: StudentOverviewListResponse) => {
+  const status = row.is_active ? '啟用' : '停用';
+  try {
+    await updateStudent(row.id, { is_active: row.is_active });
+    ElMessage.success(`${status}學生狀態成功`);
+  } catch (err) {
+    console.error(err);
+    ElMessage.error(`${status}學生狀態失敗`);
+  } finally {
+    fetchData();
+  }
+}
 
 const openDrawer = async (row: StudentOverviewListResponse | null, type: string) => {
   drawerType.value = type;
@@ -398,13 +528,13 @@ const openDrawer = async (row: StudentOverviewListResponse | null, type: string)
     currentStudent.value = row;
   }
 
-  if (type === 'manage' && row) {
-    activeTab.value = 'basic';
-    await loadContent('basic');
+  if (type === drawerTypeMap.MANAGE && row) {
+    activeTab.value = TAB_MAP.BASIC;
+    await loadContent(TAB_MAP.BASIC);
   }
 
-  if (type === 'contract' && row) {
-    await loadContent('contracts');
+  if (type === drawerTypeMap.CONTRACT && row) {
+    await loadContent(TAB_MAP.CONTRACT);
   }
 
   drawerVisible.value = true;
@@ -442,12 +572,15 @@ const handleSaveBasicInfo = async () => {
 
 const handleDelete = (row: StudentResponse) => {
   ElMessageBox.confirm(
-    `Are you sure you want to delete ${row.student_no}-${row.name}?`,
-    'Warning',
+    t('common.deleteConfirm', { name: `${row.student_no}-${row.name}` }),
+    '警告',
     {
       confirmButtonText: t('common.delete'),
       cancelButtonText: t('common.cancel'),
+      confirmButtonClass: 'el-button--danger',
       type: 'warning',
+      roundButton: true,
+      buttonSize: 'small',
     }
   ).then(async () => {
     try {
@@ -481,10 +614,10 @@ const openConvertToFormalDialog = async (row: StudentResponse) => {
 // --- Contract Tab API ---
 const loadContent = async (tabName: string | number) => {
   switch (tabName) {
-    case 'contracts':
+    case TAB_MAP.CONTRACT:
       await loadContract()
       break;
-    case 'records':
+    case TAB_MAP.RECORDS:
       await loadBookingList()
       break;
     default:
@@ -501,6 +634,7 @@ const loadBasicInfo = async () => {
     studentView.value = res.data;
     Object.assign(form, {
       name: studentView.value?.student?.name,
+      eng_name: studentView.value?.student?.eng_name,
       email: studentView.value?.student?.email,
       phone: studentView.value?.student?.phone,
       address: studentView.value?.student?.address,
@@ -519,12 +653,12 @@ const loadContract = async () => {
   contractLoading.value = true;
   try {
     const res: any = await getStudentContracts({ student_id: currentStudent.value.id });
-    const contracts = res.data || [];
-    if (contracts.length > 0) {
-      contract.value = contracts[0];
-      await fetchContractDependencies(contract.value!.id);
+    const fetchedContracts = res.data || [];
+    if (fetchedContracts.length > 0) {
+      contracts.value = fetchedContracts;
+      await fetchContractDependencies(contracts.value[0]!.id as string);
     } else {
-      contract.value = null;
+      contracts.value = [];
     }
   } catch (err) {
     console.error(err);
@@ -569,7 +703,7 @@ const fetchContractDependencies = async (contractId: string) => {
 };
 
 const saveContractData = async (data: StudentContractUpdate) => {
-   if(!contract.value) return;
+   if(!contracts.value.length) return;
    savingContract.value = true;
    try {
      const payload: StudentContractUpdate = {
@@ -582,7 +716,9 @@ const saveContractData = async (data: StudentContractUpdate) => {
        total_leave_allowed: data.total_leave_allowed,
        notes: data.notes
      };
-     await updateStudentContract(contract.value.id, payload);
+     const contractId = contracts.value[0]?.id;
+     if (!contractId) throw new Error('Contract ID string is undefined');
+     await updateStudentContract(contractId, payload);
      ElMessage.success('更新合約成功');
      
      // Refresh exactly the loaded tab state to see updated leave limits, etc

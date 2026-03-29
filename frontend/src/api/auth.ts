@@ -2,48 +2,62 @@ import request from '@/utils/request';
 
 // Interfaces based on Swagger
 export interface LoginRequest {
-    email: string;
-    password: string;
+  email: string;
+  password: string;
 }
 
 export interface TokenPair {
-    access_token: string;
-    refresh_token: string;
-    expires_in: number;
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
 }
 
 export interface UserInfo {
-    id: string;
-    email: string;
-    role: string; // 'student' | 'teacher' | 'employee'
-    name?: string | null;
-    // ... other fields can be added as needed
+  id: string;
+  email: string;
+  role: string; // 'student' | 'teacher' | 'employee'
+  name?: string | null;
+  // ... other fields can be added as needed
 }
 
 export interface LoginResponse {
-    success: boolean;
-    message: string;
-    user: UserInfo;
-    tokens: TokenPair;
+  success: boolean;
+  message: string;
+  user: UserInfo;
+  tokens: TokenPair;
+}
+
+export interface InviteLinkRequest {
+  entity_type: string; //'student' | 'teacher' | 'employee'
+  entity_id: string;
+  role_id?: string;
 }
 
 export function loginApi(data: LoginRequest) {
-    return request.post<any, LoginResponse>('/v1/auth/login', data);
+  return request.post<any, LoginResponse>('/v1/auth/login', data);
 }
 
 export interface LogoutRequest {
-    logout_all_devices?: boolean;
+  logout_all_devices?: boolean;
 }
 
 export function logout(data: LogoutRequest = { logout_all_devices: false }) {
-    return request.post('/v1/auth/logout', data);
+  return request.post('/v1/auth/logout', data);
 }
 
 export function refreshToken() {
-    // The Swagger doesn't specify a body, assuming token is sent via HTTP-only cookie or Authorization header
-    return request.post('/v1/auth/refresh');
+  // The Swagger doesn't specify a body, assuming token is sent via HTTP-only cookie or Authorization header
+  return request.post('/v1/auth/refresh');
 }
 
 export function getMeApi() {
-    return request.get<any, { success: boolean; data: UserInfo }>('/v1/auth/me');
+  return request.get<any, { success: boolean; data: UserInfo }>('/v1/auth/me');
+}
+
+export function generateInviteLinkApi(data: InviteLinkRequest) {
+  return request.post<any, { invite_url: string; expires_at: string }>('/v1/invites/generate', data);
+}
+
+export function acceptInviteApi(token: string, password: string) {
+  return request.post<any, { success: boolean; message: string }>('/v1/invites/accept', { token, password });
 }

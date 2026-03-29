@@ -43,10 +43,13 @@ export const useAuthStore = defineStore('auth', () => {
       const res = await getUserProfileApi();
       if (res && res.data) {
         profile.value = res.data;
+      } else {
+        clearLocalState();
       }
     } catch (error) {
       console.error('Fetch profile failed:', error);
       ElMessage.error('Failed to fetch user profile');
+      clearLocalState();
     }
   };
   const login = async (credentials: LoginRequest) => {
@@ -69,10 +72,12 @@ export const useAuthStore = defineStore('auth', () => {
         userInfo.value = res.data;
       } else {
         userInfo.value = null;
+        clearLocalState();
       }
     } catch (e) {
       console.error('Check Auth failed:', e);
       userInfo.value = null;
+      clearLocalState();
     }
   };
 

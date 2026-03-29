@@ -17,6 +17,7 @@ export interface StudentOverviewListParams extends StudentListParams {
 export interface StudentCreate {
   student_no: string;
   name: string;
+  eng_name?: string | null;
   email: string;
   phone?: string | null;
   address?: string | null;
@@ -27,6 +28,7 @@ export interface StudentCreate {
 
 export interface StudentUpdate {
   name?: string | null;
+  eng_name?: string | null;
   email?: string | null;
   phone?: string | null;
   address?: string | null;
@@ -50,6 +52,7 @@ export interface StudentResponse {
   id: string;
   student_no: string;
   name: string;
+  eng_name?: string | null;
   email: string;
   phone: string | null;
   address: string | null;

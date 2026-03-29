@@ -1,22 +1,47 @@
 <template>
-  <el-dialog v-model="show" :title="`${currentStudent?.name}(${currentStudent?.student_no}) - 轉正`" width="500px">
-    <el-form :model="convertForm" :rules="convertRules" ref="convertFormRef" label-position="top" label-width="120px" @submit.prevent>
+  <el-dialog v-model="show" :title="`${currentStudent?.name}(${currentStudent?.student_no}) - 新增合約`" width="500px">
+    <el-form :model="convertForm" :rules="convertRules" ref="convertFormRef" size="small" label-position="top" label-width="120px" @submit.prevent>
       <el-row>
         <el-col :span="16">
           <el-form-item label="合約編號" prop="contract_no">
-            <el-input v-model="convertForm.contract_no" placeholder="請輸入合約編號"></el-input>
+            <el-input 
+              v-model="convertForm.contract_no" 
+              class="h-30px" 
+              placeholder="請輸入合約編號" 
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row>
+        <el-col :span="16">
+          <el-form-item label="起迄日期" prop="dateRange">
+            <el-date-picker
+              v-model="convertForm.dateRange"
+              type="daterange"
+              value-format="YYYY-MM-DD"
+              range-separator="至"
+              class="h-30px!"
+            />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
-        <el-col :span="12">
+        <el-col :span="10">
           <el-form-item label="總堂數" prop="total_lessons">
-            <el-input-number v-model="convertForm.total_lessons" :min="1" class="w-full"></el-input-number>
+            <el-input-number 
+              v-model="convertForm.total_lessons" 
+              :min="1" 
+              class="w-200px h-30px"
+            ></el-input-number>
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="合約總金額" prop="total_amount">
-            <el-input-number v-model="convertForm.total_amount" :min="0" class="w-full">
+            <el-input-number 
+              v-model="convertForm.total_amount" 
+              :min="0" 
+              class="w-full h-30px"
+            >
               <template #prefix>
                 <span class="text-gray-400">NT$</span>
               </template>
@@ -24,31 +49,35 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-row>
-        <el-col :span="24">
-          <el-form-item label="起迄日期" prop="dateRange">
-            <el-date-picker
-              v-model="convertForm.dateRange"
-              type="daterange"
-              value-format="YYYY-MM-DD"
-              range-separator="至"
-              class="w-full"
-            />
-          </el-form-item>
-        </el-col>
-      </el-row>
       <el-row :gutter="20">
-        <el-col :span="12">
+        <el-col :span="10">
           <el-form-item label="關聯試上預約">
-            <el-select v-model="convertForm.booking_id" :disabled="bookingOptions.length === 0" :placeholder="bookingOptions.length > 0 ? '請選擇' : '無預約紀錄'" class="w-full" clearable>
+            <el-select
+              v-model="convertForm.booking_id"
+              :disabled="bookingOptions.length === 0"
+              :placeholder="bookingOptions.length > 0 ? '請選擇' : '無預約紀錄'"
+              class="w-200px h-30px"
+              clearable
+            >
               <el-option v-for="b in bookingOptions" :key="b.id" :label="b.booking_no + ' - ' + b.booking_date" :value="b.id"></el-option>
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="指定教師">
-            <el-select v-model="convertForm.teacher_id" placeholder="請選擇教師(選填)" class="w-full" clearable>
-              <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id"></el-option>
+            <el-select 
+              v-model="convertForm.teacher_id" 
+              placeholder="請選擇教師(選填)" 
+              class="w-full h-30px" 
+              clearable
+            >
+              <el-option 
+                v-for="t in teacherOptions" 
+                :key="t.id" 
+                :label="t.name" 
+                :value="t.id"
+              >
+              </el-option>
             </el-select>
           </el-form-item>
         </el-col>
@@ -63,7 +92,11 @@
     </el-form>
     <template #footer>
       <el-button round @click="show = false">取消</el-button>
-      <el-button round type="primary" :loading="converting" @click="submitConvert">確認轉正</el-button>
+      <el-button round type="primary" :loading="converting" @click="submitConvert">
+        <template #icon>
+          <div class="i-hugeicons:floppy-disk" />
+        </template>
+        {{ $t('common.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -83,11 +116,11 @@ const props = defineProps({
       required: true
     },
     bookingOptions: {
-      type: Array,
+      type: Array as PropType<any[]>,
       required: true
     },
     teacherOptions: {
-      type: Array,
+      type: Array as PropType<any[]>,
       required: true
     }
 })

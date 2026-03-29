@@ -2,12 +2,12 @@
   <el-form :model="addForm" :rules="addRules" ref="addFormRef" label-width="120px" label-position="top">
     <el-row :gutter="20">
       <el-col :span="12">
-        <el-form-item label="學生編號" prop="student_no">
+        <el-form-item :label="$t('student.studentNo')" prop="student_no">
             <el-input v-model="addForm.student_no" />
         </el-form-item>
       </el-col>
       <el-col :span="12">
-        <el-form-item label="狀態" prop="is_active">
+        <el-form-item :label="$t('common.status')" prop="is_active">
             <el-switch v-model="addForm.is_active" active-text="啟用" inactive-text="停用" inline-prompt />
         </el-form-item>
       </el-col>
@@ -33,7 +33,7 @@
     </el-row>
     <el-row :gutter="20">
       <el-col :span="12">
-        <el-form-item label="生日" prop="birth_date">
+        <el-form-item :label="$t('common.birthday')" prop="birth_date">
             <el-date-picker 
                 v-model="addForm.birth_date" 
                 type="date" 
@@ -42,10 +42,10 @@
         </el-form-item>
       </el-col>
       <el-col :span="12">
-        <el-form-item label="身份別" prop="student_type">
+        <el-form-item :label="$t('student.identity')" prop="student_type">
             <el-select v-model="addForm.student_type">
-                <el-option label="正式生" value="formal" />
-                <el-option label="試上生" value="trial" />
+                <el-option :label="$t('student.type.formal')" value="formal" />
+                <el-option :label="$t('student.type.trial')" value="trial" />
             </el-select>
         </el-form-item>
       </el-col>
