@@ -1,7 +1,12 @@
 #!/bin/bash
 # 建立 AWS 資源：SQS Queue + DLQ + IAM Role + Lambda
-# 使用前請確認已設定 AWS CLI credentials
+# 使用方式:
+#   bash scripts/setup-sqs-lambda.sh --profile EOP-admin-dennis   # 直接指定
+#   bash scripts/setup-sqs-lambda.sh                               # 互動式選擇
 set -euo pipefail
+
+# ── AWS Profile 選擇 ──
+source "$(dirname "$0")/aws-profile-select.sh" "$@"
 
 REGION="${AWS_REGION:-ap-northeast-1}"
 FUNCTION_NAME="zoom-recording-downloader"
@@ -13,17 +18,17 @@ echo "=== Region: $REGION ==="
 
 # 1. 建立 DLQ
 echo "--- 建立 DLQ: $DLQ_NAME ---"
-DLQ_URL=$(aws sqs create-queue \
+DLQ_URL=$(aws $AWS_OPTS sqs create-queue \
   --queue-name "$DLQ_NAME" \
   --region "$REGION" \
   --query 'QueueUrl' --output text 2>/dev/null || true)
 
 if [ -z "$DLQ_URL" ]; then
-  DLQ_URL=$(aws sqs get-queue-url --queue-name "$DLQ_NAME" --region "$REGION" --query 'QueueUrl' --output text)
+  DLQ_URL=$(aws $AWS_OPTS sqs get-queue-url --queue-name "$DLQ_NAME" --region "$REGION" --query 'QueueUrl' --output text)
 fi
 echo "DLQ URL: $DLQ_URL"
 
-DLQ_ARN=$(aws sqs get-queue-attributes \
+DLQ_ARN=$(aws $AWS_OPTS sqs get-queue-attributes \
   --queue-url "$DLQ_URL" \
   --attribute-names QueueArn \
   --region "$REGION" \
@@ -31,7 +36,7 @@ DLQ_ARN=$(aws sqs get-queue-attributes \
 
 # 2. 建立主 Queue（含 redrive policy）
 echo "--- 建立主 Queue: $QUEUE_NAME ---"
-QUEUE_URL=$(aws sqs create-queue \
+QUEUE_URL=$(aws $AWS_OPTS sqs create-queue \
   --queue-name "$QUEUE_NAME" \
   --region "$REGION" \
   --attributes "{
@@ -42,11 +47,11 @@ QUEUE_URL=$(aws sqs create-queue \
   --query 'QueueUrl' --output text 2>/dev/null || true)
 
 if [ -z "$QUEUE_URL" ]; then
-  QUEUE_URL=$(aws sqs get-queue-url --queue-name "$QUEUE_NAME" --region "$REGION" --query 'QueueUrl' --output text)
+  QUEUE_URL=$(aws $AWS_OPTS sqs get-queue-url --queue-name "$QUEUE_NAME" --region "$REGION" --query 'QueueUrl' --output text)
 fi
 echo "Queue URL: $QUEUE_URL"
 
-QUEUE_ARN=$(aws sqs get-queue-attributes \
+QUEUE_ARN=$(aws $AWS_OPTS sqs get-queue-attributes \
   --queue-url "$QUEUE_URL" \
   --attribute-names QueueArn \
   --region "$REGION" \
@@ -63,16 +68,16 @@ TRUST_POLICY='{
   }]
 }'
 
-ROLE_ARN=$(aws iam create-role \
+ROLE_ARN=$(aws $AWS_OPTS iam create-role \
   --role-name "$ROLE_NAME" \
   --assume-role-policy-document "$TRUST_POLICY" \
   --query 'Role.Arn' --output text 2>/dev/null || \
-  aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text)
+  aws $AWS_OPTS iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text)
 
 echo "Role ARN: $ROLE_ARN"
 
 # 附加基本 Lambda 執行 + SQS 權限
-aws iam attach-role-policy \
+aws $AWS_OPTS iam attach-role-policy \
   --role-name "$ROLE_NAME" \
   --policy-arn "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole" 2>/dev/null || true
 
@@ -89,7 +94,7 @@ INLINE_POLICY="{
   }]
 }"
 
-aws iam put-role-policy \
+aws $AWS_OPTS iam put-role-policy \
   --role-name "$ROLE_NAME" \
   --policy-name "sqs-receive" \
   --policy-document "$INLINE_POLICY"
@@ -107,7 +112,7 @@ if [ ! -f "$LAMBDA_DIR/function.zip" ]; then
   exit 1
 fi
 
-aws lambda create-function \
+aws $AWS_OPTS lambda create-function \
   --function-name "$FUNCTION_NAME" \
   --runtime "python3.12" \
   --role "$ROLE_ARN" \
@@ -119,16 +124,17 @@ aws lambda create-function \
   --region "$REGION" \
   --no-cli-pager 2>/dev/null || echo "Lambda 已存在，跳過建立"
 
-# Reserved concurrency
-aws lambda put-function-concurrency \
-  --function-name "$FUNCTION_NAME" \
-  --reserved-concurrent-executions 3 \
-  --region "$REGION" \
-  --no-cli-pager
+# Reserved concurrency（免費帳號額度不足時可跳過）
+# aws $AWS_OPTS lambda put-function-concurrency \
+#   --function-name "$FUNCTION_NAME" \
+#   --reserved-concurrent-executions 3 \
+#   --region "$REGION" \
+#   --no-cli-pager
+echo "跳過 reserved concurrency 設定（使用帳號預設並發上限）"
 
 # 5. SQS event source mapping
 echo "--- 設定 SQS → Lambda 觸發 ---"
-aws lambda create-event-source-mapping \
+aws $AWS_OPTS lambda create-event-source-mapping \
   --function-name "$FUNCTION_NAME" \
   --event-source-arn "$QUEUE_ARN" \
   --batch-size 1 \

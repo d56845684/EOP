@@ -756,12 +756,11 @@ class ZoomService:
 
             share_emails = [e for e in [teacher_email, student_email] if e]
 
+            # SQS 訊息不帶 Zoom 憑證（Lambda 自己從環境變數取得）
             sqs_service.send_message({
                 "meeting_id": meeting_id,
-                "download_url": video_file.get("download_url", ""),
                 "file_type": video_file.get("file_type", "MP4"),
                 "file_size": video_file.get("file_size", 0),
-                "zoom_access_token": token or "",
                 "share_emails": share_emails,
                 "callback_url": f"{settings.BACKEND_BASE_URL}/api/v1/zoom/recording-callback",
                 "callback_secret": settings.RECORDING_CALLBACK_SECRET,

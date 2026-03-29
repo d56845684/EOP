@@ -10,6 +10,7 @@ from app.schemas.zoom import (
     ZoomMeetingLogResponse, ZoomMeetingLogListResponse, ZoomMeetingCreateRequest,
     ZoomOAuthUrlResponse, ZoomTeacherLinkStatus,
     RecordingCallbackRequest,
+    DownloadTokenRequest, DownloadTokenResponse,
 )
 from app.schemas.response import BaseResponse, DataResponse
 from app.config import settings
@@ -628,6 +629,112 @@ async def zoom_webhook(request: Request):
 
 
 # ============================================
+# Internal: Lambda 取得 Zoom download token
+# ============================================
+
+@router.post("/internal/download-token", response_model=DataResponse[DownloadTokenResponse])
+async def get_download_token(data: DownloadTokenRequest):
+    """Lambda 呼叫：用 meeting_id 取得新的 Zoom token + 下載 URL（不需登入，靠 secret 驗證）"""
+    if data.secret != settings.RECORDING_CALLBACK_SECRET:
+        raise HTTPException(403, "Invalid secret")
+
+    try:
+        # 查詢 meeting log 取得 zoom_account_id
+        logs = await supabase_service.table_select(
+            table="zoom_meeting_logs",
+            select="zoom_meeting_id,zoom_account_id,teacher_id",
+            filters={"zoom_meeting_id": f"text.{data.meeting_id}", "is_deleted": "eq.false"},
+        )
+        if not logs:
+            raise HTTPException(404, "Meeting not found")
+
+        log = logs[0]
+
+        # 取得 token
+        token = await zoom_service._get_token_for_download(log)
+        if not token:
+            raise HTTPException(500, "無法取得 Zoom token")
+
+        # 用新 token 呼叫 Zoom API 取得新的下載 URL
+        import httpx as hx
+        resp = await hx.AsyncClient().get(
+            f"https://api.zoom.us/v2/meetings/{log['zoom_meeting_id']}/recordings",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            raise HTTPException(resp.status_code, f"Zoom API 錯誤: {resp.text[:200]}")
+
+        recording_files = resp.json().get("recording_files", [])
+        video = None
+        for f in recording_files:
+            if f.get("file_type") == "MP4" and f.get("recording_type") == "shared_screen_with_speaker_view":
+                video = f
+                break
+        if not video:
+            for f in recording_files:
+                if f.get("file_type") == "MP4":
+                    video = f
+                    break
+        if not video and recording_files:
+            video = recording_files[0]
+        if not video:
+            raise HTTPException(404, "無可用錄影檔案")
+
+        # 取得 Google Drive 設定
+        from app.services.google_drive_service import google_drive_service
+        drive_config = await google_drive_service.get_drive_config()
+
+        drive_mode = "sa"
+        drive_access_token = None
+        drive_folder_id = None
+
+        if drive_config and drive_config.get("drive_mode") == "oauth":
+            drive_mode = "oauth"
+            drive_access_token = await google_drive_service.get_active_token()
+            drive_folder_id = drive_config.get("drive_folder_id")
+        elif drive_config:
+            drive_folder_id = drive_config.get("drive_folder_id")
+
+        # 組合會議名稱（與 Zoom 會議標題相同格式 + 時間戳）
+        meeting_topic = None
+        try:
+            topic_rows = await supabase_service.pool.fetch(
+                """SELECT z.meeting_date, z.start_time, b.booking_no,
+                          c.course_name, s.name as student_name, t.name as teacher_name
+                   FROM zoom_meeting_logs z
+                   JOIN bookings b ON z.booking_id = b.id
+                   JOIN courses c ON b.course_id = c.id
+                   JOIN students s ON b.student_id = s.id
+                   JOIN teachers t ON b.teacher_id = t.id
+                   WHERE z.zoom_meeting_id = $1 AND z.is_deleted = false
+                   LIMIT 1""",
+                log["zoom_meeting_id"]
+            )
+            if topic_rows:
+                r = topic_rows[0]
+                date_str = r["meeting_date"].isoformat() if r["meeting_date"] else ""
+                time_str = r["start_time"].strftime("%H%M") if r["start_time"] else ""
+                meeting_topic = f"[{r['booking_no']}] {r['course_name']} {r['student_name']} {r['teacher_name']} {date_str} {time_str}"
+        except Exception as e:
+            logger.warning(f"取得會議名稱失敗: {e}")
+
+        return DataResponse(data=DownloadTokenResponse(
+            download_url=video.get("download_url", ""),
+            access_token=token,
+            meeting_topic=meeting_topic,
+            drive_mode=drive_mode,
+            drive_access_token=drive_access_token,
+            drive_folder_id=drive_folder_id,
+        ))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"取得下載 token 失敗: {str(e)}")
+
+
+# ============================================
 # Recording Callback（Lambda → Backend）
 # ============================================
 
@@ -648,7 +755,7 @@ async def recording_callback(data: RecordingCallbackRequest):
     await supabase_service.table_update(
         table="zoom_meeting_logs",
         data=update,
-        filters={"zoom_meeting_id": data.meeting_id, "is_deleted": "eq.false"},
+        filters={"zoom_meeting_id": f"text.{data.meeting_id}", "is_deleted": "eq.false"},
     )
 
     logger.info(f"recording-callback: meeting_id={data.meeting_id}, status={data.status}")

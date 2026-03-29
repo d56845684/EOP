@@ -19,3 +19,9 @@
 **Why:** Cookie-based auth without CSRF tokens allows cross-site request forgery attacks. Currently mitigated by SameSite=Lax but not bulletproof.
 **Context:** Implement double-submit cookie pattern or synchronizer token pattern. Add CSRF middleware to FastAPI. Add token to frontend API client.
 **Depends on:** Not urgent for single-school deployment. Add when scaling to multiple schools or handling payments.
+
+### Internal API 認證強化
+**What:** 將 `/api/v1/zoom/internal/download-token` 從靜態 secret 改為 HMAC 時間簽名或 AWS IAM 認證。
+**Why:** 目前 Lambda ↔ Backend 的 internal API 用靜態 secret 驗證，洩漏後永久有效。
+**Context:** 選項: (1) HMAC + timestamp 防重放攻擊 (2) AWS Signature V4 最安全但複雜。目前靜態 secret + HTTPS 對單一學校部署足夠。
+**Depends on:** 多租戶或對外開放 API 時。

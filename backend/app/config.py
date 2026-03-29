@@ -90,6 +90,15 @@ class Settings(BaseSettings):
     # Feature toggle
     ZOOM_ENABLED: bool = False
 
+    # Google Drive OAuth（個人 Gmail 上傳錄影用）
+    GOOGLE_DRIVE_OAUTH_CLIENT_ID: str = ""
+    GOOGLE_DRIVE_OAUTH_CLIENT_SECRET: str = ""
+    GOOGLE_DRIVE_OAUTH_REDIRECT_URI: str = "http://localhost:8001/api/v1/google-drive/oauth/callback"
+
+    @property
+    def google_drive_oauth_configured(self) -> bool:
+        return bool(self.GOOGLE_DRIVE_OAUTH_CLIENT_ID and self.GOOGLE_DRIVE_OAUTH_CLIENT_SECRET)
+
     # SQS（Zoom 錄影轉移至 Google Drive）
     SQS_QUEUE_URL: str = ""
     RECORDING_CALLBACK_SECRET: str = ""

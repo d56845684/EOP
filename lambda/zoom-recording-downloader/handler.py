@@ -1,9 +1,11 @@
 """
-Lambda: SQS 觸發 → 下載 Zoom 錄影 → 上傳 Google Drive → 分享 → 刪除 Zoom 雲端錄影 → 回呼 Backend
+Lambda: SQS 觸發 → 從 Backend 取 token → 下載 Zoom 錄影 → 上傳 Google Drive → 分享 → 回呼 Backend
 
 環境變數：
   GOOGLE_DRIVE_FOLDER_ID  - Google Drive 資料夾 ID
   GOOGLE_SA_CREDENTIALS   - Service Account JSON (base64 encoded)
+
+Zoom 憑證由 Backend 管理（多帳號池），Lambda 透過 internal API 取得。
 """
 import json
 import os
@@ -25,15 +27,38 @@ CREDENTIALS_JSON = json.loads(
 )
 
 
-def get_drive_service():
+def get_drive_service_sa():
+    """Service Account 模式（Shared Drive）"""
     creds = service_account.Credentials.from_service_account_info(
         CREDENTIALS_JSON, scopes=SCOPES
     )
     return build("drive", "v3", credentials=creds)
 
 
+def get_drive_service_oauth(access_token: str):
+    """個人 OAuth 模式（個人 Drive）"""
+    from google.oauth2.credentials import Credentials
+    creds = Credentials(token=access_token)
+    return build("drive", "v3", credentials=creds)
+
+
+def get_download_info(callback_url: str, callback_secret: str, meeting_id: str) -> dict:
+    """呼叫 Backend internal API 取得新 token + 下載 URL"""
+    base_url = callback_url.rsplit("/api/v1/", 1)[0]
+    resp = httpx.post(
+        f"{base_url}/api/v1/zoom/internal/download-token",
+        json={"meeting_id": meeting_id, "secret": callback_secret},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    data = resp.json().get("data", {})
+    if not data.get("download_url") or not data.get("access_token"):
+        raise RuntimeError(f"Backend 回傳不完整: {data}")
+    return data
+
+
 def handler(event, context):
-    """SQS event handler — 逐筆處理"""
+    """SQS event handler"""
     for record in event["Records"]:
         msg = json.loads(record["body"])
         process(msg)
@@ -41,19 +66,40 @@ def handler(event, context):
 
 def process(msg):
     meeting_id = msg["meeting_id"]
-    download_url = msg["download_url"]
-    token = msg["zoom_access_token"]
     share_emails = msg.get("share_emails", [])
     callback_url = msg["callback_url"]
     callback_secret = msg["callback_secret"]
     file_ext = msg.get("file_type", "mp4").lower()
-    file_name = f"recording_{meeting_id}.{file_ext}"
-    tmp_path = f"/tmp/{file_name}"
-
-    drive = get_drive_service()
 
     try:
-        # 1. Streaming download from Zoom → /tmp
+        # 1. 從 Backend 取得 Zoom token + 下載 URL + Drive 設定
+        logger.info(f"向 Backend 取得下載 token: meeting_id={meeting_id}")
+        info = get_download_info(callback_url, callback_secret, meeting_id)
+        token = info["access_token"]
+        download_url = info["download_url"]
+
+        # 檔案命名：用會議名稱 + 時間戳（跟 Zoom 會議標題一致）
+        meeting_topic = info.get("meeting_topic")
+        if meeting_topic:
+            # 移除檔名不允許的字元
+            safe_topic = "".join(c if c not in r'\/:*?"<>|' else '_' for c in meeting_topic)
+            file_name = f"{safe_topic}.{file_ext}"
+        else:
+            file_name = f"recording_{meeting_id}.{file_ext}"
+        tmp_path = f"/tmp/recording_{meeting_id}.{file_ext}"  # tmp 用 ID 避免中文路徑問題
+
+        # 根據 drive_mode 選擇 Drive service
+        drive_mode = info.get("drive_mode", "sa")
+        drive_folder = info.get("drive_folder_id") or FOLDER_ID
+
+        if drive_mode == "oauth" and info.get("drive_access_token"):
+            drive = get_drive_service_oauth(info["drive_access_token"])
+            logger.info(f"使用 OAuth 模式上傳到個人 Drive (folder={drive_folder})")
+        else:
+            drive = get_drive_service_sa()
+            logger.info(f"使用 SA 模式上傳到 Shared Drive (folder={drive_folder})")
+
+        # 2. Streaming download from Zoom → /tmp
         logger.info(f"開始下載 Zoom 錄影: meeting_id={meeting_id}")
         with httpx.stream(
             "GET",
@@ -64,26 +110,31 @@ def process(msg):
         ) as resp:
             resp.raise_for_status()
             with open(tmp_path, "wb") as f:
-                for chunk in resp.iter_bytes(1024 * 1024):  # 1MB chunks
+                for chunk in resp.iter_bytes(1024 * 1024):
                     f.write(chunk)
 
         file_size = os.path.getsize(tmp_path)
         logger.info(f"下載完成: {file_name} ({file_size} bytes)")
 
-        # 2. Upload to Google Drive (resumable)
+        # 3. Upload to Google Drive (resumable)
         file_metadata = {
             "name": file_name,
-            "parents": [FOLDER_ID],
+            "parents": [drive_folder],
         }
         media = MediaFileUpload(
             tmp_path,
             mimetype="video/mp4",
             resumable=True,
-            chunksize=8 * 1024 * 1024,  # 8MB chunks
+            chunksize=8 * 1024 * 1024,
         )
         uploaded = (
             drive.files()
-            .create(body=file_metadata, media_body=media, fields="id,webViewLink")
+            .create(
+                body=file_metadata,
+                media_body=media,
+                fields="id,webViewLink",
+                supportsAllDrives=True,
+            )
             .execute()
         )
 
@@ -91,7 +142,7 @@ def process(msg):
         drive_view_link = uploaded.get("webViewLink", "")
         logger.info(f"上傳 Google Drive 完成: file_id={drive_file_id}")
 
-        # 3. 分享給老師/學生 Gmail（reader 權限）
+        # 4. 分享給老師/學生（reader 權限）
         for email in share_emails:
             try:
                 drive.permissions().create(
@@ -102,12 +153,13 @@ def process(msg):
                         "emailAddress": email,
                     },
                     sendNotificationEmail=False,
+                    supportsAllDrives=True,
                 ).execute()
                 logger.info(f"已分享給 {email}")
             except Exception as e:
                 logger.warning(f"分享給 {email} 失敗: {e}")
 
-        # 4. 刪除 Zoom 雲端錄影（移至垃圾桶）
+        # 5. 刪除 Zoom 雲端錄影（移至垃圾桶）
         try:
             httpx.delete(
                 f"https://api.zoom.us/v2/meetings/{meeting_id}/recordings",
@@ -119,10 +171,10 @@ def process(msg):
         except Exception as e:
             logger.warning(f"刪除 Zoom 雲端錄影失敗（不影響流程）: {e}")
 
-        # 5. 清理 /tmp
+        # 6. 清理 /tmp
         os.remove(tmp_path)
 
-        # 6. 回呼 Backend — 成功
+        # 7. 回呼 Backend — 成功
         httpx.post(
             callback_url,
             json={
@@ -138,12 +190,10 @@ def process(msg):
 
     except Exception as e:
         logger.error(f"錄影轉移失敗: meeting_id={meeting_id}, error={e}")
-        # 清理 /tmp
         try:
             os.remove(tmp_path)
         except Exception:
             pass
-        # 回呼 Backend — 失敗
         try:
             httpx.post(
                 callback_url,
@@ -157,4 +207,4 @@ def process(msg):
             )
         except Exception as cb_err:
             logger.error(f"回呼 Backend 也失敗: {cb_err}")
-        raise  # 讓 SQS 重試
+        raise

@@ -117,6 +117,27 @@ class ZoomMeetingCreateRequest(BaseModel):
 
 
 # ============================================
+# Internal: Lambda download token
+# ============================================
+
+class DownloadTokenRequest(BaseModel):
+    """Lambda 請求下載 token"""
+    meeting_id: str
+    secret: str
+
+class DownloadTokenResponse(BaseModel):
+    """回傳 Zoom download URL + access token + Drive 設定"""
+    download_url: str
+    access_token: str
+    # 會議資訊（檔案命名用）
+    meeting_topic: Optional[str] = None             # 例: "[BK20260329003] 一般課程 Dennis / Test Teacher 2026-03-29 14:00"
+    # Google Drive 上傳設定
+    drive_mode: str = "sa"                          # 'sa' or 'oauth'
+    drive_access_token: Optional[str] = None        # OAuth 模式用
+    drive_folder_id: Optional[str] = None           # DB 設定的目標資料夾
+
+
+# ============================================
 # Zoom OAuth（教師綁定）
 # ============================================
 

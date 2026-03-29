@@ -16,3 +16,4 @@ backups/
 .env.lambda
 lambda/**/function.zip
 lambda/**/build/
+lambda/**/*.json
