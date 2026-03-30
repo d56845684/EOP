@@ -9,29 +9,38 @@
         <el-col :span="12">
           <div class="flex flex-col items-start mb-2">
             <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">合約編號</label>
-            <div class="w-full text-xs">{{ activeContract?.contract_no }}</div>
+            <div class="w-full text-xs mt-1">{{ activeContract?.contract_no }}</div>
           </div>
         </el-col>
         <el-col :span="12">
           <div class="flex flex-col items-start mb-2">
             <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">合約書狀態</label>
-            <div class="w-full text-xs flex items-center gap-1" :class="activeContract?.contract_file_uploaded_at ? 'text-green' : 'text-red'">
-              <div :class="activeContract?.contract_file_uploaded_at ? 'i-hugeicons:checkmark-circle-03' : 'i-hugeicons:alert-02'" />
-              {{ activeContract?.contract_file_uploaded_at ? '已上傳' : '未上傳' }}
-              <el-button
-                color="#626aef"
-                plain
-                round
-                size="small"
-                :loading="savingContract"
-                class="ml-4"
-                @click="uploadContractData"
+            <div class="w-full text-xs flex items-start gap-4" :class="activeContract?.contract_file_uploaded_at ? 'text-green' : 'text-red'">
+              <div class="flex items-center gap-1 flex-shrink-0 mt-1">
+                <div :class="activeContract?.contract_file_uploaded_at ? 'i-hugeicons:checkmark-circle-03' : 'i-hugeicons:alert-02'" />
+                {{ activeContract?.contract_file_uploaded_at ? '已上傳' : '未上傳' }}
+              </div>
+              <el-upload
+                ref="uploadRef"
+                v-model:file-list="contractFileList"
+                class="upload-file flex flex-col items-start"
+                action="#"
+                :auto-upload="false"
+                :on-change="(uploadFile: UploadFile) => uploadContract(uploadFile, 'contract')"
               >
-                <template #icon>
-                  <div class="i-hugeicons:file-upload" />
-                </template>
-                {{ activeContract?.contract_file_uploaded_at ? '更新合約書' : '上傳合約書' }}
-              </el-button>
+                <el-button
+                  color="#626aef"
+                  plain
+                  round
+                  size="small"
+                  :loading="savingContract"
+                >
+                  <template #icon>
+                    <div class="i-hugeicons:file-upload" />
+                  </template>
+                  {{ activeContract?.contract_file_uploaded_at ? '更新合約書' : '上傳合約書' }}
+                </el-button>
+              </el-upload>
             </div>
           </div>
         </el-col>
@@ -188,21 +197,40 @@
           <el-table-column prop="notes" label="備註" />
           <el-table-column label="操作" min-width="80" align="center">
               <template #default="{row}">
-                <el-tooltip content="編輯" effect="customized">
-                  <el-button type="primary" round link @click="extendContract('update', row)">
-                    <div class="i-hugeicons:edit-02" />
-                  </el-button>
-                </el-tooltip>
-                <el-tooltip content="上傳附約文件" effect="customized">
-                  <el-button type="primary" round link @click="uploadAddendum(row)">
-                    <div class="i-hugeicons:upload-01" />
-                  </el-button>
-                </el-tooltip>
-                <el-tooltip content="刪除" effect="customized">
-                  <el-button type="danger" round link @click="deleteAddendum()">
-                    <div class="i-hugeicons:delete-02" />
-                  </el-button>
-                </el-tooltip>
+                <el-row>
+                  <el-col :span="12">
+                    <el-tooltip content="編輯" effect="customized">
+                      <el-button type="primary" round link @click="extendContract('update', row)">
+                        <div class="i-hugeicons:edit-02" />
+                      </el-button>
+                    </el-tooltip>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-tooltip content="刪除" effect="customized">
+                      <el-button type="danger" round link @click="deleteAddendum()">
+                        <div class="i-hugeicons:delete-02" />
+                      </el-button>
+                    </el-tooltip>
+                  </el-col>
+                </el-row>
+                <el-row class="mt-2">
+                  <el-col :span="24">
+                    <el-tooltip content="上傳附約文件" effect="customized">
+                      <el-upload
+                        ref="uploadAddendumRef"
+                        v-model:file-list="addendumFileList"
+                        class="upload-file grid grid-cols-2 items-center justify-center"
+                        action="#"
+                        :auto-upload="false"
+                        :on-change="(uploadFile: UploadFile) => uploadContract(uploadFile, 'addendum')"
+                      >
+                        <el-button type="primary" round link>
+                          <div class="i-hugeicons:upload-01" />
+                        </el-button>
+                      </el-upload>
+                    </el-tooltip>
+                  </el-col>
+                </el-row>
               </template>
           </el-table-column>
         </el-table>
@@ -341,7 +369,7 @@
 
 <script setup lang="ts">
 import { h, ref, watch, computed } from 'vue';
-import { ElDivider, ElMessage, ElMessageBox } from 'element-plus'
+import { ElDivider, ElMessage, ElMessageBox, type UploadFile, type UploadInstance } from 'element-plus'
 import ContractDetailsDialog from '../Dialog/ContractDetailsDialog.vue';
 import AddLeaveDialog from '../Dialog/AddLeaveDialog.vue';
 import ContractDialog from '../Dialog/ContractDialog.vue';
@@ -349,14 +377,16 @@ import ExtendDialog from '../Dialog/ExtendDialog.vue';
 import { 
   deleteContractDetail,
   deleteContractLeaveRecord,
-  getContractDownloadUrl,
+  generateContract,
   createAddendum,
   updateAddendum,
   type StudentContract,
   type StudentContractDetail ,
-  type StudentContractAddendumUpdate
+  type StudentContractAddendum
 } from '@/api/contract';
 import { CONTRACT_STATUS, CONTRACT_STATUS_MAP } from '@/constants/contract';
+import { triggerDownload, getFileNameFromResponse}  from '@/utils/download';
+import { uploadContractFile } from '@/utils/upload';
 
 const props = defineProps({
   contracts: {
@@ -399,7 +429,10 @@ const savingContract = ref(false)
 const contractDetailData = ref<StudentContractDetail | null>(null);
 const currentContract = ref<StudentContract | null>(null);
 const extendType = ref<'create' | 'update'>('create');
-const activeAddendum = ref<StudentContractAddendumUpdate | null>(null);
+const activeAddendum = ref<StudentContractAddendum | null>(null);
+
+const addendumFileList = ref([]);
+const contractFileList = ref([]);
 
 const contractCanEdit = computed(() => {
   return activeContract.value?.contract_status === CONTRACT_STATUS.PENDING;
@@ -438,7 +471,7 @@ const handleUpdateContractDetails = () => {
   emit('updateContractDetails', activeContract.value?.id)
 }
 
-const handleAddendum = async ({data, addendumId}: {data: StudentContractAddendumUpdate, addendumId?: string}) => {
+const handleAddendum = async ({data, addendumId}: {data: StudentContractAddendum, addendumId?: string}) => {
   // TODO: Update addendum
   if (!activeContract.value) return;
   try {
@@ -460,16 +493,21 @@ const handleEditContractDetail = (detail: StudentContractDetail) => {
 }
 
 const downloadContractData = async () => {
-  let url = ''
   if (!activeContract.value) return;
-  const res = await getContractDownloadUrl(activeContract.value.id);
-  if (res && res.data) {
-    url = res.data
-    window.open(url, '_blank')
+  try {
+    const res = await generateContract(activeContract.value.id);
+    const blob = new Blob([res.data], { 
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+    });
+    const fileName = getFileNameFromResponse(res);
+    triggerDownload(blob, fileName);
+  } catch(err) {
+    console.log(err)
+    ElMessage.error('下載合約失敗');
   }
 }
 
-const extendContract = (type: 'create' | 'update', row?: StudentContractAddendumUpdate) => {
+const extendContract = (type: 'create' | 'update', row?: StudentContractAddendum) => {
   // TODO: Extend contract
   extendType.value = type;
   if (type === 'update' && row) {
@@ -482,8 +520,39 @@ const deleteAddendum = () => {
   // TODO: Delete addendum
 }
 
-const uploadContractData = async () => {
-  // TODO: Upload contract data
+const uploadRef = ref<UploadInstance | null>(null);
+const uploadAddendumRef = ref<UploadInstance | null>(null);
+const uploadContract = async (uploadFile: UploadFile, type: 'contract' | 'addendum' | null) => {
+  if (!activeContract.value || (type === 'addendum' && !activeAddendum.value)) return;
+  try {
+    const activeAddendumId = type === 'addendum' ? activeAddendum.value!.id : null;
+    const res = await uploadContractFile('student', activeContract.value.id, activeAddendumId, uploadFile.raw!);
+    if (res && res.success) {
+      ElMessage.success(`${type === 'addendum' ? '合約附約' : '合約'}已上傳`);
+      emit('updateContent', 'contract')
+    }
+    else {
+      ElMessage.error(`${type === 'addendum' ? '合約附約' : '合約'}上傳失敗`);
+      if (type === 'addendum') {
+        uploadAddendumRef.value?.clearFiles();
+        addendumFileList.value = [];
+      }
+      else {
+        uploadRef.value?.clearFiles();
+        contractFileList.value = [];
+      }
+    }
+  } catch(err) {
+    ElMessage.error(`${type === 'addendum' ? '合約附約' : '合約'}上傳失敗`);
+    if (type === 'addendum') {
+      uploadAddendumRef.value?.clearFiles();
+      addendumFileList.value = [];
+    }
+    else {
+      uploadRef.value?.clearFiles();
+      contractFileList.value = [];
+    }
+  }
 }
 
 const handleDeleteContractDetail = async (id: string) => {
@@ -548,6 +617,9 @@ watch(activeContract, (newVal: StudentContract | null) => {
       total_leave_allowed: newVal.total_leave_allowed,
       notes: newVal.notes || ''
     }
+    if (newVal.addendums && newVal.addendums.length > 0) {
+      activeAddendum.value = newVal.addendums[newVal.addendums.length - 1] || null;
+    }
   }
 }, { deep: true, immediate: true })
 </script>
@@ -572,6 +644,16 @@ watch(activeContract, (newVal: StudentContract | null) => {
 :deep(.contract-select) {
   .el-input__wrapper {
     height: 30px;
+  }
+}
+
+:deep(.upload-file) {
+  max-width: 200px;
+  .el-upload-list {
+    width: 100%;
+    &__item-name {
+      font-size: 11px !important;
+    }
   }
 }
 </style>

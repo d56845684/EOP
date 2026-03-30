@@ -40,11 +40,25 @@ service.interceptors.request.use(
 // 3. Response Interceptor
 service.interceptors.response.use(
   (response) => {
+    // 檢查 responseType 是否為 blob，或者是 Content-Type 是否為檔案類型
+    // 如果是檔案下載，直接回傳完整的 response 物件
+    if (response.config.responseType === 'blob' || response.data instanceof Blob) {
+      return response;
+    }
     // Success: Return the actual data payload directly
     return response.data;
   },
   async (error) => {
     const originalRequest = error.config;
+
+    // --- 新增：處理 Blob 類型的錯誤訊息 ---
+    if (error.response?.data instanceof Blob && error.response.data.type === 'application/json') {
+      // 將 Blob 轉回 JSON 文字，這樣才能顯示正確的錯誤訊息
+      const text = await error.response.data.text();
+      const errorData = JSON.parse(text);
+      ElMessage.error(errorData.message || '下載失敗');
+      return Promise.reject(errorData);
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Prevent infinite loops if the refresh API itself returns 401
@@ -87,6 +101,13 @@ service.interceptors.response.use(
     if (!error.response) {
       ElMessage.error('網路連線異常，請稍後再試');
     }
+
+    if (error.response?.status !== 401) {
+      // 處理非 401 的一般錯誤
+      const message = error.response?.data?.message || '系統異常';
+      ElMessage.error(message);
+    }
+
     return Promise.reject(error);
   }
 );

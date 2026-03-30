@@ -117,6 +117,17 @@ export interface OptionsResponse {
   data: CourseOption[];
 }
 
+export interface ConfirmUploadResponse {
+  upload_url: string;
+  storage_path: string;
+}
+
+export interface ResData<T> {
+  data: T;
+  message: string;
+  success: boolean;
+}
+
 // API Methods
 export function getTeacherContracts(teacherId: string) {
   return request.get<any, TeacherContractListResponse>('/v1/teacher-contracts', { params: { teacher_id: teacherId } });
@@ -150,6 +161,22 @@ export function createTeacherContractDetail(contractId: string, data: TeacherCon
 
 export function deleteTeacherContractDetail(contractId: string, detailId: string) {
   return request.delete<any, any>(`/v1/teacher-contracts/${contractId}/details/${detailId}`);
+}
+
+export function uploadTeacherContract(contractId: string) {
+  return request.post<any, ConfirmUploadResponse>(`/v1/teacher-contracts/${contractId}/upload-url`);
+}
+
+export function confirmUploadTeacherContract(contractId: string, data: { storage_path: string, file_name: string }) {
+  return request.post<any, ResData<TeacherContractResponse>>(`/v1/teacher-contracts/${contractId}/confirm-upload`, data);
+}
+
+export function uploadTeacherContractAddendum(contractId: string, addendumId: string) {
+  return request.post<any, ConfirmUploadResponse>(`/v1/teacher-contracts/${contractId}/addendums/${addendumId}/upload-url`);
+}
+
+export function confirmUploadTeacherContractAddendum(contractId: string, addendumId: string, data: { storage_path: string, file_name: string }) {
+  return request.post<any, ResData<TeacherContractResponse>>(`/v1/teacher-contracts/${contractId}/addendums/${addendumId}/confirm-upload`, data);
 }
 
 // Options

@@ -112,9 +112,10 @@ interface ResData<T> {
   success: boolean;
 }
 
-// export interface DownloadUrlResponse {
-//   url: string;
-// }
+interface ConfirmUploadResponse {
+  storage_path: string;
+  upload_url: string;
+}
 
 export interface GetStudentContractsParams {
   student_id: string;
@@ -173,11 +174,15 @@ export function getContractDownloadUrl(contractId: string) {
 }
 
 export function generateContract(contractId: string) {
-  return request.post(`/v1/student-contracts/${contractId}/generate-pdf`);
+  return request.get(`/v1/student-contracts/${contractId}/generate-docx`, { responseType: 'blob' });
 }
 
-export function uploadContract(contractId: string, data: FormData) {
-  return request.post(`/v1/student-contracts/${contractId}/upload-url`, data);
+export function uploadContract(contractId: string) {
+  return request.post<any, ConfirmUploadResponse>(`/v1/student-contracts/${contractId}/upload-url`);
+}
+
+export function confirmUploadContract(contractId: string, data: { storage_path: string, file_name: string }) {
+  return request.post<any, ResData<StudentContract>>(`/v1/student-contracts/${contractId}/confirm-upload`, data);
 }
 
 export function getAddendum(contractId: string, addendumId: string) {
@@ -194,4 +199,12 @@ export function updateAddendum(contractId: string, addendumId: string, data: Stu
 
 export function deleteAddendum(contractId: string, addendumId: string) {
   return request.delete(`/v1/student-contracts/${contractId}/addendums/${addendumId}`);
+}
+
+export function uploadContractAddendum(contractId: string, addendumId: string) {
+  return request.post<any, ConfirmUploadResponse>(`/v1/student-contracts/${contractId}/addendums/${addendumId}/upload-url`);
+}
+
+export function confirmUploadContractAddendum(contractId: string, addendumId: string, data: { storage_path: string, file_name: string }) {
+  return request.post<any, ResData<StudentContract>>(`/v1/student-contracts/${contractId}/addendums/${addendumId}/confirm-upload`, data);
 }

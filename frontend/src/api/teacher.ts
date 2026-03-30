@@ -52,10 +52,10 @@ export interface TeacherListResponse {
   total_pages: number;
 }
 
-export interface TeacherDetailResponse {
+export interface TeacherDetailResponse<T> {
   success: boolean;
   message: string;
-  data: TeacherResponse;
+  data: T;
 }
 
 export function getTeacherList(params: TeacherListParams) {
@@ -71,11 +71,11 @@ export function deleteTeacher(teacherId: string) {
   return request.delete(`/v1/teachers/${teacherId}`);
 }
 export function getTeacherById(teacherId: string) {
-  return request.get<any, TeacherDetailResponse>(`/v1/teachers/${teacherId}`);
+  return request.get<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}`);
 }
 export function getTeacherAvatarUploadUrl(teacherId: string) {
-  return request.get<any, string>(`/v1/teachers/${teacherId}/avatar/upload-url`);
+  return request.get<any, { upload_url: string, storage_path: string }>(`/v1/teachers/${teacherId}/avatar/upload-url`);
 }
-export function confirmTeacherAvatar(teacherId: string) {
-  return request.post<any, { storage_path: string, file_name: string }>(`/v1/teachers/${teacherId}/avatar/confirm-upload`);
+export function confirmTeacherAvatar(teacherId: string, data: { storage_path: string, file_name: string }) {
+  return request.post<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}/avatar/confirm-upload`, data);
 }
