@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
+import asyncio
 from app.config import settings
 from app.api.v1.router import api_router
 from app.services.redis_service import redis_service
@@ -124,9 +126,30 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"ensure_super_admin error: {e}")
 
+    # 啟動 Zoom 超時會議自動結束排程
+    zoom_task = None
+    if settings.zoom_enabled:
+        async def zoom_auto_end_loop():
+            from app.services.zoom_service import zoom_service
+            while True:
+                try:
+                    await zoom_service.auto_end_overdue_meetings()
+                except Exception as e:
+                    logger.error(f"Zoom auto-end 排程錯誤: {e}")
+                await asyncio.sleep(60)  # 每 60 秒檢查一次
+
+        zoom_task = asyncio.create_task(zoom_auto_end_loop())
+        logger.info("Zoom 超時會議自動結束排程已啟動（每 60 秒）")
+
     yield
-    
+
     # 關閉時
+    if zoom_task:
+        zoom_task.cancel()
+        try:
+            await zoom_task
+        except asyncio.CancelledError:
+            pass
     logger.info("🛑 關閉應用...")
     await redis_service.disconnect()
     
@@ -184,10 +207,31 @@ async def auth_exception_handler(request: Request, exc: AuthException):
         }
     )
 
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """攔截所有 HTTPException：5xx 錯誤隱藏內部細節，4xx 正常回傳"""
+    if exc.status_code >= 500:
+        logger.error(f"HTTP {exc.status_code} on {request.method} {request.url.path}: {exc.detail}")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "success": False,
+                "message": "伺服器內部錯誤，請稍後再試",
+                "error_code": "INTERNAL_ERROR"
+            }
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "message": exc.detail,
+        }
+    )
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception(f"未處理的例外: {exc}")
-    
+
     return JSONResponse(
         status_code=500,
         content={

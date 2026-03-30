@@ -6,10 +6,54 @@ from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
 from datetime import datetime
 import math
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/employees", tags=["員工管理"])
 
-EMPLOYEE_SELECT = "id,employee_no,employee_type,name,email,phone,address,hire_date,termination_date,is_active,created_at,updated_at"
+EMPLOYEE_SELECT = "id,employee_no,employee_type,name,email,phone,address,hire_date,termination_date,is_active,email_verified_at,created_at,updated_at"
+
+
+async def enrich_employee(emp: dict) -> dict:
+    """從 user_profiles 補上 has_account / role_id / role_name"""
+    import uuid as _uuid
+    eid = emp.get("id")
+    if not eid:
+        emp["has_account"] = False
+        emp["role_id"] = None
+        emp["role_name"] = None
+        return emp
+    row = await supabase_service.pool.fetchrow(
+        """SELECT up.id, r.id AS role_id, r.name AS role_name
+           FROM user_profiles up
+           JOIN roles r ON r.id = up.role_id
+           WHERE up.employee_id = $1""",
+        _uuid.UUID(eid) if isinstance(eid, str) else eid,
+    )
+    if row:
+        emp["has_account"] = True
+        emp["role_id"] = str(row["role_id"])
+        emp["role_name"] = row["role_name"]
+    else:
+        emp["has_account"] = False
+        emp["role_id"] = None
+        emp["role_name"] = None
+    return emp
+
+
+@router.get("/roles", tags=["員工管理"])
+async def list_roles_for_employees(
+    current_user: CurrentUser = Depends(require_page_permission("employees.list"))
+):
+    """取得可指定的角色列表"""
+    try:
+        rows = await supabase_service.pool.fetch(
+            "SELECT id, key, name FROM roles ORDER BY key"
+        )
+        return {"data": [{"id": str(r["id"]), "key": r["key"], "name": r["name"]} for r in rows]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取得角色列表失敗: {str(e)}")
 
 
 @router.get("", response_model=EmployeeListResponse)
@@ -31,10 +75,7 @@ async def list_employees(
         if employee_type:
             filters["employee_type"] = f"eq.{employee_type}"
 
-        all_employees = await supabase_service.table_select(
-            table="employees", select="id", filters=filters
-        )
-        total = len(all_employees)
+        total = await supabase_service.table_count(table="employees", filters=filters)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
         offset = (page - 1) * per_page
 
@@ -51,6 +92,9 @@ async def list_employees(
                 or s in emp.get("name", "").lower()
                 or s in emp.get("email", "").lower()
             ]
+
+        for emp in employees:
+            await enrich_employee(emp)
 
         return EmployeeListResponse(
             data=[EmployeeResponse(**emp) for emp in employees],
@@ -75,7 +119,8 @@ async def get_employee(
         )
         if not result:
             raise HTTPException(status_code=404, detail="員工不存在")
-        return DataResponse(data=EmployeeResponse(**result[0]))
+        enriched = await enrich_employee(result[0])
+        return DataResponse(data=EmployeeResponse(**enriched))
     except HTTPException:
         raise
     except Exception as e:
@@ -121,7 +166,8 @@ async def create_employee(
         if not result:
             raise HTTPException(status_code=500, detail="建立員工失敗")
 
-        return DataResponse(message="員工建立成功", data=EmployeeResponse(**result))
+        enriched = await enrich_employee(result)
+        return DataResponse(message="員工建立成功", data=EmployeeResponse(**enriched))
     except HTTPException:
         raise
     except Exception as e:
@@ -139,7 +185,7 @@ async def update_employee(
         raise HTTPException(status_code=403, detail="僅限管理員操作")
     try:
         existing = await supabase_service.table_select(
-            table="employees", select="id,employee_no,email",
+            table="employees", select="id,employee_no,email,employee_type",
             filters={"id": employee_id, "is_deleted": "eq.false"}
         )
         if not existing:
@@ -153,22 +199,61 @@ async def update_employee(
             if dup:
                 raise HTTPException(status_code=400, detail="Email 已存在")
 
-        update_data = {k: v for k, v in data.model_dump().items() if v is not None}
-        if "hire_date" in update_data and update_data["hire_date"]:
-            update_data["hire_date"] = update_data["hire_date"].isoformat()
-        if "termination_date" in update_data and update_data["termination_date"]:
-            update_data["termination_date"] = update_data["termination_date"].isoformat()
+        # role_id 不寫 employees 表，單獨處理
+        requested_role_id = data.role_id
+        employee_update = {k: v for k, v in data.model_dump().items() if v is not None}
+        employee_update.pop("role_id", None)  # 不寫入 employees 表
 
-        if not update_data:
+        if "hire_date" in employee_update and employee_update["hire_date"]:
+            employee_update["hire_date"] = employee_update["hire_date"].isoformat()
+        if "termination_date" in employee_update and employee_update["termination_date"]:
+            employee_update["termination_date"] = employee_update["termination_date"].isoformat()
+
+        if not employee_update and not requested_role_id:
             raise HTTPException(status_code=400, detail="沒有要更新的資料")
 
-        result = await supabase_service.table_update(
-            table="employees", data=update_data, filters={"id": employee_id}
-        )
-        if not result:
-            raise HTTPException(status_code=500, detail="更新員工失敗")
+        result = existing[0]
+        if employee_update:
+            result = await supabase_service.table_update(
+                table="employees", data=employee_update, filters={"id": employee_id}
+            )
+            if not result:
+                raise HTTPException(status_code=500, detail="更新員工失敗")
 
-        return DataResponse(message="員工更新成功", data=EmployeeResponse(**result))
+        # 同步 user_profiles 角色（僅限已有帳號的員工）
+        try:
+            profile = await supabase_service.table_select(
+                table="user_profiles", select="id,role_id",
+                filters={"employee_id": employee_id},
+            )
+            if profile:
+                sync_data: dict = {}
+                # 直接指定 role_id → 寫入 user_profiles
+                if requested_role_id:
+                    sync_data["role_id"] = requested_role_id
+                elif data.employee_type and data.employee_type != existing[0].get("employee_type"):
+                    role_key = "admin" if data.employee_type == "admin" else "employee"
+                    role_row = await supabase_service.pool.fetchrow(
+                        "SELECT id FROM roles WHERE key = $1", role_key
+                    )
+                    if role_row:
+                        sync_data["role_id"] = str(role_row["id"])
+                if data.employee_type:
+                    sync_data["employee_subtype"] = data.employee_type
+            elif requested_role_id:
+                raise HTTPException(status_code=400, detail="此員工尚未建立帳號，無法設定角色")
+                if sync_data:
+                    await supabase_service.table_update(
+                        table="user_profiles",
+                        data=sync_data,
+                        filters={"id": profile[0]["id"]},
+                    )
+                    logger.info(f"Employee {employee_id}: user_profiles 同步 {sync_data}")
+        except Exception as sync_err:
+            logger.warning(f"Employee {employee_id}: 同步角色失敗: {sync_err}")
+
+        enriched = await enrich_employee(result)
+        return DataResponse(message="員工更新成功", data=EmployeeResponse(**enriched))
     except HTTPException:
         raise
     except Exception as e:

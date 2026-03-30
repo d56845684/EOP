@@ -28,12 +28,7 @@ async def list_courses(
             filters["is_active"] = f"eq.{str(is_active).lower()}"
 
         # 取得總數
-        all_courses = await supabase_service.table_select(
-            table="courses",
-            select="id",
-            filters=filters,
-        )
-        total = len(all_courses)
+        total = await supabase_service.table_count(table="courses", filters=filters)
 
         # 計算分頁
         total_pages = math.ceil(total / per_page) if total > 0 else 1

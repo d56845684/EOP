@@ -14,6 +14,7 @@ class ZoomAccountCreate(BaseModel):
     zoom_client_id: str = Field(..., max_length=200, description="Zoom Client ID")
     zoom_client_secret: str = Field(..., max_length=200, description="Zoom Client Secret")
     zoom_user_email: Optional[str] = Field(None, max_length=255, description="Zoom 使用者 Email")
+    account_tier: str = Field("basic", description="帳號等級 (basic/pro/business)")
     is_active: bool = Field(True, description="是否啟用")
     notes: Optional[str] = Field(None, description="備註")
 
@@ -25,6 +26,7 @@ class ZoomAccountUpdate(BaseModel):
     zoom_client_id: Optional[str] = Field(None, max_length=200, description="Zoom Client ID")
     zoom_client_secret: Optional[str] = Field(None, max_length=200, description="Zoom Client Secret")
     zoom_user_email: Optional[str] = Field(None, max_length=255, description="Zoom 使用者 Email")
+    account_tier: Optional[str] = Field(None, description="帳號等級 (basic/pro/business)")
     is_active: Optional[bool] = Field(None, description="是否啟用")
     notes: Optional[str] = Field(None, description="備註")
 
@@ -36,6 +38,7 @@ class ZoomAccountResponse(BaseModel):
     zoom_account_id: str
     zoom_client_id: str
     zoom_user_email: Optional[str] = None
+    account_tier: str = "basic"
     is_active: bool = True
     daily_meeting_count: int = 0
     daily_count_reset_at: Optional[date] = None
@@ -83,6 +86,11 @@ class ZoomMeetingLogResponse(BaseModel):
     recording_file_size_bytes: Optional[int] = None
     recording_duration_seconds: Optional[int] = None
     recording_completed_at: Optional[datetime] = None
+    # Google Drive transfer
+    recording_transfer_status: Optional[str] = None
+    drive_file_id: Optional[str] = None
+    drive_view_link: Optional[str] = None
+    transferred_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     # enriched fields
@@ -106,6 +114,27 @@ class ZoomMeetingLogListResponse(BaseModel):
 class ZoomMeetingCreateRequest(BaseModel):
     """手動建立 Zoom 會議"""
     booking_id: str = Field(..., description="預約 ID")
+
+
+# ============================================
+# Internal: Lambda download token
+# ============================================
+
+class DownloadTokenRequest(BaseModel):
+    """Lambda 請求下載 token"""
+    meeting_id: str
+    secret: str
+
+class DownloadTokenResponse(BaseModel):
+    """回傳 Zoom download URL + access token + Drive 設定"""
+    download_url: str
+    access_token: str
+    # 會議資訊（檔案命名用）
+    meeting_topic: Optional[str] = None             # 例: "[BK20260329003] 一般課程 Dennis / Test Teacher 2026-03-29 14:00"
+    # Google Drive 上傳設定
+    drive_mode: str = "sa"                          # 'sa' or 'oauth'
+    drive_access_token: Optional[str] = None        # OAuth 模式用
+    drive_folder_id: Optional[str] = None           # DB 設定的目標資料夾
 
 
 # ============================================
@@ -136,3 +165,17 @@ class ZoomWebhookPayload(BaseModel):
     event: str
     payload: dict = {}
     event_ts: Optional[int] = None
+
+
+# ============================================
+# Recording Callback（Lambda → Backend）
+# ============================================
+
+class RecordingCallbackRequest(BaseModel):
+    """Lambda 錄影轉移完成回呼"""
+    meeting_id: str
+    status: str  # "completed" | "failed"
+    drive_file_id: Optional[str] = None
+    drive_view_link: Optional[str] = None
+    error: Optional[str] = None
+    secret: str

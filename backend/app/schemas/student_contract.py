@@ -7,6 +7,7 @@ from enum import Enum
 class ContractStatus(str, Enum):
     pending = "pending"
     active = "active"
+    suspended = "suspended"
     expired = "expired"
     terminated = "terminated"
 
@@ -90,7 +91,7 @@ class StudentContractBase(BaseModel):
     total_lessons: int = Field(..., ge=1, description="總堂數")
     remaining_lessons: int = Field(..., ge=0, description="剩餘堂數")
     total_amount: float = Field(..., ge=0, description="合約總金額")
-    total_leave_allowed: Optional[int] = Field(None, ge=0, description="可請假次數（預設 = total_lessons * 2）")
+    total_leave_allowed: Optional[int] = Field(None, ge=0, description="可請假次數（預設 = ceil(total_lessons * 0.2)）")
     is_recurring: bool = Field(False, description="是否為帶狀學生（固定時間/課程/老師）")
     notes: Optional[str] = Field(None, description="備註")
 
@@ -127,6 +128,8 @@ class StudentContractResponse(BaseModel):
     total_amount: Optional[float] = None
     total_leave_allowed: int = 0
     used_leave_count: int = 0
+    used_emergency_leave_count: int = 0
+    emergency_leave_quota: Optional[int] = None  # enrich 計算: ceil(total_lessons * 0.2)
     is_recurring: bool = False
     notes: Optional[str] = None
     created_at: Optional[datetime] = None
@@ -140,6 +143,8 @@ class StudentContractResponse(BaseModel):
     # 明細 + 請假
     details: list[StudentContractDetailResponse] = []
     leave_records: list[StudentContractLeaveRecordResponse] = []
+    # 附約
+    addendums: list[dict] = []
 
     class Config:
         from_attributes = True

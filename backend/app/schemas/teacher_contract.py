@@ -4,6 +4,42 @@ from datetime import datetime, date, time
 from enum import Enum
 
 
+# ========== Work Schedule Schemas ==========
+
+class TeacherWorkScheduleCreate(BaseModel):
+    """建立教師工作時段"""
+    weekday: int = Field(..., ge=0, le=6, description="星期幾 (0=週一, 6=週日)")
+    start_time: time = Field(..., description="開始時間")
+    end_time: time = Field(..., description="結束時間")
+    notes: Optional[str] = Field(None, description="備註")
+
+    @model_validator(mode='after')
+    def validate_time_range(self):
+        if self.start_time >= self.end_time:
+            raise ValueError("start_time 必須小於 end_time")
+        return self
+
+
+class TeacherWorkScheduleBatchSet(BaseModel):
+    """全量替換教師工作時段"""
+    schedules: list[TeacherWorkScheduleCreate] = Field(..., description="工作時段列表")
+
+
+class TeacherWorkScheduleResponse(BaseModel):
+    """教師工作時段回應"""
+    id: str
+    teacher_contract_id: str
+    weekday: int
+    start_time: time
+    end_time: time
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class ContractStatus(str, Enum):
     pending = "pending"
     active = "active"
@@ -124,6 +160,10 @@ class TeacherContractResponse(BaseModel):
     # 明細
     details: list[TeacherContractDetailResponse] = []
     total_amount: Optional[float] = None
+    # 工作時段
+    work_schedules: list[TeacherWorkScheduleResponse] = []
+    # 附約
+    addendums: list[dict] = []
 
     class Config:
         from_attributes = True

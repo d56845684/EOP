@@ -186,7 +186,7 @@ class SupabaseService:
         """Parse PostgREST-style filter into SQL WHERE clause fragment.
 
         Supports: eq., neq., gt., gte., lt., lte., is.null/true/false,
-                  in.(a,b,c), like., ilike., and bare values (default eq).
+                  in.(a,b,c), like., ilike., text. (no coerce), and bare values (default eq).
         """
         col = f'"{cls._sanitize_identifier(key)}"'
 
@@ -213,6 +213,11 @@ class SupabaseService:
                 params.append(item)
                 placeholders.append(f"${len(params)}")
             return f"{col} IN ({', '.join(placeholders)})"
+
+        # text. operator — keep value as string, skip _coerce_value
+        if value.startswith("text."):
+            params.append(value[5:])
+            return f"{col} = ${len(params)}"
 
         # Operators with value
         operators = {
@@ -490,6 +495,26 @@ class SupabaseService:
 
         rows = await self.pool.fetch(sql, *params)
         return [self._row_to_dict(r) for r in rows]
+
+    async def table_count(
+        self,
+        table: str,
+        filters: dict = None,
+    ) -> int:
+        """Count rows matching filters (replaces len(table_select(..., select='id')))"""
+        tbl = self._sanitize_identifier(table)
+        params = []
+        where_clauses = []
+
+        if filters:
+            for key, value in filters.items():
+                where_clauses.append(self._parse_filter(key, value, params))
+
+        sql = f'SELECT COUNT(*) FROM "{tbl}"'
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
+
+        return await self.pool.fetchval(sql, *params)
 
     async def table_select_with_pagination(
         self,

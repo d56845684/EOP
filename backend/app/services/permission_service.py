@@ -78,7 +78,7 @@ class PermissionService:
                 level = 0
 
             # 快取結果
-            await redis_service.set(cache_key, str(level), ex=self.CACHE_TTL)
+            await redis_service.set(cache_key, str(level), expire_seconds=self.CACHE_TTL)
             return level
 
         except Exception:
@@ -115,7 +115,7 @@ class PermissionService:
 
             # 快取結果
             cache_value = employee_type if employee_type else "null"
-            await redis_service.set(cache_key, cache_value, ex=self.CACHE_TTL)
+            await redis_service.set(cache_key, cache_value, expire_seconds=self.CACHE_TTL)
             return employee_type
 
         except Exception:

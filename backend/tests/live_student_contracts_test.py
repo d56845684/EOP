@@ -14,6 +14,8 @@ Student Contracts CRUD API 測試腳本
 9. 請假紀錄 CRUD (Leave Records)
 10. 刪除連帶清理驗證
 11. 課程選項依學生篩選
+12. 產生合約 PDF (generate-pdf)
+13. 上傳簽名版 PDF + 確認開通 + 下載驗證
 
 使用方式:
     # 執行完整 CRUD 測試（需要 employee/admin 帳號）
@@ -364,6 +366,7 @@ class StudentContractsCRUDTester:
             "end_date": end_date.isoformat(),
             "total_lessons": 24,
             "remaining_lessons": 24,
+            "total_amount": 36000,
             "notes": "自動化測試建立的合約"
         }
 
@@ -407,7 +410,7 @@ class StudentContractsCRUDTester:
                 )
 
                 # 驗證 total_leave_allowed 自動計算
-                expected_leave = 24 * 2  # total_lessons * 2
+                expected_leave = 5  # math.ceil(24 * 0.2)
                 actual_leave = contract.get("total_leave_allowed", 0)
                 self._record_result(
                     f"total_leave_allowed 自動計算 (期望: {expected_leave}, 實際: {actual_leave})",
@@ -1211,6 +1214,256 @@ class StudentContractsCRUDTester:
 
         return True
 
+    async def test_generate_pdf(self, contract_id: str) -> bool:
+        """測試產生合約 PDF"""
+        print("\n" + "=" * 60)
+        print("\U0001f4c4 測試產生合約 PDF (generate-pdf)")
+        print("=" * 60 + "\n")
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # 正常產生 PDF
+            start = datetime.now()
+            resp = await client.get(
+                f"{self.backend_url}/api/v1/student-contracts/{contract_id}/generate-pdf",
+                cookies=self.cookies
+            )
+            duration = (datetime.now() - start).total_seconds() * 1000
+
+            if resp.status_code == 200:
+                content_type = resp.headers.get("content-type", "")
+                pdf_size = len(resp.content)
+                disposition = resp.headers.get("content-disposition", "")
+
+                is_pdf = "application/pdf" in content_type
+                has_content = pdf_size > 100
+                starts_with_pdf = resp.content[:5] == b"%PDF-"
+
+                self._record_result(
+                    f"產生 PDF 成功 ({pdf_size:,} bytes)",
+                    is_pdf and has_content,
+                    "" if (is_pdf and has_content) else f"content-type={content_type}, size={pdf_size}",
+                    duration_ms=duration
+                )
+                self._record_result(
+                    "PDF Content-Disposition 含檔名",
+                    ".pdf" in disposition,
+                    "" if ".pdf" in disposition else f"disposition={disposition}"
+                )
+                self._record_result(
+                    "PDF 內容合法 (%PDF- 開頭)",
+                    starts_with_pdf,
+                    "" if starts_with_pdf else f"前 20 bytes: {resp.content[:20]}"
+                )
+            else:
+                self._record_result(
+                    "產生 PDF",
+                    False,
+                    f"狀態碼: {resp.status_code}, {resp.text[:200]}",
+                    duration_ms=duration
+                )
+                return False
+
+            # 不存在的合約應回 404
+            fake_id = "00000000-0000-0000-0000-000000000000"
+            start = datetime.now()
+            resp = await client.get(
+                f"{self.backend_url}/api/v1/student-contracts/{fake_id}/generate-pdf",
+                cookies=self.cookies
+            )
+            duration = (datetime.now() - start).total_seconds() * 1000
+
+            self._record_result(
+                "不存在的合約 generate-pdf 返回 404",
+                resp.status_code == 404,
+                "" if resp.status_code == 404 else f"實際: {resp.status_code}",
+                duration_ms=duration
+            )
+
+        return True
+
+    async def test_upload_download_flow(self, contract_id: str) -> bool:
+        """測試上傳簽名版 PDF → 確認開通 → 下載驗證"""
+        print("\n" + "=" * 60)
+        print("\U0001f4e4 測試上傳/下載完整流程 (Upload → Confirm → Download)")
+        print("=" * 60 + "\n")
+
+        # 模擬已簽名的 PDF
+        signed_pdf = b"""%PDF-1.4
+1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
+3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<<>>>>endobj
+4 0 obj<</Length 55>>stream
+BT /F1 12 Tf 100 700 Td (Signed Contract) Tj ET
+endstream
+endobj
+xref
+0 5
+0000000000 65535 f
+0000000009 00000 n
+0000000052 00000 n
+0000000101 00000 n
+0000000220 00000 n
+trailer<</Size 5/Root 1 0 R>>
+startxref
+325
+%%EOF"""
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # Step 1: 取得 presigned upload URL
+            start = datetime.now()
+            resp = await client.post(
+                f"{self.backend_url}/api/v1/student-contracts/{contract_id}/upload-url",
+                cookies=self.cookies
+            )
+            duration = (datetime.now() - start).total_seconds() * 1000
+
+            if resp.status_code != 200:
+                self._record_result(
+                    "取得上傳 URL", False,
+                    f"狀態碼: {resp.status_code}, {resp.text[:200]}",
+                    duration_ms=duration
+                )
+                return False
+
+            data = resp.json()
+            upload_url = data["upload_url"]
+            storage_path = data["storage_path"]
+
+            has_s3 = "s3." in upload_url and "amazonaws.com" in upload_url
+            has_sig = "X-Amz-Signature" in upload_url
+            self._record_result(
+                "取得 presigned upload URL",
+                has_s3 and has_sig,
+                "" if (has_s3 and has_sig) else f"URL 格式異常: {upload_url[:80]}",
+                duration_ms=duration
+            )
+            print(f"     └─ storage_path: {storage_path}")
+
+            # Step 2: PUT 到 S3
+            start = datetime.now()
+            resp = await client.put(
+                upload_url,
+                content=signed_pdf,
+                headers={"Content-Type": "application/pdf"},
+            )
+            duration = (datetime.now() - start).total_seconds() * 1000
+
+            if resp.status_code == 200:
+                self._record_result("PUT 檔案到 S3", True, duration_ms=duration)
+            else:
+                self._record_result(
+                    "PUT 檔案到 S3", False,
+                    f"狀態碼: {resp.status_code}, {resp.text[:200]}",
+                    duration_ms=duration
+                )
+                return False
+
+            # Step 3: confirm-upload（狀態變為 active）
+            start = datetime.now()
+            resp = await client.post(
+                f"{self.backend_url}/api/v1/student-contracts/{contract_id}/confirm-upload",
+                json={"storage_path": storage_path, "file_name": "signed_test.pdf"},
+                cookies=self.cookies
+            )
+            duration = (datetime.now() - start).total_seconds() * 1000
+
+            if resp.status_code == 200:
+                result = resp.json()
+                new_status = result.get("data", {}).get("contract_status", "")
+                file_name = result.get("data", {}).get("contract_file_name", "")
+
+                self._record_result(
+                    f"confirm-upload 成功 (狀態: {new_status})",
+                    new_status == "active",
+                    "" if new_status == "active" else f"預期 active，實際 {new_status}",
+                    duration_ms=duration
+                )
+                self._record_result(
+                    "檔案名稱已記錄",
+                    file_name == "signed_test.pdf",
+                    "" if file_name == "signed_test.pdf" else f"實際: {file_name}"
+                )
+            else:
+                self._record_result(
+                    "confirm-upload", False,
+                    f"狀態碼: {resp.status_code}, {resp.text[:200]}",
+                    duration_ms=duration
+                )
+                return False
+
+            # Step 4: 取得 download URL
+            start = datetime.now()
+            resp = await client.get(
+                f"{self.backend_url}/api/v1/student-contracts/{contract_id}/download-url",
+                cookies=self.cookies
+            )
+            duration = (datetime.now() - start).total_seconds() * 1000
+
+            if resp.status_code != 200:
+                self._record_result(
+                    "取得下載 URL", False,
+                    f"狀態碼: {resp.status_code}, {resp.text[:200]}",
+                    duration_ms=duration
+                )
+                return False
+
+            download_url = resp.json()["download_url"]
+            self._record_result(
+                "取得 presigned download URL",
+                "s3." in download_url,
+                duration_ms=duration
+            )
+
+            # Step 5: 從 S3 下載並驗證內容一致
+            start = datetime.now()
+            resp = await client.get(download_url)
+            duration = (datetime.now() - start).total_seconds() * 1000
+
+            if resp.status_code == 200:
+                matches = resp.content == signed_pdf
+                self._record_result(
+                    f"從 S3 下載成功 ({len(resp.content)} bytes)",
+                    True, duration_ms=duration
+                )
+                self._record_result(
+                    "下載內容與上傳一致",
+                    matches,
+                    "" if matches else f"大小: 上傳 {len(signed_pdf)}, 下載 {len(resp.content)}"
+                )
+            else:
+                self._record_result(
+                    "從 S3 下載", False,
+                    f"狀態碼: {resp.status_code}",
+                    duration_ms=duration
+                )
+
+            # Step 6: 驗證最終合約狀態
+            start = datetime.now()
+            resp = await client.get(
+                f"{self.backend_url}/api/v1/student-contracts/{contract_id}",
+                cookies=self.cookies
+            )
+            duration = (datetime.now() - start).total_seconds() * 1000
+
+            if resp.status_code == 200:
+                final = resp.json().get("data", {})
+                self._record_result(
+                    "最終狀態為 active",
+                    final.get("contract_status") == "active",
+                    "" if final.get("contract_status") == "active" else f"實際: {final.get('contract_status')}",
+                    duration_ms=duration
+                )
+                self._record_result(
+                    "contract_file_path 已填入",
+                    bool(final.get("contract_file_path"))
+                )
+                self._record_result(
+                    "contract_file_uploaded_at 已填入",
+                    bool(final.get("contract_file_uploaded_at"))
+                )
+
+        return True
+
     async def test_delete_contract(self, contract_id: str) -> bool:
         """測試刪除合約"""
         print("\n" + "=" * 60)
@@ -1415,14 +1668,20 @@ async def main():
             # 11. 測試課程選項依學生篩選
             await tester.test_course_option_filtered_by_student()
 
-            # 12. 建立第二份合約用於測試刪除連帶清理
+            # 12. 測試產生合約 PDF
+            await tester.test_generate_pdf(contract_id)
+
+            # 13. 測試上傳/下載完整流程
+            await tester.test_upload_download_flow(contract_id)
+
+            # 14. 建立第二份合約用於測試刪除連帶清理
             contract_id_2 = await tester.test_create_contract()
             if contract_id_2:
                 await tester.test_delete_cascade(contract_id_2)
                 # 從 created_contracts 移除已刪除的合約
                 tester.created_contracts = [c for c in tester.created_contracts if c.id != contract_id_2]
 
-            # 13. 刪除第一份合約
+            # 15. 刪除第一份合約
             if not args.no_cleanup:
                 await tester.test_delete_contract(contract_id)
                 # 從 created_contracts 移除已刪除的合約

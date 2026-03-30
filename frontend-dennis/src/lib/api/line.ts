@@ -33,6 +33,15 @@ export interface LineLoginUrlResponse {
   channel_type: string
 }
 
+export interface LineBindingAdminItem {
+  user_id?: string
+  email?: string
+  name?: string
+  line_user_id: string
+  line_display_name?: string
+  channel_type: string
+}
+
 export const lineApi = {
   /**
    * 取得 Line 登入 URL（新用戶註冊用）
@@ -123,6 +132,43 @@ export const lineApi = {
 
     if (!response.ok) {
       throw new Error('Failed to unbind')
+    }
+
+    return response.json()
+  },
+
+  /**
+   * 列出 LINE 綁定用戶（管理員用）
+   */
+  async listBindings(channel?: string): Promise<{ success: boolean; items: LineBindingAdminItem[] }> {
+    const params = channel ? `?channel=${channel}` : ''
+    const response = await fetchWithAuth(
+      `${API_BASE_URL}/api/v1/notifications/line/bindings${params}`,
+      { method: 'GET' }
+    )
+
+    if (!response.ok) {
+      throw new Error('Failed to list bindings')
+    }
+
+    return response.json()
+  },
+
+  /**
+   * 發送 LINE 訊息給指定用戶（管理員用）
+   */
+  async sendMessage(lineUserId: string, message: string, channel: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetchWithAuth(
+      `${API_BASE_URL}/api/v1/notifications/line/send`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ line_user_id: lineUserId, message, channel }),
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error('Failed to send message')
     }
 
     return response.json()

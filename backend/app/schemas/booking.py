@@ -76,6 +76,7 @@ class BookingResponse(BaseModel):
     student_contract_id: Optional[str] = None
     teacher_contract_id: Optional[str] = None
     teacher_slot_id: str
+    substitute_detail_id: Optional[str] = None
     teacher_hourly_rate: float
     teacher_rate_percentage: Optional[float] = None
     booking_status: BookingStatus
@@ -97,6 +98,9 @@ class BookingResponse(BaseModel):
     course_name: Optional[str] = None
     student_contract_no: Optional[str] = None
     teacher_contract_no: Optional[str] = None
+    substitute_teacher_name: Optional[str] = None
+    has_pending_leave: bool = False
+    pending_leave_initiator_type: Optional[str] = None
 
     class Config:
         from_attributes = True

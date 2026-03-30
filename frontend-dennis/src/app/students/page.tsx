@@ -7,7 +7,7 @@ import { Booking } from '@/lib/api/bookings'
 import { studentTeacherPreferencesApi, StudentTeacherPreference, CreatePreferenceData } from '@/lib/api/studentTeacherPreferences'
 import { bookingsApi, TeacherOption, CourseOption } from '@/lib/api/bookings'
 import { invitesApi } from '@/lib/api/invites'
-import { Plus, Pencil, Trash2, Search, X, GraduationCap, CheckCircle, XCircle, Mail, Phone, Star, Settings, ArrowLeft, Link, Copy, Check, UserPlus, ArrowUpCircle } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, GraduationCap, CheckCircle, XCircle, Mail, Phone, Star, Settings, ArrowLeft, Link, Copy, Check, UserPlus, ArrowUpCircle, Eye } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 
 export default function StudentsPage() {
@@ -29,7 +29,7 @@ export default function StudentsPage() {
     const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
     const [editingStudent, setEditingStudent] = useState<Student | null>(null)
     const [formData, setFormData] = useState<CreateStudentData>({
-        student_no: '', name: '', email: '', phone: '', address: '',
+        student_no: '', name: '', eng_name: '', email: '', phone: '', address: '',
         birth_date: '', student_type: 'formal', is_active: true,
     })
     const [formError, setFormError] = useState<string | null>(null)
@@ -106,7 +106,7 @@ export default function StudentsPage() {
     const openCreateModal = () => {
         setModalMode('create')
         setEditingStudent(null)
-        setFormData({ student_no: '', name: '', email: '', phone: '', address: '', birth_date: '', student_type: 'formal', is_active: true })
+        setFormData({ student_no: '', name: '', eng_name: '', email: '', phone: '', address: '', birth_date: '', student_type: 'formal', is_active: true })
         setFormError(null)
         setShowModal(true)
     }
@@ -115,8 +115,8 @@ export default function StudentsPage() {
         setModalMode('edit')
         setEditingStudent(student)
         setFormData({
-            student_no: student.student_no, name: student.name, email: student.email,
-            phone: student.phone || '', address: student.address || '',
+            student_no: student.student_no, name: student.name, eng_name: student.eng_name || '',
+            email: student.email, phone: student.phone || '', address: student.address || '',
             birth_date: student.birth_date || '', student_type: student.student_type || 'formal',
             is_active: student.is_active,
         })
@@ -135,12 +135,14 @@ export default function StudentsPage() {
                 const submitData = { ...formData }
                 if (!submitData.birth_date) delete (submitData as any).birth_date
                 if (!submitData.phone) delete (submitData as any).phone
+                if (!submitData.eng_name) delete (submitData as any).eng_name
                 if (!submitData.address) delete (submitData as any).address
                 const { error } = await studentsApi.create(submitData)
                 if (error) { setFormError(error.message) } else { closeModal(); fetchStudents() }
             } else if (editingStudent) {
                 const updateData: UpdateStudentData = {}
                 if (formData.name !== editingStudent.name) updateData.name = formData.name
+                if ((formData.eng_name || '') !== (editingStudent.eng_name || '')) updateData.eng_name = formData.eng_name || undefined
                 if (formData.email !== editingStudent.email) updateData.email = formData.email
                 if ((formData.phone || '') !== (editingStudent.phone || '')) updateData.phone = formData.phone || undefined
                 if ((formData.address || '') !== (editingStudent.address || '')) updateData.address = formData.address || undefined
@@ -418,9 +420,11 @@ export default function StudentsPage() {
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">編號</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">姓名</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">英文名</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">聯絡方式</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">類型</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">學習狀態</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">啟用</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">帳號</th>
                                         {isStaff && <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">操作</th>}
                                     </tr>
@@ -434,6 +438,9 @@ export default function StudentsPage() {
                                             <td className="px-6 py-4">
                                                 <div className="font-medium text-gray-900">{student.name}</div>
                                             </td>
+                                            <td className="px-6 py-4 text-sm text-gray-600">
+                                                {student.eng_name || '-'}
+                                            </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col gap-0.5">
                                                     <span className="text-sm text-gray-600 flex items-center gap-1"><Mail className="w-3 h-3" />{student.email}</span>
@@ -441,15 +448,31 @@ export default function StudentsPage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${student.student_type === 'trial' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${student.student_type === 'trial' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>
                                                     {student.student_type === 'trial' ? '試上' : '正式'}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
+                                                {(() => {
+                                                    const s = student.student_status || 'trial'
+                                                    const map: Record<string, { label: string; color: string }> = {
+                                                        trial: { label: '試上', color: 'bg-yellow-100 text-yellow-800' },
+                                                        pending: { label: '待開課', color: 'bg-blue-100 text-blue-800' },
+                                                        active: { label: '上課中', color: 'bg-green-100 text-green-800' },
+                                                        suspended: { label: '暫停', color: 'bg-orange-100 text-orange-800' },
+                                                        terminated: { label: '解約', color: 'bg-red-100 text-red-800' },
+                                                        extended: { label: '展延', color: 'bg-purple-100 text-purple-800' },
+                                                        completed: { label: '已結業', color: 'bg-gray-100 text-gray-600' },
+                                                    }
+                                                    const info = map[s] || { label: s, color: 'bg-gray-100 text-gray-600' }
+                                                    return <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${info.color}`}>{info.label}</span>
+                                                })()}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
                                                 {student.is_active ? (
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />啟用中</span>
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />啟用</span>
                                                 ) : (
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"><XCircle className="w-3 h-3 mr-1" />已停用</span>
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"><XCircle className="w-3 h-3 mr-1" />停用</span>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
@@ -461,6 +484,7 @@ export default function StudentsPage() {
                                             </td>
                                             {isStaff && (
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <a href={`/students/view?id=${student.id}`} className="text-cyan-600 hover:text-cyan-900 mr-4" title="綜合檢視"><Eye className="w-5 h-5" /></a>
                                                     {!student.email_verified_at && (
                                                         <button onClick={() => handleGenerateInvite(student)} className="text-green-600 hover:text-green-900 mr-4" title="產生邀請連結"><UserPlus className="w-5 h-5" /></button>
                                                     )}
@@ -514,6 +538,11 @@ export default function StudentsPage() {
                                             <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                                 className="input-field" required />
                                         </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">英文名</label>
+                                        <input type="text" value={formData.eng_name} onChange={(e) => setFormData({ ...formData, eng_name: e.target.value })}
+                                            className="input-field" placeholder="English Name" />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>

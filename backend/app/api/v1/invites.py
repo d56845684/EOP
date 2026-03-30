@@ -22,7 +22,8 @@ async def generate_invite(
 ):
     """產生邀請連結（僅限員工/管理員）"""
     try:
-        table = "students" if data.entity_type == "student" else "teachers"
+        table_map = {"student": "students", "teacher": "teachers", "employee": "employees"}
+        table = table_map[data.entity_type]
 
         # 1. 查 entity 存在且未刪除
         entities = await supabase_service.table_select(
@@ -50,12 +51,13 @@ async def generate_invite(
         if existing_users:
             raise HTTPException(status_code=400, detail="此 email 已有登入帳號")
 
-        # 3. 產生 token
+        # 3. 產生 token（員工可附帶指定角色）
         token, expires_at = await invite_service.generate_token(
             entity_type=data.entity_type,
             entity_id=data.entity_id,
             email=entity["email"],
             name=entity["name"],
+            role_id=data.role_id if data.entity_type == "employee" else None,
         )
 
         invite_url = f"{settings.FRONTEND_URL}/accept-invite?token={token}"
@@ -82,12 +84,18 @@ async def accept_invite(data: AcceptInviteRequest):
         entity_id = token_data["entity_id"]
         email = token_data["email"]
         name = token_data["name"]
-        table = "students" if entity_type == "student" else "teachers"
+        table_map = {"student": "students", "teacher": "teachers", "employee": "employees"}
+        table = table_map.get(entity_type)
+        if not table:
+            raise HTTPException(status_code=400, detail=f"不支援的實體類型: {entity_type}")
 
         # 2. 再次驗證 entity 存在、未刪除、未驗證
+        select_fields = "id,email,email_verified_at,is_deleted"
+        if entity_type == "employee":
+            select_fields += ",employee_type"
         entities = await supabase_service.table_select(
             table=table,
-            select="id,email,email_verified_at,is_deleted",
+            select=select_fields,
             filters={"id": entity_id, "is_deleted": "eq.false"},
         )
         if not entities:
@@ -106,23 +114,36 @@ async def accept_invite(data: AcceptInviteRequest):
 
         user_id = auth_response.user.id
 
-        # 4. INSERT user_profiles 帶入 student_id/teacher_id
-        #    查 roles 表取得 role_id
-        role_row = await supabase_service.pool.fetchrow(
-            "SELECT id FROM roles WHERE key = $1", entity_type
-        )
-        if not role_row:
-            raise HTTPException(status_code=500, detail=f"角色 '{entity_type}' 不存在")
+        # 4. INSERT user_profiles 帶入 student_id/teacher_id/employee_id
+        #    角色決定：token 有指定 role_id → 直接用；否則從 employee_type 推導
+        token_role_id = token_data.get("role_id")
+        if token_role_id:
+            assigned_role_id = token_role_id
+        else:
+            if entity_type == "employee":
+                employee_type = entity.get("employee_type", "full_time")
+                role_key = "admin" if employee_type == "admin" else "employee"
+            else:
+                role_key = entity_type
+            role_row = await supabase_service.pool.fetchrow(
+                "SELECT id FROM roles WHERE key = $1", role_key
+            )
+            if not role_row:
+                raise HTTPException(status_code=500, detail=f"角色 '{role_key}' 不存在")
+            assigned_role_id = str(role_row["id"])
 
         profile_data = {
             "id": user_id,
-            "role_id": str(role_row["id"]),
+            "role_id": assigned_role_id,
             "must_change_password": True,
         }
         if entity_type == "student":
             profile_data["student_id"] = entity_id
-        else:
+        elif entity_type == "teacher":
             profile_data["teacher_id"] = entity_id
+        elif entity_type == "employee":
+            profile_data["employee_id"] = entity_id
+            profile_data["employee_subtype"] = entity.get("employee_type", "full_time")
 
         try:
             await supabase_service.table_insert(

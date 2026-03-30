@@ -25,6 +25,7 @@ class EmployeeUpdate(BaseModel):
     address: Optional[str] = None
     hire_date: Optional[date] = None
     termination_date: Optional[date] = None
+    role_id: Optional[str] = Field(None, description="系統角色 ID（僅限已有帳號的員工）")
     is_active: Optional[bool] = None
 
 
@@ -40,6 +41,11 @@ class EmployeeResponse(BaseModel):
     hire_date: Optional[date] = None
     termination_date: Optional[date] = None
     is_active: bool = True
+    # 從 user_profiles 取得（有帳號才有值）
+    has_account: bool = False
+    role_id: Optional[str] = None
+    role_name: Optional[str] = None
+    email_verified_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

@@ -144,3 +144,29 @@ Key variables:
 | Student | `student@eop-test.com` | `TestPassword123!` | S001 |
 
 **注意**: Employee 角色可執行 CRUD 操作 (建立/更新/刪除)，Student/Teacher 只有讀取權限。
+
+## SQL 安全規範（防止 SQL Injection）
+
+本專案使用 asyncpg 直連 PostgreSQL，撰寫 raw SQL 時務必遵守：
+
+1. **一律使用 parameterized query** — 所有外部輸入或變數值必須透過 `$1, $2, ...` placeholder 傳入，由 asyncpg 綁定，禁止用 f-string / format 拼接值進 SQL。
+   ```python
+   # 正確
+   await pool.fetch("SELECT * FROM users WHERE id = $1", user_id)
+
+   # 錯誤 — SQL injection 風險
+   await pool.fetch(f"SELECT * FROM users WHERE id = '{user_id}'")
+   ```
+
+2. **動態 SQL 結構（WHERE 條件、IN 子句）** — 只能拼接 placeholder 編號（`$4, $5`），不可拼接實際值。
+   ```python
+   # 正確 — 拼的是 placeholder，值走 params
+   placeholders = ", ".join(f"${i}" for i in range(4, 4 + len(tiers)))
+   sql = f"... AND account_tier IN ({placeholders})"
+   await pool.fetch(sql, *params)
+
+   # 錯誤 — 直接拼值
+   sql = f"... AND account_tier IN ('{tiers[0]}', '{tiers[1]}')"
+   ```
+
+3. **表名 / 欄位名** — 如需動態指定，必須用白名單驗證，不可直接拼接使用者輸入。

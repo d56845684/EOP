@@ -13,6 +13,7 @@ export interface Booking {
     student_contract_id: string
     teacher_contract_id: string
     teacher_slot_id: string
+    substitute_detail_id?: string | null
     teacher_hourly_rate: number
     teacher_rate_percentage?: number
     booking_status: BookingStatus
@@ -33,6 +34,9 @@ export interface Booking {
     course_name?: string
     student_contract_no?: string
     teacher_contract_no?: string
+    substitute_teacher_name?: string | null
+    has_pending_leave?: boolean
+    pending_leave_initiator_type?: 'student' | 'teacher' | null
 }
 
 export interface BookingListResponse {
@@ -149,6 +153,14 @@ export interface StudentContractOption {
 export interface TeacherContractOption {
     id: string
     contract_no: string
+}
+
+export interface SubstituteTeacherOption {
+    id: string
+    teacher_no: string
+    name: string
+    teacher_level?: number
+    is_preferred: boolean
 }
 
 export interface TeacherSlotOption {
@@ -599,6 +611,25 @@ export const bookingsApi = {
 
             const result = await response.json()
             return { data: result.data || null, error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    // 取得可用代課教師選項
+    async getSubstituteTeacherOptions(bookingId: string): Promise<{ data: SubstituteTeacherOption[] | null, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/substitute-teachers?booking_id=${encodeURIComponent(bookingId)}`, {
+                method: 'GET',
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得代課教師選項失敗' } }
+            }
+
+            const result = await response.json()
+            return { data: result.data || [], error: null }
         } catch (err) {
             return { data: null, error: { message: '網路錯誤，請稍後再試' } }
         }

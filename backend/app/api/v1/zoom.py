@@ -9,6 +9,8 @@ from app.schemas.zoom import (
     ZoomAccountCreate, ZoomAccountUpdate, ZoomAccountResponse, ZoomAccountListResponse,
     ZoomMeetingLogResponse, ZoomMeetingLogListResponse, ZoomMeetingCreateRequest,
     ZoomOAuthUrlResponse, ZoomTeacherLinkStatus,
+    RecordingCallbackRequest,
+    DownloadTokenRequest, DownloadTokenResponse,
 )
 from app.schemas.response import BaseResponse, DataResponse
 from app.config import settings
@@ -25,9 +27,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/zoom", tags=["Zoom 管理"])
 
 # 不暴露 secret 的欄位列表
-ACCOUNT_SELECT = "id,account_name,zoom_account_id,zoom_client_id,zoom_user_email,is_active,daily_meeting_count,daily_count_reset_at,notes,created_at,created_by,updated_at"
+ACCOUNT_SELECT = "id,account_name,zoom_account_id,zoom_client_id,zoom_user_email,account_tier,is_active,daily_meeting_count,daily_count_reset_at,notes,created_at,created_by,updated_at"
 
-MEETING_LOG_SELECT = "id,booking_id,zoom_account_id,teacher_id,zoom_meeting_id,zoom_meeting_uuid,join_url,start_url,passcode,meeting_date,start_time,end_time,meeting_status,recording_url,recording_download_url,recording_file_type,recording_file_size_bytes,recording_duration_seconds,recording_completed_at,created_at,updated_at"
+MEETING_LOG_SELECT = "id,booking_id,zoom_account_id,teacher_id,zoom_meeting_id,zoom_meeting_uuid,join_url,start_url,passcode,meeting_date,start_time,end_time,meeting_status,recording_url,recording_download_url,recording_file_type,recording_file_size_bytes,recording_duration_seconds,recording_completed_at,recording_transfer_status,drive_file_id,drive_view_link,transferred_at,created_at,updated_at"
 
 
 # ============================================
@@ -48,11 +50,7 @@ async def list_zoom_accounts(
             filters["is_active"] = f"eq.{str(is_active).lower()}"
 
         # 計算 total
-        all_records = await supabase_service.table_select(
-            table="zoom_accounts", select="id",
-            filters=filters,
-        )
-        total = len(all_records)
+        total = await supabase_service.table_count(table="zoom_accounts", filters=filters)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
 
         items = await supabase_service.table_select_with_pagination(
@@ -243,7 +241,17 @@ async def create_zoom_meeting(
         if booking.get("booking_status") not in ("confirmed", "pending"):
             raise HTTPException(status_code=400, detail="只有待確認或已確認的預約可以建立 Zoom 會議")
 
-        from datetime import date as date_type, time as time_type
+        from datetime import date as date_type, time as time_type, datetime as dt_type
+
+        # 檢查是否為過去的預約
+        booking_date_val = booking["booking_date"]
+        start_time_val_check = booking["start_time"]
+        if isinstance(booking_date_val, str):
+            booking_date_val = date_type.fromisoformat(booking_date_val)
+        if isinstance(start_time_val_check, str):
+            start_time_val_check = time_type.fromisoformat(start_time_val_check)
+        if dt_type.combine(booking_date_val, start_time_val_check) < dt_type.now():
+            raise HTTPException(status_code=400, detail="無法為過去的預約建立 Zoom 會議")
         booking_date = booking["booking_date"]
         if isinstance(booking_date, str):
             booking_date = date_type.fromisoformat(booking_date)
@@ -297,11 +305,7 @@ async def list_zoom_meetings(
                 filters["meeting_date"] = f"lte.{date_to}"
 
         # 計算 total
-        all_records = await supabase_service.table_select(
-            table="zoom_meeting_logs", select="id",
-            filters=filters,
-        )
-        total = len(all_records)
+        total = await supabase_service.table_count(table="zoom_meeting_logs", filters=filters)
         total_pages = math.ceil(total / per_page) if total > 0 else 1
 
         items = await supabase_service.table_select_with_pagination(
@@ -378,6 +382,44 @@ async def get_meeting_by_booking(
         raise HTTPException(status_code=500, detail=f"查詢 Zoom 會議失敗: {str(e)}")
 
 
+@router.post("/meetings/{booking_id}/fetch-recording", response_model=DataResponse[ZoomMeetingLogResponse])
+async def fetch_recording(
+    booking_id: str,
+    current_user: CurrentUser = Depends(require_staff),
+):
+    """手動從 Zoom API 取得會議錄影資訊（僅限員工）"""
+    try:
+        # 確認 booking 存在
+        bookings = await supabase_service.table_select(
+            table="bookings",
+            select="id,booking_status",
+            filters={"id": booking_id, "is_deleted": "eq.false"},
+        )
+        if not bookings:
+            raise HTTPException(status_code=404, detail="預約不存在")
+
+        result = await zoom_service.fetch_meeting_recording(booking_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="尚無可用的錄影，請確認會議已結束且有雲端錄影")
+
+        # 重新查詢完整資料
+        logs = await supabase_service.table_select(
+            table="zoom_meeting_logs",
+            select=MEETING_LOG_SELECT,
+            filters={"booking_id": booking_id, "is_deleted": "eq.false"},
+        )
+        if not logs:
+            raise HTTPException(status_code=500, detail="錄影資訊更新失敗")
+
+        enriched = await enrich_meeting_log(logs[0])
+        return DataResponse(message="錄影資訊取得成功", data=ZoomMeetingLogResponse(**enriched))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取得錄影失敗: {str(e)}")
+
+
 # ============================================
 # 教師 OAuth
 # ============================================
@@ -422,24 +464,16 @@ async def oauth_callback(
     if not state:
         raise HTTPException(status_code=400, detail="缺少 state 參數")
 
-    # 根據 user_id 找 teacher
-    users_profile = await supabase_service.table_select(
-        table="users_profile",
-        select="email",
-        filters={"user_id": state},
+    # 根據 user_id 直接從 user_profiles 取 teacher_id
+    profile = await supabase_service.table_select(
+        table="user_profiles",
+        select="teacher_id",
+        filters={"id": state},
     )
-    if not users_profile:
-        raise HTTPException(status_code=404, detail="找不到使用者")
-
-    teachers = await supabase_service.table_select(
-        table="teachers",
-        select="id",
-        filters={"email": users_profile[0]["email"]},
-    )
-    if not teachers:
+    if not profile or not profile[0].get("teacher_id"):
         raise HTTPException(status_code=404, detail="找不到對應的教師紀錄")
 
-    teacher_id = teachers[0]["id"]
+    teacher_id = profile[0]["teacher_id"]
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
     zoom_data = {
@@ -592,6 +626,140 @@ async def zoom_webhook(request: Request):
         logger.info(f"Zoom webhook 未處理的事件: {event}")
 
     return {"status": "ok"}
+
+
+# ============================================
+# Internal: Lambda 取得 Zoom download token
+# ============================================
+
+@router.post("/internal/download-token", response_model=DataResponse[DownloadTokenResponse])
+async def get_download_token(data: DownloadTokenRequest):
+    """Lambda 呼叫：用 meeting_id 取得新的 Zoom token + 下載 URL（不需登入，靠 secret 驗證）"""
+    if data.secret != settings.RECORDING_CALLBACK_SECRET:
+        raise HTTPException(403, "Invalid secret")
+
+    try:
+        # 查詢 meeting log 取得 zoom_account_id
+        logs = await supabase_service.table_select(
+            table="zoom_meeting_logs",
+            select="zoom_meeting_id,zoom_account_id,teacher_id",
+            filters={"zoom_meeting_id": f"text.{data.meeting_id}", "is_deleted": "eq.false"},
+        )
+        if not logs:
+            raise HTTPException(404, "Meeting not found")
+
+        log = logs[0]
+
+        # 取得 token
+        token = await zoom_service._get_token_for_download(log)
+        if not token:
+            raise HTTPException(500, "無法取得 Zoom token")
+
+        # 用新 token 呼叫 Zoom API 取得新的下載 URL
+        import httpx as hx
+        resp = await hx.AsyncClient().get(
+            f"https://api.zoom.us/v2/meetings/{log['zoom_meeting_id']}/recordings",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            raise HTTPException(resp.status_code, f"Zoom API 錯誤: {resp.text[:200]}")
+
+        recording_files = resp.json().get("recording_files", [])
+        video = None
+        for f in recording_files:
+            if f.get("file_type") == "MP4" and f.get("recording_type") == "shared_screen_with_speaker_view":
+                video = f
+                break
+        if not video:
+            for f in recording_files:
+                if f.get("file_type") == "MP4":
+                    video = f
+                    break
+        if not video and recording_files:
+            video = recording_files[0]
+        if not video:
+            raise HTTPException(404, "無可用錄影檔案")
+
+        # 取得 Google Drive 設定
+        from app.services.google_drive_service import google_drive_service
+        drive_config = await google_drive_service.get_drive_config()
+
+        drive_mode = "sa"
+        drive_access_token = None
+        drive_folder_id = None
+
+        if drive_config and drive_config.get("drive_mode") == "oauth":
+            drive_mode = "oauth"
+            drive_access_token = await google_drive_service.get_active_token()
+            drive_folder_id = drive_config.get("drive_folder_id")
+        elif drive_config:
+            drive_folder_id = drive_config.get("drive_folder_id")
+
+        # 組合會議名稱（與 Zoom 會議標題相同格式 + 時間戳）
+        meeting_topic = None
+        try:
+            topic_rows = await supabase_service.pool.fetch(
+                """SELECT z.meeting_date, z.start_time, b.booking_no,
+                          c.course_name, s.name as student_name, t.name as teacher_name
+                   FROM zoom_meeting_logs z
+                   JOIN bookings b ON z.booking_id = b.id
+                   JOIN courses c ON b.course_id = c.id
+                   JOIN students s ON b.student_id = s.id
+                   JOIN teachers t ON b.teacher_id = t.id
+                   WHERE z.zoom_meeting_id = $1 AND z.is_deleted = false
+                   LIMIT 1""",
+                log["zoom_meeting_id"]
+            )
+            if topic_rows:
+                r = topic_rows[0]
+                date_str = r["meeting_date"].isoformat() if r["meeting_date"] else ""
+                time_str = r["start_time"].strftime("%H%M") if r["start_time"] else ""
+                meeting_topic = f"[{r['booking_no']}] {r['course_name']} {r['student_name']} {r['teacher_name']} {date_str} {time_str}"
+        except Exception as e:
+            logger.warning(f"取得會議名稱失敗: {e}")
+
+        return DataResponse(data=DownloadTokenResponse(
+            download_url=video.get("download_url", ""),
+            access_token=token,
+            meeting_topic=meeting_topic,
+            drive_mode=drive_mode,
+            drive_access_token=drive_access_token,
+            drive_folder_id=drive_folder_id,
+        ))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"取得下載 token 失敗: {str(e)}")
+
+
+# ============================================
+# Recording Callback（Lambda → Backend）
+# ============================================
+
+@router.post("/recording-callback")
+async def recording_callback(data: RecordingCallbackRequest):
+    """Lambda 錄影轉移完成回呼（更新 Google Drive 資訊到 zoom_meeting_logs）"""
+    if data.secret != settings.RECORDING_CALLBACK_SECRET:
+        raise HTTPException(403, "Invalid secret")
+
+    update: dict = {"recording_transfer_status": data.status}
+    if data.status == "completed":
+        update["drive_file_id"] = data.drive_file_id
+        update["drive_view_link"] = data.drive_view_link
+        update["transferred_at"] = datetime.now(timezone.utc).isoformat()
+    else:
+        update["transfer_error"] = data.error
+
+    await supabase_service.table_update(
+        table="zoom_meeting_logs",
+        data=update,
+        filters={"zoom_meeting_id": f"text.{data.meeting_id}", "is_deleted": "eq.false"},
+    )
+
+    logger.info(f"recording-callback: meeting_id={data.meeting_id}, status={data.status}")
+    return {"ok": True}
 
 
 # ============================================

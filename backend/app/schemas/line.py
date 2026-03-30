@@ -131,3 +131,30 @@ class LineLoginResponse(BaseModel):
     is_new_user: bool = Field(False, description="是否為新建立的帳號")
     channel_type: str = Field(description="登入的頻道類型")
     line_info: Optional[LineUserInfo] = None
+
+
+# ============================================
+# 管理員用：綁定列表 + 發送訊息
+# ============================================
+
+class LineBindingAdminItem(BaseModel):
+    """管理員查看的 LINE 綁定項目"""
+    user_id: Optional[str] = None
+    email: Optional[str] = None
+    name: Optional[str] = None
+    line_user_id: str
+    line_display_name: Optional[str] = None
+    channel_type: str
+
+
+class LineBindingsAdminResponse(BaseModel):
+    """管理員綁定列表回應"""
+    success: bool = True
+    items: list[LineBindingAdminItem] = []
+
+
+class SendLineMessageRequest(BaseModel):
+    """發送 LINE 訊息請求"""
+    line_user_id: str = Field(..., description="LINE user ID")
+    message: str = Field(..., description="訊息內容")
+    channel: ChannelType = Field(..., description="頻道類型")

@@ -8,7 +8,8 @@ import {
     CreateZoomAccountData,
     UpdateZoomAccountData,
 } from '@/lib/api/zoom'
-import { Plus, Pencil, Trash2, X, Video, Zap, CheckCircle, XCircle } from 'lucide-react'
+import { googleDriveApi, GoogleDriveStatus } from '@/lib/api/googleDrive'
+import { Plus, Pencil, Trash2, X, Video, Zap, CheckCircle, XCircle, HardDrive, Link2, Unlink, FolderOpen } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 
 export default function ZoomAccountsPage() {
@@ -34,6 +35,7 @@ export default function ZoomAccountsPage() {
         zoom_client_id: '',
         zoom_client_secret: '',
         zoom_user_email: '',
+        account_tier: 'basic',
         is_active: true,
         notes: '',
     })
@@ -47,6 +49,13 @@ export default function ZoomAccountsPage() {
     // Test connection
     const [testingId, setTestingId] = useState<string | null>(null)
     const [testResult, setTestResult] = useState<{ id: string, success: boolean, message: string } | null>(null)
+
+    // Google Drive
+    const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null)
+    const [driveLoading, setDriveLoading] = useState(true)
+    const [driveFolderId, setDriveFolderId] = useState('')
+    const [savingFolder, setSavingFolder] = useState(false)
+    const [driveUnlinking, setDriveUnlinking] = useState(false)
 
     const isStaff = profile?.employee_id != null
 
@@ -68,6 +77,65 @@ export default function ZoomAccountsPage() {
         if (user) fetchAccounts()
     }, [user, fetchAccounts])
 
+    // === Google Drive ===
+    const fetchDriveStatus = useCallback(async () => {
+        setDriveLoading(true)
+        const { data } = await googleDriveApi.getStatus()
+        if (data) {
+            setDriveStatus(data)
+            setDriveFolderId(data.drive_folder_id || '')
+        }
+        setDriveLoading(false)
+    }, [])
+
+    useEffect(() => {
+        if (user) fetchDriveStatus()
+    }, [user, fetchDriveStatus])
+
+    // Handle OAuth callback redirect
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search)
+            if (params.get('google_drive') === 'linked') {
+                fetchDriveStatus()
+                window.history.replaceState({}, '', '/zoom-accounts')
+            }
+        }
+    }, [fetchDriveStatus])
+
+    const handleBindDrive = async () => {
+        const { data, error: err } = await googleDriveApi.getAuthorizeUrl()
+        if (data?.authorize_url) {
+            window.location.href = data.authorize_url
+        } else if (err) {
+            setError(err.message)
+        }
+    }
+
+    const handleUnbindDrive = async () => {
+        if (!confirm('確定要解除 Google Drive 綁定嗎？解除後錄影將無法自動上傳至 Drive。')) return
+        setDriveUnlinking(true)
+        const { error: err } = await googleDriveApi.unlink()
+        if (!err) {
+            setDriveStatus({ is_linked: false, drive_mode: null, google_email: null, drive_folder_id: null, linked_at: null })
+        } else {
+            setError(err.message)
+        }
+        setDriveUnlinking(false)
+    }
+
+    const handleSaveFolder = async () => {
+        if (!driveFolderId.trim()) return
+        setSavingFolder(true)
+        const { error: err } = await googleDriveApi.updateFolder(driveFolderId.trim())
+        if (!err) {
+            fetchDriveStatus()
+        } else {
+            setError(err.message)
+        }
+        setSavingFolder(false)
+    }
+
     // === Create / Edit ===
     const openCreateModal = () => {
         setModalMode('create')
@@ -78,6 +146,7 @@ export default function ZoomAccountsPage() {
             zoom_client_id: '',
             zoom_client_secret: '',
             zoom_user_email: '',
+            account_tier: 'basic',
             is_active: true,
             notes: '',
         })
@@ -94,6 +163,7 @@ export default function ZoomAccountsPage() {
             zoom_client_id: account.zoom_client_id,
             zoom_client_secret: '',
             zoom_user_email: account.zoom_user_email || '',
+            account_tier: account.account_tier || 'basic',
             is_active: account.is_active,
             notes: account.notes || '',
         })
@@ -117,6 +187,7 @@ export default function ZoomAccountsPage() {
             if (formData.zoom_client_id) updateData.zoom_client_id = formData.zoom_client_id
             if (formData.zoom_client_secret) updateData.zoom_client_secret = formData.zoom_client_secret
             if (formData.zoom_user_email !== undefined) updateData.zoom_user_email = formData.zoom_user_email
+            if (formData.account_tier) updateData.account_tier = formData.account_tier
             if (formData.is_active !== undefined) updateData.is_active = formData.is_active
             if (formData.notes !== undefined) updateData.notes = formData.notes
 
@@ -195,6 +266,7 @@ export default function ZoomAccountsPage() {
                                     <tr>
                                         <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">帳號名稱</th>
                                         <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Zoom Email</th>
+                                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">帳號等級</th>
                                         <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">狀態</th>
                                         <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">今日用量</th>
                                         <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">連線測試</th>
@@ -210,6 +282,16 @@ export default function ZoomAccountsPage() {
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-600">
                                                 {account.zoom_user_email || '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${
+                                                    account.account_tier === 'business' ? 'bg-purple-100 text-purple-800' :
+                                                    account.account_tier === 'pro' ? 'bg-blue-100 text-blue-800' :
+                                                    'bg-gray-100 text-gray-800'
+                                                }`}>
+                                                    {account.account_tier === 'business' ? 'Business' :
+                                                     account.account_tier === 'pro' ? 'Pro' : 'Basic'}
+                                                </span>
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 {account.is_active ? (
@@ -360,6 +442,18 @@ export default function ZoomAccountsPage() {
                                             placeholder="建立會議用的使用者 Email（選填）"
                                         />
                                     </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">帳號等級</label>
+                                        <select
+                                            value={formData.account_tier || 'basic'}
+                                            onChange={(e) => setFormData({ ...formData, account_tier: e.target.value as any })}
+                                            className="input-field"
+                                        >
+                                            <option value="basic">Basic（一般）</option>
+                                            <option value="pro">Pro（專業版）</option>
+                                            <option value="business">Business（商業版）</option>
+                                        </select>
+                                    </div>
                                     <div className="flex items-center gap-2">
                                         <input
                                             type="checkbox"
@@ -400,6 +494,100 @@ export default function ZoomAccountsPage() {
                 )}
 
                 {/* Delete Confirm Modal */}
+                {/* ── Google Drive 錄影儲存設定 ── */}
+                <div className="mt-10">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center">
+                            <HardDrive className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900">Google Drive 錄影儲存</h2>
+                            <p className="text-sm text-gray-500">Zoom 錄影自動上傳至 Google Drive</p>
+                        </div>
+                    </div>
+
+                    <div className="card p-6">
+                        {driveLoading ? (
+                            <div className="text-center py-8 text-sm text-gray-400">載入中...</div>
+                        ) : driveStatus?.is_linked ? (
+                            <div className="space-y-5">
+                                {/* 綁定狀態 */}
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <CheckCircle className="w-5 h-5 text-green-500" />
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-900">
+                                                已綁定：{driveStatus.google_email}
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                                模式：{driveStatus.drive_mode === 'oauth' ? '個人 Drive（OAuth）' : 'Shared Drive（SA）'}
+                                                {driveStatus.linked_at && ` · 綁定於 ${new Date(driveStatus.linked_at).toLocaleDateString()}`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleUnbindDrive}
+                                        disabled={driveUnlinking}
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                                    >
+                                        <Unlink className="w-3 h-3" />
+                                        {driveUnlinking ? '解除中...' : '解除綁定'}
+                                    </button>
+                                </div>
+
+                                {/* 目標資料夾設定 */}
+                                <div className="border-t pt-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        <FolderOpen className="w-4 h-4 inline mr-1" />
+                                        目標資料夾 ID
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-2">
+                                        從 Google Drive 資料夾 URL 取得：https://drive.google.com/drive/folders/<span className="font-mono text-blue-600">{'<FOLDER_ID>'}</span>
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={driveFolderId}
+                                            onChange={(e) => setDriveFolderId(e.target.value)}
+                                            placeholder="輸入 Google Drive 資料夾 ID..."
+                                            className="input-field flex-1"
+                                        />
+                                        <button
+                                            onClick={handleSaveFolder}
+                                            disabled={savingFolder || !driveFolderId.trim()}
+                                            className="btn-primary px-4"
+                                        >
+                                            {savingFolder ? '儲存中...' : '儲存'}
+                                        </button>
+                                    </div>
+                                    {driveStatus.drive_folder_id && (
+                                        <p className="text-xs text-green-600 mt-1">
+                                            ✓ 目前設定：{driveStatus.drive_folder_id}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-8">
+                                <HardDrive className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                <p className="text-gray-500 mb-1">尚未綁定 Google Drive</p>
+                                <p className="text-xs text-gray-400 mb-4">
+                                    綁定後，Zoom 課程錄影將自動上傳至你的 Google Drive
+                                </p>
+                                {isStaff && (
+                                    <button
+                                        onClick={handleBindDrive}
+                                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                                    >
+                                        <Link2 className="w-4 h-4" />
+                                        綁定 Google Drive
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {deleteConfirm && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                         <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">

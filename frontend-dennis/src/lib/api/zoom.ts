@@ -6,12 +6,15 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 // Types
 // ============================================
 
+export type AccountTier = 'basic' | 'pro' | 'business'
+
 export interface ZoomAccount {
     id: string
     account_name: string
     zoom_account_id: string
     zoom_client_id: string
     zoom_user_email?: string
+    account_tier: AccountTier
     is_active: boolean
     daily_meeting_count: number
     daily_count_reset_at?: string
@@ -36,6 +39,7 @@ export interface CreateZoomAccountData {
     zoom_client_id: string
     zoom_client_secret: string
     zoom_user_email?: string
+    account_tier?: AccountTier
     is_active?: boolean
     notes?: string
 }
@@ -46,6 +50,7 @@ export interface UpdateZoomAccountData {
     zoom_client_id?: string
     zoom_client_secret?: string
     zoom_user_email?: string
+    account_tier?: AccountTier
     is_active?: boolean
     notes?: string
 }
@@ -277,6 +282,27 @@ export const zoomApi = {
             if (!response.ok) {
                 const error = await response.json()
                 return { data: null, error: { message: parseErrorDetail(error.detail) || '建立 Zoom 會議失敗' } }
+            }
+
+            const result = await response.json()
+            return { data: result.data || null, error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async fetchRecording(bookingId: string): Promise<{ data: ZoomMeetingLog | null, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/zoom/meetings/${bookingId}/fetch-recording`, {
+                method: 'POST',
+            })
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    return { data: null, error: { message: '尚無可用的錄影，請確認會議已結束' } }
+                }
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得錄影失敗' } }
             }
 
             const result = await response.json()

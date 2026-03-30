@@ -65,6 +65,7 @@ async def list_users(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     role: Optional[str] = Query(None, description="角色篩選"),
+    is_active: Optional[bool] = Query(None, description="啟用狀態篩選"),
     search: Optional[str] = Query(None, description="搜尋 email/name"),
     current_user: CurrentUser = Depends(require_page_permission("employees.list")),
 ):
@@ -96,6 +97,10 @@ async def list_users(
         if role:
             params.append(role)
             where_clauses.append(f"r.key = ${len(params)}")
+
+        if is_active is not None:
+            params.append(is_active)
+            where_clauses.append(f"up.is_active = ${len(params)}")
 
         if search:
             params.append(f"%{search}%")
@@ -195,16 +200,21 @@ async def update_user(
             update_data["role_id"] = uuid.UUID(update_data["role_id"])
 
         # Update user_profiles
+        ALLOWED_COLUMNS = {"role_id", "employee_subtype", "is_active"}
         sets = []
         params = [uid]
         for k, v in update_data.items():
+            if k not in ALLOWED_COLUMNS:
+                continue
+            safe_col = supabase_service._sanitize_identifier(k)
             params.append(v)
-            sets.append(f"{k} = ${len(params)}")
+            sets.append(f'"{safe_col}" = ${len(params)}')
 
-        await supabase_service.pool.execute(
-            f"UPDATE user_profiles SET {', '.join(sets)} WHERE id = $1",
-            *params,
-        )
+        if sets:
+            await supabase_service.pool.execute(
+                f"UPDATE user_profiles SET {', '.join(sets)} WHERE id = $1",
+                *params,
+            )
 
         # Re-fetch full account info
         row = await supabase_service.pool.fetchrow(

@@ -48,6 +48,7 @@ export interface StudentContract {
     student_name?: string
     details: StudentContractDetail[]
     leave_records: StudentContractLeaveRecord[]
+    addendums?: any[]
 }
 
 export interface StudentContractListResponse {
@@ -275,6 +276,36 @@ export const studentContractsApi = {
             return { data: result.data || null, error: null }
         } catch (err) {
             return { data: null, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async generatePdf(contractId: string): Promise<{ success: boolean, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/generate-docx`, {
+                method: 'GET',
+            })
+            if (!response.ok) {
+                const error = await response.json()
+                return { success: false, error: { message: error.detail || '產生合約文件失敗' } }
+            }
+            const blob = await response.blob()
+            const contentDisposition = response.headers.get('Content-Disposition')
+            let filename = 'contract.docx'
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename="?([^"]+)"?/)
+                if (match) filename = match[1]
+            }
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = filename
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            window.URL.revokeObjectURL(url)
+            return { success: true, error: null }
+        } catch (err) {
+            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
         }
     },
 
