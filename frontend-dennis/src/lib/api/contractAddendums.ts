@@ -143,9 +143,9 @@ export const contractAddendumsApi = {
     async uploadFile(contractType: ContractType, contractId: string, addendumId: string, file: File): Promise<{ data: ContractAddendum | null, error: any }> {
         try {
             const base = contractBasePath(contractType)
+            const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf'
 
-            // 1. 取得 S3 presigned upload URL
-            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/${base}/${contractId}/addendums/${addendumId}/upload-url`, {
+            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/${base}/${contractId}/addendums/${addendumId}/upload-url?file_ext=${fileExt}`, {
                 method: 'POST',
             })
             if (!urlRes.ok) {
@@ -154,10 +154,9 @@ export const contractAddendumsApi = {
             }
             const { upload_url, storage_path } = await urlRes.json()
 
-            // 2. 直接 PUT 檔案到 S3
             const uploadRes = await fetch(upload_url, {
                 method: 'PUT',
-                headers: { 'Content-Type': file.type || 'application/pdf' },
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
                 body: file,
             })
             if (!uploadRes.ok) {

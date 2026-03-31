@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/students", tags=["學生管理"])
 
-STUDENT_SELECT = "id,student_no,name,eng_name,email,phone,address,birth_date,student_type,student_status,is_active,email_verified_at,created_at,updated_at"
+STUDENT_SELECT = "id,student_no,name,eng_name,email,phone,address,birth_date,id_number,student_type,student_status,is_active,google_drive_folder_id,email_verified_at,created_at,updated_at"
 
 
 @router.get("", response_model=StudentListResponse)

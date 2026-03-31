@@ -134,7 +134,9 @@ class DownloadTokenResponse(BaseModel):
     # Google Drive 上傳設定
     drive_mode: str = "sa"                          # 'sa' or 'oauth'
     drive_access_token: Optional[str] = None        # OAuth 模式用
-    drive_folder_id: Optional[str] = None           # DB 設定的目標資料夾
+    drive_folder_id: Optional[str] = None           # DB 設定的預設資料夾
+    student_drive_folder_id: Optional[str] = None   # 學生專屬資料夾（正式學生）
+    student_type: Optional[str] = None              # trial / formal（決定放哪個資料夾）
 
 
 # ============================================

@@ -9,7 +9,7 @@ import DashboardLayout from '@/components/DashboardLayout'
 import {
     ArrowLeft, User, Mail, Phone, MapPin, Calendar, BookOpen,
     FileText, CheckCircle, XCircle, Clock, Users, MessageSquare,
-    DollarSign, AlertTriangle,
+    DollarSign, AlertTriangle, Camera,
 } from 'lucide-react'
 
 const statusColors: Record<string, string> = {
@@ -74,7 +74,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
 function TeacherViewContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
-    const { user } = useAuth()
+    const { user, profile } = useAuth()
     const teacherId = searchParams.get('id')
 
     const [data, setData] = useState<TeacherViewData | null>(null)
@@ -136,9 +136,42 @@ function TeacherViewContent() {
                     <button onClick={() => router.push('/teacher-overview')} className="btn-secondary px-2 py-1.5">
                         <ArrowLeft className="w-4 h-4" />
                     </button>
+                    {/* Avatar */}
+                    <div className="relative group">
+                        {t.avatar_url ? (
+                            <img src={t.avatar_url} alt={t.name}
+                                className="w-14 h-14 rounded-full object-cover border-2 border-white shadow" />
+                        ) : (
+                            <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-lg font-bold shadow"
+                                style={{ background: 'linear-gradient(135deg, #4f6ef7, #7b93fa)' }}>
+                                {t.name.charAt(0)}
+                            </div>
+                        )}
+                        {profile?.employee_id && (
+                            <label className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                                <Camera className="w-5 h-5 text-white" />
+                                <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.webp"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0]
+                                        if (!file) return
+                                        if (file.size > 10 * 1024 * 1024) {
+                                            alert('圖片大小不可超過 10MB')
+                                            return
+                                        }
+                                        const { data: updated, error: err } = await teachersApi.uploadAvatar(t.id, file)
+                                        if (err) {
+                                            alert(err.message)
+                                        } else {
+                                            alert('頭像上傳成功')
+                                            window.location.reload()
+                                        }
+                                    }}
+                                />
+                            </label>
+                        )}
+                    </div>
                     <div className="flex-1">
                         <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--ep-text-color-primary)' }}>
-                            <Users className="w-5 h-5" style={{ color: 'var(--ep-color-primary)' }} />
                             {t.name}
                         </h1>
                         <p className="text-xs mt-0.5" style={{ color: 'var(--ep-text-color-secondary)' }}>

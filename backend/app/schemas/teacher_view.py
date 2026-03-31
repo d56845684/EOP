@@ -11,6 +11,7 @@ class TeacherBasicInfo(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     bio: Optional[str] = None
+    avatar_url: Optional[str] = None
     teacher_level: Optional[int] = None
     is_active: bool = True
     email_verified_at: Optional[datetime] = None

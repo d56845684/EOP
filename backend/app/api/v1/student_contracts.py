@@ -1,6 +1,14 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
+
+# 合約上傳允許的格式
+CONTRACT_ALLOWED_TYPES = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "doc": "application/msword",
+}
+CONTRACT_ALLOWED_EXT_REGEX = r"\.(pdf|docx|doc)"
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.services.contract_pdf_service import generate_student_contract_pdf, generate_addendum_pdf, generate_student_contract_docx
@@ -77,14 +85,21 @@ async def check_student_active_conflict(student_id: str, exclude_contract_id: st
 
 async def enrich_contract_with_relations(contract: dict) -> dict:
     """為合約資料添加關聯名稱、明細、教師和請假紀錄"""
-    # 取得學生名稱
+    # 取得學生名稱 + 電話 + 身分證字號
     if contract.get("student_id"):
         student = await supabase_service.table_select(
             table="students",
-            select="name",
+            select="name,phone,id_number",
             filters={"id": contract["student_id"]},
         )
-        contract["student_name"] = student[0]["name"] if student else None
+        if student:
+            contract["student_name"] = student[0]["name"]
+            contract["student_phone"] = student[0].get("phone")
+            contract["student_id_number"] = student[0].get("id_number")
+        else:
+            contract["student_name"] = None
+            contract["student_phone"] = None
+            contract["student_id_number"] = None
 
     # 取得合約明細
     details = await supabase_service.table_select(
@@ -1151,14 +1166,15 @@ class ConfirmUploadRequest(BaseModel):
 @router.post("/{contract_id}/upload-url")
 async def get_student_contract_upload_url(
     contract_id: str,
+    file_ext: str = Query("pdf", description="檔案格式 (pdf/docx/doc)"),
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
-    """取得學生合約檔案的 signed upload URL（僅限員工）
-
-    前端收到後直接 PUT 檔案到該 URL，上傳完成後呼叫 confirm-upload。
-    """
+    """取得學生合約檔案的 signed upload URL（僅限員工，支援 pdf/docx/doc）"""
     try:
-        # 檢查合約是否存在
+        ext = file_ext.lower().replace(".", "")
+        if ext not in CONTRACT_ALLOWED_TYPES:
+            raise HTTPException(status_code=400, detail=f"不支援的檔案格式: {ext}（允許 pdf/docx/doc）")
+
         existing = await supabase_service.table_select(
             table="student_contracts",
             select="id",
@@ -1167,17 +1183,15 @@ async def get_student_contract_upload_url(
         if not existing:
             raise HTTPException(status_code=404, detail="學生合約不存在")
 
-        # 確保 bucket 存在
         await storage_service.ensure_bucket_exists(settings.AWS_S3_BUCKET)
 
-        # 產生安全檔名
-        safe_filename = f"{uuid.uuid4().hex}.pdf"
+        safe_filename = f"{uuid.uuid4().hex}.{ext}"
         storage_path = f"student-contracts/{contract_id}/{safe_filename}"
 
-        # 產生 S3 presigned upload URL
         signed = await storage_service.create_signed_upload_url(
             bucket=settings.AWS_S3_BUCKET,
             path=storage_path,
+            content_type=CONTRACT_ALLOWED_TYPES[ext],
         )
         if not signed:
             raise HTTPException(status_code=500, detail="產生上傳連結失敗")
@@ -1224,7 +1238,7 @@ async def confirm_student_contract_upload(
                 )
 
         # 驗證 storage_path 格式
-        if not re.match(r'^student-contracts/[a-f0-9\-]+/[a-f0-9]+\.pdf$', body.storage_path):
+        if not re.match(r'^student-contracts/[a-f0-9\-]+/[a-f0-9]+\.(pdf|docx|doc)$', body.storage_path):
             raise HTTPException(status_code=400, detail="無效的檔案路徑格式")
 
         # 確認檔案已上傳至 S3
@@ -1715,7 +1729,7 @@ async def confirm_student_addendum_upload(
             raise HTTPException(status_code=404, detail="附約不存在")
 
         # 驗證 storage_path 格式
-        if not re.match(r'^contract-addendums/[a-f0-9\-]+/[a-f0-9]+\.pdf$', body.storage_path):
+        if not re.match(r'^contract-addendums/[a-f0-9\-]+/[a-f0-9]+\.(pdf|docx|doc)$', body.storage_path):
             raise HTTPException(status_code=400, detail="無效的檔案路徑格式")
 
         # 確認檔案已上傳

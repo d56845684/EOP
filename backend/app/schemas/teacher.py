@@ -35,6 +35,7 @@ class TeacherResponse(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     bio: Optional[str] = None
+    avatar_url: Optional[str] = None
     teacher_level: int = 1
     is_active: bool = True
     email_verified_at: Optional[datetime] = None

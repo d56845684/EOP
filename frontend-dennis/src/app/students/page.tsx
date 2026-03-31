@@ -30,7 +30,8 @@ export default function StudentsPage() {
     const [editingStudent, setEditingStudent] = useState<Student | null>(null)
     const [formData, setFormData] = useState<CreateStudentData>({
         student_no: '', name: '', eng_name: '', email: '', phone: '', address: '',
-        birth_date: '', student_type: 'formal', is_active: true,
+        birth_date: '', id_number: '', student_type: 'formal', is_active: true,
+        google_drive_folder_id: '',
     })
     const [formError, setFormError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
@@ -106,7 +107,7 @@ export default function StudentsPage() {
     const openCreateModal = () => {
         setModalMode('create')
         setEditingStudent(null)
-        setFormData({ student_no: '', name: '', eng_name: '', email: '', phone: '', address: '', birth_date: '', student_type: 'formal', is_active: true })
+        setFormData({ student_no: '', name: '', eng_name: '', email: '', phone: '', address: '', birth_date: '', id_number: '', student_type: 'formal', is_active: true, google_drive_folder_id: '' })
         setFormError(null)
         setShowModal(true)
     }
@@ -117,8 +118,9 @@ export default function StudentsPage() {
         setFormData({
             student_no: student.student_no, name: student.name, eng_name: student.eng_name || '',
             email: student.email, phone: student.phone || '', address: student.address || '',
-            birth_date: student.birth_date || '', student_type: student.student_type || 'formal',
-            is_active: student.is_active,
+            birth_date: student.birth_date || '', id_number: student.id_number || '',
+            student_type: student.student_type || 'formal',
+            is_active: student.is_active, google_drive_folder_id: student.google_drive_folder_id || '',
         })
         setFormError(null)
         setShowModal(true)
@@ -137,6 +139,8 @@ export default function StudentsPage() {
                 if (!submitData.phone) delete (submitData as any).phone
                 if (!submitData.eng_name) delete (submitData as any).eng_name
                 if (!submitData.address) delete (submitData as any).address
+                if (!submitData.id_number) delete (submitData as any).id_number
+                if (!submitData.google_drive_folder_id) delete (submitData as any).google_drive_folder_id
                 const { error } = await studentsApi.create(submitData)
                 if (error) { setFormError(error.message) } else { closeModal(); fetchStudents() }
             } else if (editingStudent) {
@@ -147,8 +151,10 @@ export default function StudentsPage() {
                 if ((formData.phone || '') !== (editingStudent.phone || '')) updateData.phone = formData.phone || undefined
                 if ((formData.address || '') !== (editingStudent.address || '')) updateData.address = formData.address || undefined
                 if ((formData.birth_date || '') !== (editingStudent.birth_date || '')) updateData.birth_date = formData.birth_date || undefined
+                if ((formData.id_number || '') !== (editingStudent.id_number || '')) updateData.id_number = formData.id_number || undefined
                 if (formData.student_type !== editingStudent.student_type) updateData.student_type = formData.student_type
                 if (formData.is_active !== editingStudent.is_active) updateData.is_active = formData.is_active
+                if ((formData.google_drive_folder_id || '') !== (editingStudent.google_drive_folder_id || '')) updateData.google_drive_folder_id = formData.google_drive_folder_id || undefined
                 const { error } = await studentsApi.update(editingStudent.id, updateData)
                 if (error) { setFormError(error.message) } else { closeModal(); fetchStudents() }
             }
@@ -445,6 +451,7 @@ export default function StudentsPage() {
                                                 <div className="flex flex-col gap-0.5">
                                                     <span className="text-sm text-gray-600 flex items-center gap-1"><Mail className="w-3 h-3" />{student.email}</span>
                                                     {student.phone && <span className="text-sm text-gray-500 flex items-center gap-1"><Phone className="w-3 h-3" />{student.phone}</span>}
+                                                    {student.id_number && <span className="text-sm text-gray-400 flex items-center gap-1">🪪 {student.id_number.slice(0, 3)}{'*'.repeat(Math.max(0, student.id_number.length - 6))}{student.id_number.slice(-3)}</span>}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
@@ -559,9 +566,21 @@ export default function StudentsPage() {
                                             <input type="date" value={formData.birth_date} onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })} className="input-field" />
                                         </div>
                                     </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">身分證字號</label>
+                                            <input type="text" value={formData.id_number} onChange={(e) => setFormData({ ...formData, id_number: e.target.value })}
+                                                className="input-field" placeholder="非必填" maxLength={20} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">地址</label>
+                                            <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="input-field" />
+                                        </div>
+                                    </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">地址</label>
-                                        <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="input-field" />
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Google Drive 資料夾 ID</label>
+                                        <input type="text" value={formData.google_drive_folder_id} onChange={(e) => setFormData({ ...formData, google_drive_folder_id: e.target.value })}
+                                            className="input-field font-mono text-xs" placeholder="從 Drive 資料夾 URL 取得（非必填）" />
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>

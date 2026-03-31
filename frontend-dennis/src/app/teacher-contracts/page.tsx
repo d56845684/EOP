@@ -814,7 +814,7 @@ export default function TeacherContractsPage() {
                                                             <div className="flex items-center">
                                                                 <input
                                                                     type="file"
-                                                                    accept=".pdf"
+                                                                    accept=".pdf,.doc,.docx"
                                                                     id={`upload-${contract.id}`}
                                                                     className="hidden"
                                                                     onChange={(e) => {
@@ -920,7 +920,7 @@ export default function TeacherContractsPage() {
                                                                     <div>
                                                                         <input
                                                                             type="file"
-                                                                            accept=".pdf"
+                                                                            accept=".pdf,.doc,.docx"
                                                                             id={`addendum-upload-${addendum.id}`}
                                                                             className="hidden"
                                                                             onChange={(e) => {
@@ -1071,6 +1071,7 @@ export default function TeacherContractsPage() {
                                             >
                                                 <option value="pending">待生效</option>
                                                 <option value="active">生效中</option>
+                                                <option value="suspended">暫停中</option>
                                                 <option value="expired">已過期</option>
                                                 <option value="terminated">已終止</option>
                                             </select>

@@ -99,6 +99,9 @@ class Settings(BaseSettings):
     def google_drive_oauth_configured(self) -> bool:
         return bool(self.GOOGLE_DRIVE_OAUTH_CLIENT_ID and self.GOOGLE_DRIVE_OAUTH_CLIENT_SECRET)
 
+    # 試上課錄影統一放到此資料夾（留空 = 放預設資料夾）
+    TRIAL_STUDENT_DRIVE_FOLDER_ID: str = ""
+
     # SQS（Zoom 錄影轉移至 Google Drive）
     SQS_QUEUE_URL: str = ""
     RECORDING_CALLBACK_SECRET: str = ""

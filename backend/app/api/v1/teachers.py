@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/teachers", tags=["教師管理"])
 
-TEACHER_SELECT = "id,teacher_no,name,email,phone,address,bio,teacher_level,is_active,email_verified_at,created_at,updated_at"
+TEACHER_SELECT = "id,teacher_no,name,email,phone,address,bio,avatar_url,teacher_level,is_active,email_verified_at,created_at,updated_at"
 
 
 @router.get("", response_model=TeacherListResponse)
@@ -404,6 +404,14 @@ async def delete_teacher(
 
 # ========== 教師頭像上傳 ==========
 
+# 頭像允許的圖片格式和大小限制
+AVATAR_ALLOWED_TYPES = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg",
+    "png": "image/png", "webp": "image/webp",
+}
+AVATAR_MAX_SIZE = 10 * 1024 * 1024  # 10MB
+
+
 class AvatarConfirmRequest(BaseModel):
     """確認頭像上傳請求"""
     storage_path: str
@@ -413,10 +421,15 @@ class AvatarConfirmRequest(BaseModel):
 @router.post("/{teacher_id}/avatar/upload-url")
 async def get_teacher_avatar_upload_url(
     teacher_id: str,
+    file_ext: str = Query("jpg", description="檔案格式 (jpg/png/webp)"),
     current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
-    """取得教師頭像的 signed upload URL（僅限員工）"""
+    """取得教師頭像的 signed upload URL（僅限員工，支援 jpg/png/webp，最大 10MB）"""
     try:
+        ext = file_ext.lower().replace(".", "")
+        if ext not in AVATAR_ALLOWED_TYPES:
+            raise HTTPException(status_code=400, detail=f"不支援的圖片格式: {ext}（允許 jpg/png/webp）")
+
         existing = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"id": teacher_id, "is_deleted": "eq.false"},
@@ -426,12 +439,14 @@ async def get_teacher_avatar_upload_url(
 
         await storage_service.ensure_bucket_exists(settings.AWS_S3_BUCKET)
 
-        safe_filename = f"{uuid.uuid4().hex}.jpg"
+        safe_filename = f"{uuid.uuid4().hex}.{ext}"
         storage_path = f"teachers/{teacher_id}/avatar/{safe_filename}"
 
         signed = await storage_service.create_signed_upload_url(
             bucket=settings.AWS_S3_BUCKET,
             path=storage_path,
+            content_type=AVATAR_ALLOWED_TYPES[ext],
+            max_size_bytes=AVATAR_MAX_SIZE,
         )
         if not signed:
             raise HTTPException(status_code=500, detail="產生上傳連結失敗")
@@ -439,6 +454,7 @@ async def get_teacher_avatar_upload_url(
         return {
             "upload_url": signed["upload_url"],
             "storage_path": storage_path,
+            "max_size_bytes": AVATAR_MAX_SIZE,
         }
     except HTTPException:
         raise
@@ -502,7 +518,7 @@ async def get_teacher_view(
         # ── 1. 教師基本資料 + 帳號 + LINE（合併為 1 query） ──
         teacher_row = await pool.fetchrow(
             """SELECT t.id, t.teacher_no, t.name, t.email, t.phone, t.address,
-                      t.bio, t.teacher_level, t.is_active,
+                      t.bio, t.avatar_url, t.teacher_level, t.is_active,
                       t.email_verified_at, t.created_at,
                       up.is_active AS account_active, r.key AS role,
                       lb.line_display_name, lb.line_picture_url, lb.binding_status
@@ -522,10 +538,19 @@ async def get_teacher_view(
             raise HTTPException(status_code=404, detail="教師不存在")
 
         r = teacher_row
+        # avatar_url: S3 path → presigned URL
+        avatar_signed_url = None
+        raw_avatar = r["avatar_url"]
+        if raw_avatar:
+            avatar_signed_url = await storage_service.create_signed_download_url(
+                bucket=settings.AWS_S3_BUCKET, path=raw_avatar, expires_in=3600,
+            )
+
         teacher = {
             "id": str(r["id"]), "teacher_no": r["teacher_no"], "name": r["name"],
             "email": r["email"], "phone": r["phone"], "address": r["address"],
-            "bio": r["bio"], "teacher_level": r["teacher_level"],
+            "bio": r["bio"], "avatar_url": avatar_signed_url,
+            "teacher_level": r["teacher_level"],
             "is_active": r["is_active"], "email_verified_at": r["email_verified_at"],
             "created_at": r["created_at"],
         }

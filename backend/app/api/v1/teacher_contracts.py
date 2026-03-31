@@ -1,6 +1,12 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
+
+CONTRACT_ALLOWED_TYPES = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "doc": "application/msword",
+}
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.services.contract_pdf_service import generate_teacher_contract_pdf, generate_addendum_pdf
@@ -1067,7 +1073,7 @@ async def confirm_teacher_contract_upload(
                 )
 
         # 驗證 storage_path 格式
-        if not re.match(r'^teacher-contracts/[a-f0-9\-]+/[a-f0-9]+\.pdf$', body.storage_path):
+        if not re.match(r'^teacher-contracts/[a-f0-9\-]+/[a-f0-9]+\.(pdf|docx|doc)$', body.storage_path):
             raise HTTPException(status_code=400, detail="無效的檔案路徑格式")
 
         # 確認檔案已上傳至 S3
@@ -1549,7 +1555,7 @@ async def confirm_teacher_addendum_upload(
         if not existing:
             raise HTTPException(status_code=404, detail="附約不存在")
 
-        if not re.match(r'^contract-addendums/[a-f0-9\-]+/[a-f0-9]+\.pdf$', body.storage_path):
+        if not re.match(r'^contract-addendums/[a-f0-9\-]+/[a-f0-9]+\.(pdf|docx|doc)$', body.storage_path):
             raise HTTPException(status_code=400, detail="無效的檔案路徑格式")
 
         file_exists = await storage_service.verify_file_exists(

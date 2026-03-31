@@ -11,9 +11,11 @@ export interface Student {
     phone?: string
     address?: string
     birth_date?: string
+    id_number?: string
     student_type?: 'formal' | 'trial'
     student_status?: 'trial' | 'pending' | 'active' | 'suspended' | 'terminated' | 'extended' | 'completed'
     is_active: boolean
+    google_drive_folder_id?: string
     email_verified_at?: string | null
     created_at?: string
     updated_at?: string
@@ -84,8 +86,10 @@ export interface CreateStudentData {
     phone?: string
     address?: string
     birth_date?: string
+    id_number?: string
     student_type?: string
     is_active?: boolean
+    google_drive_folder_id?: string
 }
 
 export interface UpdateStudentData {
@@ -95,8 +99,10 @@ export interface UpdateStudentData {
     phone?: string
     address?: string
     birth_date?: string
+    id_number?: string
     student_type?: string
     is_active?: boolean
+    google_drive_folder_id?: string
 }
 
 function parseErrorDetail(detail: unknown): string {

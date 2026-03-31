@@ -698,10 +698,15 @@ async def get_download_token(data: DownloadTokenRequest):
 
         # 組合會議名稱（與 Zoom 會議標題相同格式 + 時間戳）
         meeting_topic = None
+        _student_drive_folder = None
+        _student_type = None
         try:
             topic_rows = await supabase_service.pool.fetch(
                 """SELECT z.meeting_date, z.start_time, b.booking_no,
-                          c.course_name, s.name as student_name, t.name as teacher_name
+                          c.course_name, s.name as student_name,
+                          s.eng_name as student_eng_name,
+                          s.student_type, s.google_drive_folder_id,
+                          t.name as teacher_name
                    FROM zoom_meeting_logs z
                    JOIN bookings b ON z.booking_id = b.id
                    JOIN courses c ON b.course_id = c.id
@@ -715,7 +720,13 @@ async def get_download_token(data: DownloadTokenRequest):
                 r = topic_rows[0]
                 date_str = r["meeting_date"].isoformat() if r["meeting_date"] else ""
                 time_str = r["start_time"].strftime("%H%M") if r["start_time"] else ""
-                meeting_topic = f"[{r['booking_no']}] {r['course_name']} {r['student_name']} {r['teacher_name']} {date_str} {time_str}"
+                student_display = r["student_name"] or ""
+                if r.get("student_eng_name"):
+                    student_display += f"({r['student_eng_name']})"
+                meeting_topic = f"[{r['booking_no']}] {r['course_name']} {student_display} {r['teacher_name']} {date_str} {time_str}"
+                # 記錄學生 Drive 資料夾和類型供 Lambda 使用
+                _student_drive_folder = r.get("google_drive_folder_id")
+                _student_type = r.get("student_type")
         except Exception as e:
             logger.warning(f"取得會議名稱失敗: {e}")
 
@@ -726,6 +737,8 @@ async def get_download_token(data: DownloadTokenRequest):
             drive_mode=drive_mode,
             drive_access_token=drive_access_token,
             drive_folder_id=drive_folder_id,
+            student_drive_folder_id=_student_drive_folder,
+            student_type=_student_type,
         ))
 
     except HTTPException:

@@ -90,14 +90,26 @@ def process(msg):
 
         # 根據 drive_mode 選擇 Drive service
         drive_mode = info.get("drive_mode", "sa")
-        drive_folder = info.get("drive_folder_id") or FOLDER_ID
+        default_folder = info.get("drive_folder_id") or FOLDER_ID
+
+        # 資料夾優先順序：試上 → 試上專用資料夾，正式 → 學生專屬資料夾，fallback → 預設
+        student_type = info.get("student_type", "")
+        if student_type == "trial":
+            trial_folder = os.environ.get("TRIAL_STUDENT_DRIVE_FOLDER_ID", "")
+            drive_folder = trial_folder or default_folder
+            logger.info(f"試上課學生，使用試上資料夾: {drive_folder}")
+        else:
+            student_folder = info.get("student_drive_folder_id")
+            drive_folder = student_folder or default_folder
+            if student_folder:
+                logger.info(f"正式學生，使用學生專屬資料夾: {drive_folder}")
+            else:
+                logger.info(f"正式學生無專屬資料夾，使用預設: {drive_folder}")
 
         if drive_mode == "oauth" and info.get("drive_access_token"):
             drive = get_drive_service_oauth(info["drive_access_token"])
-            logger.info(f"使用 OAuth 模式上傳到個人 Drive (folder={drive_folder})")
         else:
             drive = get_drive_service_sa()
-            logger.info(f"使用 SA 模式上傳到 Shared Drive (folder={drive_folder})")
 
         # 2. Streaming download from Zoom → /tmp
         logger.info(f"開始下載 Zoom 錄影: meeting_id={meeting_id}")

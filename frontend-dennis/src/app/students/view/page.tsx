@@ -166,6 +166,7 @@ function StudentViewContent() {
                         <div className="space-y-2 text-sm">
                             <div className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-gray-400" /> {s.email}</div>
                             {s.phone && <div className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-gray-400" /> {s.phone}</div>}
+                            {s.id_number && <div className="flex items-center gap-2"><span className="text-gray-400">🪪</span> {s.id_number.slice(0, 3)}{'*'.repeat(Math.max(0, s.id_number.length - 6))}{s.id_number.slice(-3)}</div>}
                             {s.address && <div className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-gray-400" /> {s.address}</div>}
                             {s.birth_date && <div className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5 text-gray-400" /> {s.birth_date}</div>}
                             <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--ep-text-color-secondary)' }}>
