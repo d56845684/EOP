@@ -264,11 +264,84 @@ async def list_teacher_contracts(
                 if search_lower in c.get("contract_no", "").lower()
             ]
 
-        # 為每筆合約添加關聯名稱
+        # 為合約批次加載關聯資料（取代 N+1 enrich 迴圈）
+        if not contracts:
+            return TeacherContractListResponse(data=[], total=total, page=page, per_page=per_page, total_pages=total_pages)
+
+        contract_ids = [c["id"] for c in contracts]
+        teacher_ids = list({c["teacher_id"] for c in contracts if c.get("teacher_id")})
+        pool = supabase_service.pool
+
+        import asyncio as _aio
+        async def _empty(): return []
+
+        teachers_task = pool.fetch(
+            "SELECT id, name FROM teachers WHERE id = ANY($1)", teacher_ids,
+        ) if teacher_ids else _empty()
+
+        details_task = pool.fetch(
+            """SELECT d.id, d.teacher_contract_id, d.detail_type, d.course_id,
+                      d.description, d.amount, d.notes, d.created_at, d.updated_at,
+                      c.course_name
+               FROM teacher_contract_details d
+               LEFT JOIN courses c ON c.id = d.course_id
+               WHERE d.teacher_contract_id = ANY($1) AND d.is_deleted = FALSE""",
+            contract_ids,
+        )
+
+        schedules_task = pool.fetch(
+            """SELECT id, teacher_contract_id, weekday, start_time, end_time, notes, created_at, updated_at
+               FROM teacher_work_schedules
+               WHERE teacher_contract_id = ANY($1) AND is_deleted = FALSE""",
+            contract_ids,
+        )
+
+        addendums_task = pool.fetch(
+            """SELECT id, addendum_no, contract_type, parent_contract_id,
+                      original_end_date, new_end_date, addendum_status,
+                      file_path, file_name, file_uploaded_at, notes, created_at, updated_at
+               FROM contract_addendums
+               WHERE contract_type = 'teacher' AND parent_contract_id = ANY($1)
+                 AND is_deleted = FALSE""",
+            contract_ids,
+        )
+
+        teacher_rows, detail_rows, schedule_rows, addendum_rows = await _aio.gather(
+            teachers_task, details_task, schedules_task, addendums_task
+        )
+
+        teacher_map = {str(r["id"]): r["name"] for r in teacher_rows}
+        detail_map: dict[str, list] = {}
+        for d in detail_rows:
+            key = str(d["teacher_contract_id"])
+            detail_map.setdefault(key, []).append(dict(d))
+        schedule_map: dict[str, list] = {}
+        for s in schedule_rows:
+            key = str(s["teacher_contract_id"])
+            schedule_map.setdefault(key, []).append(dict(s))
+        addendum_map: dict[str, list] = {}
+        for a in addendum_rows:
+            key = str(a["parent_contract_id"])
+            addendum_map.setdefault(key, []).append(dict(a))
+
         enriched_contracts = []
         for contract in contracts:
-            enriched = await enrich_contract_with_relations(contract)
-            enriched_contracts.append(enriched)
+            cid = contract["id"]
+            tid = contract.get("teacher_id")
+            contract["teacher_name"] = teacher_map.get(str(tid)) if tid else None
+            details = detail_map.get(str(cid), [])
+            contract["details"] = details
+            if contract.get("employment_type") == "full_time":
+                contract["total_amount"] = sum(d.get("amount", 0) or 0 for d in details)
+            else:
+                contract["total_amount"] = None
+            contract["work_schedules"] = schedule_map.get(str(cid), [])
+            addendums = addendum_map.get(str(cid), [])
+            for a in addendums:
+                a["parent_contract_no"] = contract.get("contract_no")
+                a["person_name"] = contract.get("teacher_name")
+            contract["addendums"] = addendums
+            enriched_contracts.append(contract)
 
         return TeacherContractListResponse(
             data=[TeacherContractResponse(**c) for c in enriched_contracts],

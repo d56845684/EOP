@@ -317,13 +317,30 @@ async def list_zoom_meetings(
             offset=(page - 1) * per_page,
         )
 
-        enriched_items = []
-        for item in items:
-            enriched = await enrich_meeting_log(item)
-            enriched_items.append(ZoomMeetingLogResponse(**enriched))
+        # 批次 enrich（取代 N+1 迴圈）
+        if items:
+            account_ids = list({i["zoom_account_id"] for i in items if i.get("zoom_account_id")})
+            teacher_ids = list({i["teacher_id"] for i in items if i.get("teacher_id")})
+
+            import asyncio as _aio
+            async def _empty(): return []
+            acct_task = supabase_service.pool.fetch(
+                "SELECT id, account_name FROM zoom_accounts WHERE id = ANY($1)", account_ids
+            ) if account_ids else _empty()
+            teacher_task = supabase_service.pool.fetch(
+                "SELECT id, name FROM teachers WHERE id = ANY($1)", teacher_ids
+            ) if teacher_ids else _empty()
+
+            acct_rows, teacher_rows = await _aio.gather(acct_task, teacher_task)
+            acct_map = {str(r["id"]): r["account_name"] for r in acct_rows}
+            teacher_map = {str(r["id"]): r["name"] for r in teacher_rows}
+
+            for item in items:
+                item["account_name"] = acct_map.get(str(item.get("zoom_account_id")))
+                item["teacher_name"] = teacher_map.get(str(item.get("teacher_id")))
 
         return ZoomMeetingLogListResponse(
-            data=enriched_items,
+            data=[ZoomMeetingLogResponse(**i) for i in items],
             total=total,
             page=page,
             per_page=per_page,
