@@ -126,14 +126,30 @@ async def list_teacher_slots(
         if date_to:
             slots = [s for s in slots if s.get("slot_date") <= date_to.isoformat()]
 
-        # 為每筆時段添加關聯名稱
-        enriched_slots = []
-        for slot in slots:
-            enriched = await enrich_slot_with_relations(slot)
-            enriched_slots.append(enriched)
+        # 批次 enrich（取代 N+1 迴圈）
+        if slots:
+            t_ids = list({s["teacher_id"] for s in slots if s.get("teacher_id")})
+            tc_ids = list({s["teacher_contract_id"] for s in slots if s.get("teacher_contract_id")})
+            pool = supabase_service.pool
+
+            import asyncio as _aio
+            async def _empty(): return []
+
+            t_task = pool.fetch("SELECT id, name, teacher_no FROM teachers WHERE id = ANY($1)", t_ids) if t_ids else _empty()
+            tc_task = pool.fetch("SELECT id, contract_no FROM teacher_contracts WHERE id = ANY($1)", tc_ids) if tc_ids else _empty()
+
+            t_rows, tc_rows = await _aio.gather(t_task, tc_task)
+            t_map = {str(r["id"]): r for r in t_rows}
+            tc_map = {str(r["id"]): r["contract_no"] for r in tc_rows}
+
+            for slot in slots:
+                t = t_map.get(str(slot.get("teacher_id")))
+                slot["teacher_name"] = t["name"] if t else None
+                slot["teacher_no"] = t["teacher_no"] if t else None
+                slot["teacher_contract_no"] = tc_map.get(str(slot.get("teacher_contract_id")))
 
         return TeacherSlotListResponse(
-            data=[TeacherSlotResponse(**s) for s in enriched_slots],
+            data=[TeacherSlotResponse(**s) for s in slots],
             total=total,
             page=page,
             per_page=per_page,

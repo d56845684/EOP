@@ -61,11 +61,31 @@ async def list_preferences(
             },
         )
 
-        enriched = []
-        for p in prefs:
-            enriched.append(await enrich_preference(p))
+        # 批次 enrich（取代 N+1 迴圈）
+        if prefs:
+            s_ids = list({p["student_id"] for p in prefs if p.get("student_id")})
+            c_ids = list({p["course_id"] for p in prefs if p.get("course_id")})
+            t_ids = list({p["primary_teacher_id"] for p in prefs if p.get("primary_teacher_id")})
+            pool = supabase_service.pool
 
-        return {"success": True, "data": enriched}
+            import asyncio as _aio
+            async def _empty(): return []
+
+            s_task = pool.fetch("SELECT id, name FROM students WHERE id = ANY($1)", s_ids) if s_ids else _empty()
+            c_task = pool.fetch("SELECT id, course_name FROM courses WHERE id = ANY($1)", c_ids) if c_ids else _empty()
+            t_task = pool.fetch("SELECT id, name FROM teachers WHERE id = ANY($1)", t_ids) if t_ids else _empty()
+
+            s_rows, c_rows, t_rows = await _aio.gather(s_task, c_task, t_task)
+            s_map = {str(r["id"]): r["name"] for r in s_rows}
+            c_map = {str(r["id"]): r["course_name"] for r in c_rows}
+            t_map = {str(r["id"]): r["name"] for r in t_rows}
+
+            for p in prefs:
+                p["student_name"] = s_map.get(str(p.get("student_id")))
+                p["course_name"] = c_map.get(str(p.get("course_id")))
+                p["primary_teacher_name"] = t_map.get(str(p.get("primary_teacher_id")))
+
+        return {"success": True, "data": prefs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

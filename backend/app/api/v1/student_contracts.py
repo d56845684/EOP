@@ -202,16 +202,16 @@ async def get_course_options(
 
             course_ids = [e["course_id"] for e in enrollments]
 
-            # 取得這些課程的詳細資訊
-            courses = []
-            for cid in course_ids:
-                course = await supabase_service.table_select(
-                    table="courses",
-                    select="id,course_code,course_name",
-                    filters={"id": cid, "is_deleted": "eq.false", "is_active": "eq.true"},
-                )
-                if course:
-                    courses.append(course[0])
+            # 批次查詢（取代逐一查詢）
+            pool = supabase_service.pool
+            import uuid as _uuid
+            uid_list = [_uuid.UUID(cid) if isinstance(cid, str) else cid for cid in course_ids]
+            rows = await pool.fetch(
+                """SELECT id, course_code, course_name FROM courses
+                   WHERE id = ANY($1) AND is_deleted = FALSE AND is_active = TRUE""",
+                uid_list,
+            )
+            courses = [{"id": str(r["id"]), "course_code": r["course_code"], "course_name": r["course_name"]} for r in rows]
 
             return {"data": courses}
         else:
@@ -368,20 +368,29 @@ async def list_student_contracts(
             students_task, details_task, leaves_task, addendums_task
         )
 
+        # asyncpg Record → dict，UUID → str
+        import uuid as _uuid
+        def _to_dict(row):
+            d = dict(row)
+            for k, v in d.items():
+                if isinstance(v, _uuid.UUID):
+                    d[k] = str(v)
+            return d
+
         # 建立 lookup maps
         student_map = {str(r["id"]): r for r in student_rows}
         detail_map: dict[str, list] = {}
         for d in detail_rows:
             key = str(d["student_contract_id"])
-            detail_map.setdefault(key, []).append(dict(d))
+            detail_map.setdefault(key, []).append(_to_dict(d))
         leave_map: dict[str, list] = {}
         for l in leave_rows:
             key = str(l["student_contract_id"])
-            leave_map.setdefault(key, []).append(dict(l))
+            leave_map.setdefault(key, []).append(_to_dict(l))
         addendum_map: dict[str, list] = {}
         for a in addendum_rows:
             key = str(a["parent_contract_id"])
-            addendum_map.setdefault(key, []).append(dict(a))
+            addendum_map.setdefault(key, []).append(_to_dict(a))
 
         # 組裝
         enriched_contracts = []

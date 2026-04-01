@@ -8,8 +8,8 @@
 | 嚴重度 | 數量 | 已修復 |
 |--------|------|--------|
 | CRITICAL | 4 | 4 |
-| HIGH | 6 | 1 |
-| **合計** | **10** | **5** |
+| HIGH | 6 | 6 |
+| **合計** | **10** | **10** |
 
 ---
 
@@ -99,7 +99,7 @@
 
 ### 6. student_teacher_preferences.py — list → enrich_preference
 
-- **狀態**：❌ 未修復
+- **狀態**：✅ 已修復
 - **檔案**：`backend/app/api/v1/student_teacher_preferences.py`
 - **位置**：list 約 line 64，enrich 約 line 15
 - **問題**：每筆偏好逐筆查
@@ -108,11 +108,12 @@
   - SELECT teacher（指定教師名）
 - **影響**：20 筆 × 3 查詢 = **~60 次額外查詢**
 - **建議修復**：主查詢 LEFT JOIN students + courses + teachers
-- **修復日期**：
+- **修復方式**：批次 ANY + asyncio.gather + lookup map
+- **修復日期**：2026-04-01
 
 ### 7. teacher_slots.py — list → enrich_slot_with_relations
 
-- **狀態**：❌ 未修復
+- **狀態**：✅ 已修復
 - **檔案**：`backend/app/api/v1/teacher_slots.py`
 - **位置**：list 約 line 129，enrich 約 line 32
 - **問題**：每筆時段逐筆查
@@ -120,11 +121,12 @@
   - SELECT teacher_contract（合約編號）
 - **影響**：20 筆 × 2 查詢 = **~40 次額外查詢**
 - **建議修復**：主查詢 LEFT JOIN teachers + teacher_contracts
-- **修復日期**：
+- **修復方式**：批次 ANY + asyncio.gather + lookup map
+- **修復日期**：2026-04-01
 
 ### 8. student_courses.py — list → enrich_enrollment
 
-- **狀態**：❌ 未修復
+- **狀態**：✅ 已修復
 - **檔案**：`backend/app/api/v1/student_courses.py`
 - **位置**：list 約 line 122，enrich 約 line 17
 - **問題**：每筆選課逐筆查
@@ -132,27 +134,30 @@
   - SELECT student（學生名）
 - **影響**：20 筆 × 2 查詢 = **~40 次額外查詢**
 - **建議修復**：主查詢 LEFT JOIN courses + students
-- **修復日期**：
+- **修復方式**：批次 ANY + asyncio.gather + lookup map（含 by-student 端點）
+- **修復日期**：2026-04-01
 
 ### 9. employees.py — list → enrich_employee
 
-- **狀態**：❌ 未修復
+- **狀態**：✅ 已修復
 - **檔案**：`backend/app/api/v1/employees.py`
 - **位置**：list 迴圈 enrich_employee
 - **問題**：每筆員工逐筆查 user_profiles + roles 取得角色名稱
 - **影響**：20 筆 × 1 查詢 = **~20 次額外查詢**
 - **建議修復**：主查詢 LEFT JOIN user_profiles + roles
-- **修復日期**：
+- **修復方式**：批次 ANY 查 user_profiles + roles，lookup map 組裝
+- **修復日期**：2026-04-01
 
 ### 10. student_contracts.py — get_course_options 迴圈查課程
 
-- **狀態**：❌ 未修復
+- **狀態**：✅ 已修復
 - **檔案**：`backend/app/api/v1/student_contracts.py`
 - **位置**：約 line 206-214
 - **問題**：取得學生選課後，逐一 SELECT course 查課程名稱
 - **影響**：N 門課 = **N 次額外查詢**
 - **建議修復**：改用 `WHERE id IN (course_ids)` 批次查詢
-- **修復日期**：
+- **修復方式**：改用 `WHERE id = ANY($1)` 單次批次查詢
+- **修復日期**：2026-04-01
 
 ---
 

@@ -310,19 +310,27 @@ async def list_teacher_contracts(
             teachers_task, details_task, schedules_task, addendums_task
         )
 
+        import uuid as _uuid
+        def _to_dict(row):
+            d = dict(row)
+            for k, v in d.items():
+                if isinstance(v, _uuid.UUID):
+                    d[k] = str(v)
+            return d
+
         teacher_map = {str(r["id"]): r["name"] for r in teacher_rows}
         detail_map: dict[str, list] = {}
         for d in detail_rows:
             key = str(d["teacher_contract_id"])
-            detail_map.setdefault(key, []).append(dict(d))
+            detail_map.setdefault(key, []).append(_to_dict(d))
         schedule_map: dict[str, list] = {}
         for s in schedule_rows:
             key = str(s["teacher_contract_id"])
-            schedule_map.setdefault(key, []).append(dict(s))
+            schedule_map.setdefault(key, []).append(_to_dict(s))
         addendum_map: dict[str, list] = {}
         for a in addendum_rows:
             key = str(a["parent_contract_id"])
-            addendum_map.setdefault(key, []).append(dict(a))
+            addendum_map.setdefault(key, []).append(_to_dict(a))
 
         enriched_contracts = []
         for contract in contracts:
