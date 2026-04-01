@@ -1189,12 +1189,12 @@ async def delete_leave_record(
 
 # ========== PDF Generation ==========
 
-@router.get("/{contract_id}/generate-pdf")
+@router.get("/{contract_id}/generate-pdf", deprecated=True)
 async def generate_student_pdf(
     contract_id: str,
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
-    """產生學生合約 PDF（僅限員工）"""
+    """[Deprecated] 產生學生合約 PDF — 請改用 generate-docx"""
     try:
         result = await generate_student_contract_pdf(contract_id)
         if not result:
