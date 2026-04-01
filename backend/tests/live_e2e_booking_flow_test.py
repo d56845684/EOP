@@ -545,14 +545,27 @@ class E2EBookingFlowTester:
         return True
 
     async def _test_create_zoom_meeting(self, ctx: E2EContext):
-        """為已確認的預約建立 Zoom 會議（需要有效 OAuth token）"""
+        """取得或建立 Zoom 會議（確認預約時可能已自動建立）"""
+        import asyncio as _aio
+        # 等待背景 asyncio.create_task 完成（確認預約觸發的自動建立）
+        await _aio.sleep(2)
+
+        # 先查是否已有會議（確認預約時自動建的）
+        check = await self._get(f"/api/v1/zoom/meetings/{ctx.booking_id}")
+        if check.status_code == 200:
+            data = check.json()["data"]
+            ctx.zoom_meeting_id = data.get("id")
+            if data.get("join_url"):
+                return True
+            # 有記錄但沒 join_url，可能 token 失敗，嘗試手動建立
+
+        # 手動建立
         resp = await self._post("/api/v1/zoom/meetings/create", {
             "booking_id": ctx.booking_id,
         })
         if resp.status_code == 500:
-            # OAuth token 過期是外部服務問題，標記為跳過而非失敗
             ctx.zoom_enabled = False
-            return f"Zoom OAuth token 可能過期 — 需重新授權"
+            return f"Zoom 帳號池無可用帳號或 token 失敗"
         if resp.status_code != 200:
             return f"Create Zoom meeting failed: {resp.status_code} {resp.text[:200]}"
         data = resp.json()["data"]
@@ -575,13 +588,16 @@ class E2EBookingFlowTester:
         return True if not checks else "; ".join(checks)
 
     async def _test_list_zoom_meetings(self, ctx: E2EContext):
-        """查詢 Zoom 會議列表"""
-        resp = await self._get("/api/v1/zoom/meetings", {"per_page": 5})
+        """查詢 Zoom 會議列表（篩選 scheduled 狀態避免被舊資料淹沒）"""
+        resp = await self._get("/api/v1/zoom/meetings", {
+            "per_page": 50,
+            "meeting_status": "scheduled",
+        })
         if resp.status_code != 200:
             return f"List Zoom meetings failed: {resp.status_code}"
         data = resp.json().get("data", [])
         if not any(m.get("booking_id") == ctx.booking_id for m in data):
-            return "列表找不到剛建立的會議"
+            return f"列表找不到剛建立的會議 (booking_id={ctx.booking_id}, 列表共 {len(data)} 筆)"
         return True
 
     # ────────────────── Phase 5: 請假 ──────────────────
