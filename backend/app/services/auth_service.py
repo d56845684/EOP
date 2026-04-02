@@ -79,7 +79,12 @@ class AuthService:
             extra_data={"email": user.email}
         )
 
-        # 4. 建立自己的 JWT Token（含 entity IDs）
+        # 4. 同帳號不可重複登入：銷毀其他 Sessions
+        await self.session.destroy_other_user_sessions(
+            user.id, session_data.session_id
+        )
+
+        # 5. 建立自己的 JWT Token（含 entity IDs）
         token_data = {
             "sub": user.id,
             "email": user.email,
@@ -97,7 +102,7 @@ class AuthService:
             TokenType.REFRESH
         )
 
-        # 5. 設定 HttpOnly Cookies
+        # 6. 設定 HttpOnly Cookies
         set_auth_cookies(response, access_token, refresh_token, session_id)
 
         # 6. 快取用戶資料
@@ -269,6 +274,11 @@ class AuthService:
             user_agent=request.headers.get("user-agent"),
             ip_address=request.client.host if request.client else None,
             extra_data={"email": user_email, "login_method": "line"}
+        )
+
+        # 同帳號不可重複登入：銷毀其他 Sessions
+        await self.session.destroy_other_user_sessions(
+            user_id, session_data.session_id
         )
 
         # 建立 JWT Token（含 entity IDs）

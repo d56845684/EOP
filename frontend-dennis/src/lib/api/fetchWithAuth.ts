@@ -10,6 +10,13 @@ async function refreshTokens(): Promise<boolean> {
     return response.ok
 }
 
+/** 從 401 response body 判斷登出原因 */
+function detectLogoutReason(detail: string): string {
+    if (detail.includes('閒置超時')) return 'idle'
+    if (detail.includes('其他裝置')) return 'replaced'
+    return 'expired'
+}
+
 export async function fetchWithAuth(
     url: string,
     options: RequestInit = {}
@@ -19,6 +26,14 @@ export async function fetchWithAuth(
     let response = await fetch(url, options)
 
     if (response.status === 401) {
+        // 先取得原始錯誤訊息（clone 以避免 body consumed）
+        const errClone = response.clone()
+        let reason = 'expired'
+        try {
+            const errBody = await errClone.json()
+            reason = detectLogoutReason(errBody.detail || '')
+        } catch { /* ignore parse errors */ }
+
         // Mutex: 同一時間只有一個 refresh 請求
         if (!refreshPromise) {
             refreshPromise = refreshTokens().finally(() => {
@@ -34,7 +49,7 @@ export async function fetchWithAuth(
         } else {
             // refresh 也失敗 → 導向登入頁（避免在 /login 頁面無限迴圈）
             if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-                window.location.href = '/login'
+                window.location.href = `/login?reason=${reason}`
             }
         }
     }

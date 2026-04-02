@@ -145,14 +145,30 @@ class SessionService:
         """銷毀用戶所有 Sessions (登出所有裝置)"""
         user_sessions_key = f"{self.USER_SESSIONS_PREFIX}{user_id}"
         session_hashes = await self.redis.smembers(user_sessions_key)
-        
+
         count = 0
         for session_hash in session_hashes:
             session_key = f"{self.SESSION_PREFIX}{session_hash}"
             await self.redis.delete(session_key)
             count += 1
-        
+
         await self.redis.delete(user_sessions_key)
+        return count
+
+    async def destroy_other_user_sessions(self, user_id: str, keep_session_hash: str) -> int:
+        """銷毀用戶的其他 Sessions，保留指定的 session（單一登入用）"""
+        user_sessions_key = f"{self.USER_SESSIONS_PREFIX}{user_id}"
+        session_hashes = await self.redis.smembers(user_sessions_key)
+
+        count = 0
+        for session_hash in session_hashes:
+            if session_hash == keep_session_hash:
+                continue
+            session_key = f"{self.SESSION_PREFIX}{session_hash}"
+            await self.redis.delete(session_key)
+            await self.redis.srem(user_sessions_key, session_hash)
+            count += 1
+
         return count
     
     async def get_user_sessions(self, user_id: str) -> List[SessionData]:

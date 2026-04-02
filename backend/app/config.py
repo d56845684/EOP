@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     SESSION_EXPIRE_MINUTES: int = 1440  # 24 hours
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    IDLE_TIMEOUT_MINUTES: int = 10  # 閒置超時自動登出
 
     # ============================================
     # Line Login（登入認證）- 所有角色共用同一個 Channel
