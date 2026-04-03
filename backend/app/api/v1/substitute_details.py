@@ -241,6 +241,50 @@ async def create_substitute_detail(
         raise HTTPException(status_code=500, detail=f"指派代課失敗: {str(e)}")
 
 
+@router.get("/my", response_model=SubstituteDetailListResponse)
+async def list_my_substitute_details(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """取得我的代課指派（代課教師用）"""
+    try:
+        if not current_user.teacher_id:
+            raise HTTPException(status_code=403, detail="僅限教師查看")
+
+        filters = {
+            "substitute_teacher_id": f"eq.{current_user.teacher_id}",
+            "is_deleted": "eq.false",
+        }
+
+        total = await supabase_service.table_count(table="substitute_details", filters=filters)
+        total_pages = math.ceil(total / per_page) if total > 0 else 1
+        offset = (page - 1) * per_page
+
+        records = await supabase_service.table_select_with_pagination(
+            table="substitute_details",
+            select="id,booking_id,substitute_teacher_id,substitute_contract_id,substitute_hourly_rate,reason,approved_by,approved_at,created_at,updated_at",
+            filters=filters,
+            order_by="created_at.desc",
+            limit=per_page,
+            offset=offset,
+        )
+
+        enriched = []
+        for record in records:
+            enriched.append(await enrich_substitute_detail(record))
+
+        return SubstituteDetailListResponse(
+            data=[SubstituteDetailResponse(**r) for r in enriched],
+            total=total, page=page, per_page=per_page, total_pages=total_pages,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取得我的代課紀錄失敗: {str(e)}")
+
+
 @router.get("", response_model=SubstituteDetailListResponse)
 async def list_substitute_details(
     page: int = Query(1, ge=1),

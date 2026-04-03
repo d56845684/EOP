@@ -558,9 +558,19 @@ async def list_bookings(
             conditions.append(f"b.student_id = ${idx}")
             params.append(__import__('uuid').UUID(current_user.student_id))
         elif current_user.is_teacher() and current_user.teacher_id:
+            # 教師可看到自己的預約 + 被指派為代課教師的預約
+            teacher_uuid = __import__('uuid').UUID(current_user.teacher_id)
             idx += 1
-            conditions.append(f"b.teacher_id = ${idx}")
-            params.append(__import__('uuid').UUID(current_user.teacher_id))
+            t_idx = idx
+            idx += 1
+            st_idx = idx
+            conditions.append(
+                f"(b.teacher_id = ${t_idx} OR EXISTS("
+                f"SELECT 1 FROM substitute_details sd2 "
+                f"WHERE sd2.booking_id = b.id AND sd2.substitute_teacher_id = ${st_idx} "
+                f"AND sd2.is_deleted = FALSE))"
+            )
+            params.extend([teacher_uuid, teacher_uuid])
 
         where_sql = " AND ".join(conditions)
 
@@ -871,12 +881,20 @@ async def get_booking(
         if not result:
             raise HTTPException(status_code=404, detail="預約不存在")
 
-        # Ownership check: 學生/教師只能查自己的預約
+        # Ownership check: 學生/教師只能查自己的預約（含代課教師）
         if current_user.is_student():
             if result[0].get("student_id") != current_user.student_id:
                 raise HTTPException(status_code=403, detail="無權查看此預約")
         elif current_user.is_teacher():
-            if result[0].get("teacher_id") != current_user.teacher_id:
+            is_original = result[0].get("teacher_id") == current_user.teacher_id
+            is_substitute = False
+            if result[0].get("substitute_detail_id"):
+                sd = await supabase_service.table_select(
+                    table="substitute_details", select="substitute_teacher_id",
+                    filters={"id": result[0]["substitute_detail_id"], "is_deleted": "eq.false"},
+                )
+                is_substitute = bool(sd and sd[0].get("substitute_teacher_id") == current_user.teacher_id)
+            if not (is_original or is_substitute):
                 raise HTTPException(status_code=403, detail="無權查看此預約")
 
         booking = await enrich_booking_with_relations(result[0])

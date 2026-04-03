@@ -362,7 +362,7 @@ async def get_meeting_by_booking(
         if not current_user.is_staff():
             bookings = await supabase_service.table_select(
                 table="bookings",
-                select="id,teacher_id,student_id",
+                select="id,teacher_id,student_id,substitute_detail_id",
                 filters={"id": booking_id, "is_deleted": "eq.false"},
             )
             if not bookings:
@@ -370,7 +370,15 @@ async def get_meeting_by_booking(
 
             booking = bookings[0]
             if current_user.is_teacher():
-                if booking.get("teacher_id") != current_user.teacher_id:
+                is_original = booking.get("teacher_id") == current_user.teacher_id
+                is_substitute = False
+                if booking.get("substitute_detail_id"):
+                    sd = await supabase_service.table_select(
+                        table="substitute_details", select="substitute_teacher_id",
+                        filters={"id": booking["substitute_detail_id"], "is_deleted": "eq.false"},
+                    )
+                    is_substitute = bool(sd and sd[0].get("substitute_teacher_id") == current_user.teacher_id)
+                if not (is_original or is_substitute):
                     raise HTTPException(status_code=403, detail="無權查看此預約的 Zoom 資訊")
             elif current_user.is_student():
                 if booking.get("student_id") != current_user.student_id:
