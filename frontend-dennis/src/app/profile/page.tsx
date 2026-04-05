@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useLine } from '@/lib/hooks/useLine'
-import { User, Link as LinkIcon, Unlink, BookOpen, Save, Video } from 'lucide-react'
+import { User, Link as LinkIcon, Unlink, BookOpen, Save, Video, Bell } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { studentCoursesApi, StudentCourse } from '@/lib/api/studentCourses'
 import { teachersApi, TeacherSelfUpdateData } from '@/lib/api/teachers'
 import { zoomApi, ZoomTeacherLinkStatus } from '@/lib/api/zoom'
+import { notificationsApi, NotificationPreferences } from '@/lib/api/notifications'
 
 export default function ProfilePage() {
   const { user, profile } = useAuth()
@@ -32,6 +33,46 @@ export default function ProfilePage() {
   const [zoomStatus, setZoomStatus] = useState<ZoomTeacherLinkStatus | null>(null)
   const [zoomLoading, setZoomLoading] = useState(false)
   const [zoomUnlinking, setZoomUnlinking] = useState(false)
+
+  // Notification preferences state
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences | null>(null)
+  const [notifLoading, setNotifLoading] = useState(false)
+  const [notifSaving, setNotifSaving] = useState(false)
+  const [notifMsg, setNotifMsg] = useState<string | null>(null)
+
+  const fetchNotifPrefs = useCallback(async () => {
+    setNotifLoading(true)
+    const { data } = await notificationsApi.getPreferences()
+    if (data) setNotifPrefs(data)
+    setNotifLoading(false)
+  }, [])
+
+  useEffect(() => {
+    if (user) fetchNotifPrefs()
+  }, [user, fetchNotifPrefs])
+
+  const handleNotifToggle = async (key: keyof NotificationPreferences) => {
+    if (!notifPrefs) return
+    const updated = { ...notifPrefs, [key]: !notifPrefs[key] }
+
+    // 關閉全域開關時，所有子項一起關
+    if (key === 'email_enabled' && !updated.email_enabled) {
+      updated.booking_confirmed = false
+      updated.booking_cancelled = false
+      updated.contract_activated = false
+      updated.contract_converted = false
+      updated.contract_terminated = false
+    }
+
+    setNotifPrefs(updated)
+    setNotifSaving(true)
+    const { error } = await notificationsApi.updatePreferences(updated)
+    if (!error) {
+      setNotifMsg('通知設定已更新')
+      setTimeout(() => setNotifMsg(null), 2000)
+    }
+    setNotifSaving(false)
+  }
 
   // Fetch Zoom binding status
   const fetchZoomStatus = useCallback(async () => {
@@ -411,6 +452,73 @@ export default function ProfilePage() {
                   綁定 Line 帳號
                 </button>
               </div>
+            )}
+          </div>
+
+          {/* Notification Preferences Card */}
+          <div className="card">
+            <div className="flex items-center gap-2 mb-4">
+              <Bell className="w-6 h-6 text-amber-600" />
+              <h3 className="text-lg font-semibold">通知設定</h3>
+              {notifSaving && <span className="text-xs text-gray-400 ml-auto">儲存中...</span>}
+            </div>
+
+            {notifMsg && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                {notifMsg}
+              </div>
+            )}
+
+            {notifLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-amber-600"></div>
+              </div>
+            ) : notifPrefs ? (
+              <div className="space-y-1">
+                {/* 全域開關 */}
+                <label className="flex items-center justify-between px-3 py-3 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100">
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">Email 通知</div>
+                    <div className="text-xs text-gray-400">關閉後將不會收到任何 Email 通知</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifPrefs.email_enabled}
+                    onChange={() => handleNotifToggle('email_enabled')}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </label>
+
+                {/* 子項 */}
+                {([
+                  { key: 'booking_confirmed' as const, label: '預約確認通知', desc: '課程預約被確認時' },
+                  { key: 'booking_cancelled' as const, label: '預約取消通知', desc: '課程預約被取消時' },
+                  { key: 'contract_activated' as const, label: '合約啟動通知', desc: '課程合約啟動時' },
+                  { key: 'contract_converted' as const, label: '試上轉正通知', desc: '試上課程轉為正式時' },
+                  { key: 'contract_terminated' as const, label: '合約終止通知', desc: '課程合約終止時' },
+                ]).map(({ key, label, desc }) => (
+                  <label
+                    key={key}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                      notifPrefs.email_enabled ? 'hover:bg-gray-50' : 'opacity-40 cursor-not-allowed'
+                    }`}
+                  >
+                    <div>
+                      <div className="text-sm text-gray-800">{label}</div>
+                      <div className="text-xs text-gray-400">{desc}</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifPrefs[key]}
+                      onChange={() => handleNotifToggle(key)}
+                      disabled={!notifPrefs.email_enabled}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 py-4 text-center">無法載入通知設定</p>
             )}
           </div>
 

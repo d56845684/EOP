@@ -108,6 +108,11 @@ class Settings(BaseSettings):
     RECORDING_CALLBACK_SECRET: str = ""
     BACKEND_BASE_URL: str = "http://localhost:8001"
 
+    # Email Notification (SQS → Lambda → SES)
+    NOTIFICATION_SQS_QUEUE_URL: str = ""
+    AWS_SES_SENDER_EMAIL: str = "noreply@eop-system.com"
+    NOTIFICATION_ENABLED: bool = False
+
     # Super Admin（預設最高權限帳號，留空 = 不建立）
     SUPER_ADMIN_EMAIL: str = ""
     SUPER_ADMIN_PASSWORD: str = ""

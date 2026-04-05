@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<p>{{ recipient_name }} 您好，</p>
+<p>以下課程預約已確認：</p>
+<table class="info-table">
+  <tr><td>預約編號</td><td>{{ booking_no }}</td></tr>
+  <tr><td>課程</td><td>{{ course_name }}</td></tr>
+  <tr><td>日期</td><td>{{ booking_date }}</td></tr>
+  <tr><td>時間</td><td>{{ start_time }} – {{ end_time }}</td></tr>
+  <tr><td>教師</td><td>{{ teacher_name }}</td></tr>
+  <tr><td>學生</td><td>{{ student_name }}</td></tr>
+</table>
+{% if zoom_join_url %}
+<p>Zoom 會議連結將於課前提供，請留意後續通知。</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<p>{{ recipient_name }} 您好，</p>
+<p>以下課程預約已取消：</p>
+<table class="info-table">
+  <tr><td>預約編號</td><td>{{ booking_no }}</td></tr>
+  <tr><td>課程</td><td>{{ course_name }}</td></tr>
+  <tr><td>日期</td><td>{{ booking_date }}</td></tr>
+  <tr><td>時間</td><td>{{ start_time }} – {{ end_time }}</td></tr>
+</table>
+{% if lessons_returned %}
+<p>已退回 {{ lessons_returned }} 堂至合約剩餘堂數。</p>
+{% endif %}
+{% endblock %}
