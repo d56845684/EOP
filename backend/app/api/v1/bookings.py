@@ -97,9 +97,11 @@ async def generate_booking_no() -> str:
 async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None, bool]:
     """取得學生所有偏好設定的教師聯集（已優化：單次 SQL 取代三層巢狀迴圈）
 
+    等級向下兼容：選 level 2 → 可選 level 1 和 2 的教師（teacher_level <= 偏好值）
+
     情境 1: primary_teacher_id 有值 → 直接加入該教師
-    情境 2: course_id=NULL + min_teacher_level → 全域等級過濾
-    情境 3: course_id=X  + min_teacher_level → 指定課程等級過濾
+    情境 2: course_id=NULL + min_teacher_level → 全域等級過濾（向下兼容）
+    情境 3: course_id=X  + min_teacher_level → 指定課程等級過濾（向下兼容）
 
     Returns:
         (allowed_set, has_preferences)
@@ -141,13 +143,13 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
     for pid in primary_ids:
         allowed.add(str(pid))
 
-    # 情境 2: 全域等級過濾 → 一次查詢
+    # 情境 2: 全域等級過濾 → 一次查詢（向下兼容：等級 <= 偏好值）
     if global_min_levels:
-        min_level_val = min(global_min_levels)  # 取最寬鬆的等級
+        max_level_val = max(global_min_levels)  # 取最寬鬆的等級（向下兼容取最高）
         rows = await pool.fetch(
             """SELECT id FROM teachers
-               WHERE is_deleted = FALSE AND is_active = TRUE AND teacher_level >= $1""",
-            min_level_val,
+               WHERE is_deleted = FALSE AND is_active = TRUE AND teacher_level <= $1""",
+            max_level_val,
         )
         for r in rows:
             allowed.add(str(r["id"]))
@@ -163,7 +165,7 @@ async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None
                    JOIN teacher_contract_details tcd ON tcd.teacher_contract_id = tc.id
                        AND tcd.course_id = $1 AND tcd.detail_type = 'course_rate'
                        AND tcd.is_deleted = FALSE
-                   WHERE t.is_deleted = FALSE AND t.is_active = TRUE AND t.teacher_level >= $2""",
+                   WHERE t.is_deleted = FALSE AND t.is_active = TRUE AND t.teacher_level <= $2""",
                 cid, min_level,
             )
             for r in rows:
@@ -439,6 +441,20 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
                 booking["overtime_lessons"] = overtime
                 booking["is_overtime"] = overtime > 0
 
+                # 計算加班費：overtime_lessons * overtime_rate
+                if overtime > 0 and booking.get("teacher_contract_id"):
+                    ot_detail = await supabase_service.table_select(
+                        table="teacher_contract_details",
+                        select="amount",
+                        filters={
+                            "teacher_contract_id": f"eq.{booking['teacher_contract_id']}",
+                            "detail_type": "eq.overtime_rate",
+                            "is_deleted": "eq.false",
+                        },
+                    )
+                    if ot_detail:
+                        booking["overtime_pay"] = float(overtime * ot_detail[0]["amount"])
+
     # 取得課程名稱
     if booking.get("course_id"):
         course = await supabase_service.table_select(
@@ -641,12 +657,14 @@ async def list_bookings(
 
         # 批次取得工作時段
         work_schedule_map: dict = {}  # {teacher_contract_id: {weekday: [(start, end)]}}
+        overtime_rate_map: dict = {}  # {teacher_contract_id: amount}
         if tc_ids:
+            tc_id_list = list(tc_ids)
             ws_rows = await pool.fetch(
                 """SELECT teacher_contract_id, weekday, start_time, end_time
                    FROM teacher_work_schedules
                    WHERE teacher_contract_id = ANY($1) AND is_deleted = FALSE""",
-                list(tc_ids),
+                tc_id_list,
             )
             for ws in ws_rows:
                 key = str(ws["teacher_contract_id"])
@@ -656,6 +674,18 @@ async def list_bookings(
                 if wd not in work_schedule_map[key]:
                     work_schedule_map[key][wd] = []
                 work_schedule_map[key][wd].append((ws["start_time"], ws["end_time"]))
+
+            # 批次取得加班費率
+            ot_rows = await pool.fetch(
+                """SELECT teacher_contract_id, amount
+                   FROM teacher_contract_details
+                   WHERE teacher_contract_id = ANY($1)
+                     AND detail_type = 'overtime_rate'
+                     AND is_deleted = FALSE""",
+                tc_id_list,
+            )
+            for ot in ot_rows:
+                overtime_rate_map[str(ot["teacher_contract_id"])] = float(ot["amount"])
 
         # ── 組裝結果 ──
         enriched_bookings = []
@@ -687,6 +717,9 @@ async def list_bookings(
                     b["regular_lessons"] = regular
                     b["overtime_lessons"] = overtime
                     b["is_overtime"] = overtime > 0
+                    # 加班費 = overtime_lessons * overtime_rate
+                    if overtime > 0 and tc_key in overtime_rate_map:
+                        b["overtime_pay"] = overtime * overtime_rate_map[tc_key]
 
             enriched_bookings.append(b)
 
@@ -1958,11 +1991,11 @@ async def batch_create_bookings(
             is_primary = pref.get("primary_teacher_id") == data.teacher_id
             if not is_primary:
                 teacher_level = teacher[0].get("teacher_level", 1)
-                min_level = pref.get("min_teacher_level", 1)
-                if teacher_level < min_level:
+                max_level = pref.get("min_teacher_level", 1)
+                if teacher_level > max_level:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"教師等級 ({teacher_level}) 低於學生要求的最低等級 ({min_level})"
+                        detail=f"教師等級 ({teacher_level}) 超過學生偏好的最高等級 ({max_level})"
                     )
 
         # 驗證教師合約存在（如果有提供）

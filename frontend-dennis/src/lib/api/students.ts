@@ -79,7 +79,7 @@ export interface StudentListResponse {
 }
 
 export interface CreateStudentData {
-    student_no: string
+    student_no?: string
     name: string
     eng_name?: string
     email: string

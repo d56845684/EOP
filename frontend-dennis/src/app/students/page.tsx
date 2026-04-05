@@ -50,6 +50,7 @@ export default function StudentsPage() {
     const [prefFormMode, setPrefFormMode] = useState<'create' | 'edit'>('create')
     const [editingPref, setEditingPref] = useState<StudentTeacherPreference | null>(null)
     const [prefFormData, setPrefFormData] = useState({ course_id: '', min_teacher_level: 1, primary_teacher_id: '' })
+    const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([])
     const [prefMode, setPrefMode] = useState<'primary' | 'level'>('primary')
     const [prefFormError, setPrefFormError] = useState<string | null>(null)
     const [prefSubmitting, setPrefSubmitting] = useState(false)
@@ -135,6 +136,7 @@ export default function StudentsPage() {
         try {
             if (modalMode === 'create') {
                 const submitData = { ...formData }
+                if (!submitData.student_no) delete (submitData as any).student_no
                 if (!submitData.birth_date) delete (submitData as any).birth_date
                 if (!submitData.phone) delete (submitData as any).phone
                 if (!submitData.eng_name) delete (submitData as any).eng_name
@@ -202,6 +204,7 @@ export default function StudentsPage() {
         setPrefFormMode('create')
         setEditingPref(null)
         setPrefFormData({ course_id: '', min_teacher_level: 1, primary_teacher_id: '' })
+        setSelectedTeacherIds([])
         setPrefMode('primary')
         setPrefFormError(null)
         setShowPrefForm(true)
@@ -230,26 +233,39 @@ export default function StudentsPage() {
             // 根據模式建立互斥資料
             const isPrimary = prefMode === 'primary'
             if (prefFormMode === 'create') {
-                const createData: CreatePreferenceData = {
-                    student_id: prefStudent.id,
-                    min_teacher_level: isPrimary ? null : prefFormData.min_teacher_level,
-                    course_id: isPrimary ? null : (prefFormData.course_id || null),
-                    primary_teacher_id: isPrimary ? (prefFormData.primary_teacher_id || null) : null,
-                }
-                if (isPrimary && !createData.primary_teacher_id) {
-                    setPrefFormError('請選擇主要教師')
-                    return
-                }
-                if (!isPrimary && createData.min_teacher_level < 1) {
-                    setPrefFormError('最低教師等級須 >= 1')
-                    return
-                }
-                const { error } = await studentTeacherPreferencesApi.create(createData)
-                if (error) { setPrefFormError(error.message) }
-                else {
-                    setShowPrefForm(false)
-                    const { data } = await studentTeacherPreferencesApi.list(prefStudent.id)
-                    setPreferences(data || [])
+                if (isPrimary) {
+                    // 指定教師模式：支援多選
+                    if (selectedTeacherIds.length === 0) {
+                        setPrefFormError('請至少選擇一位教師')
+                        return
+                    }
+                    const { error } = await studentTeacherPreferencesApi.create({
+                        student_id: prefStudent.id,
+                        primary_teacher_ids: selectedTeacherIds,
+                    })
+                    if (error) { setPrefFormError(error.message) }
+                    else {
+                        setShowPrefForm(false)
+                        const { data } = await studentTeacherPreferencesApi.list(prefStudent.id)
+                        setPreferences(data || [])
+                    }
+                } else {
+                    // 等級模式
+                    if (prefFormData.min_teacher_level < 1) {
+                        setPrefFormError('最高教師等級須 >= 1')
+                        return
+                    }
+                    const { error } = await studentTeacherPreferencesApi.create({
+                        student_id: prefStudent.id,
+                        min_teacher_level: prefFormData.min_teacher_level,
+                        course_id: prefFormData.course_id || null,
+                    })
+                    if (error) { setPrefFormError(error.message) }
+                    else {
+                        setShowPrefForm(false)
+                        const { data } = await studentTeacherPreferencesApi.list(prefStudent.id)
+                        setPreferences(data || [])
+                    }
                 }
             } else if (editingPref) {
                 const { error } = await studentTeacherPreferencesApi.update(editingPref.id, {
@@ -536,9 +552,9 @@ export default function StudentsPage() {
                                 <form onSubmit={handleSubmit} className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">學生編號 <span className="text-red-500">*</span></label>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">學生編號</label>
                                             <input type="text" value={formData.student_no} onChange={(e) => setFormData({ ...formData, student_no: e.target.value })}
-                                                className="input-field" placeholder="例如：S001" required disabled={modalMode === 'edit'} />
+                                                className="input-field" placeholder="留空自動產生 (EOPS...)" disabled={modalMode === 'edit'} />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">姓名 <span className="text-red-500">*</span></label>
@@ -697,7 +713,7 @@ export default function StudentsPage() {
                                                                                 </div>
                                                                             ) : (
                                                                                 <div>
-                                                                                    <span className="text-gray-500">最低教師等級：</span>
+                                                                                    <span className="text-gray-500">最高教師等級：</span>
                                                                                     <span className="font-medium text-gray-900">Lv.{pref.min_teacher_level}</span>
                                                                                 </div>
                                                                             )}
@@ -752,8 +768,8 @@ export default function StudentsPage() {
                                                                     onChange={() => { setPrefMode('level'); setPrefFormData({ ...prefFormData, primary_teacher_id: '' }) }}
                                                                     className="text-blue-600" />
                                                                 <div>
-                                                                    <div className="text-sm font-medium text-gray-900">設定最低等級</div>
-                                                                    <div className="text-xs text-gray-500">依教師等級過濾</div>
+                                                                    <div className="text-sm font-medium text-gray-900">設定最高等級</div>
+                                                                    <div className="text-xs text-gray-500">可預約該等級及以下的教師</div>
                                                                 </div>
                                                             </label>
                                                         </div>
@@ -762,18 +778,43 @@ export default function StudentsPage() {
                                                     {/* 指定主要教師模式 */}
                                                     {prefMode === 'primary' && (
                                                         <div>
-                                                            <label className="block text-sm font-medium text-gray-700 mb-1">主要教師</label>
-                                                            <select value={prefFormData.primary_teacher_id}
-                                                                onChange={(e) => setPrefFormData({ ...prefFormData, primary_teacher_id: e.target.value })}
-                                                                className="input-field">
-                                                                <option value="">請選擇教師</option>
-                                                                {teacherOptions.map((t) => (
-                                                                    <option key={t.id} value={t.id}>
-                                                                        {t.name}（{t.teacher_no}）Lv.{t.teacher_level || 1}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
-                                                            <p className="text-xs text-gray-400 mt-1">該教師可教所有課程，不受等級限制</p>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                                主要教師{prefFormMode === 'create' && '（可多選）'}
+                                                            </label>
+                                                            {prefFormMode === 'create' ? (
+                                                                <>
+                                                                    <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                                                                        {teacherOptions.map((t) => (
+                                                                            <label key={t.id} className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-b-0 ${selectedTeacherIds.includes(t.id) ? 'bg-blue-50' : ''}`}>
+                                                                                <input type="checkbox"
+                                                                                    checked={selectedTeacherIds.includes(t.id)}
+                                                                                    onChange={() => {
+                                                                                        setSelectedTeacherIds(prev =>
+                                                                                            prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
+                                                                                        )
+                                                                                    }}
+                                                                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                                                                <span className="text-sm text-gray-800">{t.name}（{t.teacher_no}）Lv.{t.teacher_level || 1}</span>
+                                                                            </label>
+                                                                        ))}
+                                                                    </div>
+                                                                    {selectedTeacherIds.length > 0 && (
+                                                                        <p className="text-xs text-blue-600 mt-1">已選擇 {selectedTeacherIds.length} 位教師</p>
+                                                                    )}
+                                                                </>
+                                                            ) : (
+                                                                <select value={prefFormData.primary_teacher_id}
+                                                                    onChange={(e) => setPrefFormData({ ...prefFormData, primary_teacher_id: e.target.value })}
+                                                                    className="input-field">
+                                                                    <option value="">請選擇教師</option>
+                                                                    {teacherOptions.map((t) => (
+                                                                        <option key={t.id} value={t.id}>
+                                                                            {t.name}（{t.teacher_no}）Lv.{t.teacher_level || 1}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            )}
+                                                            <p className="text-xs text-gray-400 mt-1">指定的教師可教所有課程，不受等級限制</p>
                                                         </div>
                                                     )}
 
@@ -796,11 +837,11 @@ export default function StudentsPage() {
                                                             )}
 
                                                             <div>
-                                                                <label className="block text-sm font-medium text-gray-700 mb-1">最低教師等級</label>
+                                                                <label className="block text-sm font-medium text-gray-700 mb-1">最高教師等級</label>
                                                                 <input type="number" min={1} max={10} value={prefFormData.min_teacher_level}
                                                                     onChange={(e) => setPrefFormData({ ...prefFormData, min_teacher_level: parseInt(e.target.value) || 1 })}
                                                                     className="input-field" />
-                                                                <p className="text-xs text-gray-400 mt-1">學生只能預約等級 &ge; 此值的教師</p>
+                                                                <p className="text-xs text-gray-400 mt-1">學生可預約等級 &le; 此值的教師（向下兼容）</p>
                                                             </div>
                                                         </>
                                                     )}

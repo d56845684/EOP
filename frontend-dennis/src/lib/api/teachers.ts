@@ -77,7 +77,7 @@ export interface TeacherListResponse {
 }
 
 export interface CreateTeacherData {
-    teacher_no: string
+    teacher_no?: string
     name: string
     email: string
     phone?: string

@@ -127,10 +127,12 @@ export const teacherDetailsApi = {
         }
     },
 
-    async getUploadUrl(detailId: string): Promise<{ data: { upload_url: string, storage_path: string } | null, error: any }> {
+    async getUploadUrl(detailId: string, fileName: string): Promise<{ data: { upload_url: string, storage_path: string } | null, error: any }> {
         try {
             const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-details/${detailId}/upload-url`, {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_name: fileName }),
             })
 
             if (!response.ok) {

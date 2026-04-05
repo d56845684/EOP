@@ -5,7 +5,7 @@ from datetime import datetime
 
 class TeacherCreate(BaseModel):
     """建立教師"""
-    teacher_no: str = Field(..., min_length=1, max_length=50, description="教師編號")
+    teacher_no: Optional[str] = Field(None, max_length=50, description="教師編號（留空自動產生 EOPT 格式）")
     name: str = Field(..., min_length=1, max_length=100, description="姓名")
     email: str = Field(..., max_length=255, description="Email")
     phone: Optional[str] = Field(None, max_length=20, description="電話")

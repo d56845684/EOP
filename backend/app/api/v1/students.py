@@ -90,6 +90,18 @@ async def create_student(
 ):
     """建立學生（僅限員工）"""
     try:
+        # 自動產生 EOPS 編號
+        if not data.student_no:
+            pool = supabase_service.pool
+            row = await pool.fetchrow(
+                "SELECT student_no FROM students WHERE student_no LIKE 'EOPS%' ORDER BY student_no DESC LIMIT 1"
+            )
+            if row and row["student_no"]:
+                last_num = int(row["student_no"].replace("EOPS", ""))
+                data.student_no = f"EOPS{last_num + 1}"
+            else:
+                data.student_no = "EOPS0"
+
         existing = await supabase_service.table_select(
             table="students", select="id",
             filters={"student_no": data.student_no, "is_deleted": "eq.false"}

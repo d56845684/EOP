@@ -325,7 +325,7 @@ function StudentViewContent() {
                                         <div key={p.id} className="flex items-center justify-between">
                                             <span>{p.course_name || '全域'}</span>
                                             <span className="text-xs" style={{ color: 'var(--ep-text-color-secondary)' }}>
-                                                {p.primary_teacher_name ? `指定：${p.primary_teacher_name}` : `等級 >= ${p.min_teacher_level}`}
+                                                {p.primary_teacher_name ? `指定：${p.primary_teacher_name}` : `等級 <= ${p.min_teacher_level}`}
                                             </span>
                                         </div>
                                     ))}
