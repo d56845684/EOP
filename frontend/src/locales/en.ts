@@ -15,6 +15,7 @@ export default {
     language: 'Language',
     details: 'Details',
     viewDetails: 'View Details',
+    dateRange: 'Date Range',
     export: 'Export',
     actions: 'Actions',
     status: 'Data Status',
@@ -40,9 +41,6 @@ export default {
     inactive: 'Inactive',
     basicInfo: 'Basic Info',
     searchKeyword: 'Search Keyword',
-    convertToFormal: 'Activate Contract',
-    contracts: 'Contract Management',
-    addContract: 'Add Contract',
     courses: 'Booking Record',
     verified: 'Verified',
     unverified: 'Unverified',
@@ -140,6 +138,8 @@ export default {
       regular: 'Regular Student',
       trial: 'Trial Student',
     },
+    idNumber: 'ID Number',
+    googleDriveFolderId: 'Google Drive Folder ID',
   },
   booking: {
     title: 'Booking Management',
@@ -366,5 +366,8 @@ export default {
     contractRemainingLessons: 'Contract Remaining Lessons',
     contractUsedLeaveCount: 'Contract Used Leave Count',
     contractNotes: 'Contract Notes',
+    convertToFormal: 'Activate Contract',
+    contracts: 'Manage Contracts',
+    addContract: 'Add Contract',
   }
 };

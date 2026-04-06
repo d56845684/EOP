@@ -12,7 +12,7 @@
             end-placeholder="結束日期"
             value-format="YYYY-MM-DD"
             @change="handleDateRangeChange"
-            style="width: 220px"
+            class="w-220px! h-30px!"
           />
         </el-form-item>
         <el-form-item label="預約狀態">
@@ -20,14 +20,14 @@
             v-model="queryParams.booking_status" 
             placeholder="請選擇狀態" 
             clearable 
-            style="width: 120px;"
+            class="w-120px"
             @change="handleSearch"
           >
             <el-option v-for="option in statusOptions" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">
+          <el-button type="primary" round @click="handleSearch">
             <template #icon>
               <div class="i-hugeicons:search-list-02" />
             </template>

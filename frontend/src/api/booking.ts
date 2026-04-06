@@ -57,3 +57,27 @@ export function getBookingList(params: BookingListParams) {
     // Assuming the baseURL in request.ts covers '/api', we call '/v1/bookings'
     return request.get<any, BookingListResponse>('/v1/bookings', { params });
 }
+
+export interface BookingTeacherOption {
+    id: string;
+    name: string;
+    teacher_no?: string;
+    // other fields that might be returned
+    [key: string]: any;
+}
+
+export interface BookingCourseOption {
+    id: string;
+    course_name: string;
+    course_code?: string;
+    // other fields that might be returned
+    [key: string]: any;
+}
+
+export function getBookingTeacherOptions(params?: { student_id?: string }) {
+    return request.get<any, { data: BookingTeacherOption[] }>('/v1/bookings/options/teachers', { params });
+}
+
+export function getBookingCourseOptions() {
+    return request.get<any, { data: BookingCourseOption[] }>('/v1/bookings/options/courses');
+}

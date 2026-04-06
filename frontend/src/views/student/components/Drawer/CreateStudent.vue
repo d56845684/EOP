@@ -18,20 +18,18 @@
           <el-input v-model="addForm.name" />
         </el-form-item>
       </el-col>
-    </el-row>
-    <el-row :gutter="20">
       <el-col :span="12">
-        <el-form-item :label="$t('common.email')" prop="email">
-            <el-input v-model="addForm.email" />
-        </el-form-item>
-      </el-col>
-      <el-col :span="12">
-        <el-form-item :label="$t('common.phone')" prop="phone">
-            <el-input v-model="addForm.phone" />
+        <el-form-item :label="$t('common.engName')" prop="eng_name">
+          <el-input v-model="addForm.eng_name" />
         </el-form-item>
       </el-col>
     </el-row>
     <el-row :gutter="20">
+      <el-col :span="12">
+        <el-form-item :label="$t('student.idNumber')" prop="id_number">
+            <el-input v-model="addForm.id_number" />
+        </el-form-item>
+      </el-col>
       <el-col :span="12">
         <el-form-item :label="$t('common.birthday')" prop="birth_date">
             <el-date-picker 
@@ -41,7 +39,26 @@
             />
         </el-form-item>
       </el-col>
+    </el-row>
+    <el-row :gutter="20">
       <el-col :span="12">
+        <el-form-item :label="$t('common.phone')" prop="phone">
+            <el-input v-model="addForm.phone" />
+        </el-form-item>
+      </el-col>
+      <el-col :span="12">
+        <el-form-item :label="$t('student.googleDriveFolderId')" prop="google_drive_folder_id">
+            <el-input v-model="addForm.google_drive_folder_id" />
+        </el-form-item>
+      </el-col>
+    </el-row>
+    <el-row :gutter="20">
+      <el-col :span="16">
+        <el-form-item :label="$t('common.email')" prop="email">
+            <el-input v-model="addForm.email" />
+        </el-form-item>
+      </el-col>
+      <el-col :span="8">
         <el-form-item :label="$t('student.identity')" prop="student_type">
             <el-select v-model="addForm.student_type">
                 <el-option :label="$t('student.type.formal')" value="formal" />
@@ -85,6 +102,8 @@
     phone: '',
     address: '',
     birth_date: '',
+    id_number: '',
+    google_drive_folder_id: '',
     student_type: 'formal',
     is_active: true
   });

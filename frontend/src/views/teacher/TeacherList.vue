@@ -6,7 +6,8 @@
         v-permission="'teachers.create'"
         type="primary"
         round
-        class="h-9 px-1"
+        size="small"
+        class="py-3!"
         @click="openAddDialog"
       >
         <template #icon>
@@ -17,15 +18,15 @@
     </div>
 
     <el-card shadow="never" class="mb-14px">
-      <el-form :inline="true" :model="queryParams" label-position="top" class="flex items-end">
+      <el-form :inline="true" :model="queryParams" size="small" label-position="top" class="flex items-end">
         <el-form-item label="關鍵字" class="mb-0">
           <el-input 
             v-model="queryParams.search" 
-            placeholder="Name, Email, or Phone" 
+            placeholder="搜尋編號、姓名或Email" 
             clearable 
             @clear="fetchTeachersList" 
             @keyup.enter="fetchTeachersList"
-            style="width: 260px"
+            class="h-30px! w-260px!"
           >
             <template #prefix>
               <div class="i-hugeicons:search-01" />
@@ -40,13 +41,13 @@
           </el-select>
         </el-form-item>
         <el-form-item class="mb-0">
-          <el-button type="primary" round @click="fetchTeachersList">
+          <el-button type="primary" round size="small" class="py-3!" @click="fetchTeachersList">
             <template #icon>
               <div class="i-hugeicons:search-01" />
             </template>
             {{ $t('common.search') }}
           </el-button>
-          <el-button round @click="handleReset">
+          <el-button round size="small" class="py-3!" @click="handleReset">
             <template #icon>
               <div class="i-hugeicons:arrow-reload-horizontal" />
             </template>
@@ -74,7 +75,7 @@
               <el-descriptions-item
                 :rowspan="2"
                 :width="100"
-                label="Photo"
+                label=""
                 align="center"
               >
                 <el-image
@@ -83,7 +84,7 @@
                 />
               </el-descriptions-item>
               <el-descriptions-item label="編號 (No.)">{{ teacher.teacher_no || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="等級" align="center" :width="100">
+              <el-descriptions-item label="等級" align="center" :width="120">
                 <template #label>
                   <div class="flex items-center justify-center gap-1">
                     <div class="i-hugeicons:star-award-02 font-size-14px" />
@@ -92,25 +93,56 @@
                 </template>
                 LV.{{ teacher.teacher_level }}
               </el-descriptions-item>
-              <el-descriptions-item label="電話 (Phone)" :span="2">{{ teacher.phone || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="電話 (Phone)">{{ teacher.phone || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="帳號驗證">
+                <div class="flex items-center justify-center">
+                  <el-button
+                    v-if="!teacher.email_verified_at"
+                    type="success"
+                    plain
+                    round
+                    size="small"
+                    @click="handleVerify(teacher)"
+                  >
+                    <div class="i-hugeicons:mail-validation mr-2px" />
+                    帳號驗證
+                  </el-button>
+                  <div v-else class="flex items-center justify-center gap-1 color-success">
+                    <div class="i-hugeicons:checkmark-badge-03" />
+                    已驗證
+                  </div>
+                </div>
+              </el-descriptions-item>
               <el-descriptions-item label="Email" :span="3">
                 <div class="text-wrap break-all">{{ teacher.email }}</div>
               </el-descriptions-item>
             </el-descriptions>
             <div class="flex justify-between mt-3 gap-2 px-2">
-              <div class="left">
+              <div class="left flex items-center gap-2">
                 <el-button
                   v-permission="'teachers.contracts'"
-                  :type="!teacher.email_verified_at ? 'warning' : 'success'"
+                  :type="!teacher.total_contracts ? 'warning' : 'success'"
                   plain
                   round
                   size="small"
                   @click="openContractDrawer(teacher)"
                 >
-                  <div v-if="!teacher.email_verified_at" class="i-hugeicons:add-circle-half-dot mr-2px" />
-                  <div v-else class="i-hugeicons:legal-document-02 mr-2px" />
-                  {{ !teacher.email_verified_at ? $t('common.addContract') : $t('common.contracts') }}
+                  <template v-if="!teacher.total_contracts">
+                    <div class="i-hugeicons:add-circle-half-dot mr-2px" />
+                    {{ $t('contract.addContract') }}
+                  </template>
+                  <template v-else>
+                    <div class="i-hugeicons:legal-document-02 mr-2px" />
+                    {{ $t('contract.contracts') }}
+                  </template>
                 </el-button>
+                <div 
+                  v-if="teacher.total_contracts && !teacher.active_contracts" 
+                  class="color-info text-10px flex items-center gap-1"
+                >
+                  <div class="i-hugeicons:alert-02" />
+                  合約可能尚未生效
+                </div>
               </div>
               <div class="right">
                 <el-button v-permission="'teachers.details'" type="primary" plain round size="small" @click="openDetailDrawer(teacher)">
@@ -159,6 +191,15 @@
       @saved="fetchTeachersList" 
     />
 
+    <!-- Verify Invite Dialog -->
+    <VerifyInviteDialog
+      v-model:inviteVisible="verifyInviteVisible"
+      role="teacher"
+      :name="currentVerifyTeacher?.name || ''"
+      :email="currentVerifyTeacher?.email || ''"
+      :inviteUrl="inviteUrl"
+    />
+
     <!-- Add Teacher Dialog -->
     <el-dialog v-model="addDialogVisible" :title="$t('teacher.add')" width="500px" @closed="resetAddForm">
       <el-form ref="addFormRef" :model="addForm" :rules="addRules" label-width="120px">
@@ -188,11 +229,13 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
-import { getTeacherList, createTeacher, updateTeacher, deleteTeacher, type TeacherListParams, type TeacherResponse, type TeacherCreate } from '@/api/teacher';
+import { getTeacherOverviewList, createTeacher, updateTeacher, deleteTeacher, type TeacherOverviewParams, type TeacherOverviewItem, type TeacherResponse, type TeacherCreate } from '@/api/teacher';
 import TeacherDetailDrawer from './components/TeacherDetailDrawer.vue';
 import TeacherContractDrawer from './components/TeacherContractDrawer.vue';
+import VerifyInviteDialog from '@/components/Auth/VerifyInviteDialog.vue';
+import { generateInviteLinkApi } from '@/api/auth';
 
-const teachersData = ref<TeacherResponse[]>([]);
+const teachersData = ref<TeacherOverviewItem[]>([]);
 const totalTeachers = ref(0);
 const loading = ref(false);
 
@@ -206,6 +249,10 @@ const queryParams = reactive({
 const detailDrawerVisible = ref(false);
 const contractDrawerVisible = ref(false);
 const selectedTeacherId = ref<string | null>(null);
+
+const verifyInviteVisible = ref(false);
+const inviteUrl = ref('');
+const currentVerifyTeacher = ref<TeacherResponse | null>(null);
 
 const addDialogVisible = ref(false);
 const addingFile = ref(false);
@@ -226,17 +273,15 @@ const addRules = reactive<FormRules>({
 const fetchTeachersList = async () => {
   loading.value = true;
   try {
-    const params: TeacherListParams = {
+    const params: TeacherOverviewParams = {
       page: queryParams.page,
       per_page: queryParams.per_page,
       search: queryParams.search || undefined,
       is_active: queryParams.is_active === 'all' ? undefined : queryParams.is_active
     };
-    const res = await getTeacherList(params);
-    if (res.success) {
-      teachersData.value = res.data;
-      totalTeachers.value = res.total;
-    }
+    const res = await getTeacherOverviewList(params);
+    teachersData.value = res.data;
+    totalTeachers.value = res.total;
   } catch (e: any) {
     ElMessage.error(e.message || 'Failed to fetch teachers');
   } finally {
@@ -255,12 +300,12 @@ onMounted(() => {
   fetchTeachersList();
 });
 
-const openDetailDrawer = (teacher: TeacherResponse) => {
+const openDetailDrawer = (teacher: TeacherOverviewItem) => {
   selectedTeacherId.value = teacher.id;
   detailDrawerVisible.value = true;
 };
 
-const openContractDrawer = (teacher: TeacherResponse) => {
+const openContractDrawer = (teacher: TeacherOverviewItem) => {
   selectedTeacherId.value = teacher.id;
   contractDrawerVisible.value = true;
 };
@@ -330,6 +375,18 @@ const handleDelete = async (teacher: TeacherResponse) => {
     fetchTeachersList();
   } catch (e) {
     if (e !== 'cancel') ElMessage.error('Delete failed');
+  }
+};
+
+const handleVerify = async (teacher: TeacherResponse) => {
+  try {
+    const res = await generateInviteLinkApi({ entity_type: 'teacher', entity_id: teacher.id });
+    inviteUrl.value = res.invite_url;
+    currentVerifyTeacher.value = teacher;
+    verifyInviteVisible.value = true;
+  } catch (err) {
+    console.error(err);
+    ElMessage.error('獲取邀請連結失敗');
   }
 };
 </script>

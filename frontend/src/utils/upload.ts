@@ -22,6 +22,8 @@ export const uploadContractFile = async (role: 'teacher' | 'student', contractId
       headers: {
         'Content-Type': file.type || 'application/pdf',
       },
+      mode: 'cors',
+      credentials: 'omit',
       body: file,
     });
     if (!uploadRes.ok) {

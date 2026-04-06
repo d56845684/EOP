@@ -32,10 +32,16 @@ export interface TeacherContractUpdate {
 }
 
 export interface TeacherContractResponse {
+  addendums: TeacherContractAddendumResponse[];
+  contract_file_name: string | null;
+  contract_file_path: string | null;
+  contract_file_uploaded_at: string | null;
+  details: TeacherContractDetailResponse[];
   id: string;
   teacher_id: string;
   teacher_name: string;
   contract_status: ContractStatus;
+  contract_no: string;
   start_date?: string | null;
   end_date?: string | null;
   employment_type?: EmploymentType | null;
@@ -43,6 +49,7 @@ export interface TeacherContractResponse {
   trial_to_formal_bonus: number;
   work_start_time?: string | null;
   work_end_time?: string | null;
+  work_schedules: TeacherWorkScheduleResponse[];
   notes?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -81,7 +88,7 @@ export interface TeacherWorkScheduleListResponse {
 
 // Contract Details (Course Rates)
 export interface TeacherContractDetailCreate {
-  detail_type: DetailType; // Required
+  detail_type: 'base_salary' | 'allowance' | 'course_rate';
   course_id?: string | null;
   description?: string | null;
   amount: number; // Required
@@ -91,7 +98,7 @@ export interface TeacherContractDetailCreate {
 export interface TeacherContractDetailResponse {
   id: string;
   teacher_contract_id: string;
-  detail_type: DetailType;
+  detail_type: 'base_salary' | 'allowance' | 'course_rate';
   course_id?: string | null;
   course_name?: string | null;
   description?: string | null;
@@ -111,6 +118,8 @@ export interface TeacherContractDetailListResponse {
 export interface CourseOption {
   id: string;
   name: string;
+  course_code?: string;
+  course_name?: string;
 }
 export interface OptionsResponse {
   success: boolean;
@@ -126,6 +135,41 @@ export interface ResData<T> {
   data: T;
   message: string;
   success: boolean;
+}
+
+// API Methods
+
+// ─── Addendums ────────────────────────────────────────────────────────────────
+export interface TeacherContractAddendumCreate {
+  new_end_date?: string | null;
+  notes?: string | null;
+}
+
+export interface TeacherContractAddendumUpdate {
+  new_end_date?: string | null;
+  notes?: string | null;
+}
+
+export interface TeacherContractAddendumResponse {
+  id: string;
+  addendum_no: string;
+  parent_contract_id: string;
+  original_end_date?: string | null;
+  new_end_date?: string | null;
+  addendum_status: string;
+  file_path?: string | null;
+  file_name?: string | null;
+  file_uploaded_at?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  parent_contract_no?: string | null;
+  person_name?: string | null;
+}
+
+export interface TeacherContractAddendumListResponse {
+  success: boolean;
+  data: TeacherContractAddendumResponse[];
 }
 
 // API Methods
@@ -163,6 +207,28 @@ export function deleteTeacherContractDetail(contractId: string, detailId: string
   return request.delete<any, any>(`/v1/teacher-contracts/${contractId}/details/${detailId}`);
 }
 
+// Generate PDF (returns binary blob)
+export function generateTeacherContractPdf(contractId: string) {
+  return request.get(`/v1/teacher-contracts/${contractId}/generate-pdf`, { responseType: 'blob' });
+}
+
+// Addendums
+export function getTeacherContractAddendums(contractId: string) {
+  return request.get<any, TeacherContractAddendumListResponse>(`/v1/teacher-contracts/${contractId}/addendums`);
+}
+
+export function createTeacherContractAddendum(contractId: string, data: TeacherContractAddendumCreate) {
+  return request.post<any, ResData<TeacherContractAddendumResponse>>(`/v1/teacher-contracts/${contractId}/addendums`, data);
+}
+
+export function updateTeacherContractAddendum(contractId: string, addendumId: string, data: TeacherContractAddendumUpdate) {
+  return request.put<any, ResData<TeacherContractAddendumResponse>>(`/v1/teacher-contracts/${contractId}/addendums/${addendumId}`, data);
+}
+
+export function deleteTeacherContractAddendum(contractId: string, addendumId: string) {
+  return request.delete<any, any>(`/v1/teacher-contracts/${contractId}/addendums/${addendumId}`);
+}
+
 export function uploadTeacherContract(contractId: string) {
   return request.post<any, ConfirmUploadResponse>(`/v1/teacher-contracts/${contractId}/upload-url`);
 }
@@ -181,5 +247,5 @@ export function confirmUploadTeacherContractAddendum(contractId: string, addendu
 
 // Options
 export function getCourseOptions() {
-  return request.get<any, OptionsResponse>('/v1/teacher-contracts/options/courses');
+  return request.get<any, CourseOption[]>('/v1/teacher-contracts/options/courses');
 }

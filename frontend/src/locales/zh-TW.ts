@@ -27,6 +27,7 @@ export default {
     done: '完成',
     startDate: '開始日期',
     endDate: '結束日期',
+    dateRange: '日期範圍',
     teacher: '教師',
     student: '學生',
     course: '課程',
@@ -40,9 +41,7 @@ export default {
     inactive: '停用',
     basicInfo: '基本資料',
     searchKeyword: '關鍵字搜尋',
-    convertToFormal: '合約開通',
-    contracts: '合約管理',
-    addContract: '新增合約',
+
     courses: '預約課程',
     verified: '已驗證',
     unverified: '未驗證',
@@ -141,6 +140,8 @@ export default {
       formal: '正課生',
       trial: '試上生',
     },
+    idNumber: '身分證字號',
+    googleDriveFolderId: 'Google Drive 資料夾 ID',
   },
   booking: {
     title: '預約管理',
@@ -372,6 +373,9 @@ export default {
     contractRemainingLessons: '合約剩餘堂數',
     contractUsedLeaveCount: '合約已請假次數',
     contractNotes: '合約備註',
+    convertToFormal: '合約開通',
+    contracts: '管理合約',
+    addContract: '新增合約',
   }
 };
 

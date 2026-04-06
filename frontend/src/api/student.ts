@@ -24,6 +24,8 @@ export interface StudentCreate {
   birth_date?: string | null;
   student_type?: string; // default: formal
   is_active?: boolean;
+  id_number?: string | null;
+  google_drive_folder_id?: string | null;
 }
 
 export interface StudentUpdate {
@@ -35,6 +37,8 @@ export interface StudentUpdate {
   birth_date?: string | null;
   student_type?: string | null;
   is_active?: boolean | null;
+  id_number?: string | null;
+  google_drive_folder_id?: string | null;
 }
 
 export interface ConvertToFormalRequest {

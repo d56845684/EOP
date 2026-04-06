@@ -50,7 +50,7 @@ export function deleteTeacherDetail(detailId: string) {
 }
 
 export function getUploadDetailUrl(detailId: string) {
-    return request.get<any, { upload_url: string; storage_path: string }>(`/v1/teacher-details/${detailId}/upload-url`);
+    return request.post<any, { upload_url: string; storage_path: string }>(`/v1/teacher-details/${detailId}/upload-url`);
 }
 
 export function confirmUploadDetail(detailId: string, data: { storage_path: string, file_name: string }) {

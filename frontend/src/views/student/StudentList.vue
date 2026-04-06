@@ -77,159 +77,28 @@
       </el-form>
     </el-card>
 
-    <!-- Student Table -->
     <el-card>
-      <el-table :data="studentList" size="small" class="w-full" v-loading="loading" stripe>
-        <!-- Student No -->
-        <el-table-column prop="student_no" :label="$t('student.studentNo')" min-width="100" />
-        
-        <!-- Name -->
-        <el-table-column prop="name" :label="$t('common.name')" min-width="120">
-          <template #default="{ row }">
-            <div class="flex items-center justify-between gap-2">
-              <div class="flex flex-col">
-                <span>{{ row.name }}</span>
-                <span class="text-xs italic text-gray-500">{{ row.eng_name }}</span>
-              </div>
-              <el-tag 
-                :type="row.student_type === 'formal' ? 'success' : 'info'" 
-                :color="row.student_type === 'formal' ? '#d5f0e1' : '#dfe0f2'" 
-                effect="dark" 
-                size="small"
-                class="font-size-10px h-16px w-40px opacity-80"
-                :style="{ 
-                  borderColor: row.student_type === 'formal'? '#91b5a1' : '#afb0c4' ,
-                  color: row.student_type === 'formal'? '#288a52' : '#707187' 
-                }"
-              >
-               {{ row.student_type === 'formal' ? $t('student.type.formal') : $t('student.type.trial') }}
-              </el-tag>
-            </div>
-          </template>
-        </el-table-column>
-        
-        <!-- Email -->
-        <el-table-column prop="email" :label="$t('common.contactInfo')" min-width="250">
-          <template #default="{ row }">
-            <div class="flex flex-col">
-              <div v-show="row.email" class="flex items-center gap-4px">
-                <div class="i-hugeicons:mail-01 w-12px h-12px color-gray-500 flex-shrink-0" />
-                <el-text class="text-xs" truncated>{{ row.email }}</el-text>
-                <el-button type="text" size="small" round class="!px-1" @click="copyEmail(row.email)">
-                  <template #icon>
-                    <div class="i-hugeicons:copy-01" />
-                  </template>
-                </el-button>
-              </div>
-              <div v-show="row.phone" class="flex items-center gap-4px">
-                <div class="i-hugeicons:call-02 w-12px h-12px color-gray-500" />
-                <el-text class="text-xs" truncated>{{ row.phone }}</el-text>
-              </div>
-            </div>
-          </template>
-        </el-table-column>
-
-        <!-- Student Status -->
-        <el-table-column prop="student_status" :label="$t('student.status')" width="80" align="center">
-          <template #default="{ row }">
-            <el-tag size="small" :type="STUDENT_STATUS_COLOR[row.student_status]" class="w-50px">
-              {{ STUDENT_STATUS_LABEL[row.student_status] }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="$t('common.accountVerified')" width="90" align="center">
-           <template #default="{ row }">
-            <template v-if="row.email_verified_at">
-              <el-tag size="small" type="success" effect='plain'>
-                <div class="flex items-center gap-2px">
-                  <div class="i-hugeicons:checkmark-badge-01 w-14px h-14px" />
-                  <span>{{ $t('common.verified') }}</span>
-                </div>
-              </el-tag>
-            </template>
-            <template v-else>
-              <el-button type="text" size="small" round @click="handleVerify(row)">
-                {{ $t('common.verify') }}
-              </el-button>
-            </template>
-           </template>
-        </el-table-column>
-
-        <!-- Actions -->
-        <el-table-column :label="$t('common.actions')" label-class-name="text-center" width="240" fixed="right" class-name="action-column">
-          <template #default="{ row }">
-            <div>
-              <el-button v-permission="'students.edit'" round size="small" @click="openDrawer(row, drawerTypeMap.MANAGE)">
-                <template #icon>
-                  <div class="i-hugeicons:pencil-edit-01" />
-                </template>
-                {{ $t('student.detailsTitle') }}
-              </el-button>
-              <el-button 
-                v-if="row.student_type === 'trial' && !row._contract_id"
-                type="primary" 
-                round
-                size="small" 
-                link
-                @click="openConvertToFormalDialog(row)"
-                v-permission="'students.contracts'"
-              >
-                轉正
-              </el-button>
-              <el-button
-                v-if="row.student_type === 'formal'"
-                v-permission="'students.contracts'"
-                round
-                size="small"
-                plain
-                color="#82aa57"
-                @click="openDrawer(row, TAB_MAP.CONTRACT)"
-              >
-                <template #icon>
-                  <div class="i-hugeicons:legal-document-02" />
-                </template>
-                合約
-              </el-button>
-            </div>
-            <el-button 
-              type="danger" 
-              size="small"
-              link
-              @click="handleDelete(row)"
-              v-permission="'students.delete'"
-            >
-              <div class="i-hugeicons:delete-02 mr-2px" />
-              {{ $t('common.delete') }}
-            </el-button>
-          </template>
-        </el-table-column>
-
-        <!-- Status -->
-        <el-table-column :label="$t('common.status')" width="80" align="center" fixed="right">
-           <template #default="{ row }">
-            <template v-if="hasPermission('students.edit')">
-              <el-switch v-model="row.is_active" size="small" @change="handleStatusChange(row)" />
-            </template>
-            <template v-else>
-              <el-tag size="small" :type="row.is_active ? 'success' : 'info'" effect='plain' class="w-50px">
-                {{ row.is_active ? $t('common.active') : $t('common.inactive') }}
-              </el-tag>
-            </template>
-           </template>
-        </el-table-column>
-      </el-table>
+      <StudentListTable
+        :studentList="studentList"
+        :loading="loading"
+        @openDrawer="openDrawer"
+        @openConvertToFormalDialog="openConvertToFormalDialog"
+        @handleDelete="handleDelete"
+        @handleStatusChange="handleStatusChange"
+        @handleVerify="handleVerify"
+        @copyEmail="copyEmail"
+      />
       <div class="pagination-footer">
-         <el-pagination
-            v-model:current-page="queryParams.page"
-            v-model:page-size="queryParams.per_page"
-            size="small"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next, jumper"
-            :total="total"
-            @size-change="fetchData"
-            @current-change="fetchData"
-         />
+        <el-pagination
+          v-model:current-page="queryParams.page"
+          v-model:page-size="queryParams.per_page"
+          size="small"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="total"
+          @size-change="fetchData"
+          @current-change="fetchData"
+        />
       </div>
     </el-card>
 
@@ -252,13 +121,22 @@
             />
           </el-tab-pane>
 
-          <!-- Tab 2: Courses -->
+          <!-- Tab 2: Preferences -->
+          <el-tab-pane label="教師偏好設定" :name="tabType.PREFERENCE">
+            <TeacherPreference 
+              v-if="activeTab === tabType.PREFERENCE && currentStudent?.id" 
+              :student-id="currentStudent.id" 
+            />
+          </el-tab-pane>
+
+          <!-- Tab 3: Courses -->
           <el-tab-pane v-permission="'bookings.list'" :label="$t('common.courses')" :name="tabType.RECORDS">
             <BookingList 
               v-if="activeTab === tabType.RECORDS && currentStudent?.id" 
               :student-id="currentStudent.id" 
             />
           </el-tab-pane>
+          
         </el-tabs>
       </template>
       <template v-if="drawerType === drawerTypeMap.CREATE">
@@ -341,17 +219,11 @@ import BaseInfo from './components/Drawer/BaseInfo.vue';
 import BookingList from './components/Drawer/BookingList.vue';
 import ContractManagement from './components/Drawer/ContractManagement.vue';
 import CreateStudent from './components/Drawer/CreateStudent.vue';
+import TeacherPreference from './components/Drawer/TeacherPreference.vue';
 import CreateContractDialog from './components/Dialog/CreateContractDialog.vue';
 import VerifyInviteDialog from '@/components/Auth/VerifyInviteDialog.vue';
-import { STUDENT_STATUS } from '@/constants/student';
-import { usePermissionStore } from '@/stores/permission';
+import StudentListTable from './components/StudentListTable.vue';
 import { generateInviteLinkApi } from '@/api/auth';
-
-const STUDENT_STATUS_LABEL: Record<string, string> = {
-  [STUDENT_STATUS.ACTIVE]: '課程中',
-  [STUDENT_STATUS.TERMINATED]: '解約',
-  [STUDENT_STATUS.TRIAL]: '試上'
-};
 
 const OPTION_MAP = {
  ALL: 'all' 
@@ -361,6 +233,7 @@ const TAB_MAP = {
   BASIC: 'basic',
   RECORDS: 'records',
   CONTRACT: 'contract',
+  PREFERENCE: 'preference',
 } as const;
 
 // Alias to patch incomplete IDE rename operation
@@ -375,16 +248,7 @@ const DRAWER_TYPE_MAP = {
 // Alias to patch incomplete IDE rename operation
 const drawerTypeMap = DRAWER_TYPE_MAP;
 
-const STUDENT_STATUS_COLOR: Record<string, string> = {
-  [STUDENT_STATUS.ACTIVE]: 'success',
-  [STUDENT_STATUS.TERMINATED]: 'info',
-  [STUDENT_STATUS.TRIAL]: 'warning'
-}
-
 const { t } = useI18n();
-
-const permissionStore = usePermissionStore();
-const hasPermission = permissionStore.hasPermission;
 
 // --- List State ---
 const loading = ref(false);
@@ -617,6 +481,9 @@ const loadContent = async (tabName: string | number) => {
     case TAB_MAP.CONTRACT:
       await loadContract()
       break;
+    case TAB_MAP.PREFERENCE:
+      // TeacherPreference component handles its own load when mounted
+      break;
     case TAB_MAP.RECORDS:
       await loadBookingList()
       break;
@@ -760,22 +627,5 @@ onMounted(() => {
      margin-right: 0;
      margin-bottom: 5px;
    }
-}
-:deep(.el-table) {
-  .text-center {
-    text-align: center;
-    justify-content: center;
-    .cell {
-      text-align: center !important;
-      justify-content: center !important;
-    }
-  }
-  .action-column {
-    .cell {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-  }
 }
 </style>

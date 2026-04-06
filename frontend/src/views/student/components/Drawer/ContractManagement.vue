@@ -1,5 +1,5 @@
 <template>
-  <div v-loading="contractLoading" class="pr-2">
+  <div v-loading="contractLoading" class="pl-1 pr-2">
     <template v-if="hasActive">
       <!-- 當前合約 Current Contract -->
       <el-divider content-position="left" class="mt-1 mb-8">
@@ -15,32 +15,44 @@
         <el-col :span="12">
           <div class="flex flex-col items-start mb-2">
             <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">合約書狀態</label>
-            <div class="w-full text-xs flex items-start gap-4" :class="activeContract?.contract_file_uploaded_at ? 'text-green' : 'text-red'">
-              <div class="flex items-center gap-1 flex-shrink-0 mt-1">
-                <div :class="activeContract?.contract_file_uploaded_at ? 'i-hugeicons:checkmark-circle-03' : 'i-hugeicons:alert-02'" />
-                {{ activeContract?.contract_file_uploaded_at ? '已上傳' : '未上傳' }}
-              </div>
-              <el-upload
-                ref="uploadRef"
-                v-model:file-list="contractFileList"
-                class="upload-file flex flex-col items-start"
-                action="#"
-                :auto-upload="false"
-                :on-change="(uploadFile: UploadFile) => uploadContract(uploadFile, 'contract')"
-              >
-                <el-button
-                  color="#626aef"
-                  plain
-                  round
-                  size="small"
-                  :loading="savingContract"
+            <div class="w-full text-12px flex flex-col items-start gap-2" :class="activeContract?.contract_file_uploaded_at ? 'text-green' : 'text-red'">
+              <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1">
+                  <div :class="activeContract?.contract_file_uploaded_at ? 'i-hugeicons:checkmark-circle-03' : 'i-hugeicons:alert-02'" />
+                  <span>{{ activeContract?.contract_file_uploaded_at ? '已上傳' : '未上傳' }}</span>
+                </div>
+                <el-upload
+                  ref="uploadRef"
+                  v-model:file-list="contractFileList"
+                  class="upload-file flex flex-col items-start ml-4"
+                  action="#"
+                  :limit="1"
+                  :multiple="false"
+                  accept=".pdf"
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  :on-change="(uploadFile: UploadFile) => uploadContract(uploadFile, 'contract')"
                 >
-                  <template #icon>
-                    <div class="i-hugeicons:file-upload" />
-                  </template>
-                  {{ activeContract?.contract_file_uploaded_at ? '更新合約書' : '上傳合約書' }}
-                </el-button>
-              </el-upload>
+                  <el-button
+                    color="#626aef"
+                    plain
+                    round
+                    size="small"
+                    :loading="savingContract"
+                  >
+                    <template #icon>
+                      <div class="i-hugeicons:file-upload" />
+                    </template>
+                    {{ activeContract?.contract_file_uploaded_at ? '更新合約書' : '上傳合約書' }}
+                  </el-button>
+                </el-upload>
+              </div>
+              <div
+                v-if="activeContract?.contract_file_uploaded_at"
+                class="text-11px color-gray-400 mt-2"
+              >
+                更新時間：{{ dayjs(activeContract?.contract_file_uploaded_at).format('YYYY-MM-DD HH:mm:ss') }}
+              </div>
             </div>
           </div>
         </el-col>
@@ -186,48 +198,76 @@
         <el-divider content-position="left" class="mt-5 mb-5">
           <span class="text-13px color-[#1d2d44]">附約</span>
         </el-divider>
-        <el-table :data="activeContract?.addendums" border size="small" class="mb-8">
-          <el-table-column prop="addendum_no" label="附約編號" width="150" />
+        <el-table :data="activeContract?.addendums" border :preserve-expanded-content="false" size="small" class="mb-8">
+          <el-table-column type="expand" width="50">
+            <template #default="props">
+              <el-row class="px-4">
+                <el-col :span="24" class="my-1">
+                  <label class="text-12px color-gray-400 font-500 mr-4">備註</label>
+                  <span class="text-12px">{{ props.row.notes }}</span>
+                </el-col>
+                <el-col :span="24" class="my-1">
+                  <label class="text-12px color-gray-400 font-500 mr-4">附約文件</label>
+                  <span class="text-12px">{{ props.row.file_name }}</span>
+                </el-col>
+                <el-col :span="24" class="my-1">
+                  <label class="text-12px color-gray-400 font-500 mr-4">上傳時間</label>
+                  <span class="text-12px">{{ formatDateTime(props.row.file_uploaded_at) }}</span>
+                </el-col>
+                <el-col :span="24" class="my-1">
+                  <label class="text-12px color-gray-400 font-500 mr-4">建立時間</label>
+                  <span class="text-12px">{{ formatDateTime(props.row.created_at) }}</span>
+                </el-col>
+                <el-col :span="24" class="my-1">
+                  <label class="text-12px color-gray-400 font-500 mr-4">更新時間</label>
+                  <span class="text-12px">{{ formatDateTime(props.row.updated_at) }}</span>
+                </el-col>
+              </el-row>
+            </template>
+          </el-table-column>
+          <el-table-column prop="addendum_no" label="附約編號" width="180" />
           <el-table-column prop="addendum_status" label="附約狀態" width="80">
             <template #default="scope">
               {{ CONTRACT_STATUS_MAP[scope.row.addendum_status] }}
             </template>
           </el-table-column>
           <el-table-column prop="new_end_date" label="展延結束日期" width="120" />
-          <el-table-column prop="notes" label="備註" />
+          
           <el-table-column label="操作" min-width="80" align="center">
               <template #default="{row}">
                 <el-row>
-                  <el-col :span="12">
+                  <el-col :span="8">
                     <el-tooltip content="編輯" effect="customized">
                       <el-button type="primary" round link @click="extendContract('update', row)">
                         <div class="i-hugeicons:edit-02" />
                       </el-button>
                     </el-tooltip>
                   </el-col>
-                  <el-col :span="12">
-                    <el-tooltip content="刪除" effect="customized">
-                      <el-button type="danger" round link @click="deleteAddendum()">
-                        <div class="i-hugeicons:delete-02" />
-                      </el-button>
-                    </el-tooltip>
-                  </el-col>
-                </el-row>
-                <el-row class="mt-2">
-                  <el-col :span="24">
+                  <el-col :span="8">
                     <el-tooltip content="上傳附約文件" effect="customized">
                       <el-upload
                         ref="uploadAddendumRef"
                         v-model:file-list="addendumFileList"
-                        class="upload-file grid grid-cols-2 items-center justify-center"
+                        class="upload-file py-2px"
                         action="#"
+                        :limit="1"
+                        :multiple="false"
+                        accept=".pdf"
                         :auto-upload="false"
+                        :show-file-list="false"
                         :on-change="(uploadFile: UploadFile) => uploadContract(uploadFile, 'addendum')"
                       >
                         <el-button type="primary" round link>
                           <div class="i-hugeicons:upload-01" />
                         </el-button>
                       </el-upload>
+                    </el-tooltip>
+                  </el-col>
+                  <el-col :span="8">
+                    <el-tooltip content="刪除" effect="customized">
+                      <el-button type="danger" round link @click="deleteAddendum()">
+                        <div class="i-hugeicons:delete-02" />
+                      </el-button>
                     </el-tooltip>
                   </el-col>
                 </el-row>
@@ -369,7 +409,7 @@
 
 <script setup lang="ts">
 import { h, ref, watch, computed } from 'vue';
-import { ElDivider, ElMessage, ElMessageBox, type UploadFile, type UploadInstance } from 'element-plus'
+import { dayjs, ElDivider, ElMessage, ElMessageBox, type UploadFile, type UploadInstance } from 'element-plus'
 import ContractDetailsDialog from '../Dialog/ContractDetailsDialog.vue';
 import AddLeaveDialog from '../Dialog/AddLeaveDialog.vue';
 import ContractDialog from '../Dialog/ContractDialog.vue';
@@ -526,13 +566,15 @@ const uploadContract = async (uploadFile: UploadFile, type: 'contract' | 'addend
   if (!activeContract.value || (type === 'addendum' && !activeAddendum.value)) return;
   try {
     const activeAddendumId = type === 'addendum' ? activeAddendum.value!.id : null;
-    const res = await uploadContractFile('student', activeContract.value.id, activeAddendumId, uploadFile.raw!);
-    if (res && res.success) {
-      ElMessage.success(`${type === 'addendum' ? '合約附約' : '合約'}已上傳`);
-      emit('updateContent', 'contract')
-    }
-    else {
+    await uploadContractFile('student', activeContract.value.id, activeAddendumId, uploadFile.raw!).then(res => {
+      if (res && res.success) {
+        ElMessage.success(`${type === 'addendum' ? '合約附約' : '合約'}已上傳`);
+        emit('updateContent', 'contract')
+      }
+    }).catch(err => {
+      console.log(err)
       ElMessage.error(`${type === 'addendum' ? '合約附約' : '合約'}上傳失敗`);
+    }).finally(() => {
       if (type === 'addendum') {
         uploadAddendumRef.value?.clearFiles();
         addendumFileList.value = [];
@@ -541,8 +583,9 @@ const uploadContract = async (uploadFile: UploadFile, type: 'contract' | 'addend
         uploadRef.value?.clearFiles();
         contractFileList.value = [];
       }
-    }
+    })
   } catch(err) {
+    console.log(err)
     ElMessage.error(`${type === 'addendum' ? '合約附約' : '合約'}上傳失敗`);
     if (type === 'addendum') {
       uploadAddendumRef.value?.clearFiles();
@@ -604,6 +647,10 @@ const deleteLeave = async (id: string) => {
 const handleViewContract = (row: StudentContract) => {
   currentContract.value = row;
   contractDialogVisible.value = true;
+}
+
+const formatDateTime = (date: string) => {
+  return dayjs(date).format('YYYY-MM-DD HH:mm:ss');
 }
 
 watch(activeContract, (newVal: StudentContract | null) => {

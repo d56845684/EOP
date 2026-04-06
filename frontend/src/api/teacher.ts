@@ -44,8 +44,51 @@ export interface TeacherResponse {
 }
 
 export interface TeacherListResponse {
-  success: boolean;
   data: TeacherResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
+// Overview list
+export interface TeacherOverviewParams {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  is_active?: boolean | null;
+  has_account?: boolean | null;
+  has_active_contract?: boolean | null;
+  role?: string | null;
+}
+
+export interface TeacherOverviewItem {
+  account_active: boolean | null;
+  active_contracts: number;
+  bonus_count: number;
+  completed_bookings: number;
+  created_at: string;
+  email: string;
+  email_verified_at: string | null;
+  has_account: boolean;
+  id: string;
+  is_active: boolean;
+  line_bound: boolean;
+  line_display_name: string | null;
+  name: string;
+  phone: string | null;
+  role: string | null;
+  teacher_level: number;
+  teacher_no: string;
+  total_bonus: number;
+  total_bookings: number;
+  total_contracts: number;
+  upcoming_bookings: number;
+}
+
+export interface TeacherOverviewListResponse {
+  success: boolean;
+  data: TeacherOverviewItem[];
   total: number;
   page: number;
   per_page: number;
@@ -61,6 +104,9 @@ export interface TeacherDetailResponse<T> {
 export function getTeacherList(params: TeacherListParams) {
   return request.get<any, TeacherListResponse>('/v1/teachers', { params });
 }
+export function getTeacherOverviewList(params: TeacherOverviewParams) {
+  return request.get<any, TeacherOverviewListResponse>('/v1/teachers/overview/list', { params });
+}
 export function createTeacher(data: TeacherCreate) {
   return request.post('/v1/teachers', data);
 }
@@ -74,7 +120,7 @@ export function getTeacherById(teacherId: string) {
   return request.get<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}`);
 }
 export function getTeacherAvatarUploadUrl(teacherId: string) {
-  return request.get<any, { upload_url: string, storage_path: string }>(`/v1/teachers/${teacherId}/avatar/upload-url`);
+  return request.post<any, { upload_url: string, storage_path: string }>(`/v1/teachers/${teacherId}/avatar/upload-url`);
 }
 export function confirmTeacherAvatar(teacherId: string, data: { storage_path: string, file_name: string }) {
   return request.post<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}/avatar/confirm-upload`, data);
