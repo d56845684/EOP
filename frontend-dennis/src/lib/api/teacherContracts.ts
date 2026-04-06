@@ -2,9 +2,9 @@ import { fetchWithAuth } from './fetchWithAuth'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
-export type ContractStatus = 'pending' | 'active' | 'expired' | 'terminated'
+export type ContractStatus = 'pending' | 'active' | 'expired' | 'terminated' | 'suspended'
 export type EmploymentType = 'hourly' | 'full_time'
-export type DetailType = 'course_rate' | 'base_salary' | 'allowance'
+export type DetailType = 'course_rate' | 'base_salary' | 'allowance' | 'overtime_rate'
 
 export interface TeacherContractDetail {
     id: string

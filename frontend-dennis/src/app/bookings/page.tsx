@@ -1519,6 +1519,7 @@ export default function BookingsPage() {
                                                             {booking.is_overtime && booking.overtime_lessons != null && (
                                                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
                                                                     {booking.regular_lessons ? `正常${booking.regular_lessons}堂 + 加班${booking.overtime_lessons}堂` : `加班${booking.overtime_lessons}堂`}
+                                                                    {booking.overtime_pay != null && ` ($${booking.overtime_pay})`}
                                                                 </span>
                                                             )}
                                                             {booking.regular_lessons != null && !booking.is_overtime && (
@@ -2068,6 +2069,15 @@ export default function BookingsPage() {
                                                 <p><span className="font-medium">教師:</span> {editingBooking?.teacher_name}</p>
                                                 <p><span className="font-medium">課程:</span> {editingBooking?.course_name}</p>
                                                 <p><span className="font-medium">日期時間:</span> {editingBooking?.booking_date} {formatTime(editingBooking?.start_time || '')} - {formatTime(editingBooking?.end_time || '')}</p>
+                                                {editingBooking?.is_overtime && (
+                                                    <p>
+                                                        <span className="font-medium">加班:</span>{' '}
+                                                        <span className="text-red-600">
+                                                            {editingBooking.regular_lessons ? `正常${editingBooking.regular_lessons}堂 + 加班${editingBooking.overtime_lessons}堂` : `加班${editingBooking.overtime_lessons}堂`}
+                                                            {editingBooking.overtime_pay != null && ` — 加班費 $${editingBooking.overtime_pay}`}
+                                                        </span>
+                                                    </p>
+                                                )}
                                             </div>
 
                                             {/* Status select */}

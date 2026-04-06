@@ -65,6 +65,59 @@ def calculate_regular_overtime_lessons(
     return regular, overtime
 
 
+async def compute_overtime_pay(
+    teacher_contract_id: str,
+    booking_date: date,
+    start_time: time,
+    end_time: time,
+    course_duration: int,
+) -> float | None:
+    """計算並回傳加班費，僅適用於 full_time 教師。非正職或無加班則回傳 None。
+
+    此函式在建立預約時呼叫，將 overtime_pay 持久化到 bookings 表。
+    """
+    pool = supabase_service.pool
+
+    # 確認是 full_time 合約
+    tc = await pool.fetchrow(
+        "SELECT employment_type FROM teacher_contracts WHERE id = $1",
+        __import__('uuid').UUID(teacher_contract_id),
+    )
+    if not tc or tc["employment_type"] != "full_time":
+        return None
+
+    # 取得該 weekday 的工作時段
+    weekday = booking_date.isoweekday() - 1  # 0=Mon, 6=Sun
+    ws_rows = await pool.fetch(
+        """SELECT start_time, end_time FROM teacher_work_schedules
+           WHERE teacher_contract_id = $1 AND weekday = $2 AND is_deleted = FALSE""",
+        __import__('uuid').UUID(teacher_contract_id), weekday,
+    )
+    work_slots = [(r["start_time"], r["end_time"]) for r in ws_rows]
+
+    if work_slots:
+        regular, overtime = calculate_regular_overtime_lessons(
+            start_time, end_time, work_slots, course_duration,
+        )
+    else:
+        # 該天無工作時段 → 全部視為加班
+        overtime = calculate_lessons_used(start_time, end_time, course_duration)
+
+    if overtime <= 0:
+        return None
+
+    # 取得加班費率
+    ot_row = await pool.fetchrow(
+        """SELECT amount FROM teacher_contract_details
+           WHERE teacher_contract_id = $1 AND detail_type = 'overtime_rate' AND is_deleted = FALSE""",
+        __import__('uuid').UUID(teacher_contract_id),
+    )
+    if not ot_row:
+        return None
+
+    return float(overtime * ot_row["amount"])
+
+
 async def generate_booking_no() -> str:
     """生成預約編號: BK{YYYYMMDD}{序號}"""
     today = datetime.utcnow().strftime("%Y%m%d")
@@ -436,13 +489,20 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
                 regular, overtime = calculate_regular_overtime_lessons(
                     b_start, b_end, work_slots, course_duration
                 )
+            else:
+                # 該天無工作時段 → 全部視為加班
+                regular = 0
+                overtime = calculate_lessons_used(b_start, b_end, course_duration)
 
-                booking["regular_lessons"] = regular
-                booking["overtime_lessons"] = overtime
-                booking["is_overtime"] = overtime > 0
+            booking["regular_lessons"] = regular
+            booking["overtime_lessons"] = overtime
+            booking["is_overtime"] = overtime > 0
 
-                # 計算加班費：overtime_lessons * overtime_rate
-                if overtime > 0 and booking.get("teacher_contract_id"):
+            # 加班費：優先使用 DB 持久化值，若無則動態計算
+            if overtime > 0:
+                if booking.get("overtime_pay") is not None:
+                    pass  # 已從 DB 讀取
+                elif booking.get("teacher_contract_id"):
                     ot_detail = await supabase_service.table_select(
                         table="teacher_contract_details",
                         select="amount",
@@ -608,7 +668,7 @@ async def list_bookings(
                    b.student_contract_id, b.teacher_contract_id, b.teacher_slot_id,
                    b.substitute_detail_id, b.teacher_hourly_rate, b.teacher_rate_percentage,
                    b.booking_status, b.booking_type, b.booking_date, b.start_time, b.end_time,
-                   b.lessons_used, b.notes, b.created_at, b.updated_at,
+                   b.lessons_used, b.overtime_pay, b.notes, b.created_at, b.updated_at,
                    -- is_trial_to_formal (from bookings_view logic)
                    EXISTS(SELECT 1 FROM teacher_bonus_records tbr
                           WHERE tbr.related_booking_id = b.id AND tbr.bonus_type = 'trial_to_formal'
@@ -710,16 +770,22 @@ async def list_bookings(
                 weekday = booking_date_val.isoweekday() - 1 if booking_date_val else None
                 work_slots = work_schedule_map.get(tc_key, {}).get(weekday, []) if weekday is not None else []
                 duration = row["duration_minutes"] or 30
-                if work_slots and row["start_time"] and row["end_time"]:
-                    regular, overtime = calculate_regular_overtime_lessons(
-                        row["start_time"], row["end_time"], work_slots, duration
-                    )
+                if row["start_time"] and row["end_time"]:
+                    if work_slots:
+                        regular, overtime = calculate_regular_overtime_lessons(
+                            row["start_time"], row["end_time"], work_slots, duration
+                        )
+                    else:
+                        # 該天無工作時段 → 全部視為加班
+                        regular = 0
+                        overtime = calculate_lessons_used(row["start_time"], row["end_time"], duration)
                     b["regular_lessons"] = regular
                     b["overtime_lessons"] = overtime
                     b["is_overtime"] = overtime > 0
-                    # 加班費 = overtime_lessons * overtime_rate
-                    if overtime > 0 and tc_key in overtime_rate_map:
-                        b["overtime_pay"] = overtime * overtime_rate_map[tc_key]
+                    # 加班費：優先使用 DB 持久化值，若無則動態計算
+                    if overtime > 0:
+                        if b.get("overtime_pay") is None and tc_key in overtime_rate_map:
+                            b["overtime_pay"] = overtime * overtime_rate_map[tc_key]
 
             enriched_bookings.append(b)
 
@@ -1176,6 +1242,14 @@ async def create_booking(
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
 
+        # 計算加班費（正職教師才有）
+        overtime_pay_val = None
+        if teacher_contract_id and not is_trial:
+            overtime_pay_val = await compute_overtime_pay(
+                teacher_contract_id, data.booking_date,
+                data.start_time, data.end_time, course_duration,
+            )
+
         # ── 交易區段：鎖定時段 + 重新檢查衝突 + 寫入 ──
         # 使用 database transaction 防止同一時段被並發預約
         async with supabase_service.pool.acquire() as conn:
@@ -1231,9 +1305,9 @@ async def create_booking(
                         student_contract_id, teacher_contract_id, teacher_slot_id,
                         teacher_hourly_rate, teacher_rate_percentage,
                         booking_status, booking_date, start_time, end_time,
-                        booking_type, lessons_used, notes, created_by
+                        booking_type, lessons_used, overtime_pay, notes, created_by
                     ) VALUES (
-                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
                     ) RETURNING *""",
                     booking_no,
                     uuid.UUID(data.student_id),
@@ -1250,6 +1324,7 @@ async def create_booking(
                     data.end_time,
                     "trial" if is_trial else "regular",
                     lessons_used,
+                    overtime_pay_val,
                     data.notes,
                     uuid.UUID(employee_id) if employee_id else None,
                 )
@@ -2117,6 +2192,15 @@ async def batch_create_bookings(
                 e_t = time.fromisoformat(slot_end_str)
                 slot_lessons_used = calculate_lessons_used(s_t, e_t, batch_course_duration)
 
+                # 計算加班費
+                slot_booking_date = date.fromisoformat(slot["slot_date"]) if isinstance(slot["slot_date"], str) else slot["slot_date"]
+                batch_overtime_pay = None
+                if slot_teacher_contract_id and not is_trial:
+                    batch_overtime_pay = await compute_overtime_pay(
+                        slot_teacher_contract_id, slot_booking_date,
+                        s_t, e_t, batch_course_duration,
+                    )
+
                 # 建立預約
                 booking_data = {
                     "booking_no": booking_no,
@@ -2134,6 +2218,7 @@ async def batch_create_bookings(
                     "end_time": data.end_time.isoformat() if data.end_time else slot["end_time"],
                     "booking_type": "trial" if is_trial else "regular",
                     "lessons_used": slot_lessons_used,
+                    "overtime_pay": batch_overtime_pay,
                     "notes": data.notes,
                 }
                 if employee_id:

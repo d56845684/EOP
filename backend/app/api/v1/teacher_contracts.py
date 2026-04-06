@@ -728,6 +728,20 @@ async def create_contract_detail(
             if not course:
                 raise HTTPException(status_code=400, detail="課程不存在")
 
+        # overtime_rate 每合約只能一筆
+        if data.detail_type.value == "overtime_rate":
+            existing_ot = await supabase_service.table_select(
+                table="teacher_contract_details",
+                select="id",
+                filters={
+                    "teacher_contract_id": f"eq.{contract_id}",
+                    "detail_type": "eq.overtime_rate",
+                    "is_deleted": "eq.false",
+                },
+            )
+            if existing_ot:
+                raise HTTPException(status_code=400, detail="每份合約只能設定一筆加班費")
+
         detail_data = {
             "teacher_contract_id": contract_id,
             "detail_type": data.detail_type.value,
