@@ -76,11 +76,15 @@ class StorageService:
         return True
 
     async def create_signed_upload_url(
-        self, bucket: str, path: str, expires_in: int = 3600
+        self, bucket: str, path: str, content_type: str = "application/pdf",
+        expires_in: int = 3600, max_size_bytes: int = 0,
     ) -> Optional[dict]:
         """產生 S3 presigned PUT URL，前端可直接 PUT 上傳
 
-        Returns: {"upload_url": "完整 S3 presigned URL"} 或 None
+        Args:
+            content_type: MIME type（如 application/pdf, image/jpeg）
+            max_size_bytes: 最大檔案大小（0 = 不限制，由呼叫端驗證）
+        Returns: {"upload_url": "...", "max_size_bytes": N} 或 None
         """
         try:
             url = self.client.generate_presigned_url(
@@ -88,11 +92,11 @@ class StorageService:
                 Params={
                     "Bucket": bucket,
                     "Key": path,
-                    "ContentType": "application/pdf",
+                    "ContentType": content_type,
                 },
                 ExpiresIn=expires_in,
             )
-            return {"upload_url": url}
+            return {"upload_url": url, "max_size_bytes": max_size_bytes}
         except ClientError as e:
             logger.error(f"產生 S3 presigned upload URL 失敗: {e}")
             return None

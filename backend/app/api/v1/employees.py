@@ -93,8 +93,24 @@ async def list_employees(
                 or s in emp.get("email", "").lower()
             ]
 
-        for emp in employees:
-            await enrich_employee(emp)
+        # 批次 enrich（取代 N+1 迴圈）
+        if employees:
+            emp_ids = [e["id"] for e in employees]
+            pool = supabase_service.pool
+            profile_rows = await pool.fetch(
+                """SELECT up.employee_id, r.id AS role_id, r.name AS role_name
+                   FROM user_profiles up
+                   JOIN roles r ON r.id = up.role_id
+                   WHERE up.employee_id = ANY($1)""",
+                [__import__('uuid').UUID(eid) if isinstance(eid, str) else eid for eid in emp_ids],
+            )
+            profile_map = {str(r["employee_id"]): r for r in profile_rows}
+
+            for emp in employees:
+                p = profile_map.get(str(emp["id"]))
+                emp["has_account"] = p is not None
+                emp["role_id"] = str(p["role_id"]) if p else None
+                emp["role_name"] = p["role_name"] if p else None
 
         return EmployeeListResponse(
             data=[EmployeeResponse(**emp) for emp in employees],

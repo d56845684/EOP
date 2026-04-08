@@ -2,9 +2,9 @@ import { fetchWithAuth } from './fetchWithAuth'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
-export type ContractStatus = 'pending' | 'active' | 'expired' | 'terminated'
+export type ContractStatus = 'pending' | 'active' | 'expired' | 'terminated' | 'suspended'
 export type EmploymentType = 'hourly' | 'full_time'
-export type DetailType = 'course_rate' | 'base_salary' | 'allowance'
+export type DetailType = 'course_rate' | 'base_salary' | 'allowance' | 'overtime_rate'
 
 export interface TeacherContractDetail {
     id: string
@@ -246,8 +246,9 @@ export const teacherContractsApi = {
 
     async uploadFile(contractId: string, file: File): Promise<{ data: TeacherContract | null, error: any }> {
         try {
-            // 1. 從 backend 取得 S3 presigned upload URL
-            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/upload-url`, {
+            const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf'
+
+            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/upload-url?file_ext=${fileExt}`, {
                 method: 'POST',
             })
             if (!urlRes.ok) {
@@ -256,11 +257,10 @@ export const teacherContractsApi = {
             }
             const { upload_url, storage_path } = await urlRes.json()
 
-            // 2. 直接 PUT 檔案到 S3
             const uploadRes = await fetch(upload_url, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': file.type || 'application/pdf',
+                    'Content-Type': file.type || 'application/octet-stream',
                 },
                 body: file,
             })

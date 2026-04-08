@@ -1,6 +1,14 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
+
+# 合約上傳允許的格式
+CONTRACT_ALLOWED_TYPES = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "doc": "application/msword",
+}
+CONTRACT_ALLOWED_EXT_REGEX = r"\.(pdf|docx|doc)"
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.services.contract_pdf_service import generate_student_contract_pdf, generate_addendum_pdf, generate_student_contract_docx
@@ -77,14 +85,21 @@ async def check_student_active_conflict(student_id: str, exclude_contract_id: st
 
 async def enrich_contract_with_relations(contract: dict) -> dict:
     """為合約資料添加關聯名稱、明細、教師和請假紀錄"""
-    # 取得學生名稱
+    # 取得學生名稱 + 電話 + 身分證字號
     if contract.get("student_id"):
         student = await supabase_service.table_select(
             table="students",
-            select="name",
+            select="name,phone,id_number",
             filters={"id": contract["student_id"]},
         )
-        contract["student_name"] = student[0]["name"] if student else None
+        if student:
+            contract["student_name"] = student[0]["name"]
+            contract["student_phone"] = student[0].get("phone")
+            contract["student_id_number"] = student[0].get("id_number")
+        else:
+            contract["student_name"] = None
+            contract["student_phone"] = None
+            contract["student_id_number"] = None
 
     # 取得合約明細
     details = await supabase_service.table_select(
@@ -187,16 +202,16 @@ async def get_course_options(
 
             course_ids = [e["course_id"] for e in enrollments]
 
-            # 取得這些課程的詳細資訊
-            courses = []
-            for cid in course_ids:
-                course = await supabase_service.table_select(
-                    table="courses",
-                    select="id,course_code,course_name",
-                    filters={"id": cid, "is_deleted": "eq.false", "is_active": "eq.true"},
-                )
-                if course:
-                    courses.append(course[0])
+            # 批次查詢（取代逐一查詢）
+            pool = supabase_service.pool
+            import uuid as _uuid
+            uid_list = [_uuid.UUID(cid) if isinstance(cid, str) else cid for cid in course_ids]
+            rows = await pool.fetch(
+                """SELECT id, course_code, course_name FROM courses
+                   WHERE id = ANY($1) AND is_deleted = FALSE AND is_active = TRUE""",
+                uid_list,
+            )
+            courses = [{"id": str(r["id"]), "course_code": r["course_code"], "course_name": r["course_name"]} for r in rows]
 
             return {"data": courses}
         else:
@@ -305,11 +320,97 @@ async def list_student_contracts(
                 if search_lower in c.get("contract_no", "").lower()
             ]
 
-        # 為每筆合約添加關聯名稱
+        # 為合約批次加載關聯資料（取代 N+1 enrich 迴圈）
+        if not contracts:
+            return StudentContractListResponse(data=[], total=total, page=page, per_page=per_page, total_pages=total_pages)
+
+        contract_ids = [c["id"] for c in contracts]
+        student_ids = list({c["student_id"] for c in contracts if c.get("student_id")})
+        pool = supabase_service.pool
+
+        import asyncio as _aio
+        async def _empty(): return []
+
+        # 批次查詢：學生名稱、明細(含課程名)、請假、附約 — 並行
+        students_task = pool.fetch(
+            "SELECT id, name, phone, id_number FROM students WHERE id = ANY($1)",
+            student_ids,
+        ) if student_ids else _empty()
+
+        details_task = pool.fetch(
+            """SELECT d.id, d.student_contract_id, d.detail_type, d.course_id,
+                      d.description, d.amount, d.notes, d.created_at, d.updated_at,
+                      c.course_name
+               FROM student_contract_details d
+               LEFT JOIN courses c ON c.id = d.course_id
+               WHERE d.student_contract_id = ANY($1) AND d.is_deleted = FALSE""",
+            contract_ids,
+        )
+
+        leaves_task = pool.fetch(
+            """SELECT id, student_contract_id, leave_date, reason, created_at
+               FROM student_contract_leave_records
+               WHERE student_contract_id = ANY($1) AND is_deleted = FALSE""",
+            contract_ids,
+        )
+
+        addendums_task = pool.fetch(
+            """SELECT id, addendum_no, contract_type, parent_contract_id,
+                      original_end_date, new_end_date, addendum_status,
+                      file_path, file_name, file_uploaded_at, notes, created_at, updated_at
+               FROM contract_addendums
+               WHERE contract_type = 'student' AND parent_contract_id = ANY($1)
+                 AND is_deleted = FALSE""",
+            contract_ids,
+        )
+
+        student_rows, detail_rows, leave_rows, addendum_rows = await _aio.gather(
+            students_task, details_task, leaves_task, addendums_task
+        )
+
+        # asyncpg Record → dict，UUID → str
+        import uuid as _uuid
+        def _to_dict(row):
+            d = dict(row)
+            for k, v in d.items():
+                if isinstance(v, _uuid.UUID):
+                    d[k] = str(v)
+            return d
+
+        # 建立 lookup maps
+        student_map = {str(r["id"]): r for r in student_rows}
+        detail_map: dict[str, list] = {}
+        for d in detail_rows:
+            key = str(d["student_contract_id"])
+            detail_map.setdefault(key, []).append(_to_dict(d))
+        leave_map: dict[str, list] = {}
+        for l in leave_rows:
+            key = str(l["student_contract_id"])
+            leave_map.setdefault(key, []).append(_to_dict(l))
+        addendum_map: dict[str, list] = {}
+        for a in addendum_rows:
+            key = str(a["parent_contract_id"])
+            addendum_map.setdefault(key, []).append(_to_dict(a))
+
+        # 組裝
         enriched_contracts = []
         for contract in contracts:
-            enriched = await enrich_contract_with_relations(contract)
-            enriched_contracts.append(enriched)
+            cid = contract["id"]
+            sid = contract.get("student_id")
+            student = student_map.get(str(sid)) if sid else None
+            contract["student_name"] = student["name"] if student else None
+            contract["student_phone"] = student.get("phone") if student else None
+            contract["student_id_number"] = student.get("id_number") if student else None
+            contract["details"] = detail_map.get(str(cid), [])
+            contract["leave_records"] = leave_map.get(str(cid), [])
+            total_lessons = contract.get("total_lessons", 0)
+            contract["emergency_leave_quota"] = math.ceil(total_lessons * 0.2) if total_lessons else 0
+            addendums = addendum_map.get(str(cid), [])
+            for a in addendums:
+                a["parent_contract_no"] = contract.get("contract_no")
+                a["person_name"] = contract.get("student_name")
+            contract["addendums"] = addendums
+            enriched_contracts.append(contract)
 
         return StudentContractListResponse(
             data=[StudentContractResponse(**c) for c in enriched_contracts],
@@ -1088,12 +1189,12 @@ async def delete_leave_record(
 
 # ========== PDF Generation ==========
 
-@router.get("/{contract_id}/generate-pdf")
+@router.get("/{contract_id}/generate-pdf", deprecated=True)
 async def generate_student_pdf(
     contract_id: str,
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
-    """產生學生合約 PDF（僅限員工）"""
+    """[Deprecated] 產生學生合約 PDF — 請改用 generate-docx"""
     try:
         result = await generate_student_contract_pdf(contract_id)
         if not result:
@@ -1151,14 +1252,15 @@ class ConfirmUploadRequest(BaseModel):
 @router.post("/{contract_id}/upload-url")
 async def get_student_contract_upload_url(
     contract_id: str,
+    file_ext: str = Query("pdf", description="檔案格式 (pdf/docx/doc)"),
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
-    """取得學生合約檔案的 signed upload URL（僅限員工）
-
-    前端收到後直接 PUT 檔案到該 URL，上傳完成後呼叫 confirm-upload。
-    """
+    """取得學生合約檔案的 signed upload URL（僅限員工，支援 pdf/docx/doc）"""
     try:
-        # 檢查合約是否存在
+        ext = file_ext.lower().replace(".", "")
+        if ext not in CONTRACT_ALLOWED_TYPES:
+            raise HTTPException(status_code=400, detail=f"不支援的檔案格式: {ext}（允許 pdf/docx/doc）")
+
         existing = await supabase_service.table_select(
             table="student_contracts",
             select="id",
@@ -1167,17 +1269,15 @@ async def get_student_contract_upload_url(
         if not existing:
             raise HTTPException(status_code=404, detail="學生合約不存在")
 
-        # 確保 bucket 存在
         await storage_service.ensure_bucket_exists(settings.AWS_S3_BUCKET)
 
-        # 產生安全檔名
-        safe_filename = f"{uuid.uuid4().hex}.pdf"
+        safe_filename = f"{uuid.uuid4().hex}.{ext}"
         storage_path = f"student-contracts/{contract_id}/{safe_filename}"
 
-        # 產生 S3 presigned upload URL
         signed = await storage_service.create_signed_upload_url(
             bucket=settings.AWS_S3_BUCKET,
             path=storage_path,
+            content_type=CONTRACT_ALLOWED_TYPES[ext],
         )
         if not signed:
             raise HTTPException(status_code=500, detail="產生上傳連結失敗")
@@ -1224,7 +1324,7 @@ async def confirm_student_contract_upload(
                 )
 
         # 驗證 storage_path 格式
-        if not re.match(r'^student-contracts/[a-f0-9\-]+/[a-f0-9]+\.pdf$', body.storage_path):
+        if not re.match(r'^student-contracts/[a-f0-9\-]+/[a-f0-9]+\.(pdf|docx|doc)$', body.storage_path):
             raise HTTPException(status_code=400, detail="無效的檔案路徑格式")
 
         # 確認檔案已上傳至 S3
@@ -1715,7 +1815,7 @@ async def confirm_student_addendum_upload(
             raise HTTPException(status_code=404, detail="附約不存在")
 
         # 驗證 storage_path 格式
-        if not re.match(r'^contract-addendums/[a-f0-9\-]+/[a-f0-9]+\.pdf$', body.storage_path):
+        if not re.match(r'^contract-addendums/[a-f0-9\-]+/[a-f0-9]+\.(pdf|docx|doc)$', body.storage_path):
             raise HTTPException(status_code=400, detail="無效的檔案路徑格式")
 
         # 確認檔案已上傳

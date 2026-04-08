@@ -118,23 +118,40 @@ async def list_student_courses(
             offset=offset,
         )
 
-        # Enrich with names
-        enriched = []
-        for e in enrollments:
-            enriched.append(await enrich_enrollment(e))
+        # 批次 enrich（取代 N+1 迴圈）
+        if enrollments:
+            c_ids = list({e["course_id"] for e in enrollments if e.get("course_id")})
+            s_ids = list({e["student_id"] for e in enrollments if e.get("student_id")})
+            pool = supabase_service.pool
+
+            import asyncio as _aio
+            async def _empty(): return []
+
+            c_task = pool.fetch("SELECT id, course_code, course_name FROM courses WHERE id = ANY($1)", c_ids) if c_ids else _empty()
+            s_task = pool.fetch("SELECT id, name FROM students WHERE id = ANY($1)", s_ids) if s_ids else _empty()
+
+            c_rows, s_rows = await _aio.gather(c_task, s_task)
+            c_map = {str(r["id"]): r for r in c_rows}
+            s_map = {str(r["id"]): r["name"] for r in s_rows}
+
+            for e in enrollments:
+                c = c_map.get(str(e.get("course_id")))
+                e["course_code"] = c["course_code"] if c else None
+                e["course_name"] = c["course_name"] if c else None
+                e["student_name"] = s_map.get(str(e.get("student_id")))
 
         # Search filter (post-query)
         if search:
             search_lower = search.lower()
-            enriched = [
-                e for e in enriched
+            enrollments = [
+                e for e in enrollments
                 if search_lower in (e.get("course_name") or "").lower()
                 or search_lower in (e.get("student_name") or "").lower()
                 or search_lower in (e.get("course_code") or "").lower()
             ]
 
         return StudentCourseListResponse(
-            data=[StudentCourseResponse(**e) for e in enriched],
+            data=[StudentCourseResponse(**e) for e in enrollments],
             total=total,
             page=page,
             per_page=per_page,
@@ -167,11 +184,19 @@ async def get_courses_by_student(
             },
         )
 
-        enriched = []
-        for e in enrollments:
-            enriched.append(await enrich_enrollment(e))
+        # 批次 enrich
+        if enrollments:
+            c_ids = list({e["course_id"] for e in enrollments if e.get("course_id")})
+            pool = supabase_service.pool
+            c_rows = await pool.fetch("SELECT id, course_code, course_name FROM courses WHERE id = ANY($1)", c_ids) if c_ids else []
+            c_map = {str(r["id"]): r for r in c_rows}
+            for e in enrollments:
+                c = c_map.get(str(e.get("course_id")))
+                e["course_code"] = c["course_code"] if c else None
+                e["course_name"] = c["course_name"] if c else None
+                e["student_name"] = None  # 已知是同一學生，不需要查
 
-        return {"data": enriched}
+        return {"data": enrollments}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"取得學生選課失敗: {str(e)}")

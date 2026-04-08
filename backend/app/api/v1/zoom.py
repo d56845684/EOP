@@ -317,13 +317,30 @@ async def list_zoom_meetings(
             offset=(page - 1) * per_page,
         )
 
-        enriched_items = []
-        for item in items:
-            enriched = await enrich_meeting_log(item)
-            enriched_items.append(ZoomMeetingLogResponse(**enriched))
+        # 批次 enrich（取代 N+1 迴圈）
+        if items:
+            account_ids = list({i["zoom_account_id"] for i in items if i.get("zoom_account_id")})
+            teacher_ids = list({i["teacher_id"] for i in items if i.get("teacher_id")})
+
+            import asyncio as _aio
+            async def _empty(): return []
+            acct_task = supabase_service.pool.fetch(
+                "SELECT id, account_name FROM zoom_accounts WHERE id = ANY($1)", account_ids
+            ) if account_ids else _empty()
+            teacher_task = supabase_service.pool.fetch(
+                "SELECT id, name FROM teachers WHERE id = ANY($1)", teacher_ids
+            ) if teacher_ids else _empty()
+
+            acct_rows, teacher_rows = await _aio.gather(acct_task, teacher_task)
+            acct_map = {str(r["id"]): r["account_name"] for r in acct_rows}
+            teacher_map = {str(r["id"]): r["name"] for r in teacher_rows}
+
+            for item in items:
+                item["account_name"] = acct_map.get(str(item.get("zoom_account_id")))
+                item["teacher_name"] = teacher_map.get(str(item.get("teacher_id")))
 
         return ZoomMeetingLogListResponse(
-            data=enriched_items,
+            data=[ZoomMeetingLogResponse(**i) for i in items],
             total=total,
             page=page,
             per_page=per_page,
@@ -345,7 +362,7 @@ async def get_meeting_by_booking(
         if not current_user.is_staff():
             bookings = await supabase_service.table_select(
                 table="bookings",
-                select="id,teacher_id,student_id",
+                select="id,teacher_id,student_id,substitute_detail_id",
                 filters={"id": booking_id, "is_deleted": "eq.false"},
             )
             if not bookings:
@@ -353,7 +370,15 @@ async def get_meeting_by_booking(
 
             booking = bookings[0]
             if current_user.is_teacher():
-                if booking.get("teacher_id") != current_user.teacher_id:
+                is_original = booking.get("teacher_id") == current_user.teacher_id
+                is_substitute = False
+                if booking.get("substitute_detail_id"):
+                    sd = await supabase_service.table_select(
+                        table="substitute_details", select="substitute_teacher_id",
+                        filters={"id": booking["substitute_detail_id"], "is_deleted": "eq.false"},
+                    )
+                    is_substitute = bool(sd and sd[0].get("substitute_teacher_id") == current_user.teacher_id)
+                if not (is_original or is_substitute):
                     raise HTTPException(status_code=403, detail="無權查看此預約的 Zoom 資訊")
             elif current_user.is_student():
                 if booking.get("student_id") != current_user.student_id:
@@ -698,10 +723,15 @@ async def get_download_token(data: DownloadTokenRequest):
 
         # 組合會議名稱（與 Zoom 會議標題相同格式 + 時間戳）
         meeting_topic = None
+        _student_drive_folder = None
+        _student_type = None
         try:
             topic_rows = await supabase_service.pool.fetch(
                 """SELECT z.meeting_date, z.start_time, b.booking_no,
-                          c.course_name, s.name as student_name, t.name as teacher_name
+                          c.course_name, s.name as student_name,
+                          s.eng_name as student_eng_name,
+                          s.student_type, s.google_drive_folder_id,
+                          t.name as teacher_name
                    FROM zoom_meeting_logs z
                    JOIN bookings b ON z.booking_id = b.id
                    JOIN courses c ON b.course_id = c.id
@@ -715,7 +745,13 @@ async def get_download_token(data: DownloadTokenRequest):
                 r = topic_rows[0]
                 date_str = r["meeting_date"].isoformat() if r["meeting_date"] else ""
                 time_str = r["start_time"].strftime("%H%M") if r["start_time"] else ""
-                meeting_topic = f"[{r['booking_no']}] {r['course_name']} {r['student_name']} {r['teacher_name']} {date_str} {time_str}"
+                student_display = r["student_name"] or ""
+                if r.get("student_eng_name"):
+                    student_display += f"({r['student_eng_name']})"
+                meeting_topic = f"[{r['booking_no']}] {r['course_name']} {student_display} {r['teacher_name']} {date_str} {time_str}"
+                # 記錄學生 Drive 資料夾和類型供 Lambda 使用
+                _student_drive_folder = r.get("google_drive_folder_id")
+                _student_type = r.get("student_type")
         except Exception as e:
             logger.warning(f"取得會議名稱失敗: {e}")
 
@@ -726,6 +762,8 @@ async def get_download_token(data: DownloadTokenRequest):
             drive_mode=drive_mode,
             drive_access_token=drive_access_token,
             drive_folder_id=drive_folder_id,
+            student_drive_folder_id=_student_drive_folder,
+            student_type=_student_type,
         ))
 
     except HTTPException:

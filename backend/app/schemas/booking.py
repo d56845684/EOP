@@ -88,6 +88,7 @@ class BookingResponse(BaseModel):
     is_overtime: Optional[bool] = None
     regular_lessons: Optional[int] = None
     overtime_lessons: Optional[int] = None
+    overtime_pay: Optional[float] = None
     lessons_used: int = 1
     notes: Optional[str] = None
     created_at: Optional[datetime] = None

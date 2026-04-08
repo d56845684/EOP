@@ -20,6 +20,14 @@ class SessionExpiredException(AuthException):
     def __init__(self):
         super().__init__(detail="Session 已過期，請重新登入")
 
+class IdleTimeoutException(AuthException):
+    def __init__(self):
+        super().__init__(detail="閒置超時，系統已自動登出")
+
+class SessionReplacedException(AuthException):
+    def __init__(self):
+        super().__init__(detail="帳號已在其他裝置登入，您已被登出")
+
 class PermissionDeniedException(HTTPException):
     def __init__(self, detail: str = "權限不足"):
         super().__init__(

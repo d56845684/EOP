@@ -141,9 +141,27 @@ async def lifespan(app: FastAPI):
         zoom_task = asyncio.create_task(zoom_auto_end_loop())
         logger.info("Zoom 超時會議自動結束排程已啟動（每 60 秒）")
 
+    # 啟動通知佇列 worker
+    async def notification_worker_loop():
+        from app.services.notification_worker import process_notification_queue
+        while True:
+            try:
+                await process_notification_queue()
+            except Exception as e:
+                logger.error(f"Notification worker 錯誤: {e}")
+            await asyncio.sleep(5)
+
+    notification_task = asyncio.create_task(notification_worker_loop())
+    logger.info("Notification queue worker 已啟動（每 5 秒）")
+
     yield
 
     # 關閉時
+    notification_task.cancel()
+    try:
+        await notification_task
+    except asyncio.CancelledError:
+        pass
     if zoom_task:
         zoom_task.cancel()
         try:

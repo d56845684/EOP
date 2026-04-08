@@ -22,6 +22,7 @@ export interface Booking {
     is_overtime?: boolean | null
     regular_lessons?: number | null
     overtime_lessons?: number | null
+    overtime_pay?: number | null
     booking_date: string
     start_time: string
     end_time: string

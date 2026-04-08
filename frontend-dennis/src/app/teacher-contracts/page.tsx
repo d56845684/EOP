@@ -27,6 +27,7 @@ const statusLabels: Record<ContractStatus, string> = {
     active: '生效中',
     expired: '已過期',
     terminated: '已終止',
+    suspended: '暫停中',
 }
 
 const statusColors: Record<ContractStatus, { bg: string, text: string }> = {
@@ -34,6 +35,7 @@ const statusColors: Record<ContractStatus, { bg: string, text: string }> = {
     active: { bg: 'bg-green-100', text: 'text-green-800' },
     expired: { bg: 'bg-gray-100', text: 'text-gray-800' },
     terminated: { bg: 'bg-red-100', text: 'text-red-800' },
+    suspended: { bg: 'bg-orange-100', text: 'text-orange-800' },
 }
 
 const statusIcons: Record<ContractStatus, React.ReactNode> = {
@@ -41,6 +43,7 @@ const statusIcons: Record<ContractStatus, React.ReactNode> = {
     active: <CheckCircle className="w-3 h-3 mr-1" />,
     expired: <XCircle className="w-3 h-3 mr-1" />,
     terminated: <AlertCircle className="w-3 h-3 mr-1" />,
+    suspended: <AlertCircle className="w-3 h-3 mr-1" />,
 }
 
 const employmentTypeLabels: Record<EmploymentType, string> = {
@@ -57,12 +60,14 @@ const detailTypeLabels: Record<DetailType, string> = {
     course_rate: '課程時薪',
     base_salary: '底薪',
     allowance: '津貼',
+    overtime_rate: '加班費',
 }
 
 const detailTypeColors: Record<DetailType, { bg: string, text: string }> = {
     course_rate: { bg: 'bg-blue-100', text: 'text-blue-800' },
     base_salary: { bg: 'bg-green-100', text: 'text-green-800' },
     allowance: { bg: 'bg-orange-100', text: 'text-orange-800' },
+    overtime_rate: { bg: 'bg-red-100', text: 'text-red-800' },
 }
 
 export default function TeacherContractsPage() {
@@ -614,6 +619,7 @@ export default function TeacherContractsPage() {
                                 <option value="">全部狀態</option>
                                 <option value="pending">待生效</option>
                                 <option value="active">生效中</option>
+                                <option value="suspended">暫停中</option>
                                 <option value="expired">已過期</option>
                                 <option value="terminated">已終止</option>
                             </select>
@@ -814,7 +820,7 @@ export default function TeacherContractsPage() {
                                                             <div className="flex items-center">
                                                                 <input
                                                                     type="file"
-                                                                    accept=".pdf"
+                                                                    accept=".pdf,.doc,.docx"
                                                                     id={`upload-${contract.id}`}
                                                                     className="hidden"
                                                                     onChange={(e) => {
@@ -920,7 +926,7 @@ export default function TeacherContractsPage() {
                                                                     <div>
                                                                         <input
                                                                             type="file"
-                                                                            accept=".pdf"
+                                                                            accept=".pdf,.doc,.docx"
                                                                             id={`addendum-upload-${addendum.id}`}
                                                                             className="hidden"
                                                                             onChange={(e) => {
@@ -1071,6 +1077,7 @@ export default function TeacherContractsPage() {
                                             >
                                                 <option value="pending">待生效</option>
                                                 <option value="active">生效中</option>
+                                                <option value="suspended">暫停中</option>
                                                 <option value="expired">已過期</option>
                                                 <option value="terminated">已終止</option>
                                             </select>
@@ -1334,6 +1341,13 @@ export default function TeacherContractsPage() {
                                                                         <option value="base_salary">底薪</option>
                                                                         <option value="allowance">津貼</option>
                                                                         <option value="course_rate">課程時薪</option>
+                                                                        {/* 加班費：每合約限一筆，已有則禁止新增 */}
+                                                                        <option
+                                                                            value="overtime_rate"
+                                                                            disabled={!editingDetail && details.some(d => d.detail_type === 'overtime_rate')}
+                                                                        >
+                                                                            加班費{!editingDetail && details.some(d => d.detail_type === 'overtime_rate') ? '（已設定）' : ''}
+                                                                        </option>
                                                                     </select>
                                                                     {detailFormData.detail_type === 'course_rate' && (
                                                                         <div className="mt-2">
@@ -1371,7 +1385,7 @@ export default function TeacherContractsPage() {
                                                                 value={detailFormData.description || ''}
                                                                 onChange={(e) => setDetailFormData({ ...detailFormData, description: e.target.value })}
                                                                 className="input-field"
-                                                                placeholder={detailFormData.detail_type === 'course_rate' ? '如：一對一教學' : '如：交通津貼'}
+                                                                placeholder={detailFormData.detail_type === 'course_rate' ? '如：一對一教學' : detailFormData.detail_type === 'overtime_rate' ? '如：平日加班費' : '如：交通津貼'}
                                                                 maxLength={100}
                                                             />
                                                         </div>

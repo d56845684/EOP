@@ -238,8 +238,10 @@ export const studentContractsApi = {
 
     async uploadFile(contractId: string, file: File): Promise<{ data: StudentContract | null, error: any }> {
         try {
-            // 1. 從 backend 取得 S3 presigned upload URL
-            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/upload-url`, {
+            const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf'
+
+            // 1. 從 backend 取得 S3 presigned upload URL（帶檔案格式）
+            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-contracts/${contractId}/upload-url?file_ext=${fileExt}`, {
                 method: 'POST',
             })
             if (!urlRes.ok) {
@@ -252,7 +254,7 @@ export const studentContractsApi = {
             const uploadRes = await fetch(upload_url, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': file.type || 'application/pdf',
+                    'Content-Type': file.type || 'application/octet-stream',
                 },
                 body: file,
             })

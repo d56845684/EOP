@@ -1,6 +1,12 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
+
+CONTRACT_ALLOWED_TYPES = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "doc": "application/msword",
+}
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.services.contract_pdf_service import generate_teacher_contract_pdf, generate_addendum_pdf
@@ -258,11 +264,92 @@ async def list_teacher_contracts(
                 if search_lower in c.get("contract_no", "").lower()
             ]
 
-        # 為每筆合約添加關聯名稱
+        # 為合約批次加載關聯資料（取代 N+1 enrich 迴圈）
+        if not contracts:
+            return TeacherContractListResponse(data=[], total=total, page=page, per_page=per_page, total_pages=total_pages)
+
+        contract_ids = [c["id"] for c in contracts]
+        teacher_ids = list({c["teacher_id"] for c in contracts if c.get("teacher_id")})
+        pool = supabase_service.pool
+
+        import asyncio as _aio
+        async def _empty(): return []
+
+        teachers_task = pool.fetch(
+            "SELECT id, name FROM teachers WHERE id = ANY($1)", teacher_ids,
+        ) if teacher_ids else _empty()
+
+        details_task = pool.fetch(
+            """SELECT d.id, d.teacher_contract_id, d.detail_type, d.course_id,
+                      d.description, d.amount, d.notes, d.created_at, d.updated_at,
+                      c.course_name
+               FROM teacher_contract_details d
+               LEFT JOIN courses c ON c.id = d.course_id
+               WHERE d.teacher_contract_id = ANY($1) AND d.is_deleted = FALSE""",
+            contract_ids,
+        )
+
+        schedules_task = pool.fetch(
+            """SELECT id, teacher_contract_id, weekday, start_time, end_time, notes, created_at, updated_at
+               FROM teacher_work_schedules
+               WHERE teacher_contract_id = ANY($1) AND is_deleted = FALSE""",
+            contract_ids,
+        )
+
+        addendums_task = pool.fetch(
+            """SELECT id, addendum_no, contract_type, parent_contract_id,
+                      original_end_date, new_end_date, addendum_status,
+                      file_path, file_name, file_uploaded_at, notes, created_at, updated_at
+               FROM contract_addendums
+               WHERE contract_type = 'teacher' AND parent_contract_id = ANY($1)
+                 AND is_deleted = FALSE""",
+            contract_ids,
+        )
+
+        teacher_rows, detail_rows, schedule_rows, addendum_rows = await _aio.gather(
+            teachers_task, details_task, schedules_task, addendums_task
+        )
+
+        import uuid as _uuid
+        def _to_dict(row):
+            d = dict(row)
+            for k, v in d.items():
+                if isinstance(v, _uuid.UUID):
+                    d[k] = str(v)
+            return d
+
+        teacher_map = {str(r["id"]): r["name"] for r in teacher_rows}
+        detail_map: dict[str, list] = {}
+        for d in detail_rows:
+            key = str(d["teacher_contract_id"])
+            detail_map.setdefault(key, []).append(_to_dict(d))
+        schedule_map: dict[str, list] = {}
+        for s in schedule_rows:
+            key = str(s["teacher_contract_id"])
+            schedule_map.setdefault(key, []).append(_to_dict(s))
+        addendum_map: dict[str, list] = {}
+        for a in addendum_rows:
+            key = str(a["parent_contract_id"])
+            addendum_map.setdefault(key, []).append(_to_dict(a))
+
         enriched_contracts = []
         for contract in contracts:
-            enriched = await enrich_contract_with_relations(contract)
-            enriched_contracts.append(enriched)
+            cid = contract["id"]
+            tid = contract.get("teacher_id")
+            contract["teacher_name"] = teacher_map.get(str(tid)) if tid else None
+            details = detail_map.get(str(cid), [])
+            contract["details"] = details
+            if contract.get("employment_type") == "full_time":
+                contract["total_amount"] = sum(d.get("amount", 0) or 0 for d in details)
+            else:
+                contract["total_amount"] = None
+            contract["work_schedules"] = schedule_map.get(str(cid), [])
+            addendums = addendum_map.get(str(cid), [])
+            for a in addendums:
+                a["parent_contract_no"] = contract.get("contract_no")
+                a["person_name"] = contract.get("teacher_name")
+            contract["addendums"] = addendums
+            enriched_contracts.append(contract)
 
         return TeacherContractListResponse(
             data=[TeacherContractResponse(**c) for c in enriched_contracts],
@@ -640,6 +727,20 @@ async def create_contract_detail(
             )
             if not course:
                 raise HTTPException(status_code=400, detail="課程不存在")
+
+        # overtime_rate 每合約只能一筆
+        if data.detail_type.value == "overtime_rate":
+            existing_ot = await supabase_service.table_select(
+                table="teacher_contract_details",
+                select="id",
+                filters={
+                    "teacher_contract_id": f"eq.{contract_id}",
+                    "detail_type": "eq.overtime_rate",
+                    "is_deleted": "eq.false",
+                },
+            )
+            if existing_ot:
+                raise HTTPException(status_code=400, detail="每份合約只能設定一筆加班費")
 
         detail_data = {
             "teacher_contract_id": contract_id,
@@ -1067,7 +1168,7 @@ async def confirm_teacher_contract_upload(
                 )
 
         # 驗證 storage_path 格式
-        if not re.match(r'^teacher-contracts/[a-f0-9\-]+/[a-f0-9]+\.pdf$', body.storage_path):
+        if not re.match(r'^teacher-contracts/[a-f0-9\-]+/[a-f0-9]+\.(pdf|docx|doc)$', body.storage_path):
             raise HTTPException(status_code=400, detail="無效的檔案路徑格式")
 
         # 確認檔案已上傳至 S3
@@ -1549,7 +1650,7 @@ async def confirm_teacher_addendum_upload(
         if not existing:
             raise HTTPException(status_code=404, detail="附約不存在")
 
-        if not re.match(r'^contract-addendums/[a-f0-9\-]+/[a-f0-9]+\.pdf$', body.storage_path):
+        if not re.match(r'^contract-addendums/[a-f0-9\-]+/[a-f0-9]+\.(pdf|docx|doc)$', body.storage_path):
             raise HTTPException(status_code=400, detail="無效的檔案路徑格式")
 
         file_exists = await storage_service.verify_file_exists(

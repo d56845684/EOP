@@ -115,6 +115,7 @@ export default function TeachersPage() {
         try {
             if (modalMode === 'create') {
                 const submitData = { ...formData }
+                if (!submitData.teacher_no) delete (submitData as any).teacher_no
                 if (!submitData.phone) delete (submitData as any).phone
                 if (!submitData.address) delete (submitData as any).address
                 if (!submitData.bio) delete (submitData as any).bio
@@ -282,7 +283,7 @@ export default function TeachersPage() {
     const handleFileUpload = async (detail: TeacherDetail, file: File) => {
         setUploadingDetailId(detail.id)
         try {
-            const { data: urlData, error: urlError } = await teacherDetailsApi.getUploadUrl(detail.id)
+            const { data: urlData, error: urlError } = await teacherDetailsApi.getUploadUrl(detail.id, file.name)
             if (urlError || !urlData) {
                 setDetailsError(urlError?.message || '取得上傳連結失敗')
                 return
@@ -470,9 +471,9 @@ export default function TeachersPage() {
                                 <form onSubmit={handleSubmit} className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">教師編號 <span className="text-red-500">*</span></label>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">教師編號</label>
                                             <input type="text" value={formData.teacher_no} onChange={(e) => setFormData({ ...formData, teacher_no: e.target.value })}
-                                                className="input-field" placeholder="例如：T001" required disabled={modalMode === 'edit'} />
+                                                className="input-field" placeholder="留空自動產生 (EOPT...)" disabled={modalMode === 'edit'} />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">姓名 <span className="text-red-500">*</span></label>
@@ -650,6 +651,7 @@ export default function TeachersPage() {
                                                                                 <Upload className="w-4 h-4" />
                                                                             )}
                                                                             <input type="file" className="hidden"
+                                                                                accept=".pdf,.png,.jpg,.jpeg"
                                                                                 onChange={(e) => {
                                                                                     const file = e.target.files?.[0]
                                                                                     if (file) handleFileUpload(detail, file)

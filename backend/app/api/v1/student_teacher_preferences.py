@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.student_teacher_preference import (
-    StudentTeacherPreferenceCreate, StudentTeacherPreferenceUpdate, StudentTeacherPreferenceResponse
+    StudentTeacherPreferenceCreate,
+    StudentTeacherPreferenceUpdate, StudentTeacherPreferenceResponse
 )
 from app.schemas.response import BaseResponse, DataResponse
-from typing import Optional
+from typing import Optional, List
 
 router = APIRouter(prefix="/student-teacher-preferences", tags=["學生教師偏好"])
 
@@ -61,21 +62,46 @@ async def list_preferences(
             },
         )
 
-        enriched = []
-        for p in prefs:
-            enriched.append(await enrich_preference(p))
+        # 批次 enrich（取代 N+1 迴圈）
+        if prefs:
+            s_ids = list({p["student_id"] for p in prefs if p.get("student_id")})
+            c_ids = list({p["course_id"] for p in prefs if p.get("course_id")})
+            t_ids = list({p["primary_teacher_id"] for p in prefs if p.get("primary_teacher_id")})
+            pool = supabase_service.pool
 
-        return {"success": True, "data": enriched}
+            import asyncio as _aio
+            async def _empty(): return []
+
+            s_task = pool.fetch("SELECT id, name FROM students WHERE id = ANY($1)", s_ids) if s_ids else _empty()
+            c_task = pool.fetch("SELECT id, course_name FROM courses WHERE id = ANY($1)", c_ids) if c_ids else _empty()
+            t_task = pool.fetch("SELECT id, name FROM teachers WHERE id = ANY($1)", t_ids) if t_ids else _empty()
+
+            s_rows, c_rows, t_rows = await _aio.gather(s_task, c_task, t_task)
+            s_map = {str(r["id"]): r["name"] for r in s_rows}
+            c_map = {str(r["id"]): r["course_name"] for r in c_rows}
+            t_map = {str(r["id"]): r["name"] for r in t_rows}
+
+            for p in prefs:
+                p["student_name"] = s_map.get(str(p.get("student_id")))
+                p["course_name"] = c_map.get(str(p.get("course_id")))
+                p["primary_teacher_name"] = t_map.get(str(p.get("primary_teacher_id")))
+
+        return {"success": True, "data": prefs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/", response_model=DataResponse[StudentTeacherPreferenceResponse])
+@router.post("/")
 async def create_preference(
     data: StudentTeacherPreferenceCreate,
     current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
-    """新增學生教師偏好（僅員工）"""
+    """新增學生教師偏好（僅員工）
+
+    - 傳 primary_teacher_ids（1 筆）→ 單筆建立
+    - 傳 primary_teacher_ids（多筆）→ 批次建立（自動跳過重複）
+    - 不傳 primary_teacher_ids（只傳 min_teacher_level）→ 等級模式
+    """
     try:
         employee_id = await get_user_employee_id(current_user.user_id)
 
@@ -87,7 +113,83 @@ async def create_preference(
         if not student:
             raise HTTPException(status_code=400, detail="學生不存在")
 
-        # 驗證課程存在（如果有提供）
+        # ── 指定教師模式（單筆 or 批次） ──
+        if data.primary_teacher_ids:
+            pool = supabase_service.pool
+
+            # 驗證所有教師存在
+            teacher_rows = await pool.fetch(
+                "SELECT id FROM teachers WHERE id = ANY($1) AND is_deleted = false",
+                list(data.primary_teacher_ids),
+            )
+            valid_ids = {str(r["id"]) for r in teacher_rows}
+            invalid_ids = set(data.primary_teacher_ids) - valid_ids
+            if invalid_ids:
+                raise HTTPException(status_code=400, detail=f"以下教師不存在: {', '.join(invalid_ids)}")
+
+            # 查出已存在的偏好（避免重複）
+            existing = await pool.fetch(
+                "SELECT primary_teacher_id FROM student_teacher_preferences "
+                "WHERE student_id = $1 AND primary_teacher_id = ANY($2) AND is_deleted = false",
+                data.student_id, list(data.primary_teacher_ids),
+            )
+            existing_ids = {str(r["primary_teacher_id"]) for r in existing}
+            new_ids = [tid for tid in data.primary_teacher_ids if tid not in existing_ids]
+
+            # 單筆：嚴格報錯
+            if len(data.primary_teacher_ids) == 1:
+                if not new_ids:
+                    raise HTTPException(status_code=400, detail="此學生已指定該教師，請編輯現有設定")
+                tid = new_ids[0]
+                insert_data = {
+                    "student_id": data.student_id,
+                    "course_id": None,
+                    "min_teacher_level": None,
+                    "primary_teacher_id": tid,
+                }
+                if employee_id:
+                    insert_data["created_by"] = employee_id
+                result = await supabase_service.table_insert(
+                    table="student_teacher_preferences", data=insert_data,
+                )
+                if not result:
+                    raise HTTPException(status_code=500, detail="建立偏好失敗")
+                enriched = await enrich_preference(result)
+                return DataResponse(
+                    message="偏好建立成功",
+                    data=StudentTeacherPreferenceResponse(**enriched)
+                )
+
+            # 多筆：批次建立，跳過重複
+            if not new_ids:
+                raise HTTPException(status_code=400, detail="所有選擇的教師已存在於偏好中")
+
+            created = []
+            for tid in new_ids:
+                insert_data = {
+                    "student_id": data.student_id,
+                    "course_id": None,
+                    "min_teacher_level": None,
+                    "primary_teacher_id": tid,
+                }
+                if employee_id:
+                    insert_data["created_by"] = employee_id
+                result = await supabase_service.table_insert(
+                    table="student_teacher_preferences", data=insert_data,
+                )
+                if result:
+                    created.append(result)
+
+            skipped = len(data.primary_teacher_ids) - len(new_ids)
+            msg = f"成功新增 {len(created)} 筆教師偏好"
+            if skipped:
+                msg += f"（跳過 {skipped} 筆已存在）"
+            return {"success": True, "message": msg, "data": created}
+
+        # ── 等級模式 ──
+        if not data.min_teacher_level:
+            raise HTTPException(status_code=400, detail="等級模式必須提供最高教師等級 (min_teacher_level)")
+
         if data.course_id:
             course = await supabase_service.table_select(
                 table="courses", select="id",
@@ -96,70 +198,38 @@ async def create_preference(
             if not course:
                 raise HTTPException(status_code=400, detail="課程不存在")
 
-        # 驗證主要教師存在（如果有提供）
-        if data.primary_teacher_id:
-            teacher = await supabase_service.table_select(
-                table="teachers", select="id",
-                filters={"id": data.primary_teacher_id, "is_deleted": "eq.false"},
-            )
-            if not teacher:
-                raise HTTPException(status_code=400, detail="主要教師不存在")
-
-        # 檢查唯一性
-        if data.primary_teacher_id:
-            # 指定教師模式：同學生+同教師不能重複
-            dup_filters = {
-                "student_id": data.student_id,
-                "primary_teacher_id": data.primary_teacher_id,
-                "is_deleted": "eq.false"
-            }
-            existing = await supabase_service.table_select(
-                table="student_teacher_preferences",
-                select="id",
-                filters=dup_filters,
-            )
-            if existing:
-                raise HTTPException(status_code=400, detail="此學生已指定該教師，請編輯現有設定")
+        dup_filters = {
+            "student_id": data.student_id,
+            "primary_teacher_id": "is.null",
+            "is_deleted": "eq.false"
+        }
+        if data.course_id:
+            dup_filters["course_id"] = data.course_id
         else:
-            # 等級模式：同學生+同課程（含全域）不能重複
-            dup_filters = {
-                "student_id": data.student_id,
-                "primary_teacher_id": "is.null",
-                "is_deleted": "eq.false"
-            }
-            if data.course_id:
-                dup_filters["course_id"] = data.course_id
-            else:
-                dup_filters["course_id"] = "is.null"
-
-            existing = await supabase_service.table_select(
-                table="student_teacher_preferences",
-                select="id",
-                filters=dup_filters,
-            )
-            if existing:
-                scope = "全域" if not data.course_id else "該課程"
-                raise HTTPException(status_code=400, detail=f"此學生已有{scope}等級偏好設定，請編輯現有設定")
+            dup_filters["course_id"] = "is.null"
+        existing = await supabase_service.table_select(
+            table="student_teacher_preferences", select="id", filters=dup_filters,
+        )
+        if existing:
+            scope = "全域" if not data.course_id else "該課程"
+            raise HTTPException(status_code=400, detail=f"此學生已有{scope}等級偏好設定，請編輯現有設定")
 
         insert_data = {
             "student_id": data.student_id,
             "course_id": data.course_id,
             "min_teacher_level": data.min_teacher_level,
-            "primary_teacher_id": data.primary_teacher_id,
+            "primary_teacher_id": None,
         }
         if employee_id:
             insert_data["created_by"] = employee_id
 
         result = await supabase_service.table_insert(
-            table="student_teacher_preferences",
-            data=insert_data,
+            table="student_teacher_preferences", data=insert_data,
         )
-
         if not result:
             raise HTTPException(status_code=500, detail="建立偏好失敗")
 
         enriched = await enrich_preference(result)
-
         return DataResponse(
             message="偏好建立成功",
             data=StudentTeacherPreferenceResponse(**enriched)

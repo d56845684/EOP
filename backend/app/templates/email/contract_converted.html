@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<p>{{ recipient_name }} 您好，</p>
+<p>恭喜！試上課程已轉為正式課程：</p>
+<table class="info-table">
+  <tr><td>學生</td><td>{{ student_name }}</td></tr>
+  <tr><td>合約編號</td><td>{{ contract_no }}</td></tr>
+  <tr><td>總堂數</td><td>{{ total_lessons }} 堂</td></tr>
+  <tr><td>合約期間</td><td>{{ start_date }} – {{ end_date }}</td></tr>
+</table>
+{% endblock %}

@@ -5,8 +5,9 @@ from app.services.permission_service import permission_service
 from app.core.security import get_token_from_request, decode_token, TokenType
 from app.core.exceptions import (
     AuthException, InvalidTokenException,
-    SessionExpiredException, PermissionDeniedException
+    SessionExpiredException, IdleTimeoutException, PermissionDeniedException
 )
+from app.config import settings
 from app.models.session import SessionData
 
 
@@ -119,6 +120,18 @@ async def get_current_user(request: Request) -> CurrentUser:
     session_data = await session_service.get_session_and_touch(session_id)
     if not session_data:
         raise SessionExpiredException()
+
+    # 3.5 閒置超時檢查
+    from datetime import datetime, timezone
+    if session_data.last_activity:
+        try:
+            last_dt = datetime.fromisoformat(session_data.last_activity)
+            idle_seconds = (datetime.now(timezone.utc) - last_dt).total_seconds()
+            if idle_seconds > settings.IDLE_TIMEOUT_MINUTES * 60:
+                await session_service.destroy_session(session_id)
+                raise IdleTimeoutException()
+        except (ValueError, TypeError):
+            pass
 
     # 4. 驗證 Session 與 Token 匹配
     if session_data.user_id != payload.get("sub"):

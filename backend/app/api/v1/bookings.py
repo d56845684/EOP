@@ -65,6 +65,59 @@ def calculate_regular_overtime_lessons(
     return regular, overtime
 
 
+async def compute_overtime_pay(
+    teacher_contract_id: str,
+    booking_date: date,
+    start_time: time,
+    end_time: time,
+    course_duration: int,
+) -> float | None:
+    """計算並回傳加班費，僅適用於 full_time 教師。非正職或無加班則回傳 None。
+
+    此函式在建立預約時呼叫，將 overtime_pay 持久化到 bookings 表。
+    """
+    pool = supabase_service.pool
+
+    # 確認是 full_time 合約
+    tc = await pool.fetchrow(
+        "SELECT employment_type FROM teacher_contracts WHERE id = $1",
+        __import__('uuid').UUID(teacher_contract_id),
+    )
+    if not tc or tc["employment_type"] != "full_time":
+        return None
+
+    # 取得該 weekday 的工作時段
+    weekday = booking_date.isoweekday() - 1  # 0=Mon, 6=Sun
+    ws_rows = await pool.fetch(
+        """SELECT start_time, end_time FROM teacher_work_schedules
+           WHERE teacher_contract_id = $1 AND weekday = $2 AND is_deleted = FALSE""",
+        __import__('uuid').UUID(teacher_contract_id), weekday,
+    )
+    work_slots = [(r["start_time"], r["end_time"]) for r in ws_rows]
+
+    if work_slots:
+        regular, overtime = calculate_regular_overtime_lessons(
+            start_time, end_time, work_slots, course_duration,
+        )
+    else:
+        # 該天無工作時段 → 全部視為加班
+        overtime = calculate_lessons_used(start_time, end_time, course_duration)
+
+    if overtime <= 0:
+        return None
+
+    # 取得加班費率
+    ot_row = await pool.fetchrow(
+        """SELECT amount FROM teacher_contract_details
+           WHERE teacher_contract_id = $1 AND detail_type = 'overtime_rate' AND is_deleted = FALSE""",
+        __import__('uuid').UUID(teacher_contract_id),
+    )
+    if not ot_row:
+        return None
+
+    return float(overtime * ot_row["amount"])
+
+
 async def generate_booking_no() -> str:
     """生成預約編號: BK{YYYYMMDD}{序號}"""
     today = datetime.utcnow().strftime("%Y%m%d")
@@ -95,92 +148,81 @@ async def generate_booking_no() -> str:
 
 
 async def get_student_allowed_teachers(student_id: str) -> tuple[set[str] | None, bool]:
-    """取得學生所有偏好設定的教師聯集
+    """取得學生所有偏好設定的教師聯集（已優化：單次 SQL 取代三層巢狀迴圈）
 
-    遍歷所有偏好（is_deleted=false），依情境收集可預約教師 ID：
-      情境 1: primary_teacher_id 有值 → 直接加入該教師
-      情境 2: course_id=NULL + min_teacher_level → 全域等級過濾
-      情境 3: course_id=X  + min_teacher_level → 指定課程等級過濾
+    等級向下兼容：選 level 2 → 可選 level 1 和 2 的教師（teacher_level <= 偏好值）
+
+    情境 1: primary_teacher_id 有值 → 直接加入該教師
+    情境 2: course_id=NULL + min_teacher_level → 全域等級過濾（向下兼容）
+    情境 3: course_id=X  + min_teacher_level → 指定課程等級過濾（向下兼容）
 
     Returns:
         (allowed_set, has_preferences)
-        - allowed_set: 可預約教師 ID set；若無偏好設定則為 None
-        - has_preferences: 是否有任何偏好設定
     """
-    all_prefs = await supabase_service.table_select(
-        table="student_teacher_preferences",
-        select="id,min_teacher_level,primary_teacher_id,course_id",
-        filters={
-            "student_id": student_id,
-            "is_deleted": "eq.false"
-        },
+    pool = supabase_service.pool
+    import uuid as _uuid
+    sid = _uuid.UUID(student_id) if isinstance(student_id, str) else student_id
+
+    all_prefs = await pool.fetch(
+        """SELECT id, min_teacher_level, primary_teacher_id, course_id
+           FROM student_teacher_preferences
+           WHERE student_id = $1 AND is_deleted = FALSE""",
+        sid,
     )
 
     if not all_prefs:
-        # 沒有偏好設定 → 回傳空集合（不可預約任何教師）
         return set(), False
 
     allowed: set[str] = set()
 
+    # 分類偏好
+    primary_ids = []
+    global_min_levels = []
+    course_prefs = []  # [(min_level, course_id)]
+
     for pref in all_prefs:
-        primary = pref.get("primary_teacher_id")
-        min_level = pref.get("min_teacher_level") or 1
-        pref_course_id = pref.get("course_id")
+        primary = pref["primary_teacher_id"]
+        min_level = pref["min_teacher_level"] or 1
+        pref_course_id = pref["course_id"]
 
         if primary:
-            # 情境 1: 指定主要教師 → 直接加入
-            allowed.add(primary)
+            primary_ids.append(primary)
         elif pref_course_id:
-            # 情境 3: 指定課程 + 等級過濾
-            # 查有該課程 course_rate 的教師（透過 teacher_contracts → teacher_contract_details）
-            # 先找等級足夠的教師
-            teachers = await supabase_service.table_select(
-                table="teachers",
-                select="id",
-                filters={
-                    "is_deleted": "eq.false",
-                    "is_active": "eq.true",
-                    "teacher_level": f"gte.{min_level}"
-                },
-            )
-            for t in teachers:
-                # 查該教師是否有 active 合約包含此課程的 course_rate
-                t_contracts = await supabase_service.table_select(
-                    table="teacher_contracts",
-                    select="id",
-                    filters={
-                        "teacher_id": t["id"],
-                        "is_deleted": "eq.false",
-                        "contract_status": "eq.active"
-                    },
-                )
-                for tc in t_contracts:
-                    rate_check = await supabase_service.table_select(
-                        table="teacher_contract_details",
-                        select="id",
-                        filters={
-                            "teacher_contract_id": tc["id"],
-                            "course_id": pref_course_id,
-                            "detail_type": "eq.course_rate",
-                            "is_deleted": "eq.false"
-                        },
-                    )
-                    if rate_check:
-                        allowed.add(t["id"])
-                        break
+            course_prefs.append((min_level, pref_course_id))
         else:
-            # 情境 2: 全域等級過濾（course_id=NULL, 無 primary）
-            teachers = await supabase_service.table_select(
-                table="teachers",
-                select="id",
-                filters={
-                    "is_deleted": "eq.false",
-                    "is_active": "eq.true",
-                    "teacher_level": f"gte.{min_level}"
-                },
+            global_min_levels.append(min_level)
+
+    # 情境 1: 指定教師 → 直接加入
+    for pid in primary_ids:
+        allowed.add(str(pid))
+
+    # 情境 2: 全域等級過濾 → 一次查詢（向下兼容：等級 <= 偏好值）
+    if global_min_levels:
+        max_level_val = max(global_min_levels)  # 取最寬鬆的等級（向下兼容取最高）
+        rows = await pool.fetch(
+            """SELECT id FROM teachers
+               WHERE is_deleted = FALSE AND is_active = TRUE AND teacher_level <= $1""",
+            max_level_val,
+        )
+        for r in rows:
+            allowed.add(str(r["id"]))
+
+    # 情境 3: 指定課程 + 等級 → 單一 SQL 搞定（取代三層巢狀）
+    if course_prefs:
+        for min_level, cid in course_prefs:
+            rows = await pool.fetch(
+                """SELECT DISTINCT t.id
+                   FROM teachers t
+                   JOIN teacher_contracts tc ON tc.teacher_id = t.id
+                       AND tc.is_deleted = FALSE AND tc.contract_status = 'active'
+                   JOIN teacher_contract_details tcd ON tcd.teacher_contract_id = tc.id
+                       AND tcd.course_id = $1 AND tcd.detail_type = 'course_rate'
+                       AND tcd.is_deleted = FALSE
+                   WHERE t.is_deleted = FALSE AND t.is_active = TRUE AND t.teacher_level <= $2""",
+                cid, min_level,
             )
-            for t in teachers:
-                allowed.add(t["id"])
+            for r in rows:
+                allowed.add(str(r["id"]))
 
     return allowed, True
 
@@ -447,10 +489,31 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
                 regular, overtime = calculate_regular_overtime_lessons(
                     b_start, b_end, work_slots, course_duration
                 )
+            else:
+                # 該天無工作時段 → 全部視為加班
+                regular = 0
+                overtime = calculate_lessons_used(b_start, b_end, course_duration)
 
-                booking["regular_lessons"] = regular
-                booking["overtime_lessons"] = overtime
-                booking["is_overtime"] = overtime > 0
+            booking["regular_lessons"] = regular
+            booking["overtime_lessons"] = overtime
+            booking["is_overtime"] = overtime > 0
+
+            # 加班費：優先使用 DB 持久化值，若無則動態計算
+            if overtime > 0:
+                if booking.get("overtime_pay") is not None:
+                    pass  # 已從 DB 讀取
+                elif booking.get("teacher_contract_id"):
+                    ot_detail = await supabase_service.table_select(
+                        table="teacher_contract_details",
+                        select="amount",
+                        filters={
+                            "teacher_contract_id": f"eq.{booking['teacher_contract_id']}",
+                            "detail_type": "eq.overtime_rate",
+                            "is_deleted": "eq.false",
+                        },
+                    )
+                    if ot_detail:
+                        booking["overtime_pay"] = float(overtime * ot_detail[0]["amount"])
 
     # 取得課程名稱
     if booking.get("course_id"):
@@ -527,71 +590,204 @@ async def list_bookings(
     date_to: Optional[date] = Query(None, description="結束日期"),
     current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
-    """取得預約列表"""
+    """取得預約列表（已優化：單一 JOIN 查詢取代 N+1 enrich 迴圈）"""
     try:
-        # 建立基本查詢
-        filters = {"is_deleted": "eq.false"}
+        pool = supabase_service.pool
+
+        # ── 動態 WHERE 條件 ──
+        conditions = ["b.is_deleted = FALSE"]
+        params: list = []
+        idx = 0
 
         if booking_status:
-            filters["booking_status"] = f"eq.{booking_status.value}"
-
+            idx += 1
+            conditions.append(f"b.booking_status = ${idx}")
+            params.append(booking_status.value)
         if student_id:
-            filters["student_id"] = f"eq.{student_id}"
-
+            idx += 1
+            conditions.append(f"b.student_id = ${idx}")
+            params.append(__import__('uuid').UUID(student_id))
         if teacher_id:
-            filters["teacher_id"] = f"eq.{teacher_id}"
-
+            idx += 1
+            conditions.append(f"b.teacher_id = ${idx}")
+            params.append(__import__('uuid').UUID(teacher_id))
         if course_id:
-            filters["course_id"] = f"eq.{course_id}"
-
+            idx += 1
+            conditions.append(f"b.course_id = ${idx}")
+            params.append(__import__('uuid').UUID(course_id))
         if date_from:
-            filters["booking_date"] = f"gte.{date_from.isoformat()}"
-
+            idx += 1
+            conditions.append(f"b.booking_date >= ${idx}")
+            params.append(date_from)
         if date_to:
-            if "booking_date" in filters:
-                # 如果已有 date_from，需要用 and 邏輯
-                pass  # PostgREST 限制，簡化處理
-            else:
-                filters["booking_date"] = f"lte.{date_to.isoformat()}"
-
-        # 根據角色過濾（直接從 CurrentUser 取得 entity ID）
-        if current_user.is_student():
-            if current_user.student_id:
-                filters["student_id"] = f"eq.{current_user.student_id}"
-        elif current_user.is_teacher():
-            if current_user.teacher_id:
-                filters["teacher_id"] = f"eq.{current_user.teacher_id}"
-
-        # 取得總數（使用 COUNT 而非撈全部資料）
-        total = await supabase_service.table_count(table="bookings_view", filters=filters)
-
-        # 計算分頁
-        total_pages = math.ceil(total / per_page) if total > 0 else 1
-        offset = (page - 1) * per_page
-
-        # 取得分頁資料
-        bookings = await supabase_service.table_select_with_pagination(
-            table="bookings_view",
-            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,substitute_detail_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_type,is_trial_to_formal,booking_date,start_time,end_time,notes,created_at,updated_at",
-            filters=filters,
-            order_by="booking_date.desc,start_time.desc",
-            limit=per_page,
-            offset=offset,
-        )
-
-        # 如果有搜尋關鍵字，在結果中篩選
+            idx += 1
+            conditions.append(f"b.booking_date <= ${idx}")
+            params.append(date_to)
         if search:
-            search_lower = search.lower()
-            bookings = [
-                b for b in bookings
-                if search_lower in b.get("booking_no", "").lower()
-            ]
+            idx += 1
+            conditions.append(f"b.booking_no ILIKE ${idx}")
+            params.append(f"%{search}%")
 
-        # 為每筆預約添加關聯名稱
+        # 角色過濾
+        if current_user.is_student() and current_user.student_id:
+            idx += 1
+            conditions.append(f"b.student_id = ${idx}")
+            params.append(__import__('uuid').UUID(current_user.student_id))
+        elif current_user.is_teacher() and current_user.teacher_id:
+            # 教師可看到自己的預約 + 被指派為代課教師的預約
+            teacher_uuid = __import__('uuid').UUID(current_user.teacher_id)
+            idx += 1
+            t_idx = idx
+            idx += 1
+            st_idx = idx
+            conditions.append(
+                f"(b.teacher_id = ${t_idx} OR EXISTS("
+                f"SELECT 1 FROM substitute_details sd2 "
+                f"WHERE sd2.booking_id = b.id AND sd2.substitute_teacher_id = ${st_idx} "
+                f"AND sd2.is_deleted = FALSE))"
+            )
+            params.extend([teacher_uuid, teacher_uuid])
+
+        where_sql = " AND ".join(conditions)
+
+        # ── COUNT ──
+        count_sql = f"SELECT COUNT(*) FROM bookings b WHERE {where_sql}"
+        total = await pool.fetchval(count_sql, *params)
+        total_pages = math.ceil(total / per_page) if total > 0 else 1
+        offset_val = (page - 1) * per_page
+
+        # ── 主查詢：一次 JOIN 帶出所有關聯名稱 ──
+        idx += 1
+        limit_idx = idx
+        idx += 1
+        offset_idx = idx
+        params.extend([per_page, offset_val])
+
+        data_sql = f"""
+            SELECT b.id, b.booking_no, b.student_id, b.teacher_id, b.course_id,
+                   b.student_contract_id, b.teacher_contract_id, b.teacher_slot_id,
+                   b.substitute_detail_id, b.teacher_hourly_rate, b.teacher_rate_percentage,
+                   b.booking_status, b.booking_type, b.booking_date, b.start_time, b.end_time,
+                   b.lessons_used, b.overtime_pay, b.notes, b.created_at, b.updated_at,
+                   -- is_trial_to_formal (from bookings_view logic)
+                   EXISTS(SELECT 1 FROM teacher_bonus_records tbr
+                          WHERE tbr.related_booking_id = b.id AND tbr.bonus_type = 'trial_to_formal'
+                            AND tbr.is_deleted = FALSE) AS is_trial_to_formal,
+                   -- 關聯名稱
+                   s.name AS student_name,
+                   t.name AS teacher_name,
+                   c.course_name AS course_name,
+                   c.duration_minutes,
+                   sc.contract_no AS student_contract_no,
+                   tc.contract_no AS teacher_contract_no,
+                   tc.employment_type,
+                   -- 代課教師
+                   sub_t.name AS substitute_teacher_name,
+                   -- 待審請假
+                   lv.has_pending_leave,
+                   lv.pending_leave_initiator_type
+            FROM bookings b
+            LEFT JOIN students s ON s.id = b.student_id
+            LEFT JOIN teachers t ON t.id = b.teacher_id
+            LEFT JOIN courses c ON c.id = b.course_id
+            LEFT JOIN student_contracts sc ON sc.id = b.student_contract_id
+            LEFT JOIN teacher_contracts tc ON tc.id = b.teacher_contract_id
+            LEFT JOIN substitute_details sd ON sd.id = b.substitute_detail_id AND sd.is_deleted = FALSE
+            LEFT JOIN teachers sub_t ON sub_t.id = sd.substitute_teacher_id
+            LEFT JOIN LATERAL (
+                SELECT TRUE AS has_pending_leave, lr.initiator_type AS pending_leave_initiator_type
+                FROM leave_records lr
+                WHERE lr.booking_id = b.id AND lr.leave_status = 'pending' AND lr.is_deleted = FALSE
+                LIMIT 1
+            ) lv ON TRUE
+            WHERE {where_sql}
+            ORDER BY b.booking_date DESC, b.start_time DESC
+            LIMIT ${limit_idx} OFFSET ${offset_idx}
+        """
+
+        rows = await pool.fetch(data_sql, *params)
+
+        # ── 批次計算正班/加班（僅 full_time 教師） ──
+        ft_bookings = []  # 需要計算 overtime 的預約 index
+        tc_ids = set()
+        for i, row in enumerate(rows):
+            if row["employment_type"] == "full_time":
+                ft_bookings.append(i)
+                tc_ids.add(row["teacher_contract_id"])
+
+        # 批次取得工作時段
+        work_schedule_map: dict = {}  # {teacher_contract_id: {weekday: [(start, end)]}}
+        overtime_rate_map: dict = {}  # {teacher_contract_id: amount}
+        if tc_ids:
+            tc_id_list = list(tc_ids)
+            ws_rows = await pool.fetch(
+                """SELECT teacher_contract_id, weekday, start_time, end_time
+                   FROM teacher_work_schedules
+                   WHERE teacher_contract_id = ANY($1) AND is_deleted = FALSE""",
+                tc_id_list,
+            )
+            for ws in ws_rows:
+                key = str(ws["teacher_contract_id"])
+                if key not in work_schedule_map:
+                    work_schedule_map[key] = {}
+                wd = ws["weekday"]
+                if wd not in work_schedule_map[key]:
+                    work_schedule_map[key][wd] = []
+                work_schedule_map[key][wd].append((ws["start_time"], ws["end_time"]))
+
+            # 批次取得加班費率
+            ot_rows = await pool.fetch(
+                """SELECT teacher_contract_id, amount
+                   FROM teacher_contract_details
+                   WHERE teacher_contract_id = ANY($1)
+                     AND detail_type = 'overtime_rate'
+                     AND is_deleted = FALSE""",
+                tc_id_list,
+            )
+            for ot in ot_rows:
+                overtime_rate_map[str(ot["teacher_contract_id"])] = float(ot["amount"])
+
+        # ── 組裝結果 ──
         enriched_bookings = []
-        for booking in bookings:
-            enriched = await enrich_booking_with_relations(booking)
-            enriched_bookings.append(enriched)
+        for i, row in enumerate(rows):
+            b = dict(row)
+            b["id"] = str(b["id"])
+            if b.get("student_id"): b["student_id"] = str(b["student_id"])
+            if b.get("teacher_id"): b["teacher_id"] = str(b["teacher_id"])
+            if b.get("course_id"): b["course_id"] = str(b["course_id"])
+            if b.get("student_contract_id"): b["student_contract_id"] = str(b["student_contract_id"])
+            if b.get("teacher_contract_id"): b["teacher_contract_id"] = str(b["teacher_contract_id"])
+            if b.get("teacher_slot_id"): b["teacher_slot_id"] = str(b["teacher_slot_id"])
+            if b.get("substitute_detail_id"): b["substitute_detail_id"] = str(b["substitute_detail_id"])
+            b["has_pending_leave"] = b.get("has_pending_leave") or False
+            b.pop("duration_minutes", None)
+            b.pop("employment_type", None)
+
+            # 正班/加班計算
+            if i in ft_bookings:
+                tc_key = str(row["teacher_contract_id"])
+                booking_date_val = row["booking_date"]
+                weekday = booking_date_val.isoweekday() - 1 if booking_date_val else None
+                work_slots = work_schedule_map.get(tc_key, {}).get(weekday, []) if weekday is not None else []
+                duration = row["duration_minutes"] or 30
+                if row["start_time"] and row["end_time"]:
+                    if work_slots:
+                        regular, overtime = calculate_regular_overtime_lessons(
+                            row["start_time"], row["end_time"], work_slots, duration
+                        )
+                    else:
+                        # 該天無工作時段 → 全部視為加班
+                        regular = 0
+                        overtime = calculate_lessons_used(row["start_time"], row["end_time"], duration)
+                    b["regular_lessons"] = regular
+                    b["overtime_lessons"] = overtime
+                    b["is_overtime"] = overtime > 0
+                    # 加班費：優先使用 DB 持久化值，若無則動態計算
+                    if overtime > 0:
+                        if b.get("overtime_pay") is None and tc_key in overtime_rate_map:
+                            b["overtime_pay"] = overtime * overtime_rate_map[tc_key]
+
+            enriched_bookings.append(b)
 
         return BookingListResponse(
             data=[BookingResponse(**b) for b in enriched_bookings],
@@ -784,12 +980,20 @@ async def get_booking(
         if not result:
             raise HTTPException(status_code=404, detail="預約不存在")
 
-        # Ownership check: 學生/教師只能查自己的預約
+        # Ownership check: 學生/教師只能查自己的預約（含代課教師）
         if current_user.is_student():
             if result[0].get("student_id") != current_user.student_id:
                 raise HTTPException(status_code=403, detail="無權查看此預約")
         elif current_user.is_teacher():
-            if result[0].get("teacher_id") != current_user.teacher_id:
+            is_original = result[0].get("teacher_id") == current_user.teacher_id
+            is_substitute = False
+            if result[0].get("substitute_detail_id"):
+                sd = await supabase_service.table_select(
+                    table="substitute_details", select="substitute_teacher_id",
+                    filters={"id": result[0]["substitute_detail_id"], "is_deleted": "eq.false"},
+                )
+                is_substitute = bool(sd and sd[0].get("substitute_teacher_id") == current_user.teacher_id)
+            if not (is_original or is_substitute):
                 raise HTTPException(status_code=403, detail="無權查看此預約")
 
         booking = await enrich_booking_with_relations(result[0])
@@ -1038,6 +1242,14 @@ async def create_booking(
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
 
+        # 計算加班費（正職教師才有）
+        overtime_pay_val = None
+        if teacher_contract_id and not is_trial:
+            overtime_pay_val = await compute_overtime_pay(
+                teacher_contract_id, data.booking_date,
+                data.start_time, data.end_time, course_duration,
+            )
+
         # ── 交易區段：鎖定時段 + 重新檢查衝突 + 寫入 ──
         # 使用 database transaction 防止同一時段被並發預約
         async with supabase_service.pool.acquire() as conn:
@@ -1093,9 +1305,9 @@ async def create_booking(
                         student_contract_id, teacher_contract_id, teacher_slot_id,
                         teacher_hourly_rate, teacher_rate_percentage,
                         booking_status, booking_date, start_time, end_time,
-                        booking_type, lessons_used, notes, created_by
+                        booking_type, lessons_used, overtime_pay, notes, created_by
                     ) VALUES (
-                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
                     ) RETURNING *""",
                     booking_no,
                     uuid.UUID(data.student_id),
@@ -1112,6 +1324,7 @@ async def create_booking(
                     data.end_time,
                     "trial" if is_trial else "regular",
                     lessons_used,
+                    overtime_pay_val,
                     data.notes,
                     uuid.UUID(employee_id) if employee_id else None,
                 )
@@ -1853,11 +2066,11 @@ async def batch_create_bookings(
             is_primary = pref.get("primary_teacher_id") == data.teacher_id
             if not is_primary:
                 teacher_level = teacher[0].get("teacher_level", 1)
-                min_level = pref.get("min_teacher_level", 1)
-                if teacher_level < min_level:
+                max_level = pref.get("min_teacher_level", 1)
+                if teacher_level > max_level:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"教師等級 ({teacher_level}) 低於學生要求的最低等級 ({min_level})"
+                        detail=f"教師等級 ({teacher_level}) 超過學生偏好的最高等級 ({max_level})"
                     )
 
         # 驗證教師合約存在（如果有提供）
@@ -1979,6 +2192,15 @@ async def batch_create_bookings(
                 e_t = time.fromisoformat(slot_end_str)
                 slot_lessons_used = calculate_lessons_used(s_t, e_t, batch_course_duration)
 
+                # 計算加班費
+                slot_booking_date = date.fromisoformat(slot["slot_date"]) if isinstance(slot["slot_date"], str) else slot["slot_date"]
+                batch_overtime_pay = None
+                if slot_teacher_contract_id and not is_trial:
+                    batch_overtime_pay = await compute_overtime_pay(
+                        slot_teacher_contract_id, slot_booking_date,
+                        s_t, e_t, batch_course_duration,
+                    )
+
                 # 建立預約
                 booking_data = {
                     "booking_no": booking_no,
@@ -1996,6 +2218,7 @@ async def batch_create_bookings(
                     "end_time": data.end_time.isoformat() if data.end_time else slot["end_time"],
                     "booking_type": "trial" if is_trial else "regular",
                     "lessons_used": slot_lessons_used,
+                    "overtime_pay": batch_overtime_pay,
                     "notes": data.notes,
                 }
                 if employee_id:

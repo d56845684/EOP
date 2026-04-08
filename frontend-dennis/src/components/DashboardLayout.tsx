@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/useAuth'
+import { useIdleTimeout } from '@/lib/hooks/useIdleTimeout'
 import { authApi } from '@/lib/api/auth'
 import Sidebar from './Sidebar'
 import ErrorBoundary from './ErrorBoundary'
@@ -14,9 +15,16 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter()
-  const { user, loading, mustChangePassword, refreshUser } = useAuth()
+  const { user, loading, mustChangePassword, refreshUser, signOut } = useAuth()
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // 閒置超時自動登出
+  const handleIdleTimeout = useCallback(async () => {
+    await signOut()
+    router.push('/login?reason=idle')
+  }, [signOut, router])
+  useIdleTimeout(handleIdleTimeout)
 
   // Password change modal state
   const [currentPassword, setCurrentPassword] = useState('')

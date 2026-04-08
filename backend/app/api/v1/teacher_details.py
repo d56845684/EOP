@@ -166,6 +166,18 @@ async def delete_teacher_detail(
 
 # ========== File Upload / Download ==========
 
+# 允許的檔案類型（證照 / 資格文件）
+ALLOWED_UPLOAD_EXTENSIONS = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
+
+class UploadUrlRequest(BaseModel):
+    """取得上傳連結請求"""
+    file_name: str
+
 class ConfirmUploadRequest(BaseModel):
     """確認上傳請求"""
     storage_path: str
@@ -175,12 +187,23 @@ class ConfirmUploadRequest(BaseModel):
 @router.post("/{detail_id}/upload-url")
 async def get_teacher_detail_upload_url(
     detail_id: str,
+    body: UploadUrlRequest,
     current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """取得教師明細檔案的 signed upload URL（僅限員工）
 
     前端收到後直接 PUT 檔案到該 URL，上傳完成後呼叫 confirm-upload。
+    支援格式：pdf、png、jpg、jpeg
     """
+    import os
+    ext = os.path.splitext(body.file_name)[1].lower()
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支援的檔案格式，僅允許：{', '.join(ALLOWED_UPLOAD_EXTENSIONS.keys())}"
+        )
+    content_type = ALLOWED_UPLOAD_EXTENSIONS[ext]
+
     try:
         existing = await supabase_service.table_select(
             table="teacher_details",
@@ -196,12 +219,13 @@ async def get_teacher_detail_upload_url(
 
         await storage_service.ensure_bucket_exists(settings.AWS_S3_BUCKET)
 
-        safe_filename = f"{uuid.uuid4().hex}.pdf"
+        safe_filename = f"{uuid.uuid4().hex}{ext}"
         storage_path = f"teachers/{teacher_id}/{detail_type}/{safe_filename}"
 
         signed = await storage_service.create_signed_upload_url(
             bucket=settings.AWS_S3_BUCKET,
             path=storage_path,
+            content_type=content_type,
         )
         if not signed:
             raise HTTPException(status_code=500, detail="產生上傳連結失敗")

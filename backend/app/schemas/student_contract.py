@@ -140,6 +140,8 @@ class StudentContractResponse(BaseModel):
     contract_file_uploaded_at: Optional[datetime] = None
     # 關聯資料
     student_name: Optional[str] = None
+    student_phone: Optional[str] = None
+    student_id_number: Optional[str] = None
     # 明細 + 請假
     details: list[StudentContractDetailResponse] = []
     leave_records: list[StudentContractLeaveRecordResponse] = []

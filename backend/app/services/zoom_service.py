@@ -316,6 +316,7 @@ class ZoomService:
             # 查詢預約相關的學生/教師/課程名稱
             booking_info = await supabase_service.pool.fetchrow(
                 """SELECT b.booking_no, s.name AS student_name,
+                          s.eng_name AS student_eng_name,
                           t.name AS teacher_name, c.course_name
                    FROM bookings b
                    LEFT JOIN students s ON s.id = b.student_id
@@ -332,7 +333,10 @@ class ZoomService:
             if booking_info["course_name"]:
                 parts.append(booking_info["course_name"])
             if booking_info["student_name"]:
-                parts.append(booking_info["student_name"])
+                student_display = booking_info["student_name"]
+                if booking_info.get("student_eng_name"):
+                    student_display += f"({booking_info['student_eng_name']})"
+                parts.append(student_display)
             if booking_info["teacher_name"]:
                 parts.append(f"/ {booking_info['teacher_name']}")
             parts.append(f"{booking_date.strftime('%m/%d')} {start_time_val.strftime('%H:%M')}")

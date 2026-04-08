@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     SESSION_EXPIRE_MINUTES: int = 1440  # 24 hours
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    IDLE_TIMEOUT_MINUTES: int = 10  # 閒置超時自動登出
 
     # ============================================
     # Line Login（登入認證）- 所有角色共用同一個 Channel
@@ -99,10 +100,18 @@ class Settings(BaseSettings):
     def google_drive_oauth_configured(self) -> bool:
         return bool(self.GOOGLE_DRIVE_OAUTH_CLIENT_ID and self.GOOGLE_DRIVE_OAUTH_CLIENT_SECRET)
 
+    # 試上課錄影統一放到此資料夾（留空 = 放預設資料夾）
+    TRIAL_STUDENT_DRIVE_FOLDER_ID: str = ""
+
     # SQS（Zoom 錄影轉移至 Google Drive）
     SQS_QUEUE_URL: str = ""
     RECORDING_CALLBACK_SECRET: str = ""
     BACKEND_BASE_URL: str = "http://localhost:8001"
+
+    # Email Notification (SQS → Lambda → SES)
+    NOTIFICATION_SQS_QUEUE_URL: str = ""
+    AWS_SES_SENDER_EMAIL: str = "noreply@eop-system.com"
+    NOTIFICATION_ENABLED: bool = False
 
     # Super Admin（預設最高權限帳號，留空 = 不建立）
     SUPER_ADMIN_EMAIL: str = ""

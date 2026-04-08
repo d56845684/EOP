@@ -19,7 +19,7 @@ export interface CreatePreferenceData {
     student_id: string
     course_id?: string | null
     min_teacher_level?: number | null
-    primary_teacher_id?: string | null
+    primary_teacher_ids?: string[]
 }
 
 export interface UpdatePreferenceData {

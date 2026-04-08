@@ -59,6 +59,21 @@ class E2EContext:
     zoom_meeting_id: Optional[str] = None
     zoom_enabled: bool = False
 
+    # 第二位教師（多教師測試）
+    teacher_b_id: Optional[str] = None
+    teacher_b_contract_id: Optional[str] = None
+    teacher_b_contract_detail_id: Optional[str] = None
+    preference_b_id: Optional[str] = None
+
+    # Phase 3.6: 本次修改驗證用
+    teacher_c_id: Optional[str] = None
+    teacher_c_contract_id: Optional[str] = None
+    teacher_c_contract_detail_id: Optional[str] = None
+    preference_c_id: Optional[str] = None
+    level_preference_id: Optional[str] = None
+    auto_student_id: Optional[str] = None
+    auto_teacher_id: Optional[str] = None
+
     # 衍生資料
     course_duration: int = 60
     slot_date: str = ""
@@ -149,6 +164,33 @@ class E2EBookingFlowTester:
                 ("建立教師時段", self._test_create_teacher_slot),
             ]
             for name, fn in tests_phase3:
+                await self._run_test(name, fn, ctx)
+
+            # ── Phase 3.5: 多教師可預約驗證 ──
+            print("\n  Phase 3.5: 多教師可預約驗證")
+            print("  " + "-" * 40)
+            tests_multi_teacher = [
+                ("建立第二位教師", self._test_create_teacher_b),
+                ("建立教師 B 合約", self._test_create_teacher_b_contract),
+                ("新增教師 B 課程費率", self._test_create_teacher_b_contract_detail),
+                ("設定教師 B 偏好", self._test_create_preference_b),
+                ("驗證可預約教師列表包含兩位教師", self._test_verify_allowed_teachers),
+            ]
+            for name, fn in tests_multi_teacher:
+                await self._run_test(name, fn, ctx)
+
+            # ── Phase 3.6: 本次修改驗證（batch create / 等級向下兼容 / 編號自動產生） ──
+            print("\n  Phase 3.6: 本次修改驗證")
+            print("  " + "-" * 40)
+            tests_new_features = [
+                ("批次新增教師偏好 (batch API)", self._test_batch_create_preference),
+                ("批次新增重複偏好 (應跳過)", self._test_batch_create_duplicate),
+                ("建立教師 C (level 3)", self._test_create_teacher_c),
+                ("等級偏好向下兼容驗證", self._test_level_downward_compat),
+                ("學生編號自動產生 (EOPS)", self._test_auto_student_no),
+                ("教師編號自動產生 (EOPT)", self._test_auto_teacher_no),
+            ]
+            for name, fn in tests_new_features:
                 await self._run_test(name, fn, ctx)
 
             # ── Phase 4: 預約流程 ──
@@ -332,7 +374,7 @@ class E2EBookingFlowTester:
     async def _test_create_preference(self, ctx: E2EContext):
         resp = await self._post("/api/v1/student-teacher-preferences/", {
             "student_id": ctx.student_id,
-            "primary_teacher_id": ctx.teacher_id,
+            "primary_teacher_ids": [ctx.teacher_id],
         })
         if resp.status_code != 200:
             return f"Create preference failed: {resp.status_code} {resp.text[:200]}"
@@ -351,6 +393,266 @@ class E2EBookingFlowTester:
         if resp.status_code != 200:
             return f"Create slot failed: {resp.status_code} {resp.text[:200]}"
         ctx.teacher_slot_id = resp.json()["data"]["id"]
+        return True
+
+    # ────────────────── Phase 3.5: 多教師可預約驗證 ──────────────────
+
+    async def _test_create_teacher_b(self, ctx: E2EContext):
+        resp = await self._post("/api/v1/teachers", {
+            "teacher_no": f"{TEST_PREFIX}T002",
+            "name": f"{TEST_PREFIX}測試教師B",
+            "email": f"e2e_teacher_b_{datetime.now().strftime('%H%M%S')}@test.local",
+            "teacher_level": 2,
+        })
+        if resp.status_code != 200:
+            return f"Create teacher B failed: {resp.status_code} {resp.text[:200]}"
+        ctx.teacher_b_id = resp.json()["data"]["id"]
+        return True
+
+    async def _test_create_teacher_b_contract(self, ctx: E2EContext):
+        start = date.today().isoformat()
+        end = (date.today() + timedelta(days=365)).isoformat()
+        resp = await self._post("/api/v1/teacher-contracts", {
+            "teacher_id": ctx.teacher_b_id,
+            "contract_status": "active",
+            "start_date": start,
+            "end_date": end,
+            "employment_type": "hourly",
+        })
+        if resp.status_code != 200:
+            return f"Create teacher B contract failed: {resp.status_code} {resp.text[:200]}"
+        ctx.teacher_b_contract_id = resp.json()["data"]["id"]
+        return True
+
+    async def _test_create_teacher_b_contract_detail(self, ctx: E2EContext):
+        resp = await self._post(
+            f"/api/v1/teacher-contracts/{ctx.teacher_b_contract_id}/details",
+            {
+                "detail_type": "course_rate",
+                "course_id": ctx.course_id,
+                "description": "E2E 教師B課程費率",
+                "amount": 900,
+            },
+        )
+        if resp.status_code != 200:
+            return f"Create teacher B contract detail failed: {resp.status_code} {resp.text[:200]}"
+        ctx.teacher_b_contract_detail_id = resp.json()["data"]["id"]
+        return True
+
+    async def _test_create_preference_b(self, ctx: E2EContext):
+        resp = await self._post("/api/v1/student-teacher-preferences/", {
+            "student_id": ctx.student_id,
+            "primary_teacher_ids": [ctx.teacher_b_id],
+        })
+        if resp.status_code != 200:
+            return f"Create preference B failed: {resp.status_code} {resp.text[:200]}"
+        ctx.preference_b_id = resp.json()["data"]["id"]
+        return True
+
+    async def _test_verify_allowed_teachers(self, ctx: E2EContext):
+        """驗證可預約教師列表包含教師 A 和教師 B"""
+        resp = await self._get("/api/v1/bookings/options/teachers", params={"student_id": ctx.student_id})
+        if resp.status_code != 200:
+            return f"Get teacher options failed: {resp.status_code} {resp.text[:200]}"
+
+        teachers = resp.json().get("data", [])
+        teacher_ids = {t["id"] for t in teachers}
+
+        if ctx.teacher_id not in teacher_ids:
+            return f"教師 A ({ctx.teacher_id}) 未出現在可預約教師列表中"
+        if ctx.teacher_b_id not in teacher_ids:
+            return f"教師 B ({ctx.teacher_b_id}) 未出現在可預約教師列表中"
+
+        # 驗證數量至少 2 位
+        if len(teachers) < 2:
+            return f"可預約教師數量不足，期望至少 2 位，實際 {len(teachers)} 位"
+
+        return True
+
+    # ────────────────── Phase 3.6: 本次修改驗證 ──────────────────
+
+    async def _test_batch_create_preference(self, ctx: E2EContext):
+        """用 batch API 同時新增教師 A + B 偏好 — 因為已存在，應全部跳過"""
+        resp = await self._post("/api/v1/student-teacher-preferences/", {
+            "student_id": ctx.student_id,
+            "primary_teacher_ids": [ctx.teacher_id, ctx.teacher_b_id],
+        })
+        if resp.status_code != 400:
+            # 全部重複時 API 回 400
+            if resp.status_code == 200:
+                msg = resp.json().get("message", "")
+                if "跳過" not in msg and "已存在" not in msg:
+                    return f"Expected skip message, got: {msg}"
+                return True
+            return f"Batch create failed: {resp.status_code} {resp.text[:200]}"
+        # 400 = 所有選擇的教師已存在於偏好中 → 正確
+        return True
+
+    async def _test_batch_create_duplicate(self, ctx: E2EContext):
+        """用 batch API 新增一位新教師 + 一位已存在，驗證部分成功"""
+        # 先建一位臨時教師用於 batch
+        resp = await self._post("/api/v1/teachers", {
+            "teacher_no": f"{TEST_PREFIX}T003",
+            "name": f"{TEST_PREFIX}臨時教師",
+            "email": f"e2e_temp_teacher_{datetime.now().strftime('%H%M%S%f')}@test.local",
+            "teacher_level": 1,
+        })
+        if resp.status_code != 200:
+            return f"Create temp teacher failed: {resp.status_code}"
+        temp_teacher_id = resp.json()["data"]["id"]
+
+        # batch: 包含已存在的 teacher_id + 新的 temp_teacher_id
+        resp = await self._post("/api/v1/student-teacher-preferences/", {
+            "student_id": ctx.student_id,
+            "primary_teacher_ids": [ctx.teacher_id, temp_teacher_id],
+        })
+        if resp.status_code != 200:
+            return f"Batch create failed: {resp.status_code} {resp.text[:200]}"
+
+        data = resp.json()
+        msg = data.get("message", "")
+        created = data.get("data", [])
+
+        # 應只新增 1 筆（temp），跳過 1 筆（teacher_id 已存在）
+        if len(created) != 1:
+            return f"Expected 1 created, got {len(created)}: {msg}"
+
+        # 清理: 刪除臨時偏好和教師
+        pref_id = created[0].get("id")
+        if pref_id:
+            await self._delete(f"/api/v1/student-teacher-preferences/{pref_id}")
+        await self._delete(f"/api/v1/teachers/{temp_teacher_id}")
+        return True
+
+    async def _test_create_teacher_c(self, ctx: E2EContext):
+        """建立教師 C (level 3)，用於等級向下兼容測試"""
+        resp = await self._post("/api/v1/teachers", {
+            "teacher_no": f"{TEST_PREFIX}T004",
+            "name": f"{TEST_PREFIX}測試教師C",
+            "email": f"e2e_teacher_c_{datetime.now().strftime('%H%M%S')}@test.local",
+            "teacher_level": 3,
+        })
+        if resp.status_code != 200:
+            return f"Create teacher C failed: {resp.status_code} {resp.text[:200]}"
+        ctx.teacher_c_id = resp.json()["data"]["id"]
+
+        # 建合約
+        start = date.today().isoformat()
+        end = (date.today() + timedelta(days=365)).isoformat()
+        resp = await self._post("/api/v1/teacher-contracts", {
+            "teacher_id": ctx.teacher_c_id,
+            "contract_status": "active",
+            "start_date": start, "end_date": end,
+            "employment_type": "hourly",
+        })
+        if resp.status_code != 200:
+            return f"Create teacher C contract failed: {resp.status_code}"
+        ctx.teacher_c_contract_id = resp.json()["data"]["id"]
+
+        # 課程費率
+        resp = await self._post(
+            f"/api/v1/teacher-contracts/{ctx.teacher_c_contract_id}/details",
+            {"detail_type": "course_rate", "course_id": ctx.course_id,
+             "description": "E2E 教師C費率", "amount": 1000},
+        )
+        if resp.status_code != 200:
+            return f"Create teacher C rate failed: {resp.status_code}"
+        ctx.teacher_c_contract_detail_id = resp.json()["data"]["id"]
+
+        # 新增偏好
+        resp = await self._post("/api/v1/student-teacher-preferences/", {
+            "student_id": ctx.student_id,
+            "primary_teacher_ids": [ctx.teacher_c_id],
+        })
+        if resp.status_code != 200:
+            return f"Create teacher C preference failed: {resp.status_code}"
+        ctx.preference_c_id = resp.json()["data"]["id"]
+
+        return True
+
+    async def _test_level_downward_compat(self, ctx: E2EContext):
+        """等級偏好向下兼容：設 max_level=2 → level 1,2 可選，level 3 不可選
+
+        測試步驟：
+        1. 刪除教師 A/B/C 的指定教師偏好
+        2. 建立等級偏好 (level=2)
+        3. 驗證可預約教師：A(lv1) ✓, B(lv2) ✓, C(lv3) ✗
+        4. 刪除等級偏好，恢復原本的指定教師偏好
+        """
+        # 1. 暫時刪除所有指定教師偏好
+        for pid in [ctx.preference_id, ctx.preference_b_id, ctx.preference_c_id]:
+            if pid:
+                await self._delete(f"/api/v1/student-teacher-preferences/{pid}")
+
+        # 2. 建立等級偏好 (全域, max_level=2)
+        resp = await self._post("/api/v1/student-teacher-preferences/", {
+            "student_id": ctx.student_id,
+            "min_teacher_level": 2,
+        })
+        if resp.status_code != 200:
+            return f"Create level preference failed: {resp.status_code} {resp.text[:200]}"
+        ctx.level_preference_id = resp.json()["data"]["id"]
+
+        # 3. 驗證可預約教師
+        resp = await self._get("/api/v1/bookings/options/teachers", params={"student_id": ctx.student_id})
+        if resp.status_code != 200:
+            return f"Get teacher options failed: {resp.status_code}"
+        teachers = resp.json().get("data", [])
+        teacher_ids = {t["id"] for t in teachers}
+
+        errors = []
+        if ctx.teacher_id not in teacher_ids:
+            errors.append(f"教師 A (level 1) 應在可預約列表中但不在")
+        if ctx.teacher_b_id not in teacher_ids:
+            errors.append(f"教師 B (level 2) 應在可預約列表中但不在")
+        if ctx.teacher_c_id in teacher_ids:
+            errors.append(f"教師 C (level 3) 不應在可預約列表中但出現了")
+
+        # 4. 清理等級偏好，恢復指定教師偏好
+        await self._delete(f"/api/v1/student-teacher-preferences/{ctx.level_preference_id}")
+        ctx.level_preference_id = None
+
+        # 重建指定教師偏好
+        for tid, attr in [(ctx.teacher_id, "preference_id"), (ctx.teacher_b_id, "preference_b_id"), (ctx.teacher_c_id, "preference_c_id")]:
+            resp = await self._post("/api/v1/student-teacher-preferences/", {
+                "student_id": ctx.student_id,
+                "primary_teacher_ids": [tid],
+            })
+            if resp.status_code == 200:
+                setattr(ctx, attr, resp.json()["data"]["id"])
+
+        if errors:
+            return "; ".join(errors)
+        return True
+
+    async def _test_auto_student_no(self, ctx: E2EContext):
+        """不提供 student_no，驗證自動產生 EOPS 格式"""
+        resp = await self._post("/api/v1/students", {
+            "name": f"{TEST_PREFIX}自動編號學生",
+            "email": f"e2e_auto_s_{datetime.now().strftime('%H%M%S%f')}@test.local",
+        })
+        if resp.status_code != 200:
+            return f"Create auto student failed: {resp.status_code} {resp.text[:200]}"
+        data = resp.json()["data"]
+        ctx.auto_student_id = data["id"]
+        student_no = data.get("student_no", "")
+        if not student_no.startswith("EOPS"):
+            return f"student_no 應以 EOPS 開頭，實際值: {student_no}"
+        return True
+
+    async def _test_auto_teacher_no(self, ctx: E2EContext):
+        """不提供 teacher_no，驗證自動產生 EOPT 格式"""
+        resp = await self._post("/api/v1/teachers", {
+            "name": f"{TEST_PREFIX}自動編號教師",
+            "email": f"e2e_auto_t_{datetime.now().strftime('%H%M%S%f')}@test.local",
+        })
+        if resp.status_code != 200:
+            return f"Create auto teacher failed: {resp.status_code} {resp.text[:200]}"
+        data = resp.json()["data"]
+        ctx.auto_teacher_id = data["id"]
+        teacher_no = data.get("teacher_no", "")
+        if not teacher_no.startswith("EOPT"):
+            return f"teacher_no 應以 EOPT 開頭，實際值: {teacher_no}"
         return True
 
     # ────────────────── Phase 4: 預約 ──────────────────
@@ -452,14 +754,27 @@ class E2EBookingFlowTester:
         return True
 
     async def _test_create_zoom_meeting(self, ctx: E2EContext):
-        """為已確認的預約建立 Zoom 會議（需要有效 OAuth token）"""
+        """取得或建立 Zoom 會議（確認預約時可能已自動建立）"""
+        import asyncio as _aio
+        # 等待背景 asyncio.create_task 完成（確認預約觸發的自動建立）
+        await _aio.sleep(2)
+
+        # 先查是否已有會議（確認預約時自動建的）
+        check = await self._get(f"/api/v1/zoom/meetings/{ctx.booking_id}")
+        if check.status_code == 200:
+            data = check.json()["data"]
+            ctx.zoom_meeting_id = data.get("id")
+            if data.get("join_url"):
+                return True
+            # 有記錄但沒 join_url，可能 token 失敗，嘗試手動建立
+
+        # 手動建立
         resp = await self._post("/api/v1/zoom/meetings/create", {
             "booking_id": ctx.booking_id,
         })
         if resp.status_code == 500:
-            # OAuth token 過期是外部服務問題，標記為跳過而非失敗
             ctx.zoom_enabled = False
-            return f"Zoom OAuth token 可能過期 — 需重新授權"
+            return f"Zoom 帳號池無可用帳號或 token 失敗"
         if resp.status_code != 200:
             return f"Create Zoom meeting failed: {resp.status_code} {resp.text[:200]}"
         data = resp.json()["data"]
@@ -482,13 +797,16 @@ class E2EBookingFlowTester:
         return True if not checks else "; ".join(checks)
 
     async def _test_list_zoom_meetings(self, ctx: E2EContext):
-        """查詢 Zoom 會議列表"""
-        resp = await self._get("/api/v1/zoom/meetings", {"per_page": 5})
+        """查詢 Zoom 會議列表（篩選 scheduled 狀態避免被舊資料淹沒）"""
+        resp = await self._get("/api/v1/zoom/meetings", {
+            "per_page": 50,
+            "meeting_status": "scheduled",
+        })
         if resp.status_code != 200:
             return f"List Zoom meetings failed: {resp.status_code}"
         data = resp.json().get("data", [])
         if not any(m.get("booking_id") == ctx.booking_id for m in data):
-            return "列表找不到剛建立的會議"
+            return f"列表找不到剛建立的會議 (booking_id={ctx.booking_id}, 列表共 {len(data)} 筆)"
         return True
 
     # ────────────────── Phase 5: 請假 ──────────────────
@@ -550,16 +868,33 @@ class E2EBookingFlowTester:
             ("leave_record", f"/api/v1/leave-records/{ctx.leave_record_id}" if ctx.leave_record_id else None),
             ("booking", f"/api/v1/bookings/{ctx.booking_id}" if ctx.booking_id else None),
             ("teacher_slot", f"/api/v1/teacher-slots/{ctx.teacher_slot_id}" if ctx.teacher_slot_id else None),
+            ("level_preference", f"/api/v1/student-teacher-preferences/{ctx.level_preference_id}" if ctx.level_preference_id else None),
+            ("preference_c", f"/api/v1/student-teacher-preferences/{ctx.preference_c_id}" if ctx.preference_c_id else None),
+            ("preference_b", f"/api/v1/student-teacher-preferences/{ctx.preference_b_id}" if ctx.preference_b_id else None),
             ("preference", f"/api/v1/student-teacher-preferences/{ctx.preference_id}" if ctx.preference_id else None),
             ("student_course", f"/api/v1/student-courses/{ctx.student_course_id}" if ctx.student_course_id else None),
+            ("teacher_c_contract_detail", (
+                f"/api/v1/teacher-contracts/{ctx.teacher_c_contract_id}/details/{ctx.teacher_c_contract_detail_id}"
+                if ctx.teacher_c_contract_id and ctx.teacher_c_contract_detail_id else None
+            )),
+            ("teacher_c_contract", f"/api/v1/teacher-contracts/{ctx.teacher_c_contract_id}" if ctx.teacher_c_contract_id else None),
+            ("teacher_b_contract_detail", (
+                f"/api/v1/teacher-contracts/{ctx.teacher_b_contract_id}/details/{ctx.teacher_b_contract_detail_id}"
+                if ctx.teacher_b_contract_id and ctx.teacher_b_contract_detail_id else None
+            )),
+            ("teacher_b_contract", f"/api/v1/teacher-contracts/{ctx.teacher_b_contract_id}" if ctx.teacher_b_contract_id else None),
             ("teacher_contract_detail", (
                 f"/api/v1/teacher-contracts/{ctx.teacher_contract_id}/details/{ctx.teacher_contract_detail_id}"
                 if ctx.teacher_contract_id and ctx.teacher_contract_detail_id else None
             )),
             ("teacher_contract", f"/api/v1/teacher-contracts/{ctx.teacher_contract_id}" if ctx.teacher_contract_id else None),
             ("student_contract", f"/api/v1/student-contracts/{ctx.student_contract_id}" if ctx.student_contract_id else None),
+            ("teacher_c", f"/api/v1/teachers/{ctx.teacher_c_id}" if ctx.teacher_c_id else None),
+            ("teacher_b", f"/api/v1/teachers/{ctx.teacher_b_id}" if ctx.teacher_b_id else None),
             ("teacher", f"/api/v1/teachers/{ctx.teacher_id}" if ctx.teacher_id else None),
+            ("auto_teacher", f"/api/v1/teachers/{ctx.auto_teacher_id}" if ctx.auto_teacher_id else None),
             ("student", f"/api/v1/students/{ctx.student_id}" if ctx.student_id else None),
+            ("auto_student", f"/api/v1/students/{ctx.auto_student_id}" if ctx.auto_student_id else None),
             ("course", f"/api/v1/courses/{ctx.course_id}" if ctx.course_id else None),
         ]
 

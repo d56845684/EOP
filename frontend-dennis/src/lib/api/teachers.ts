@@ -10,6 +10,7 @@ export interface Teacher {
     phone?: string
     address?: string
     bio?: string
+    avatar_url?: string
     teacher_level: number
     is_active: boolean
     email_verified_at?: string | null
@@ -38,6 +39,7 @@ export interface TeacherViewData {
     teacher: {
         id: string; teacher_no: string; name: string
         email: string; phone?: string; address?: string; bio?: string
+        avatar_url?: string
         teacher_level: number; is_active: boolean; email_verified_at?: string
         created_at?: string
     }
@@ -75,7 +77,7 @@ export interface TeacherListResponse {
 }
 
 export interface CreateTeacherData {
-    teacher_no: string
+    teacher_no?: string
     name: string
     email: string
     phone?: string
@@ -213,6 +215,47 @@ export const teachersApi = {
             return { success: true, error: null }
         } catch (err) {
             return { success: false, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async uploadAvatar(teacherId: string, file: File): Promise<{ data: Teacher | null, error: any }> {
+        try {
+            const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+
+            // 1. 取得 presigned URL
+            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}/avatar/upload-url?file_ext=${fileExt}`, {
+                method: 'POST',
+            })
+            if (!urlRes.ok) {
+                const error = await urlRes.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得上傳連結失敗' } }
+            }
+            const { upload_url, storage_path } = await urlRes.json()
+
+            // 2. PUT 到 S3
+            const uploadRes = await fetch(upload_url, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                body: file,
+            })
+            if (!uploadRes.ok) {
+                return { data: null, error: { message: '頭像上傳失敗' } }
+            }
+
+            // 3. 確認上傳
+            const confirmRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}/avatar/confirm-upload`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storage_path, file_name: file.name }),
+            })
+            if (!confirmRes.ok) {
+                const error = await confirmRes.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '確認上傳失敗' } }
+            }
+            const result = await confirmRes.json()
+            return { data: result.data || null, error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤' } }
         }
     },
 

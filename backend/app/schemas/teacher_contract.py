@@ -45,6 +45,7 @@ class ContractStatus(str, Enum):
     active = "active"
     expired = "expired"
     terminated = "terminated"
+    suspended = "suspended"
 
 
 class EmploymentType(str, Enum):
@@ -56,6 +57,7 @@ class DetailType(str, Enum):
     course_rate = "course_rate"
     base_salary = "base_salary"
     allowance = "allowance"
+    overtime_rate = "overtime_rate"
 
 
 # ========== Contract Detail Schemas ==========
