@@ -43,6 +43,14 @@ export function getZoomMeetingByBooking(bookingId: string) {
   );
 }
 
+/** 手動建立 Zoom 會議 */
+export function createZoomMeeting(data: { booking_id: string }) {
+  return request.post<any, DataResponse<ZoomMeetingLogResponse>>(
+    '/v1/zoom/meetings/create',
+    data
+  );
+}
+
 /** 手動從 Zoom API 取得會議錄影資訊 */
 export function fetchZoomRecording(bookingId: string) {
   return request.post<any, DataResponse<ZoomMeetingLogResponse>>(

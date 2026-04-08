@@ -1,11 +1,13 @@
 import request from '@/utils/request';
 
+export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+
 // API Request Parameters
 export interface BookingListParams {
     page?: number;
     per_page?: number;
     search?: string;
-    booking_status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | '';
+    booking_status?: BookingStatus | '';
     student_id?: string;
     teacher_id?: string;
     course_id?: string;
@@ -25,7 +27,7 @@ export interface BookingItem {
     teacher_slot_id: string;
     teacher_hourly_rate: number;
     teacher_rate_percentage?: number | null;
-    booking_status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+    booking_status: BookingStatus;
     booking_date: string;
     start_time: string;
     end_time: string;
@@ -42,6 +44,71 @@ export interface BookingItem {
     teacher_contract_no?: string | null;
 }
 
+export interface BookingCreate {
+    student_id: string;
+    teacher_id: string;
+    course_id: string;
+    student_contract_id?: string | null;
+    teacher_contract_id?: string | null;
+    teacher_slot_id?: string | null;
+    booking_date: string;
+    start_time: string;
+    end_time: string;
+    notes?: string | null;
+}
+
+export interface BookingUpdate {
+    booking_status?: BookingStatus | null;
+    end_time?: string | null;
+    notes?: string | null;
+}
+
+export interface BookingBatchCreate {
+    student_id: string;
+    student_contract_id?: string | null;
+    course_id?: string | null;
+    teacher_id: string;
+    teacher_contract_id?: string | null;
+    start_date: string;
+    end_date: string;
+    weekdays: number[] | null;
+    start_time?: string | null;
+    end_time?: string | null;
+    notes?: string | null;
+}
+
+export interface BookingBatchUpdate {
+    start_date: string;
+    end_date: string;
+    weekdays?: number[] | null;
+    student_id?: string | null;
+    teacher_id?: string | null;
+    course_id?: string | null;
+    filter_status?: BookingStatus | null;
+    new_status: BookingStatus;
+    notes?: string | null;
+}
+
+export interface BookingBatchDelete {
+    start_date: string;
+    end_date: string;
+    weekdays?: number[] | null;
+    student_id?: string | null;
+    teacher_id?: string | null;
+    course_id?: string | null;
+    filter_status?: BookingStatus | null;
+}
+
+export interface BookingBatchUpdateByIds {
+    booking_ids: string[];
+    booking_status: BookingStatus;
+    notes?: string | null;
+}
+
+export interface BookingBatchDeleteByIds {
+    booking_ids: string[];
+}
+
 // API Response Wrap
 export interface BookingListResponse {
     success: boolean;
@@ -53,31 +120,96 @@ export interface BookingListResponse {
     total_pages: number;
 }
 
+// List API
 export function getBookingList(params: BookingListParams) {
-    // Assuming the baseURL in request.ts covers '/api', we call '/v1/bookings'
     return request.get<any, BookingListResponse>('/v1/bookings', { params });
+}
+
+export function createBooking(data: BookingCreate) {
+    return request.post<any, any>('/v1/bookings', data);
+}
+
+export function updateBooking(id: string, data: BookingUpdate) {
+    return request.put<any, any>(`/v1/bookings/${id}`, data);
+}
+
+// Batch APIs
+export function batchCreateBookings(data: BookingBatchCreate) {
+    return request.post<any, any>('/v1/bookings/batch', data);
+}
+
+export function batchUpdateBookings(data: BookingBatchUpdate) {
+    return request.put<any, any>('/v1/bookings/batch', data);
+}
+
+export function batchDeleteBookings(data: BookingBatchDelete) {
+    return request.delete<any, any>('/v1/bookings/batch', { data });
+}
+
+export function batchUpdateBookingsByIds(data: BookingBatchUpdateByIds) {
+    return request.post<any, any>('/v1/bookings/batch-by-ids/update', data);
+}
+
+export function batchDeleteBookingsByIds(data: BookingBatchDeleteByIds) {
+    return request.post<any, any>('/v1/bookings/batch-by-ids/delete', data);
+}
+
+// Options API
+export interface BookingStudentOption {
+    id: string;
+    name: string;
+    email: string;
 }
 
 export interface BookingTeacherOption {
     id: string;
     name: string;
     teacher_no?: string;
-    // other fields that might be returned
-    [key: string]: any;
 }
 
 export interface BookingCourseOption {
     id: string;
     course_name: string;
     course_code?: string;
-    // other fields that might be returned
-    [key: string]: any;
+    duration?: number;
 }
 
-export function getBookingTeacherOptions(params?: { student_id?: string }) {
+export interface BookingStudentContractOption {
+    id: string;
+    contract_no: string;
+    course_id: string;
+    remaining_lessons: number;
+    contract_status: string;
+    course_name: string;
+}
+
+export interface BookingTeacherSlotOption {
+    id: string;
+    start_time: string;
+    end_time: string;
+    is_booked: boolean;
+}
+
+export function getBookingOptionStudents() {
+    return request.get<any, { data: BookingStudentOption[] }>('/v1/bookings/options/students');
+}
+
+export function getBookingOptionTeachers(params?: { student_id?: string }) {
     return request.get<any, { data: BookingTeacherOption[] }>('/v1/bookings/options/teachers', { params });
+}
+
+export function getBookingOptionOverlappingCourses(params: { student_id: string; teacher_id: string }) {
+    return request.get<any, { data: BookingCourseOption[] }>('/v1/bookings/options/overlapping-courses', { params });
 }
 
 export function getBookingCourseOptions() {
     return request.get<any, { data: BookingCourseOption[] }>('/v1/bookings/options/courses');
+}
+
+export function getBookingOptionStudentContracts(studentId: string) {
+    return request.get<any, { data: BookingStudentContractOption[] }>(`/v1/bookings/options/student-contracts/${studentId}`);
+}
+
+export function getBookingOptionTeacherSlots(teacherId: string) {
+    return request.get<any, { data: BookingTeacherSlotOption[] }>(`/v1/bookings/options/teacher-slots/${teacherId}`);
 }

@@ -6,7 +6,8 @@
         v-permission="'accounts.create'"
         type="primary"
         round
-        class="h-9 px-1"
+        size="small"
+        class="h-30px! px-3!"
         @click="openDrawer(null, 'add')"
       >
         <template #icon>
@@ -16,23 +17,23 @@
       </el-button>
     </div>
     <el-card>
-      <!-- <template #header>
-        <div class="header">
-          <span>{{ $t('course.title') }}</span>
-          <el-button type="primary" @click="openDrawer(null)">{{ $t('course.add') }}</el-button>
-        </div>
-      </template> -->
-      
       <!-- Filter Section -->
       <div class="filter-container" style="margin-bottom: 20px;">
-        <el-form :inline="true" :model="queryParams" @submit.prevent>
-          <el-form-item>
+        <el-form 
+          :inline="true" 
+          :model="queryParams" 
+          label-position="top" 
+          size="small"
+          class="flex items-end"
+          @submit.prevent
+        >
+          <el-form-item label="關鍵字搜尋">
             <el-input
               v-model="queryParams.search"
               :placeholder="$t('course.searchPlaceholder')"
               clearable
               @keyup.enter="handleSearch"
-              style="width: 250px"
+              class="h-30px! w-250px!"
             >
               <template #prefix>
                 <div class="i-hugeicons:search-01" />
@@ -47,13 +48,13 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" round @click="handleSearch">
+            <el-button type="primary" round class="h-30px!" @click="handleSearch">
               <template #icon>
                 <div class="i-hugeicons:search-01" />
               </template>
               {{ $t('course.btnSearch') }}
             </el-button>
-            <el-button round @click="handleReset">
+            <el-button round class="h-30px!" @click="handleReset">
               <template #icon>
                 <div class="i-hugeicons:arrow-reload-horizontal" />
               </template>
@@ -63,7 +64,7 @@
         </el-form>
       </div>
 
-      <el-table v-loading="loading" :data="tableData" style="width: 100%">
+      <el-table v-loading="loading" :data="tableData" size="small" class="w-full">
         <el-table-column prop="course_code" :label="$t('course.courseCode')" width="160px" />
         <el-table-column prop="course_name" :label="$t('course.courseName')" width="200px" />
         <el-table-column prop="description" :label="$t('course.description')" min-width="200px" />
@@ -75,7 +76,7 @@
         </el-table-column>
         <el-table-column :label="$t('common.actions')" fixed="right" width="180px" align="center">
           <template #default="{ row }">
-             <el-button type="primary" plain round size="small" @click="openDrawer(row, 'edit')">{{ $t('common.edit') }}</el-button>
+             <el-button type="primary" link size="small" @click="openDrawer(row, 'edit')">{{ $t('common.edit') }}</el-button>
              <el-button type="danger" link size="small" @click="handleDelete(row)">
               <div class="i-hugeicons:delete-02 mr-2px" />
               {{ $t('common.delete') }}
@@ -90,6 +91,7 @@
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
             :total="total"
+            size="small"
             @size-change="fetchData"
             @current-change="fetchData"
           />

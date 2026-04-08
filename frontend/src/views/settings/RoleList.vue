@@ -6,7 +6,7 @@
         v-permission="'roles.create'"
         type="primary"
         round
-        class="h-9 px-1"
+        class="h-30px!"
         @click="handleCreate"
       >
         <template #icon>
@@ -16,11 +16,31 @@
       </el-button>
     </div>
     <el-card>
-      <el-table :data="tableData" v-loading="loading" border stripe>
-        <el-table-column prop="name" :label="$t('role.roleName')" min-width="80" />
-        <el-table-column prop="key" :label="$t('role.roleKey')" width="120" align="center">
+      <el-table 
+        :data="tableData" 
+        size="small" 
+        class="w-full" 
+        v-loading="loading" 
+        border 
+        stripe
+      >
+        <el-table-column 
+          prop="name" 
+          :label="$t('role.roleName')" 
+          min-width="80" 
+        />
+        <el-table-column 
+          prop="key" 
+          :label="$t('role.roleKey')" 
+          width="120" 
+          align="center"
+        >
           <template #default="{ row }">
-            <el-tag size="small" :type="roleColor[row.key] || 'info'" class="font-size-10px">
+            <el-tag 
+              size="small" 
+              :type="roleColor[row.key] || 'info'" 
+              class="font-size-10px"
+            >
               <div class="flex items-center gap-1">
                 <i v-if="row.is_system" class="i-hugeicons:security-lock font-size-11px" />
                 {{ row.key }}
@@ -40,9 +60,18 @@
             <span v-else class="text-gray-400">-</span>
           </template>
         </el-table-column> -->
-        <el-table-column :label="$t('common.actions')" width="240" fixed="right" align="center">
+        <el-table-column 
+          :label="$t('common.actions')" 
+          width="240" 
+          fixed="right" 
+          align="center"
+        >
           <template #default="{ row }">
-            <el-space v-if="!needLock(row)" :size="10" style="width: 100%; justify-content: flex-end;">
+            <el-space 
+              v-if="!needLock(row)" 
+              :size="10" 
+              style="width: 100%; justify-content: flex-end;"
+            >
               <div class="flex justify-end">
                 <el-button
                   v-permission="'permissions.pages'"
@@ -70,7 +99,14 @@
                 @confirm="handleDelete(row)"
               >
                 <template #reference>
-                  <el-button v-permission="'permissions.roles'" round link size="small" type="danger" plain>
+                  <el-button 
+                    v-permission="'permissions.roles'" 
+                    round 
+                    link 
+                    size="small" 
+                    type="danger" 
+                    plain
+                  >
                     <div class="i-hugeicons:delete-02 mr-2px" />
                     {{ $t('common.delete') }}
                   </el-button>
@@ -92,21 +128,55 @@
       width="500px"
       @closed="resetForm"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+      <el-form 
+        ref="formRef" 
+        :model="form" 
+        size="small" 
+        :rules="rules" 
+        label-width="100px"
+      >
         <el-form-item :label="$t('role.roleKey')" prop="key">
-          <el-input v-model="form.key" :disabled="isEdit" :placeholder="$t('role.roleKeyPlaceholder')" />
+          <el-input 
+            v-model="form.key" 
+            :disabled="isEdit" 
+            :placeholder="$t('role.roleKeyPlaceholder')" 
+            class="h-30px!" 
+          />
         </el-form-item>
         <el-form-item :label="$t('role.roleName')" prop="name">
-          <el-input v-model="form.name" :placeholder="$t('role.roleNamePlaceholder')" />
+          <el-input 
+            v-model="form.name" 
+            :placeholder="$t('role.roleNamePlaceholder')" 
+            class="h-30px!" 
+          />
         </el-form-item>
         <el-form-item :label="$t('role.description')" prop="description">
-          <el-input v-model="form.description" type="textarea" :rows="3" :placeholder="$t('role.descriptionPlaceholder')" />
+          <el-input 
+            v-model="form.description" 
+            type="textarea" 
+            :rows="3" 
+            :placeholder="$t('role.descriptionPlaceholder')" 
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
-          <el-button type="primary" :loading="submitLoading" @click="submitForm">
+          <el-button 
+            size="small" 
+            round 
+            class="h-30px! px-4!" 
+            @click="dialogVisible = false"
+          >
+            {{ $t('common.cancel') }}
+          </el-button>
+          <el-button 
+            size="small" 
+            round 
+            class="h-30px! px-4!" 
+            type="primary" 
+            :loading="submitLoading" 
+            @click="submitForm"
+          >
             {{ $t('common.confirm') }}
           </el-button>
         </span>
@@ -124,17 +194,33 @@
         <div class="flex-1 overflow-y-auto pr-2">
           <el-tree
             ref="treeRef"
+            size="small"
             :data="permissionTree"
             show-checkbox
             node-key="id"
             :props="defaultProps"
+            :default-checked-keys="defaultCheckedKeys"
             default-expand-all
             :expand-on-click-node="false"
           />
         </div>
         <div class="mt-4 pt-4 border-t flex justify-end gap-2">
-          <el-button @click="drawerVisible = false">{{ $t('common.cancel') }}</el-button>
-          <el-button type="primary" :loading="saveTreeLoading" @click="savePermissions">
+          <el-button 
+            size="small" 
+            round 
+            class="h-30px! px-4!" 
+            @click="drawerVisible = false"
+          >
+            {{ $t('common.cancel') }}
+          </el-button>
+          <el-button 
+            size="small" 
+            round 
+            class="h-30px! px-4!" 
+            type="primary" 
+            :loading="saveTreeLoading" 
+            @click="savePermissions"
+          >
             {{ $t('common.save') }}
           </el-button>
         </div>
@@ -189,6 +275,7 @@ const saveTreeLoading = ref(false);
 const treeRef = ref<any>(null);
 const currentRole = ref<RoleInfo | null>(null);
 const permissionTree = ref<any[]>([]);
+const defaultCheckedKeys = ref<string[]>([]);
 
 const defaultProps = {
   children: 'children',
@@ -197,12 +284,16 @@ const defaultProps = {
 
 // --- Tree Building Logic ---
 interface TreeNode extends PageResponse {
+  disabled?: boolean;
   children?: TreeNode[];
 }
 
-const buildTree = (pages: PageResponse[]): TreeNode[] => {
+const FORCED_CHECKED_KEYS = ['dashboard'];
+
+const buildTree = (pages: PageResponse[]): { tree: TreeNode[]; forcedIds: string[] } => {
   const map = new Map<string, TreeNode>();
   const tree: TreeNode[] = [];
+  const forcedIds: string[] = [];
 
   // First pass: create node objects
   pages.forEach(page => {
@@ -213,6 +304,10 @@ const buildTree = (pages: PageResponse[]): TreeNode[] => {
   pages.forEach(page => {
     const node = map.get(page.key);
     if (node) {
+      if (FORCED_CHECKED_KEYS.includes(node.key)) {
+        node.disabled = true;
+        forcedIds.push(node.id);
+      }
       if (page.parent_key && map.has(page.parent_key)) {
         map.get(page.parent_key)!.children!.push(node);
       } else {
@@ -221,7 +316,7 @@ const buildTree = (pages: PageResponse[]): TreeNode[] => {
     }
   });
 
-  return tree;
+  return { tree, forcedIds };
 };
 
 // --- Methods ---
@@ -307,34 +402,43 @@ const submitForm = async () => {
 
 const handlePermission = async (row: RoleInfo) => {
   currentRole.value = row;
+  // Reset forced keys before each open to avoid accumulation
+  defaultCheckedKeys.value = [];
   drawerVisible.value = true;
   treeLoading.value = true;
   try {
     // 1. Fetch all pages and build tree
     const pagesRes = await getPagesApi();
     let allPages: PageResponse[] = [];
+    let forcedIds: string[] = [];
     if (pagesRes.data) {
       allPages = pagesRes.data;
-      permissionTree.value = buildTree(allPages);
+      const result = buildTree(allPages);
+      permissionTree.value = result.tree;
+      forcedIds = result.forcedIds;
+      // Set default checked keys for disabled nodes
+      defaultCheckedKeys.value = [...forcedIds];
     }
 
     // 2. Fetch current role permissions
     const rolePagesRes = await getRolePagesApi(row.id);
     const existingPages = rolePagesRes?.pages || [];
     
-    // We only want to set checked keys for leaf nodes in element-plus tree, 
+    // We only want to set checked keys for leaf nodes in element-plus tree,
     // otherwise parent nodes will auto-select all children.
     const parentKeys = new Set(allPages.map(p => p.parent_key).filter(Boolean));
     const leafIds = existingPages
-        .filter(p => !parentKeys.has(p.key)) // only keys that are not parents of any other node
-        .map(p => p.id);
+      .filter(p => !parentKeys.has(p.key))
+      .map(p => p.id);
     
+    // Merge forced ids so disabled nodes always stay checked
+    const mergedIds = Array.from(new Set([...forcedIds, ...leafIds]));
+
     // Wait for the drawer and tree to be rendered
     nextTick(() => {
-      // Element Plus Drawer might have a transition delay, so nextTick + small timeout is safest for treeRef
       setTimeout(() => {
         if (treeRef.value) {
-          treeRef.value.setCheckedKeys(leafIds);
+          treeRef.value.setCheckedKeys(mergedIds);
         }
       }, 50);
     });

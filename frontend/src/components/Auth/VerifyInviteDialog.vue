@@ -21,7 +21,7 @@
     </el-form>
     <template #footer>
       <div class="flex justify-center mb-2">
-        <el-button round plain @click="show = false">
+        <el-button round plain size="small" class="px-4! h-30px!" @click="show = false">
           <template #icon>
             <div class="i-hugeicons:cancel-circle-half-dot" />
           </template>

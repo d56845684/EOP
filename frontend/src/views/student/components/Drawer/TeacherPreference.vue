@@ -44,45 +44,74 @@
     </div>
 
     <!-- Dialog -->
-    <el-dialog v-model="dialogVisible" :title="dialogType === 'add' ? '新增偏好設定' : '編輯偏好設定'" width="500px" append-to-body destroy-on-close>
-      <el-form label-position="top">
+    <el-dialog
+      v-model="dialogVisible" 
+      :title="dialogType === 'add' ? '新增偏好設定' : '編輯偏好設定'" 
+      width="500px"
+      body-class="min-h-200px"
+      append-to-body 
+      destroy-on-close
+    >
+      <el-form label-position="top" size="small">
         <el-form-item label="偏好類型">
           <el-radio-group v-model="formData.type" @change="handleTypeChange">
-            <div class="flex flex-col gap-2">
-              <el-radio value="specify_teacher" label="specify_teacher">
-                直接指定可預約的老師
+            <div class="flex gap-1">
+              <el-radio value="specify_teacher" label="specify_teacher" border class="h-46px! w-160px">
+                <span class="flex flex-col gap-1.5 px-1">
+                  <span class="leading-none">指定主要教師</span>
+                  <span class="text-10px leading-none text-[#909399]">直接指定可預約的老師</span>
+                </span>
               </el-radio>
-              <el-radio value="min_level" label="min_level">
-                依教師等級過濾
+              <el-radio value="min_level" label="min_level" border class="h-46px! w-160px">
+                <span class="flex flex-col gap-1.5 px-1">
+                  <span class="leading-none">設定最高等級</span>
+                  <span class="text-10px leading-none text-[#909399]">依教師等級過濾</span>
+                </span>
               </el-radio>
             </div>
           </el-radio-group>
         </el-form-item>
 
         <template v-if="formData.type === 'specify_teacher'">
-          <el-form-item label="主要教師">
-            <el-select v-model="formData.primary_teacher_id" placeholder="請選擇老師" filterable class="w-full">
-              <el-option v-for="teacher in teachers" :key="teacher.id" :label="teacher.name" :value="teacher.id" />
-            </el-select>
-          </el-form-item>
+          <el-row>
+            <el-col :span="10">
+              <el-form-item label="主要教師">
+                <el-select v-model="formData.primary_teacher_id" placeholder="請選擇老師" filterable class="w-full">
+                  <el-option v-for="teacher in teachers" :key="teacher.id" :label="teacher.name" :value="teacher.id" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
         </template>
 
         <template v-else-if="formData.type === 'min_level'">
-          <el-form-item label="適用課程">
-            <el-select v-model="formData.course_id" placeholder="請選擇課程" class="w-full">
-              <el-option label="全域課程" :value="null" />
-              <el-option v-for="course in courses" :key="course.id" :label="course.course_name" :value="course.id" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="最低教師等級">
-            <el-input-number v-model="formData.min_teacher_level" :min="1" :step="1" />
-          </el-form-item>
+          <el-row>
+            <el-col :span="10">
+              <el-form-item label="適用課程">
+                <el-select v-model="formData.course_id" placeholder="請選擇課程" class="w-full">
+                  <el-option label="全域課程" :value="null" />
+                  <el-option v-for="course in courses" :key="course.id" :label="course.course_name" :value="course.id" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="10" :push="2">
+              <el-form-item label="最低教師等級">
+                <template #label>
+                  <span class="flex items-baseline gap-1.5">
+                    <span>最高教師等級</span>
+                    <span class="text-10px color-[#909399]">(最大值Lv.99)</span>
+                  </span>
+                </template>
+                <el-input-number v-model="formData.min_teacher_level" :min="1" :max="99" :step="1" class="h-30px!" />
+              </el-form-item>
+            </el-col>
+          </el-row>
         </template>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSave" :loading="saving">確定</el-button>
+          <el-button round size="small" class="px-5! h-30px!" @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" round size="small" class="px-5! h-30px!" @click="handleSave" :loading="saving">確定</el-button>
         </span>
       </template>
     </el-dialog>

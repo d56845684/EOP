@@ -6,7 +6,7 @@
         v-permission="'accounts.create'"
         type="primary"
         round
-        class="h-9 px-1"
+        class="h-30px!"
         @click="openDrawer(null, 'add')"
       >
         <template #icon>
@@ -17,13 +17,20 @@
     </div>
     <el-card class="filter-card mb-14px">
       <!-- Area A: Filter Section -->
-      <el-form :inline="true" :model="queryParams" label-position="top" class="filter-form flex items-end" @submit.prevent="handleSearch">
+      <el-form
+        :inline="true"
+        :model="queryParams"
+        size="small"
+        label-position="top"
+        class="filter-form flex items-end"
+        @submit.prevent="handleSearch"
+      >
         <el-form-item :label="$t('common.searchKeyword')">
           <el-input
             v-model="queryParams.search"
             :placeholder="$t('account.searchPlaceholder')"
             clearable
-            class="w-240px"
+            class="w-240px h-30px!"
             @clear="handleSearch"
             @keyup.enter="handleSearch"
           >
@@ -62,13 +69,13 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" round @click="handleSearch">
+          <el-button type="primary" round class="h-30px!" @click="handleSearch">
             <template #icon>
               <div class="i-hugeicons:search-01" />
             </template>
             {{ $t('common.search') }}
           </el-button>
-          <el-button round @click="resetQuery">
+          <el-button round class="h-30px!" @click="resetQuery">
             <template #icon>
               <div class="i-hugeicons:arrow-reload-horizontal" />
             </template>
@@ -80,16 +87,16 @@
 
     <el-card>
       <!-- Area B: Data Table -->
-      <el-table :data="users" style="width: 100%" v-loading="loading">
-        <el-table-column prop="name" min-width="120" :label="$t('account.nickname')" />
-        <el-table-column prop="email" min-width="200" :label="$t('account.account')" />
+      <el-table :data="users" size="small" class="w-full" v-loading="loading">
+        <el-table-column prop="name" min-width="140" :label="$t('account.nickname')" />
+        <el-table-column prop="email" min-width="260" :label="$t('account.account')" />
         <!-- <el-table-column prop="role" :label="$t('account.role')" /> -->
-        <el-table-column prop="employee_subtype" min-width="120" :label="$t('account.employeeSubtype')">
+        <el-table-column prop="employee_subtype" min-width="120" align="center" :label="$t('account.employeeSubtype')">
           <template #default="{ row }">
             {{ row.employee_subtype || '-' }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('account.createdTime')" width="180">
+        <el-table-column :label="$t('account.createdTime')" width="160" align="center">
            <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
         <el-table-column :label="$t('common.status')" align="center">
@@ -113,8 +120,7 @@
             <template #default="{ row }">
               <el-button
                 type="primary" 
-                plain
-                round
+                link
                 size="small"
                 @click="openDrawer(row, 'edit')" 
                 :disabled="row.is_protected"
