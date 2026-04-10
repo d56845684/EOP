@@ -1,5 +1,5 @@
 <template>
-  <div class="booking-list px-5 py-5">
+  <div class="booking-list pl-2 pr-4">
     <!-- Quick Batch Actions Top -->
     <div class="flex justify-between items-center px-1 mb-2">
       <h3 class="text-lg my-0">{{ $t('menu.booking_mgmt') }}</h3>
@@ -10,7 +10,7 @@
           size="small" 
           round 
           plain 
-          class="h-30px!" 
+          class="h-30px! px-2!" 
           @click="openDialog('batchCreate')">
             <template #icon><div class="i-hugeicons:add-circle" /></template>
             批次建立預約
@@ -21,7 +21,7 @@
           size="small" 
           round 
           plain 
-          class="h-30px!" 
+          class="h-30px! px-2!" 
           @click="openDialog('batchUpdate')">
             <template #icon><div class="i-hugeicons:edit-02" /></template>
             批次更新預約
@@ -32,20 +32,23 @@
           size="small" 
           round 
           plain 
-          class="h-30px!" 
+          class="h-30px! px-2!" 
           @click="openDialog('batchDelete')">
             <template #icon><div class="i-hugeicons:delete-02" /></template>
             批次刪除預約
         </el-button>
-        <el-button 
-          v-permission="'bookings.create'" 
-          type="primary" 
-          size="small" 
-          round 
-          class="h-30px!" 
-          @click="openDialog('add')">
-            <template #icon><div class="i-hugeicons:plus-sign-square" /></template>
-            新增預約
+        <el-button
+          v-permission="'bookings.create'"
+          type="primary"
+          round
+          size="small"
+          class="h-30px px-2"
+          @click="openDrawer(null, drawerTypeMap.CREATE)"
+        >
+          <template #icon>
+            <div class="i-hugeicons:plus-sign-square" />
+          </template>
+          {{ $t('booking.add') }}
         </el-button>
       </div>
     </div>
@@ -88,10 +91,7 @@
             clearable 
             class="w-110px!" 
             @change="handleFilterChange">
-            <el-option label="待確認" value="pending" />
-            <el-option label="已確認" value="confirmed" />
-            <el-option label="已完成" value="completed" />
-            <el-option label="已取消" value="cancelled" />
+            <el-option v-for="(label, value) in BOOKING_STATUS_MAP" :key="value" :label="label" :value="value" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('common.teacher')">
@@ -136,13 +136,14 @@
     <!-- Table Toolbar -->
     <div class="mb-2">
       <el-button 
-        type="primary"
+        type="warning"
         round
         size="small"
         plain 
         class="h-30px!"
         :disabled="selectedIds.length === 0" 
         @click="openDialog('batchUpdateByIds')">
+        <template #icon><div class="i-hugeicons:edit-02" /></template>
         批次更新狀態
       </el-button>
       <el-button 
@@ -153,6 +154,7 @@
         class="h-30px!"
         :disabled="selectedIds.length === 0" 
         @click="handleBatchDeleteByIds">
+        <template #icon><div class="i-hugeicons:delete-02" /></template>
         批次刪除
       </el-button>
     </div>
@@ -184,7 +186,7 @@
             <el-tag 
               :type="getStatusColor(row.booking_status)" 
               size="small">
-              {{ row.booking_status }}
+              {{ BOOKING_STATUS_MAP[row.booking_status] }}
             </el-tag>
           </template>
         </el-table-column>
@@ -194,7 +196,7 @@
               :type="row.booking_type === 'trial' ? 'warning' : ''" 
               effect="plain" 
               size="small">
-              {{ row.booking_type || 'regular' }}
+              {{ BOOKING_TYPE_MAP[row.booking_type] || row.booking_type }}
             </el-tag>
           </template>
         </el-table-column>
@@ -207,10 +209,12 @@
                   v-else
                   type="primary" 
                   size="small" 
-                  plain 
+                  plain
+                  round
                   class="text-xs h-20px! px-1.5!"
                   :loading="creatingZoomMap[row.id]"
                   @click="handleCreateZoom(row)">
+                  <template #icon><div class="i-hugeicons:meeting-room" /></template>
                   建立會議
                 </el-button>
               </div>
@@ -219,6 +223,7 @@
                   v-if="zoomInfoMap[row.id].join_url"
                   type="success" 
                   size="small"
+                  round
                   plain
                   class="text-xs h-20px! px-1.5!"
                   @click="openUrl(zoomInfoMap[row.id].join_url)">
@@ -233,10 +238,11 @@
                   v-if="row.booking_status === 'completed' && (zoomInfoMap[row.id].recording_url || zoomInfoMap[row.id].drive_view_link)"
                   type="info" 
                   size="small" 
+                  round
                   plain
                   class="text-xs h-20px! px-1.5!"
                   @click="openUrl(zoomInfoMap[row.id].recording_url || zoomInfoMap[row.id].drive_view_link)">
-                  <template #icon><div class="i-hugeicons:play-circle" /></template>取得錄影
+                  <template #icon><div class="i-hugeicons:video-replay" /></template>取得錄影
                 </el-button>
               </div>
             </template>
@@ -267,26 +273,35 @@
     </el-card>
 
     <!-- Generic Dialog -> Standard Add Booking -->
-    <el-dialog v-model="dialogs.add.visible" title="新增預約" width="600px" @closed="resetForm('add')">
-        <el-form :model="addForm" :rules="addRules" ref="addFormRef" label-width="120px">
-            <el-form-item label="學生" prop="student_id">
-                <el-select v-model="addForm.student_id" filterable placeholder="請先選擇學生" class="w-full" @change="addDeps.handleStudentChange()">
-                    <el-option v-for="s in studentOptions" :key="s.id" :label="s.name" :value="s.id" />
-                </el-select>
-            </el-form-item>
-            <el-form-item label="合約(可選)" prop="student_contract_id">
-                <el-select 
-                  v-model="addForm.student_contract_id" 
-                  filterable 
-                  clearable 
-                  placeholder="選擇合約" 
-                  class="w-full" 
-                  :disabled="!addForm.student_id" 
-                  :loading="addDeps.isFetchingTeachers">
-                    <el-option v-for="c in addDeps.studentContractOptions" :key="c.id" :label="`${c.course_name} (${c.contract_no})`" :value="c.id" />
-                </el-select>
-            </el-form-item>
-            <el-form-item label="教師" prop="teacher_id">
+    <el-drawer v-model="dialogs.add.visible" title="新增預約" size="480px" @closed="resetForm('add')">
+        <el-form :model="addForm" :rules="addRules" ref="addFormRef" size="small" label-width="80px" label-position="top">
+          <el-row>
+            <el-col :span="10">
+
+              <el-form-item label="學生" prop="student_id">
+                  <el-select v-model="addForm.student_id" filterable placeholder="請先選擇學生" class="w-full" @change="addDeps.handleStudentChange()">
+                      <el-option v-for="s in studentOptions" :key="s.id" :label="s.name" :value="s.id" />
+                  </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="10" :push="2">
+              <el-form-item label="合約(可選)" prop="student_contract_id">
+                  <el-select 
+                    v-model="addForm.student_contract_id" 
+                    filterable 
+                    clearable 
+                    placeholder="選擇合約" 
+                    class="w-full" 
+                    :disabled="!addForm.student_id" 
+                    :loading="addDeps.isFetchingTeachers">
+                      <el-option v-for="c in addDeps.studentContractOptions" :key="c.id" :label="`${c.course_name} (${c.contract_no})`" :value="c.id" />
+                  </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row>
+            <el-col :span="10">
+              <el-form-item label="教師" prop="teacher_id">
                 <el-select 
                   v-model="addForm.teacher_id" 
                   filterable 
@@ -297,8 +312,10 @@
                   :loading="addDeps.isFetchingTeachers">
                     <el-option v-for="t in addDeps.teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
                 </el-select>
-            </el-form-item>
-            <el-form-item label="課程" prop="course_id">
+              </el-form-item>
+            </el-col>
+            <el-col :span="10" :push="2">
+              <el-form-item label="課程" prop="course_id">
                 <el-select 
                   v-model="addForm.course_id" 
                   filterable 
@@ -308,14 +325,21 @@
                   :loading="addDeps.isFetchingCourses">
                     <el-option v-for="c in addDeps.courseOptions" :key="c.id" :label="c.course_name" :value="c.id" />
                 </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row>
+            <el-col :span="16">
+              <el-form-item label="時間模式">
+                  <el-radio-group v-model="addForm.timeMode" :disabled="!addForm.teacher_id">
+                      <el-radio label="manual">自訂時間</el-radio>
+                      <el-radio label="slot">選擇教師時段</el-radio>
+                  </el-radio-group>
             </el-form-item>
-            <el-form-item label="時間模式">
-                <el-radio-group v-model="addForm.timeMode" :disabled="!addForm.teacher_id">
-                    <el-radio label="manual">自訂時間</el-radio>
-                    <el-radio label="slot">選擇教師時段</el-radio>
-                </el-radio-group>
-            </el-form-item>
-
+            </el-col>
+          </el-row>
+          <el-row>
+            <el-col :span="16">
             <!-- Manual Mode -->
             <template v-if="addForm.timeMode === 'manual'">
                 <el-form-item label="日期" prop="booking_date">
@@ -324,7 +348,7 @@
                       type="date" 
                       value-format="YYYY-MM-DD" 
                       placeholder="選擇日期" 
-                      class="w-full" 
+                      class="w-full h-30px!" 
                       :disabled="!addForm.teacher_id" />
                 </el-form-item>
                 <el-form-item label="時間" required>
@@ -334,62 +358,79 @@
                           format="HH:mm" 
                           value-format="HH:mm" 
                           placeholder="開始" 
-                          class="flex-1" />
+                          class="flex-1 h-30px!" />
                         <span class="mt-1">-</span>
                         <el-time-picker 
                           v-model="addForm.end_time" 
                           format="HH:mm" 
                           value-format="HH:mm" 
                           placeholder="結束" 
-                          class="flex-1" />
+                          class="flex-1 h-30px!" />
                     </div>
                 </el-form-item>
             </template>
-            <!-- Slot Mode -->
-            <template v-if="addForm.timeMode === 'slot'">
-              <el-form-item label="教師時段" prop="teacher_slot_id">
-                <el-select 
-                  v-model="addForm.teacher_slot_id" 
-                  placeholder="請選擇時段" 
-                  class="w-full" 
-                  :loading="addDeps.isFetchingCourses">
-                  <template #label="{ label, value }">
-                    <div class="flex gap-2">
-                      <span class="font-500 w-85px">{{ label.split(' ')[0] }}</span>
-                      <span class="font-500">{{ label.split(' ')[1] }}</span>
-                    </div>
-                  </template>
-                  <el-option 
-                    v-for="slot in addDeps.teacherSlotOptions" 
-                    :key="slot.id" 
-                    :value="slot.id" 
-                    :label="`${dayjs(slot.slot_date).format('YYYY/MM/DD')} ${slot.start_time.substring(0,5)}~${slot.end_time.substring(0,5)}`"
-                    :disabled="slot.is_booked" 
-                  >
-                    <div class="flex gap-2">
-                      <span class="font-500 w-85px">{{ dayjs(slot.slot_date).format('YYYY/MM/DD') }}</span>
-                      <span class="font-500">{{ slot.start_time.substring(0,5)}}~{{ slot.end_time.substring(0,5)}}</span>
-                    </div>
-                  </el-option>
-                </el-select>
+            </el-col>
+            <el-col :span="12">
+              <!-- Slot Mode -->
+              <template v-if="addForm.timeMode === 'slot'">
+                <el-form-item label="教師時段" prop="teacher_slot_id">
+                  <el-select 
+                    v-model="addForm.teacher_slot_id" 
+                    placeholder="請選擇時段" 
+                    class="w-full" 
+                    :loading="addDeps.isFetchingCourses">
+                    <template #label="{ label, value }">
+                      <div class="flex gap-2">
+                        <span class="font-500 w-85px">{{ label.split(' ')[0] }}</span>
+                        <span class="font-500">{{ label.split(' ')[1] }}</span>
+                      </div>
+                    </template>
+                    <el-option 
+                      v-for="slot in addDeps.teacherSlotOptions" 
+                      :key="slot.id" 
+                      :value="slot.id" 
+                      :label="`${dayjs(slot.slot_date).format('YYYY/MM/DD')} ${slot.start_time.substring(0,5)}~${slot.end_time.substring(0,5)}`"
+                      :disabled="slot.is_booked" 
+                    >
+                      <div class="flex gap-2">
+                        <span class="font-500 w-85px">{{ dayjs(slot.slot_date).format('YYYY/MM/DD') }}</span>
+                        <span class="font-500">{{ slot.start_time.substring(0,5)}}~{{ slot.end_time.substring(0,5)}}</span>
+                      </div>
+                    </el-option>
+                  </el-select>
+                </el-form-item>
+              </template>
+            </el-col>
+          </el-row>
+          <el-row>
+            <el-col :span="23">
+              <el-form-item label="備註" prop="notes">
+                  <el-input v-model="addForm.notes" type="textarea" :rows="4" />
               </el-form-item>
-            </template>
-
-            <el-form-item label="備註" prop="notes">
-                <el-input v-model="addForm.notes" type="textarea" />
-            </el-form-item>
+            </el-col>
+          </el-row>
         </el-form>
         <template #footer>
-            <el-button @click="dialogs.add.visible = false">{{ $t('common.cancel') }}</el-button>
-            <el-button type="primary" @click="submitAdd" :loading="dialogs.add.loading">新增</el-button>
+            <el-button size="small" round class="h-30px! px-4!" @click="dialogs.add.visible = false">{{ $t('common.cancel') }}</el-button>
+            <el-button size="small" type="primary" round class="h-30px! px-4!" @click="submitAdd" :loading="dialogs.add.loading">新增</el-button>
         </template>
-    </el-dialog>
+    </el-drawer>
 
     <!-- Single Edit Booking -->
-    <el-dialog v-model="dialogs.edit.visible" title="編輯預約" width="500px" @closed="resetForm('edit')">
-      <el-form :model="editForm" :rules="editRules" ref="editFormRef" label-width="120px">
+    <el-drawer v-model="dialogs.edit.visible" title="編輯預約" size="480px" @closed="resetForm('edit')">
+      <div class="mb-8 p-4 bg-gray-100 rounded-md">
+        <div class="font-500 mb-4 text-xs color-[#3f4254]">預約資訊</div>
+        <div class="flex flex-col gap-2 text-xs">
+          <div><label class="color-[#7e8299] mr-2">學生</label><span class="color-[#3f4254]">{{ editForm.student_name }}</span></div>
+          <div><label class="color-[#7e8299] mr-2">教師</label><span class="color-[#3f4254]">{{ editForm.teacher_name }}</span></div>
+          <div><label class="color-[#7e8299] mr-2">課程</label><span class="color-[#3f4254]">{{ editForm.course_name }}</span></div>
+          <div><label class="color-[#7e8299] mr-2">日期</label><span class="color-[#3f4254]">{{ editForm.booking_date }}</span></div>
+          <div><label class="color-[#7e8299] mr-2">時間</label><span class="color-[#3f4254]">{{ editForm.start_time }} - {{ editForm.end_time }}</span></div>
+        </div>
+      </div>
+      <el-form :model="editForm" :rules="editRules" ref="editFormRef" size="small" label-width="72px" label-position="top">
           <el-form-item label="狀態" prop="booking_status">
-            <el-select v-model="editForm.booking_status" class="w-full">
+            <el-select v-model="editForm.booking_status" class="w-150px">
               <el-option label="待確認" value="pending" />
               <el-option label="已確認" value="confirmed" />
               <el-option label="已完成" value="completed" />
@@ -402,18 +443,18 @@
               format="HH:mm" 
               value-format="HH:mm" 
               placeholder="縮短結束時間" 
-              class="w-full" />
-            <div class="text-xs text-gray-400 mt-1">僅可縮短時間，無法延長。</div>
+              class="w-150px! h-30px!" />
+            <div class="text-xs text-gray-400 ml-4">僅可縮短時間，無法延長。</div>
           </el-form-item>
           <el-form-item label="備註" prop="notes">
-            <el-input v-model="editForm.notes" type="textarea" />
+            <el-input v-model="editForm.notes" type="textarea" :rows="4" />
           </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogs.edit.visible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="submitEdit" :loading="dialogs.edit.loading">更新</el-button>
+        <el-button size="small" round class="h-30px! px-4!" @click="dialogs.edit.visible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button size="small" type="primary" round class="h-30px! px-4!" @click="submitEdit" :loading="dialogs.edit.loading">更新</el-button>
       </template>
-    </el-dialog>
+    </el-drawer>
 
     <!-- Batch Update By Ids -->
     <el-dialog 
@@ -427,10 +468,7 @@
         label-width="80px">
           <el-form-item label="新狀態">
             <el-select v-model="batchUpdateByIdsForm.booking_status" class="w-full">
-              <el-option label="待確認" value="pending" />
-              <el-option label="已確認" value="confirmed" />
-              <el-option label="已完成" value="completed" />
-              <el-option label="已取消" value="cancelled" />
+              <el-option v-for="(label, value) in BOOKING_STATUS_MAP" :key="value" :label="label" :value="value" />
             </el-select>
           </el-form-item>
           <el-form-item label="備註">
@@ -729,6 +767,7 @@ import {
 } from '@/api/booking';
 import { getZoomMeetingByBooking, createZoomMeeting, type ZoomMeetingLogResponse } from '@/api/zoom';
 import { useBookingDependencies } from '@/composables/useBookingDependencies';
+import { BOOKING_STATUS_MAP, BOOKING_TYPE_MAP } from '@/constants/booking';
 
 // --- Filters & Table List ---
 const filters = reactive({
@@ -850,7 +889,14 @@ const openDialog = (name: keyof typeof dialogs, row?: BookingItem) => {
   dialogs[name].visible = true;
   if (name === 'edit' && row) {
     dialogs.edit.editId = row.id;
-    Object.assign(editForm, { booking_status: row.booking_status, end_time: row.end_time?.substring(0,5) || '', notes: row.notes || '' });
+    Object.assign(editForm, { 
+      student_name: row.student_name, 
+      teacher_name: row.teacher_name, 
+      course_name: row.course_name, 
+      booking_status: row.booking_status, 
+      end_time: row.end_time?.substring(0,5) || '', 
+      notes: row.notes || '' 
+    });
   }
 };
 

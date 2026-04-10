@@ -12,10 +12,17 @@ export const CONTRACT_DETAIL_TYPE = {
     COMPENSATION: 'compensation'
 } as const
 
-export const CONTRACT_STATUS_MAP: Record<string, string> = {
+export const STUDENT_CONTRACT_STATUS_MAP: Record<string, string> = {
     [CONTRACT_STATUS.PENDING]: '待生效',
     [CONTRACT_STATUS.ACTIVE]: '生效中',
     [CONTRACT_STATUS.EXPIRED]: '已過期',
     [CONTRACT_STATUS.TERMINATED]: '已終止',
     [CONTRACT_STATUS.SUSPENDED]: '已暫停'
+};
+
+export const TEACHER_CONTRACT_STATUS_MAP: Record<string, string> = {
+    [CONTRACT_STATUS.PENDING]: '待生效',
+    [CONTRACT_STATUS.ACTIVE]: '生效中',
+    [CONTRACT_STATUS.EXPIRED]: '已過期',
+    [CONTRACT_STATUS.TERMINATED]: '已終止'
 };

@@ -54,7 +54,7 @@
           <el-col :span="8">
             <el-form-item :label="$t('contract.contractStatus')" prop="status">
             <el-select v-model="contractForm.contract_status" class="w-full">
-              <el-option v-for="(label, value) in CONTRACT_STATUS_MAP" :key="value" :label="label" :value="value" />
+              <el-option v-for="(label, value) in TEACHER_CONTRACT_STATUS_MAP" :key="value" :label="label" :value="value" />
             </el-select>
             </el-form-item>
           </el-col>
@@ -159,7 +159,7 @@
             </div>
           </el-col>
         </el-row>
-        <el-row class="mt-2 mb-4">
+        <el-row class="mt-2 mb-10">
           <el-col :span="12">
             <el-button type="primary" round size="small" class="py-3!" :loading="savingContract" @click="saveContractData">
               <template #icon>
@@ -168,7 +168,7 @@
               儲存
             </el-button>
           </el-col>
-          <el-col :span="12" justify="end">
+          <!-- <el-col :span="12" justify="end">
             <el-form-item class="w-full action-column">
               <el-space :size="10" :spacer="h(ElDivider, { direction: 'vertical' })">
                 <el-button
@@ -201,13 +201,13 @@
                 </el-button>
               </el-space>
             </el-form-item>
-          </el-col>
+          </el-col> -->
         </el-row>
       </el-form>
 
       <!-- BLOCK D: Addendums -->
-      <template v-if="hasContract && addendums.length > 0">
-        <el-divider content-position="left" class="mt-4 mb-4">
+      <!-- <template v-if="hasContract && addendums.length > 0">
+        <el-divider content-position="left" class="my-4">
           <span class="text-13px color-[#1d2d44]">附約</span>
         </el-divider>
         <el-table :data="addendums" border size="small" class="mb-4">
@@ -254,7 +254,7 @@
             </template>
           </el-table-column>
         </el-table>
-      </template>
+      </template> -->
 
       <!-- BLOCK C: Course Rates -->
       <el-divider content-position="left" class="mt-4 mb-2">
@@ -314,44 +314,62 @@
     @closed="resetRateForm"
   >
     <el-form ref="rateFormRef" :model="rateForm" :rules="rateRules" label-position="top" size="small">
-      <!-- 明細類型 -->
-      <el-form-item label="明細類型" prop="detail_type">
-        <el-select v-model="rateForm.detail_type" placeholder="請選擇明細類型" class="w-full">
-          <el-option label="底薪" value="base_salary" />
-          <el-option label="津貼" value="allowance" />
-          <el-option label="課程時薪" value="course_rate" />
-        </el-select>
-      </el-form-item>
-      <!-- 課程：僅 course_rate 顯示 -->
-      <el-form-item v-if="rateForm.detail_type === 'course_rate'" label="課程" prop="course_id">
-        <el-select v-model="rateForm.course_id" filterable clearable placeholder="請選擇課程（選填）" class="w-full">
-          <el-option
-            v-for="c in courseOptions"
-            :key="c.id"
-            :label="c.name || `${c.course_code} - ${c.course_name}`"
-            :value="c.id"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="說明" prop="description">
-        <el-input v-model="rateForm.description" placeholder="請輸入說明（選填）" />
-      </el-form-item>
-      <el-form-item label="金額（必填）" prop="amount">
-        <el-input-number
-          v-model="rateForm.amount"
-          :min="0"
-          :precision="0"
-          class="w-full h-30px!"
-        />
-      </el-form-item>
-      <el-form-item label="備註" prop="notes">
-        <el-input v-model="rateForm.notes" placeholder="請輸入備註（選填）" />
-      </el-form-item>
+      <el-row>
+        <el-col :span="10">  
+          <!-- 明細類型 -->
+          <el-form-item label="明細類型" prop="detail_type">
+            <el-select v-model="rateForm.detail_type" placeholder="請選擇明細類型" class="w-full">
+              <el-option label="底薪" value="base_salary" />
+              <el-option label="津貼" value="allowance" />
+              <el-option label="課程時薪" value="course_rate" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="10" :push="2">
+          <!-- 課程：僅 course_rate 顯示 -->
+          <el-form-item v-if="rateForm.detail_type === 'course_rate'" label="課程" prop="course_id">
+            <el-select v-model="rateForm.course_id" filterable clearable placeholder="請選擇課程（選填）" class="w-full">
+              <el-option
+                v-for="c in courseOptions"
+                :key="c.id"
+                :label="`${c.course_code} - ${c.course_name}`"
+                :value="c.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row>
+        <el-col :span="22">
+          <el-form-item label="說明" prop="description">
+            <el-input v-model="rateForm.description" placeholder="請輸入說明（選填）" class="w-full h-30px!" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row>
+        <el-col :span="12">
+          <el-form-item label="金額（必填）" prop="amount">
+            <el-input-number
+              v-model="rateForm.amount"
+              :min="0"
+              :precision="0"
+              class="w-full h-30px!"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row>
+        <el-col :span="24">
+          <el-form-item label="備註" prop="notes">
+            <el-input v-model="rateForm.notes" type="textarea" :rows="4" placeholder="請輸入備註（選填）" class="w-full" />
+          </el-form-item>
+        </el-col>
+      </el-row>
     </el-form>
     <template #footer>
       <div class="dialog-footer flex justify-end gap-2">
-        <el-button round size="small" class="py-3!" @click="showAddRateDialog = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" round size="small" class="py-3!" :loading="savingRate" @click="saveRate">
+        <el-button round size="small" class="h-30px! px-5!" @click="showAddRateDialog = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" round size="small" class="h-30px! px-5!" :loading="savingRate" @click="saveRate">
           {{ editingRateId ? $t('common.save') : '新增' }}
         </el-button>
       </div>
@@ -428,7 +446,7 @@ import {
   type TeacherContractResponse,
   type TeacherContractAddendumResponse,
 } from '@/api/teacherContract';
-import { CONTRACT_STATUS_MAP } from '@/constants/contract';
+import { TEACHER_CONTRACT_STATUS_MAP } from '@/constants/contract';
 import { uploadContractFile } from '@/utils/upload';
 import { triggerDownload, getFileNameFromResponse } from '@/utils/download';
 
@@ -565,7 +583,7 @@ const loadContracts = async () => {
     if (contract.value.employment_type === 'full_time') {
       const sRes = await getTeacherWorkSchedules(contract.value.id);
       groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
-      if (sRes.success) {
+      if (sRes.data) {
         sRes.data.forEach(s => {
           let arr = groupedSchedules.value[s.weekday];
           if (!arr) {
@@ -620,7 +638,7 @@ const openAddRateDialog = async (row?: TeacherContractDetailResponse) => {
   if (courseOptions.value.length === 0) {
     try {
       const res = await getCourseOptions();
-      courseOptions.value = res;
+      courseOptions.value = res.data || [];
     } catch (e) {
       ElMessage.error('載入課程選單失敗');
     }

@@ -40,7 +40,7 @@
         </div>
         <div class="flex flex-col gap-1 text-xs color-[#7e8299]">
           <span>支援格式：JPG、PNG、WebP</span>
-          <span>限制10MB</span>
+          <span>限制２MB</span>
         </div>
       </div>
 
@@ -77,7 +77,7 @@
           <el-input v-model="basicForm.bio" type="textarea" :rows="4" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" round size="small" class="py-3!" :loading="saving" @click="saveBasicInfo">
+          <el-button type="primary" round size="small" class="h-30px! px-5!" :loading="saving" @click="saveBasicInfo">
             {{ $t('common.save') }}
           </el-button>
         </el-form-item>
@@ -439,7 +439,7 @@ const fetchData = async () => {
 const handleAvatarChange = async (uploadFile: any) => {
   const tId = props.teacherId;
   if (!tId || !uploadFile.raw) return;
-  const MAX_SIZE_MB = 10;
+  const MAX_SIZE_MB = 2;
   if (uploadFile.raw.size > MAX_SIZE_MB * 1024 * 1024) {
     ElMessage.warning(`檔案大小不可超過 ${MAX_SIZE_MB}MB，請重新選擇`);
     return;
@@ -490,5 +490,4 @@ watch(() => props.modelValue, (val) => {
 </script>
 
 <style scoped>
-.h-full { height: 100%; }
 </style>

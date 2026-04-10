@@ -5,8 +5,9 @@
       <el-button
         v-permission="'roles.create'"
         type="primary"
+        size="small"
         round
-        class="h-30px!"
+        class="h-30px! px-2!"
         @click="handleCreate"
       >
         <template #icon>

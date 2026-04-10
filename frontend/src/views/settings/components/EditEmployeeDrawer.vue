@@ -1,40 +1,55 @@
 <template>
-  <el-drawer v-model="show" :title="editUserId ? `${$t('common.edit')} - ${currentUser.name}` : `${$t('common.add')}${$t('account.account')}`">
-    <el-form :model="form" :rules="rules" ref="formRef" label-position="top" label-width="140px" v-loading="submitting">
-      <el-form-item label="暱稱" prop="name">
-          <el-input v-model="form.name" />
-      </el-form-item>
-      
-      <el-form-item label="Email帳號" prop="email">
-          <el-input v-model="form.email" />
-      </el-form-item>
+  <el-drawer 
+    v-model="show" 
+    size="400px" 
+    :title="editUserId ? `${$t('common.edit')} - ${currentUser.name}` : `${$t('common.add')}${$t('account.account')}`"
+  >
+    <el-form 
+      :model="form" 
+      :rules="rules" 
+      ref="formRef" 
+      size="small" 
+      label-position="top" 
+      label-width="140px" 
+      v-loading="submitting"
+    >
+      <el-row>
+        <el-col :span="24">
+          <el-form-item label="暱稱" prop="name">
+              <el-input v-model="form.name" class="w-full h-30px!" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row>
+        <el-col :span="24">
+          <el-form-item label="Email帳號" prop="email">
+              <el-input v-model="form.email" class="w-full h-30px!" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row>
+        <el-col :span="10">
+          <el-form-item :label="$t('account.role')" prop="role_id">
+              <el-select v-model="form.role_id" class="w-full h-30px!">
+                <el-option 
+                  v-for="r in roles" 
+                  :key="r.key" 
+                  :label="r.name" 
+                  :value="r.id" 
+                />
+              </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="10" :push=2>
+          <el-form-item label="員工類別" prop="employee_subtype">
+              <el-input v-model="form.employee_subtype" class="w-full h-30px!" />
+          </el-form-item>
+        </el-col>
+      </el-row>
 
-      <el-form-item :label="$t('account.role')" prop="role_id">
-          <el-select v-model="form.role_id" style="width: 100%;">
-              <el-option 
-                v-for="r in roles" 
-                :key="r.key" 
-                :label="r.name" 
-                :value="r.id" 
-              />
-          </el-select>
-      </el-form-item>
-      
-      <el-form-item label="員工類別" prop="employee_subtype">
-          <el-input v-model="form.employee_subtype" />
-      </el-form-item>
-
-      <!-- <el-form-item :label="$t('common.status')" prop="is_active">
-          <el-switch 
-            v-model="form.is_active" 
-            active-text="啟用" 
-            inactive-text="停用" 
-          />
-      </el-form-item> -->
-
-      <el-form-item>
-        <el-button round @click="handleClose">{{ $t('common.cancel') }}</el-button>
-        <el-button round type="primary" @click="handleSave" :loading="submitting">{{ $t('common.save') }}</el-button>
+      <el-form-item class="mt-5">
+        <el-button size="small" class="h-30px! px-5!" round @click="handleClose">{{ $t('common.cancel') }}</el-button>
+        <el-button size="small" class="h-30px! px-5!" round type="primary" @click="handleSave" :loading="submitting">{{ $t('common.save') }}</el-button>
       </el-form-item>
     </el-form>
   </el-drawer>

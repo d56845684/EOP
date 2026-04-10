@@ -9,7 +9,7 @@
             <div class="text-xs text-gray-400 mt-2 ml-1">此連結有效期為 7 天，僅可使用一次</div>
           </el-col>
           <el-col :span="4">
-            <el-button type="primary" round @click="copyInviteUrl">
+            <el-button type="primary" size="small" round class="h-30px!" @click="copyInviteUrl">
               <template #icon>
                 <div class="i-hugeicons:copy-01" />
               </template>

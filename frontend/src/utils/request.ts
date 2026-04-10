@@ -102,11 +102,11 @@ service.interceptors.response.use(
       ElMessage.error('網路連線異常，請稍後再試');
     }
 
-    if (error.response?.status !== 401) {
-      // 處理非 401 的一般錯誤
-      const message = error.response?.data?.message || '系統異常';
-      ElMessage.error(message);
-    }
+    // if (error.response?.status !== 401) {
+    //   // 處理非 401 的一般錯誤
+    //   const message = error.response?.data?.message || '系統異常';
+    //   ElMessage.error(message);
+    // }
 
     return Promise.reject(error);
   }

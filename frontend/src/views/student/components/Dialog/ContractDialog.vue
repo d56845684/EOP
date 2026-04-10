@@ -9,7 +9,7 @@
       <el-descriptions-item label="起迄時間" :span="2">{{ contract?.start_date }} - {{ contract?.end_date }}</el-descriptions-item>
       <el-descriptions-item label="合約狀態">
         <div class="text-sm">
-          {{ CONTRACT_STATUS_MAP[contract?.contract_status ?? ''] }}
+          {{ STUDENT_CONTRACT_STATUS_MAP[contract?.contract_status ?? ''] }}
         </div>
       </el-descriptions-item>
       <el-descriptions-item label="合約總金額" :span="3">NT$ {{ contract?.total_amount }}</el-descriptions-item>
@@ -59,7 +59,7 @@
 <script setup lang="ts">
 import { type StudentContract } from '@/api/contract'
 import { computed, type PropType } from 'vue'
-import { CONTRACT_STATUS_MAP } from '@/constants/contract';
+import { STUDENT_CONTRACT_STATUS_MAP } from '@/constants/contract';
 
 const props = defineProps({
   contractDialogVisible: {

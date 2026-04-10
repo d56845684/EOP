@@ -4,7 +4,7 @@
     <div class="flex justify-between items-center px-1 mb-2">
       <h3 class="text-lg my-0">{{ $t('menu.student_mgmt') }}</h3>
       <el-button
-        v-permission="'students.create'"
+        v-if="hasPermission('students.create')"
         type="primary"
         round
         size="small"
@@ -17,7 +17,7 @@
         {{ $t('student.add') }}
       </el-button>
     </div>
-    <el-card class="filter-card mb-14px">
+    <el-card class="filter-card mb-14px" shadow="never">
       <el-form :inline="true" :model="queryParams" size="small" label-position="top" class="filter-form flex items-end">
         <el-form-item :label="$t('common.searchKeyword')">
           <el-input 
@@ -77,7 +77,7 @@
       </el-form>
     </el-card>
 
-    <el-card>
+    <el-card shadow="never">
       <StudentListTable
         :studentList="studentList"
         :loading="loading"
@@ -121,16 +121,20 @@
             />
           </el-tab-pane>
 
-          <!-- Tab 2: Preferences -->
-          <el-tab-pane label="教師偏好設定" :name="tabType.PREFERENCE">
-            <TeacherPreference 
-              v-if="activeTab === tabType.PREFERENCE && currentStudent?.id" 
+          <!-- Tab 2: Settings -->
+          <el-tab-pane 
+            v-if="hasPermission('student.edit') && hasPermission('student.contracts')" 
+            label="偏好設定" 
+            :name="tabType.SETTINGS"
+          >
+            <Settings 
+              v-if="activeTab === tabType.SETTINGS && currentStudent?.id" 
               :student-id="currentStudent.id" 
             />
           </el-tab-pane>
 
           <!-- Tab 3: Courses -->
-          <el-tab-pane v-permission="'bookings.list'" :label="$t('common.courses')" :name="tabType.RECORDS">
+          <el-tab-pane v-if="hasPermission('bookings.list')" :label="$t('common.courses')" :name="tabType.RECORDS">
             <BookingList 
               v-if="activeTab === tabType.RECORDS && currentStudent?.id" 
               :student-id="currentStudent.id" 
@@ -160,7 +164,7 @@
         />
         <div v-else class="skeleton-content">
           <p class="text-[#909399]" v-if="!contractLoading">目前無合約紀錄</p>
-          <el-button type="primary" @click="openConvertToFormalDialog(currentStudent as StudentResponse)">
+          <el-button v-if="hasPermission('contracts.create')" type="primary" @click="openConvertToFormalDialog(currentStudent as StudentResponse)">
             <template #icon><div class="i-hugeicons:add-square" /></template>
             新增合約
           </el-button>
@@ -219,11 +223,12 @@ import BaseInfo from './components/Drawer/BaseInfo.vue';
 import BookingList from './components/Drawer/BookingList.vue';
 import ContractManagement from './components/Drawer/ContractManagement.vue';
 import CreateStudent from './components/Drawer/CreateStudent.vue';
-import TeacherPreference from './components/Drawer/TeacherPreference.vue';
+import Settings from './components/Drawer/Settings.vue';
 import CreateContractDialog from './components/Dialog/CreateContractDialog.vue';
 import VerifyInviteDialog from '@/components/Auth/VerifyInviteDialog.vue';
 import StudentListTable from './components/StudentListTable.vue';
 import { generateInviteLinkApi } from '@/api/auth';
+import { usePermissionStore } from '@/stores/permission';
 
 const OPTION_MAP = {
  ALL: 'all' 
@@ -233,7 +238,7 @@ const TAB_MAP = {
   BASIC: 'basic',
   RECORDS: 'records',
   CONTRACT: 'contract',
-  PREFERENCE: 'preference',
+  SETTINGS: 'settings',
 } as const;
 
 // Alias to patch incomplete IDE rename operation
@@ -247,6 +252,9 @@ const DRAWER_TYPE_MAP = {
 
 // Alias to patch incomplete IDE rename operation
 const drawerTypeMap = DRAWER_TYPE_MAP;
+
+const permissionStore = usePermissionStore();
+  const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
 
 const { t } = useI18n();
 
@@ -481,8 +489,8 @@ const loadContent = async (tabName: string | number) => {
     case TAB_MAP.CONTRACT:
       await loadContract()
       break;
-    case TAB_MAP.PREFERENCE:
-      // TeacherPreference component handles its own load when mounted
+    case TAB_MAP.SETTINGS:
+      // Settings component handles its own load when mounted
       break;
     case TAB_MAP.RECORDS:
       await loadBookingList()

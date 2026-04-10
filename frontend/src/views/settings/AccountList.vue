@@ -6,7 +6,8 @@
         v-permission="'accounts.create'"
         type="primary"
         round
-        class="h-30px!"
+        size="small"
+        class="h-30px! px-2!"
         @click="openDrawer(null, 'add')"
       >
         <template #icon>

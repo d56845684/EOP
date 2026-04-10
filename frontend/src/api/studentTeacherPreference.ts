@@ -26,6 +26,19 @@ export interface StudentTeacherPreferenceResponse {
   primary_teacher_name: string | null;
 }
 
+export interface PreferenceTeacherOption {
+  id: string;
+  name: string;
+  teacher_no?: string;
+}
+
+export interface PreferenceCourseOption {
+  id: string;
+  course_name: string;
+  course_code?: string;
+  duration?: number;
+}
+
 export const getStudentTeacherPreferences = (student_id: string) => {
   return request.get<any, { data: StudentTeacherPreferenceResponse[] }>('/v1/student-teacher-preferences/', {
     params: { student_id }
@@ -42,4 +55,14 @@ export const updateStudentTeacherPreference = (id: string, data: StudentTeacherP
 
 export const deleteStudentTeacherPreference = (id: string) => {
   return request.delete<any, any>(`/v1/student-teacher-preferences/${id}`);
+};
+
+export const getPreferenceTeacherOptions = () => {
+  return request.get<any, { data: PreferenceTeacherOption[] }>('/v1/student-teacher-preferences/options/teachers');
+};
+
+export const getPreferenceCourseOptions = (student_id: string) => {
+  return request.get<any, { data: PreferenceCourseOption[] }>('/v1/student-teacher-preferences/options/courses', {
+    params: { student_id }
+  });
 };

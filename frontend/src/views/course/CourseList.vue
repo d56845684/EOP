@@ -3,12 +3,12 @@
     <div class="flex justify-between items-center px-1 mb-2">
       <h3 class="my-0">{{ $t('menu.course_mgmt') }}</h3>
       <el-button
-        v-permission="'accounts.create'"
+        v-if="hasPermission('courses.create')"
         type="primary"
         round
         size="small"
-        class="h-30px! px-3!"
-        @click="openDrawer(null, 'add')"
+        class="h-30px px-2"
+        @click="openDrawer(null, drawerTypeMap.CREATE)"
       >
         <template #icon>
           <div class="i-hugeicons:plus-sign-square" />
@@ -16,7 +16,7 @@
         {{ $t('course.add') }}
       </el-button>
     </div>
-    <el-card>
+    <el-card shadow="never">
       <!-- Filter Section -->
       <div class="filter-container" style="margin-bottom: 20px;">
         <el-form 
@@ -71,7 +71,7 @@
         <el-table-column prop="duration_minutes" :label="$t('course.duration')" width="120px" align="center" />
         <el-table-column prop="is_active" :label="$t('common.active') + $t('common.status')" width="120px" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'info'">{{ row.is_active ? 'Yes' : 'No' }}</el-tag>
+            <el-tag :type="row.is_active ? 'success' : 'info'" size="small" effect="light" class="w-36px! text-10px text-center">{{ row.is_active ? '啟用' : '停用' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column :label="$t('common.actions')" fixed="right" width="180px" align="center">
@@ -98,27 +98,45 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="drawerVisible" :title="form.id ? $t('course.editTitle') : $t('course.add')">
-      <el-form :model="form" label-width="120px">
-        <el-form-item :label="$t('course.courseCode')">
-          <el-input v-model="form.course_code" />
-        </el-form-item>
-        <el-form-item :label="$t('course.courseName')">
-          <el-input v-model="form.course_name" />
-        </el-form-item>
-        <el-form-item :label="$t('course.duration')">
-          <el-input-number v-model="form.duration_minutes" :step="5" />
-        </el-form-item>
-        <el-form-item :label="$t('course.description')">
-          <el-input v-model="form.description" type="textarea" />
-        </el-form-item>
-        <el-form-item :label="$t('common.active')">
-          <el-switch v-model="form.is_active" />
-        </el-form-item>
+    <el-drawer v-model="drawerVisible" size="400px" :title="form.id ? $t('course.editTitle') : $t('course.add')">
+      <el-form :model="form" size="small" label-position="top" label-width="120px">
+        <el-row>
+          <el-col :span="20">
+            <el-form-item :label="$t('course.courseCode')">
+              <el-input v-model="form.course_code" class="w-full! h-30px!" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="20">
+            <el-form-item :label="$t('course.courseName')">
+              <el-input v-model="form.course_name" class="w-full! h-30px!" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="10">
+            <el-form-item :label="$t('course.duration')">
+              <el-input-number v-model="form.duration_minutes" :step="5" class="w-full! h-30px!" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="10" :push="4">
+            <el-form-item :label="$t('common.active')">
+              <el-switch v-model="form.is_active" size="medium" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="10">
+          <el-col :span="24">
+            <el-form-item :label="$t('course.description')">
+              <el-input v-model="form.description" type="textarea" :rows="4" class="w-full!" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="drawerVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">{{ $t('common.save') }}</el-button>
+        <el-button round size="small" class="px-5! h-30px!" @click="drawerVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" round size="small" class="px-5! h-30px!" :loading="saving" @click="handleSave">{{ $t('common.save') }}</el-button>
       </template>
     </el-drawer>
   </div>
@@ -129,8 +147,12 @@ import { ref, reactive, onMounted } from 'vue';
 import { getCourseList, createCourse, updateCourse, deleteCourse, type CourseResponse } from '@/api/course';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
+import { usePermissionStore } from '@/stores/permission';
 
 const { t } = useI18n();
+
+const permissionStore = usePermissionStore();
+const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
 
 const loading = ref(false);
 const tableData = ref<CourseResponse[]>([]);

@@ -3,12 +3,12 @@
     <div class="flex justify-between items-center px-1 mb-2">
       <h3 class="my-0">{{ $t('teacher.title') }}</h3>
       <el-button
-        v-permission="'teachers.create'"
+        v-if="hasPermission('teachers.create')"
         type="primary"
         round
         size="small"
-        class="py-3!"
-        @click="openAddDialog"
+        class="h-30px px-2"
+        @click="openDrawer(null, drawerTypeMap.CREATE)"
       >
         <template #icon>
           <div class="i-hugeicons:plus-sign-square" />
@@ -234,6 +234,10 @@ import TeacherDetailDrawer from './components/TeacherDetailDrawer.vue';
 import TeacherContractDrawer from './components/TeacherContractDrawer.vue';
 import VerifyInviteDialog from '@/components/Auth/VerifyInviteDialog.vue';
 import { generateInviteLinkApi } from '@/api/auth';
+import { usePermissionStore } from '@/stores/permission';
+
+const permissionStore = usePermissionStore();
+const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
 
 const teachersData = ref<TeacherOverviewItem[]>([]);
 const totalTeachers = ref(0);

@@ -228,7 +228,7 @@
           <el-table-column prop="addendum_no" label="附約編號" width="180" />
           <el-table-column prop="addendum_status" label="附約狀態" width="80">
             <template #default="scope">
-              {{ CONTRACT_STATUS_MAP[scope.row.addendum_status] }}
+              {{ STUDENT_CONTRACT_STATUS_MAP[scope.row.addendum_status] }}
             </template>
           </el-table-column>
           <el-table-column prop="new_end_date" label="展延結束日期" width="120" />
@@ -363,7 +363,7 @@
       </el-table-column>
       <el-table-column prop="contract_status" label="合約狀態" width="100" align="center">
         <template #default="{ row }">
-          {{ CONTRACT_STATUS_MAP[row.contract_status] || row.contract_status }}
+          {{ STUDENT_CONTRACT_STATUS_MAP[row.contract_status] || row.contract_status }}
         </template>
       </el-table-column>
       <el-table-column label="檢視" width="60" align="center">
@@ -424,7 +424,7 @@ import {
   type StudentContractDetail ,
   type StudentContractAddendum
 } from '@/api/contract';
-import { CONTRACT_STATUS, CONTRACT_STATUS_MAP } from '@/constants/contract';
+import { CONTRACT_STATUS, STUDENT_CONTRACT_STATUS_MAP } from '@/constants/contract';
 import { triggerDownload, getFileNameFromResponse}  from '@/utils/download';
 import { uploadContractFile } from '@/utils/upload';
 
