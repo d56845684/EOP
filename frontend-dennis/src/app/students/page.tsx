@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { studentsApi, Student, CreateStudentData, UpdateStudentData, ConvertToFormalData } from '@/lib/api/students'
 import { Booking } from '@/lib/api/bookings'
-import { studentTeacherPreferencesApi, StudentTeacherPreference, CreatePreferenceData } from '@/lib/api/studentTeacherPreferences'
-import { bookingsApi, TeacherOption, CourseOption } from '@/lib/api/bookings'
+import { studentTeacherPreferencesApi, StudentTeacherPreference, CreatePreferenceData, AllowedTeacher } from '@/lib/api/studentTeacherPreferences'
+import { bookingsApi, CourseOption } from '@/lib/api/bookings'
 import { invitesApi } from '@/lib/api/invites'
 import { Plus, Pencil, Trash2, Search, X, GraduationCap, CheckCircle, XCircle, Mail, Phone, Star, Settings, ArrowLeft, Link, Copy, Check, UserPlus, ArrowUpCircle, Eye } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
@@ -44,7 +44,7 @@ export default function StudentsPage() {
     const [preferences, setPreferences] = useState<StudentTeacherPreference[]>([])
     const [prefLoading, setPrefLoading] = useState(false)
     const [prefError, setPrefError] = useState<string | null>(null)
-    const [teacherOptions, setTeacherOptions] = useState<TeacherOption[]>([])
+    const [teacherOptions, setTeacherOptions] = useState<AllowedTeacher[]>([])
     const [courseOptions, setCourseOptions] = useState<CourseOption[]>([])
     const [showPrefForm, setShowPrefForm] = useState(false)
     const [prefFormMode, setPrefFormMode] = useState<'create' | 'edit'>('create')
@@ -180,8 +180,8 @@ export default function StudentsPage() {
 
         const [prefsRes, teachersRes, coursesRes] = await Promise.all([
             studentTeacherPreferencesApi.list(student.id),
-            bookingsApi.getTeacherOptions(),
-            bookingsApi.getCourseOptions(),
+            studentTeacherPreferencesApi.getTeacherOptions(),
+            studentTeacherPreferencesApi.getCourseOptions(student.id),
         ])
 
         if (prefsRes.error) { setPrefError(prefsRes.error.message) }

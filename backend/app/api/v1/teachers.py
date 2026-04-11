@@ -148,6 +148,7 @@ async def list_teachers_overview(
         base_sql = f"""
             SELECT
                 t.id, t.teacher_no, t.name, t.email, t.phone,
+                t.avatar_url,
                 t.teacher_level, t.is_active, t.email_verified_at, t.created_at,
                 -- 帳號
                 (up.id IS NOT NULL) AS has_account,
@@ -235,12 +236,19 @@ async def list_teachers_overview(
 
         items = []
         for row in rows:
+            raw_avatar = row["avatar_url"]
+            avatar_signed_url = None
+            if raw_avatar:
+                avatar_signed_url = await storage_service.create_signed_download_url(
+                    bucket=settings.AWS_S3_BUCKET, path=raw_avatar, expires_in=3600,
+                )
             items.append({
                 "id": str(row["id"]),
                 "teacher_no": row["teacher_no"],
                 "name": row["name"],
                 "email": row["email"],
                 "phone": row["phone"],
+                "avatar_url": avatar_signed_url,
                 "teacher_level": row["teacher_level"],
                 "is_active": row["is_active"],
                 "email_verified_at": row["email_verified_at"].isoformat() if row["email_verified_at"] else None,
@@ -421,7 +429,7 @@ AVATAR_ALLOWED_TYPES = {
     "jpg": "image/jpeg", "jpeg": "image/jpeg",
     "png": "image/png", "webp": "image/webp",
 }
-AVATAR_MAX_SIZE = 10 * 1024 * 1024  # 10MB
+AVATAR_MAX_SIZE = 2 * 1024 * 1024  # 2MB
 
 
 class AvatarConfirmRequest(BaseModel):
@@ -436,7 +444,7 @@ async def get_teacher_avatar_upload_url(
     file_ext: str = Query("jpg", description="檔案格式 (jpg/png/webp)"),
     current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
-    """取得教師頭像的 signed upload URL（僅限員工，支援 jpg/png/webp，最大 10MB）"""
+    """取得教師頭像的 signed upload URL（僅限員工，支援 jpg/png/webp，最大 2MB）"""
     try:
         ext = file_ext.lower().replace(".", "")
         if ext not in AVATAR_ALLOWED_TYPES:

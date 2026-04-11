@@ -154,8 +154,8 @@ function TeacherViewContent() {
                                     onChange={async (e) => {
                                         const file = e.target.files?.[0]
                                         if (!file) return
-                                        if (file.size > 10 * 1024 * 1024) {
-                                            alert('圖片大小不可超過 10MB')
+                                        if (file.size > 2 * 1024 * 1024) {
+                                            alert('圖片大小不可超過 2MB')
                                             return
                                         }
                                         const { data: updated, error: err } = await teachersApi.uploadAvatar(t.id, file)

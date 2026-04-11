@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
+from app.services.preference_service import preference_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.student_teacher_preference import (
     StudentTeacherPreferenceCreate,
@@ -44,6 +45,78 @@ async def enrich_preference(pref: dict) -> dict:
         pref["primary_teacher_name"] = None
 
     return pref
+
+
+@router.get("/options/teachers", tags=["學生教師偏好"])
+async def get_teacher_options(
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
+):
+    """取得所有教師選項（偏好管理用下拉選單）"""
+    try:
+        teachers = await supabase_service.table_select(
+            table="teachers",
+            select="id,teacher_no,name,teacher_level",
+            filters={"is_deleted": "eq.false", "is_active": "eq.true"},
+        )
+        return {"success": True, "data": teachers}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/options/courses", tags=["學生教師偏好"])
+async def get_course_options(
+    student_id: str = Query(..., description="學生 ID"),
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
+):
+    """取得學生已選課程選項（偏好管理用下拉選單）"""
+    try:
+        # 查詢學生選課
+        student_courses = await supabase_service.table_select(
+            table="student_courses",
+            select="course_id",
+            filters={"student_id": student_id, "is_deleted": "eq.false"},
+        )
+        if not student_courses:
+            return {"success": True, "data": []}
+
+        course_ids = [sc["course_id"] for sc in student_courses if sc.get("course_id")]
+        if not course_ids:
+            return {"success": True, "data": []}
+
+        # 查詢課程詳情
+        pool = supabase_service.pool
+        courses = await pool.fetch(
+            "SELECT id, course_name FROM courses WHERE id = ANY($1) AND is_deleted = FALSE",
+            course_ids,
+        )
+        return {"success": True, "data": [dict(c) for c in courses]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/allowed-teachers", tags=["學生教師偏好"])
+async def get_allowed_teachers(
+    student_id: str = Query(..., description="學生 ID"),
+    current_user: CurrentUser = Depends(require_page_permission("students.edit"))
+):
+    """取得學生偏好設定的可預約教師白名單（完整資料）"""
+    try:
+        allowed_set, has_preferences = await preference_service.get_student_allowed_teachers(student_id)
+
+        if not has_preferences:
+            return {"success": True, "data": []}
+
+        # 查詢白名單內的教師完整資料
+        teachers = await supabase_service.table_select(
+            table="teachers",
+            select="id,teacher_no,name,teacher_level",
+            filters={"is_deleted": "eq.false", "is_active": "eq.true"},
+        )
+        filtered = [t for t in teachers if str(t["id"]) in allowed_set]
+
+        return {"success": True, "data": filtered}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/", tags=["學生教師偏好"])

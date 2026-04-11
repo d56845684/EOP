@@ -27,6 +27,13 @@ export interface UpdatePreferenceData {
     primary_teacher_id?: string | null
 }
 
+export interface AllowedTeacher {
+    id: string
+    teacher_no: string
+    name: string
+    teacher_level?: number
+}
+
 function parseErrorDetail(detail: unknown): string {
     if (typeof detail === 'string') return detail
     if (Array.isArray(detail) && detail.length > 0) {
@@ -90,6 +97,60 @@ export const studentTeacherPreferencesApi = {
 
             const result = await response.json()
             return { data: result.data || null, error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async getAllowedTeachers(studentId: string): Promise<{ data: AllowedTeacher[] | null, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-teacher-preferences/allowed-teachers?student_id=${studentId}`, {
+                method: 'GET',
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得可預約教師失敗' } }
+            }
+
+            const result = await response.json()
+            return { data: result.data || [], error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async getTeacherOptions(): Promise<{ data: AllowedTeacher[] | null, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-teacher-preferences/options/teachers`, {
+                method: 'GET',
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得教師選項失敗' } }
+            }
+
+            const result = await response.json()
+            return { data: result.data || [], error: null }
+        } catch (err) {
+            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
+        }
+    },
+
+    async getCourseOptions(studentId: string): Promise<{ data: { id: string, course_name: string }[] | null, error: any }> {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/student-teacher-preferences/options/courses?student_id=${studentId}`, {
+                method: 'GET',
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得課程選項失敗' } }
+            }
+
+            const result = await response.json()
+            return { data: result.data || [], error: null }
         } catch (err) {
             return { data: null, error: { message: '網路錯誤，請稍後再試' } }
         }
