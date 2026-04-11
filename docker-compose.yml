@@ -47,16 +47,15 @@ services:
     container_name: teaching-platform-frontend-builder
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8001}
     depends_on:
       backend:
         condition: service_started
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
-    restart: unless-stopped
+      - frontend-dist:/dist
+    restart: "no"
 
   frontend-demo:
     container_name: teaching-platform-frontend-demo
@@ -64,10 +63,15 @@ services:
       context: ./frontend-dennis
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8001}
-    volumes:
-      - frontend-dist:/dist
-    restart: "no"
+        NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:8001}
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - ${FRONTEND_PORT:-4173}:3000
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
 
   nginx:
     container_name: teaching-platform-nginx
@@ -75,31 +79,33 @@ services:
     depends_on:
       frontend:
         condition: service_completed_successfully
+      backend:
+        condition: service_started
     volumes:
       - frontend-dist:/usr/share/nginx/html:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
-      - ${FRONTEND_PORT:-4173}:80
-    restart: unless-stopped
-
-  studio:
-    container_name: supabase-studio
-    image: supabase/studio:2025.12.17-sha-43f4f7f
-    restart: unless-stopped
-
-  nginx:
-    container_name: teaching-platform-nginx
-    image: nginx:alpine
-    depends_on:
-      frontend:
-        condition: service_started
-      backend:
-        condition: service_started
-    volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    ports:
       - 80:80
     restart: unless-stopped
+
+  # studio:
+  #   container_name: supabase-studio
+  #   image: supabase/studio:2025.12.17-sha-43f4f7f
+  #   restart: unless-stopped
+
+  # nginx:
+  #   container_name: teaching-platform-nginx
+  #   image: nginx:alpine
+  #   depends_on:
+  #     frontend:
+  #       condition: service_started
+  #     backend:
+  #       condition: service_started
+  #   volumes:
+  #     - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+  #   ports:
+  #     - 80:80
+  #   restart: unless-stopped
 
   db:
     container_name: teaching-platform-db
@@ -137,31 +143,32 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     restart: "no"
 
-  pgadmin:
-    container_name: teaching-platform-pgadmin
-    image: dpage/pgadmin4:9.12.0
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@local.dev}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: "True"
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "True"
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
-      - pgadmin-data:/var/lib/pgadmin
-    entrypoint: >
-      /bin/sh -c "
-      echo \"db:5432:*:postgres:$$POSTGRES_PASSWORD\" > /tmp/pgpass &&
-      chmod 600 /tmp/pgpass &&
-      /entrypoint.sh
-      "
-    ports:
-      - ${PGADMIN_PORT:-5050}:80
+  # pgadmin:
+  #   container_name: teaching-platform-pgadmin
+  #   image: dpage/pgadmin4:9.12.0
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@local.dev}
+  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+  #     PGADMIN_CONFIG_SERVER_MODE: "True"
+  #     PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "True"
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  #   volumes:
+  #     - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+  #     - pgadmin-data:/var/lib/pgadmin
+  #   entrypoint: >
+  #     /bin/sh -c "
+  #     echo \"db:5432:*:postgres:$$POSTGRES_PASSWORD\" > /tmp/pgpass &&
+  #     chmod 600 /tmp/pgpass &&
+  #     /entrypoint.sh
+  #     "
+  #   ports:
+  #     - ${PGADMIN_PORT:-5050}:80
 
 volumes:
   db-data:
   redis-data:
   frontend-dist:
+  pgadmin-data:

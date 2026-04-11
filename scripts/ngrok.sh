@@ -6,7 +6,7 @@
 #   ./scripts/ngrok.sh status  - Show current tunnel URL
 #   ./scripts/ngrok.sh url     - Print tunnel URL only
 
-PORT=8001
+PORT=80
 
 case "$1" in
   start)

@@ -26,4 +26,4 @@ RUN npm run build
 
 # Copy built assets to the shared volume at /dist
 # rm -rf ensures a clean copy on every rebuild
-CMD ["sh", "-c", "rm -rf /dist/* && cp -r /app/dist/* /dist/"]
+CMD ["sh", "-c", "mkdir -p /dist && rm -rf /dist/* && cp -r /app/dist/* /dist/"]
