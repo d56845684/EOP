@@ -185,6 +185,9 @@ app = FastAPI(
 )
 
 # ========== 中間件 ==========
+# Starlette middleware 執行順序：最後 add 的最先執行（LIFO）
+# 期望順序：CORS → Logging → Auth → RateLimit → app
+# 所以 add 順序要反過來：RateLimit → Auth → Logging → CORS
 
 # CORS — 從 FRONTEND_URL 環境變數動態組合，支援逗號分隔多個 origin
 _default_origins = [
@@ -195,6 +198,16 @@ _default_origins = [
 _extra_origins = [o.strip() for o in settings.FRONTEND_URL.split(",") if o.strip()]
 _all_origins = list(dict.fromkeys(_default_origins + _extra_origins))  # 去重保序
 
+# 速率限制（最內層）
+app.add_middleware(RateLimitMiddleware, requests_per_minute=300)
+
+# 認證中間件
+app.add_middleware(AuthMiddleware)
+
+# Request Logging
+app.add_middleware(LoggingMiddleware)
+
+# CORS（最外層，最後加入 = 最先執行，確保所有 response 都帶 CORS headers）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_all_origins,
@@ -202,15 +215,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 速率限制
-app.add_middleware(RateLimitMiddleware, requests_per_minute=300)
-
-# 認證中間件
-app.add_middleware(AuthMiddleware)
-
-# Request Logging（最外層，最後加入 = 最先執行）
-app.add_middleware(LoggingMiddleware)
 
 # ========== 例外處理 ==========
 
