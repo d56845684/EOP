@@ -44,7 +44,7 @@ services:
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme}
 
   frontend:
-    container_name: teaching-platform-frontend
+    container_name: teaching-platform-frontend-builder
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
@@ -64,14 +64,27 @@ services:
       context: ./frontend-dennis
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:8001}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8001}
+    volumes:
+      - frontend-dist:/dist
+    restart: "no"
+
+  nginx:
+    container_name: teaching-platform-nginx
+    image: nginx:alpine
     depends_on:
-      backend:
-        condition: service_started
+      frontend:
+        condition: service_completed_successfully
+    volumes:
+      - frontend-dist:/usr/share/nginx/html:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
-      - ${FRONTEND_PORT:-4173}:3000
-    environment:
-      - NODE_ENV=production
+      - ${FRONTEND_PORT:-4173}:80
+    restart: unless-stopped
+
+  studio:
+    container_name: supabase-studio
+    image: supabase/studio:2025.12.17-sha-43f4f7f
     restart: unless-stopped
 
   nginx:
@@ -151,4 +164,4 @@ services:
 volumes:
   db-data:
   redis-data:
-  pgadmin-data:
+  frontend-dist:

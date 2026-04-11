@@ -1,0 +1,70 @@
+@forward 'element-plus/theme-chalk/src/common/var.scss' with ($colors: ('primary': ('base': #0F52BA,
+    ),
+    'success': ('base': #48A111,
+    ),
+    'warning': ('base': #FF9B2F,
+    ),
+    'danger': ('base': #FB4141,
+    ),
+    'error': ('base': #FB4141,
+    ),
+  ), $pagination: ('hover-color': #FF9B2F, ),
+  $card: ('border-radius': 10px, ), );
+
+@use "element-plus/theme-chalk/src/index.scss" as *;
+
+.color-primary {
+  color: var(--el-color-primary);
+}
+
+.color-success {
+  color: var(--el-color-success);
+}
+
+.color-warning {
+  color: var(--el-color-warning);
+}
+
+.color-danger {
+  color: var(--el-color-danger);
+}
+
+.color-info {
+  color: var(--el-color-info);
+}
+
+.filter-form {
+  gap: 20px;
+
+  .el-form-item {
+    margin-right: 0;
+    margin-bottom: 5px;
+  }
+}
+
+.el-table--small .el-table__cell {
+  padding: 8px 0;
+}
+
+.el-drawer__header {
+  padding: 20px;
+  margin-bottom: 0 !important;
+  // box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+}
+
+.el-popper.is-customized {
+  /* Set padding to ensure the height is 32px */
+  padding: 2px 10px;
+  background: #778da9;
+  color: #fff;
+  font-size: 12px;
+}
+
+.el-popper.is-customized .el-popper__arrow::before {
+  background: #778da9;
+  right: 0;
+}
+
+.el-select--small .el-select__wrapper {
+  min-height: 30px;
+}
