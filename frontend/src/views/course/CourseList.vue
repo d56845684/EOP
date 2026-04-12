@@ -8,7 +8,7 @@
         round
         size="small"
         class="h-30px px-2"
-        @click="openDrawer(null, drawerTypeMap.CREATE)"
+        @click="openDrawer(null, 'create')"
       >
         <template #icon>
           <div class="i-hugeicons:plus-sign-square" />

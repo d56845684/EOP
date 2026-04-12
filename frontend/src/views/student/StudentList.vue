@@ -123,7 +123,7 @@
 
           <!-- Tab 2: Settings -->
           <el-tab-pane 
-            v-if="hasPermission('student.edit') && hasPermission('student.contracts')" 
+            v-if="hasPermission('students.edit') && hasPermission('students.contracts')" 
             label="偏好設定" 
             :name="tabType.SETTINGS"
           >
