@@ -43,7 +43,7 @@
           round
           size="small"
           class="h-30px px-2"
-          @click="openDrawer(null, drawerTypeMap.CREATE)"
+          @click="openDialog('add')"
         >
           <template #icon>
             <div class="i-hugeicons:plus-sign-square" />
@@ -220,28 +220,28 @@
               </div>
               <div v-else class="flex flex-col items-center gap-1 min-h-12 justify-center">
                 <el-button 
-                  v-if="zoomInfoMap[row.id].join_url"
+                  v-if="zoomInfoMap[row.id]?.join_url"
                   type="success" 
                   size="small"
                   round
                   plain
                   class="text-xs h-20px! px-1.5!"
-                  @click="openUrl(zoomInfoMap[row.id].join_url)">
+                  @click="openUrl(zoomInfoMap[row.id]?.join_url)">
                   <template #icon><div class="i-hugeicons:video-01" /></template>加入會議
                 </el-button>
                 <span 
-                  v-if="zoomInfoMap[row.id].passcode" 
+                  v-if="zoomInfoMap[row.id]?.passcode" 
                   class="text-11px color-gray-400">
-                  密碼: {{ zoomInfoMap[row.id].passcode }}
+                  密碼: {{ zoomInfoMap[row.id]?.passcode }}
                 </span>
                 <el-button 
-                  v-if="row.booking_status === 'completed' && (zoomInfoMap[row.id].recording_url || zoomInfoMap[row.id].drive_view_link)"
+                  v-if="zoomInfoMap[row.id]?.recording_url || zoomInfoMap[row.id]?.drive_view_link"
                   type="info" 
                   size="small" 
                   round
                   plain
                   class="text-xs h-20px! px-1.5!"
-                  @click="openUrl(zoomInfoMap[row.id].recording_url || zoomInfoMap[row.id].drive_view_link)">
+                  @click="openUrl(zoomInfoMap[row.id]?.recording_url || zoomInfoMap[row.id]?.drive_view_link)">
                   <template #icon><div class="i-hugeicons:video-replay" /></template>取得錄影
                 </el-button>
               </div>
@@ -421,11 +421,11 @@
       <div class="mb-8 p-4 bg-gray-100 rounded-md">
         <div class="font-500 mb-4 text-xs color-[#3f4254]">預約資訊</div>
         <div class="flex flex-col gap-2 text-xs">
-          <div><label class="color-[#7e8299] mr-2">學生</label><span class="color-[#3f4254]">{{ editForm.student_name }}</span></div>
-          <div><label class="color-[#7e8299] mr-2">教師</label><span class="color-[#3f4254]">{{ editForm.teacher_name }}</span></div>
-          <div><label class="color-[#7e8299] mr-2">課程</label><span class="color-[#3f4254]">{{ editForm.course_name }}</span></div>
-          <div><label class="color-[#7e8299] mr-2">日期</label><span class="color-[#3f4254]">{{ editForm.booking_date }}</span></div>
-          <div><label class="color-[#7e8299] mr-2">時間</label><span class="color-[#3f4254]">{{ editForm.start_time }} - {{ editForm.end_time }}</span></div>
+          <div><label class="color-[#7e8299] mr-2">學生</label><span class="color-[#3f4254]">{{ editForm?.student_name || '-' }}</span></div>
+          <div><label class="color-[#7e8299] mr-2">教師</label><span class="color-[#3f4254]">{{ editForm?.teacher_name || '-' }}</span></div>
+          <div><label class="color-[#7e8299] mr-2">課程</label><span class="color-[#3f4254]">{{ editForm?.course_name || '-' }}</span></div>
+          <div><label class="color-[#7e8299] mr-2">日期</label><span class="color-[#3f4254]">{{ editForm?.booking_date || '-' }}</span></div>
+          <div><label class="color-[#7e8299] mr-2">時間</label><span class="color-[#3f4254]">{{ editForm?.start_time || '-' }} - {{ editForm?.end_time || '-' }}</span></div>
         </div>
       </div>
       <el-form :model="editForm" :rules="editRules" ref="editFormRef" size="small" label-width="72px" label-position="top">
@@ -752,18 +752,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import dayjs from 'dayjs';
 import {
   getBookingList, createBooking, updateBooking,
   batchCreateBookings, batchUpdateBookings, batchDeleteBookings,
   batchUpdateBookingsByIds, batchDeleteBookingsByIds,
-  getBookingOptionStudents, getBookingOptionTeachers, getBookingCourseOptions,
-  getBookingOptionOverlappingCourses, getBookingOptionStudentContracts, getBookingOptionTeacherSlots,
-  type BookingItem, type BookingListParams, type BookingStatus,
-  type BookingStudentOption, type BookingTeacherOption, type BookingCourseOption,
-  type BookingStudentContractOption, type BookingTeacherSlotOption
+  type BookingItem, type BookingListParams, type BookingStatus
 } from '@/api/booking';
 import { getZoomMeetingByBooking, createZoomMeeting, type ZoomMeetingLogResponse } from '@/api/zoom';
 import { useBookingDependencies } from '@/composables/useBookingDependencies';
@@ -893,7 +889,9 @@ const openDialog = (name: keyof typeof dialogs, row?: BookingItem) => {
       student_name: row.student_name, 
       teacher_name: row.teacher_name, 
       course_name: row.course_name, 
-      booking_status: row.booking_status, 
+      booking_status: row.booking_status,
+      booking_date: row.booking_date,
+      start_time: row.start_time?.substring(0,5) || '',
       end_time: row.end_time?.substring(0,5) || '', 
       notes: row.notes || '' 
     });
@@ -954,7 +952,7 @@ const submitAdd = async () => {
           dialogs.add.loading = false;
           return;
         }
-        const slot = addDeps.teacherSlotOptions.value.find(s=>s.id === addForm.teacher_slot_id);
+        const slot = addDeps.teacherSlotOptions.find(s=>s.id === addForm.teacher_slot_id);
         data.teacher_slot_id = addForm.teacher_slot_id;
         data.booking_date = slot?.slot_date;
         data.start_time = slot?.start_time.substring(0,5);
@@ -971,7 +969,17 @@ const submitAdd = async () => {
 
 // Edit Single Dialog
 const editFormRef = ref<FormInstance>();
-const editForm = reactive({ booking_status: 'pending' as BookingStatus, end_time: '', notes: '' });
+const editForm = reactive({ 
+  id: '',
+  booking_status: 'pending' as BookingStatus, 
+  end_time: '', 
+  notes: '', 
+  student_name: '', 
+  teacher_name: '', 
+  course_name: '', 
+  booking_date: '', 
+  start_time: '' 
+});
 const editRules: FormRules = { booking_status: [{ required: true, message: '必填' }] };
 const submitEdit = async () => {
   if (!editFormRef.value) return;

@@ -1,9 +1,9 @@
 <template>
   <div class="settings-container py-2">
-    <template v-if="hasPermission('student.contracts')">
+    <template v-if="hasPermission('students.contracts')">
       <div class="flex justify-between items-center mb-5">
         <span class="text-13px font-500 color-[#1d2d44]">學生選課</span>
-        <el-button v-if="hasPermission('student.edit')" type="primary" round size="small" @click="openCourseDialog('add')">
+        <el-button v-if="hasPermission('students.edit')" type="primary" round size="small" @click="openCourseDialog('add')">
           <template #icon>
             <div class="i-hugeicons:add-square" />
           </template>
@@ -101,7 +101,7 @@
       <el-divider class="mt-10 mb-10" />
     </template>
 
-    <template v-if="hasPermission('student.edit')">
+    <template v-if="hasPermission('students.edit')">
       <div class="flex justify-between items-center mb-5">
         <span class="text-13px font-500 color-[#1d2d44]">學生教師偏好設定</span>
         <el-button type="primary" round size="small" @click="openDialog('add')">
@@ -127,10 +127,10 @@
               </el-tag>
               <div class="mt-2">
                 <div v-if="pref.primary_teacher_id" class="text-sm text-[#606266]">
-                  <label class="text-[#909399] text-xs font-500 mr-2">主要教師</label><span>{{ pref.primary_teacher_name }}</span>
+                  <label class="text-[#909399] text-xs font-500 mr-2">主要教師</label><span class="text-[#303133] font-500">{{ pref.primary_teacher_name }}</span>
                 </div>
                 <div v-else class="text-sm text-[#606266]">
-                  <label class="text-[#909399] text-xs font-500 mr-2">最低教師等級</label><span>Lv. {{ pref.min_teacher_level }}</span>
+                  <label class="text-[#909399] text-xs font-500 mr-2">最低教師等級</label><span class="text-[#303133] font-500">Lv. {{ pref.min_teacher_level }}</span>
                 </div>
               </div>
             </div>

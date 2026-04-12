@@ -188,6 +188,8 @@ export interface BookingTeacherSlotOption {
     start_time: string;
     end_time: string;
     is_booked: boolean;
+    slot_date: string;
+    teacher_contract_id: string;
 }
 
 export function getBookingOptionStudents() {
