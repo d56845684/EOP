@@ -351,6 +351,97 @@ async def list_zoom_meetings(
         raise HTTPException(status_code=500, detail=f"取得會議紀錄失敗: {str(e)}")
 
 
+@router.post("/meetings/batch")
+async def batch_get_meetings_by_bookings(
+    body: dict,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """批次查詢多筆預約的 Zoom 會議資訊（減少 N+1 請求）"""
+    try:
+        booking_ids = body.get("booking_ids", [])
+        if not booking_ids or len(booking_ids) > 100:
+            raise HTTPException(status_code=400, detail="booking_ids 必須為 1~100 筆")
+
+        pool = supabase_service.pool
+
+        # 權限過濾：非 staff 只能查自己的預約
+        if not current_user.is_staff():
+            if current_user.is_teacher():
+                allowed = await pool.fetch(
+                    """SELECT id FROM bookings
+                       WHERE id = ANY($1) AND is_deleted = FALSE
+                         AND (teacher_id = $2 OR id IN (
+                           SELECT b.id FROM bookings b
+                           JOIN substitute_details sd ON sd.id = b.substitute_detail_id
+                           WHERE sd.substitute_teacher_id = $2 AND sd.is_deleted = FALSE
+                         ))""",
+                    booking_ids, current_user.teacher_id,
+                )
+            elif current_user.is_student():
+                allowed = await pool.fetch(
+                    "SELECT id FROM bookings WHERE id = ANY($1) AND is_deleted = FALSE AND student_id = $2",
+                    booking_ids, current_user.student_id,
+                )
+            else:
+                allowed = []
+            booking_ids = [str(r["id"]) for r in allowed]
+            if not booking_ids:
+                return {"data": {}}
+
+        # 一次查全部 zoom meeting logs
+        rows = await pool.fetch(
+            f"""SELECT {MEETING_LOG_SELECT}
+                FROM zoom_meeting_logs
+                WHERE booking_id = ANY($1)
+                  AND is_deleted = FALSE
+                  AND meeting_status != 'cancelled'
+                ORDER BY created_at DESC""",
+            booking_ids,
+        )
+
+        # 批次 enrich account_name / teacher_name
+        account_ids = list({r["zoom_account_id"] for r in rows if r.get("zoom_account_id")})
+        teacher_ids = list({r["teacher_id"] for r in rows if r.get("teacher_id")})
+
+        import asyncio as _aio
+        async def _empty(): return []
+        acct_task = pool.fetch(
+            "SELECT id, account_name FROM zoom_accounts WHERE id = ANY($1)", account_ids
+        ) if account_ids else _empty()
+        teacher_task = pool.fetch(
+            "SELECT id, name FROM teachers WHERE id = ANY($1)", teacher_ids
+        ) if teacher_ids else _empty()
+
+        acct_rows, teacher_rows = await _aio.gather(acct_task, teacher_task)
+        acct_map = {str(r["id"]): r["account_name"] for r in acct_rows}
+        teacher_map = {str(r["id"]): r["name"] for r in teacher_rows}
+
+        # 組成 booking_id → meeting info 的 map（每個 booking 取最新一筆）
+        result = {}
+        for row in rows:
+            bid = str(row["booking_id"])
+            if bid in result:
+                continue  # 已有更新的紀錄（ORDER BY created_at DESC）
+            item = dict(row)
+            item["id"] = str(item["id"])
+            item["booking_id"] = bid
+            if item.get("zoom_account_id"):
+                item["zoom_account_id"] = str(item["zoom_account_id"])
+            if item.get("teacher_id"):
+                item["teacher_id"] = str(item["teacher_id"])
+            item["account_name"] = acct_map.get(str(row.get("zoom_account_id")))
+            item["teacher_name"] = teacher_map.get(str(row.get("teacher_id")))
+            result[bid] = ZoomMeetingLogResponse(**item).model_dump(mode="json")
+
+        return {"data": result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("批次查詢 Zoom 會議失敗")
+        raise HTTPException(status_code=500, detail=f"批次查詢失敗: {str(e)}")
+
+
 @router.get("/meetings/{booking_id}", response_model=DataResponse[ZoomMeetingLogResponse])
 async def get_meeting_by_booking(
     booking_id: str,
