@@ -270,8 +270,8 @@ class TeacherFlowTester:
 
     async def _get_avatar_upload_url(self):
         resp = await self._post(
-            f"/api/v1/teachers/{self.teacher_id}/avatar/upload-url?file_ext=png",
-            json={},
+            f"/api/v1/teachers/{self.teacher_id}/avatar/upload-url",
+            json={"file_name": "test_avatar.png"},
         )
         if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
         data = resp.json()
