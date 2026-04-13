@@ -465,7 +465,9 @@ class LiveWorkSchedulesTester:
                 json={"schedules": overlapping}
             )
             assert resp.status_code == 400, f"Expected 400, got {resp.status_code}: {resp.text}"
-            assert "重疊" in resp.json().get("detail", ""), f"Expected overlap error message"
+            body = resp.json()
+            msg = body.get("detail") or body.get("message") or ""
+            assert "重疊" in msg or "overlap" in msg.lower(), f"Expected overlap error message, got: {msg}"
             print("(400 overlap detected)", end=" ")
 
     # ================================================================

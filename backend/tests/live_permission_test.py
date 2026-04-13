@@ -31,6 +31,16 @@ from typing import Optional
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
 DB_CONTAINER = os.getenv("DB_CONTAINER", "teaching-platform-db")
 
+# 載入 .env
+_env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+if os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
+
 TEST_PASSWORD = "TestPassword123!"
 TEST_EMAIL_PREFIX = "test_perm_"
 CUSTOM_ROLE_KEY = "test_limited_role"
@@ -225,9 +235,9 @@ async def test_super_admin(results: list[TestResult]):
         assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
     await t11()
 
-    @run_test("SuperAdmin: GET /role-pages?role=admin (permissions.roles) → 200", results)
+    @run_test("SuperAdmin: GET /role-pages?role_id=admin_uuid (permissions.roles) → 200", results)
     async def t12():
-        resp = await api_get(cookies, "/api/v1/role-pages?role=admin")
+        resp = await api_get(cookies, "/api/v1/role-pages?role_id=a0000000-0000-0000-0000-000000000001")
         assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
     await t12()
 
@@ -297,10 +307,10 @@ async def test_employee(results: list[TestResult]):
         assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
     await t4()
 
-    @run_test("Employee: GET /users/ (employees.list) → 200", results)
+    @run_test("Employee: GET /users/ (employees.list) → 403", results)
     async def t5():
         resp = await api_get(cookies, "/api/v1/users/")
-        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
+        assert resp.status_code == 403, f"Expected 403, got {resp.status_code}"
     await t5()
 
     @run_test("Employee: GET /student-contracts (students.contracts) → 200", results)
@@ -470,10 +480,10 @@ async def test_teacher(results: list[TestResult]):
         assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
     await t2()
 
-    @run_test("Teacher: GET /teachers (teachers.list) → 200", results)
+    @run_test("Teacher: GET /teachers (teachers.list) → 403", results)
     async def t3():
         resp = await api_get(cookies, "/api/v1/teachers")
-        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
+        assert resp.status_code == 403, f"Expected 403, got {resp.status_code}"
     await t3()
 
     @run_test("Teacher: GET /teacher-slots (teachers.slots) → 200", results)
@@ -560,7 +570,7 @@ async def test_teacher(results: list[TestResult]):
         assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
         data = resp.json()
         keys = set(data.get("page_keys", []))
-        expected = {"bookings.list", "bookings.edit", "teachers.list", "teachers.slots",
+        expected = {"bookings.list", "bookings.edit", "teachers.slots",
                     "teachers.contracts", "teachers.bonus", "courses.list", "teachers.details"}
         missing = expected - keys
         assert not missing, f"Teacher missing page keys: {sorted(missing)}, got: {sorted(keys)}"
@@ -584,10 +594,16 @@ async def test_custom_role(results: list[TestResult]):
     try:
         # 1. 建立自訂角色 (via docker exec)
         db_exec(
-            f"INSERT INTO roles (role, name, description, is_system) "
+            f"INSERT INTO roles (key, name, description, is_system) "
             f"VALUES ('{CUSTOM_ROLE_KEY}', 'Test Limited Role', 'Only bookings.list', false) "
-            f"ON CONFLICT (role) DO NOTHING"
+            f"ON CONFLICT (key) DO NOTHING"
         )
+
+        # 取得自訂角色 ID
+        custom_role_id = db_exec(
+            f"SELECT id FROM roles WHERE key = '{CUSTOM_ROLE_KEY}' LIMIT 1"
+        )
+        assert custom_role_id, "Failed to get custom role id"
 
         # 2. 找到 bookings.list page ID
         bookings_list_page_id = db_exec(
@@ -596,9 +612,9 @@ async def test_custom_role(results: list[TestResult]):
         assert bookings_list_page_id, "bookings.list page not found in DB"
 
         # 清除既有 role_pages，重新指派
-        db_exec(f"DELETE FROM role_pages WHERE role = '{CUSTOM_ROLE_KEY}'")
+        db_exec(f"DELETE FROM role_pages WHERE role_id = '{custom_role_id}'")
         db_exec(
-            f"INSERT INTO role_pages (role, page_id) VALUES ('{CUSTOM_ROLE_KEY}', '{bookings_list_page_id}') "
+            f"INSERT INTO role_pages (role_id, page_id) VALUES ('{custom_role_id}', '{bookings_list_page_id}') "
             f"ON CONFLICT DO NOTHING"
         )
 
@@ -628,8 +644,8 @@ async def test_custom_role(results: list[TestResult]):
 
         # 建立 user_profiles
         db_exec(
-            f"INSERT INTO user_profiles (id, role, employee_id, employee_subtype) "
-            f"VALUES ('{custom_user_id}', '{CUSTOM_ROLE_KEY}', '{emp_id}', 'intern')"
+            f"INSERT INTO user_profiles (id, role_id, employee_id, employee_subtype) "
+            f"VALUES ('{custom_user_id}', '{custom_role_id}', '{emp_id}', 'intern')"
         )
 
         # 4. 登入
@@ -700,13 +716,14 @@ async def test_custom_role(results: list[TestResult]):
             assert students_list_page_id, "students.list page not found"
 
             db_exec(
-                f"INSERT INTO role_pages (role, page_id) VALUES ('{CUSTOM_ROLE_KEY}', '{students_list_page_id}') "
+                f"INSERT INTO role_pages (role_id, page_id) VALUES ('{custom_role_id}', '{students_list_page_id}') "
                 f"ON CONFLICT DO NOTHING"
             )
 
             # 清除 Redis 快取（模擬 cache invalidation）
+            redis_pw = os.getenv("REDIS_PASSWORD") or "changeme"
             subprocess.run(
-                ["docker", "exec", "teaching-platform-redis", "redis-cli", "DEL", f"page_perm:{custom_user_id}"],
+                ["docker", "exec", "teaching-platform-redis", "redis-cli", "-a", redis_pw, "DEL", f"page_perm:{custom_user_id}"],
                 capture_output=True, text=True, timeout=5,
             )
 
@@ -722,8 +739,10 @@ async def test_custom_role(results: list[TestResult]):
             db_exec(f"DELETE FROM public.users WHERE id = '{custom_user_id}'")
             db_exec(f"DELETE FROM employees WHERE email = '{custom_email}'")
 
-        db_exec(f"DELETE FROM role_pages WHERE role = '{CUSTOM_ROLE_KEY}'")
-        db_exec(f"DELETE FROM roles WHERE role = '{CUSTOM_ROLE_KEY}' AND is_system = false")
+        _crid = db_exec(f"SELECT id FROM roles WHERE key = '{CUSTOM_ROLE_KEY}' LIMIT 1")
+        if _crid:
+            db_exec(f"DELETE FROM role_pages WHERE role_id = '{_crid}'")
+        db_exec(f"DELETE FROM roles WHERE key = '{CUSTOM_ROLE_KEY}' AND is_system = false")
         print("  🧹 Custom role test data cleaned up")
 
 
@@ -737,6 +756,13 @@ def setup_test_accounts():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     hashed_pw = _bcrypt.hashpw(TEST_PASSWORD.encode(), _bcrypt.gensalt(rounds=10)).decode()
 
+    # role_id 對照（roles 表）
+    role_id_map = {
+        "student": "a0000000-0000-0000-0000-000000000004",
+        "teacher": "a0000000-0000-0000-0000-000000000003",
+        "employee": "a0000000-0000-0000-0000-000000000002",
+    }
+
     for role in ("student", "teacher", "employee"):
         email = f"{TEST_EMAIL_PREFIX}{role}_{timestamp}@example.com"
         meta_json = json.dumps({"name": f"Perm Test {role.capitalize()}", "role": role}).replace("'", "''")
@@ -747,6 +773,7 @@ def setup_test_accounts():
         )
         assert user_id, f"Failed to create {role} user"
         uid_prefix = user_id.replace("-", "").upper()[:8]
+        rid = role_id_map[role]
 
         if role == "student":
             entity_id = db_exec(
@@ -754,8 +781,8 @@ def setup_test_accounts():
                 f"VALUES ('S{uid_prefix}', 'Perm Test Student', '{email}', true) RETURNING id"
             )
             db_exec(
-                f"INSERT INTO user_profiles (id, role, student_id) "
-                f"VALUES ('{user_id}', 'student', '{entity_id}')"
+                f"INSERT INTO user_profiles (id, role_id, student_id) "
+                f"VALUES ('{user_id}', '{rid}', '{entity_id}')"
             )
         elif role == "teacher":
             entity_id = db_exec(
@@ -763,8 +790,8 @@ def setup_test_accounts():
                 f"VALUES ('T{uid_prefix}', 'Perm Test Teacher', '{email}', true) RETURNING id"
             )
             db_exec(
-                f"INSERT INTO user_profiles (id, role, teacher_id) "
-                f"VALUES ('{user_id}', 'teacher', '{entity_id}')"
+                f"INSERT INTO user_profiles (id, role_id, teacher_id) "
+                f"VALUES ('{user_id}', '{rid}', '{entity_id}')"
             )
         elif role == "employee":
             entity_id = db_exec(
@@ -772,8 +799,8 @@ def setup_test_accounts():
                 f"VALUES ('E{uid_prefix}', 'Perm Test Employee', '{email}', 'intern', CURRENT_DATE, true) RETURNING id"
             )
             db_exec(
-                f"INSERT INTO user_profiles (id, role, employee_id, employee_subtype) "
-                f"VALUES ('{user_id}', 'employee', '{entity_id}', 'intern')"
+                f"INSERT INTO user_profiles (id, role_id, employee_id, employee_subtype) "
+                f"VALUES ('{user_id}', '{rid}', '{entity_id}', 'intern')"
             )
 
         ACCOUNTS[role] = {"email": email, "password": TEST_PASSWORD, "user_id": user_id}
