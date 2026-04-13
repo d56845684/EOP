@@ -439,6 +439,11 @@ AVATAR_ALLOWED_TYPES = {
 AVATAR_MAX_SIZE = 2 * 1024 * 1024  # 2MB
 
 
+class AvatarUploadUrlRequest(BaseModel):
+    """取得頭像上傳連結請求"""
+    file_name: str
+
+
 class AvatarConfirmRequest(BaseModel):
     """確認頭像上傳請求"""
     storage_path: str
@@ -448,12 +453,13 @@ class AvatarConfirmRequest(BaseModel):
 @router.post("/{teacher_id}/avatar/upload-url")
 async def get_teacher_avatar_upload_url(
     teacher_id: str,
-    file_ext: str = Query("jpg", description="檔案格式 (jpg/png/webp)"),
+    body: AvatarUploadUrlRequest,
     current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """取得教師頭像的 signed upload URL（僅限員工，支援 jpg/png/webp，最大 2MB）"""
+    import os
     try:
-        ext = file_ext.lower().replace(".", "")
+        ext = os.path.splitext(body.file_name)[1].lower().lstrip(".")
         if ext not in AVATAR_ALLOWED_TYPES:
             raise HTTPException(status_code=400, detail=f"不支援的圖片格式: {ext}（允許 jpg/png/webp）")
 

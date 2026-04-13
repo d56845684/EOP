@@ -220,11 +220,11 @@ export const teachersApi = {
 
     async uploadAvatar(teacherId: string, file: File): Promise<{ data: Teacher | null, error: any }> {
         try {
-            const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-
             // 1. 取得 presigned URL
-            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}/avatar/upload-url?file_ext=${fileExt}`, {
+            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}/avatar/upload-url`, {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_name: file.name }),
             })
             if (!urlRes.ok) {
                 const error = await urlRes.json()
