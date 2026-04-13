@@ -292,7 +292,7 @@ export default function TeachersPage() {
             const uploadRes = await fetch(urlData.upload_url, {
                 method: 'PUT',
                 body: file,
-                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                headers: { 'Content-Type': urlData.content_type || file.type || 'application/octet-stream' },
             })
             if (!uploadRes.ok) {
                 setDetailsError('檔案上傳失敗')

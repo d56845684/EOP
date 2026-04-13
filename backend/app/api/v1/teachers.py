@@ -481,6 +481,7 @@ async def get_teacher_avatar_upload_url(
         return {
             "upload_url": signed["upload_url"],
             "storage_path": storage_path,
+            "content_type": AVATAR_ALLOWED_TYPES[ext],
             "max_size_bytes": AVATAR_MAX_SIZE,
         }
     except HTTPException:
