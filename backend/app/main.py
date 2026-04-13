@@ -191,6 +191,7 @@ app = FastAPI(
 
 # CORS — 從 FRONTEND_URL 環境變數動態組合，支援逗號分隔多個 origin
 _default_origins = [
+    "http://localhost",
     "http://localhost:3000",
     "http://localhost:4173",
     "http://localhost:5173",

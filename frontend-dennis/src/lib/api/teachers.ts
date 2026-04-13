@@ -220,22 +220,22 @@ export const teachersApi = {
 
     async uploadAvatar(teacherId: string, file: File): Promise<{ data: Teacher | null, error: any }> {
         try {
-            const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-
             // 1. 取得 presigned URL
-            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}/avatar/upload-url?file_ext=${fileExt}`, {
+            const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}/avatar/upload-url`, {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_name: file.name }),
             })
             if (!urlRes.ok) {
                 const error = await urlRes.json()
                 return { data: null, error: { message: parseErrorDetail(error.detail) || '取得上傳連結失敗' } }
             }
-            const { upload_url, storage_path } = await urlRes.json()
+            const { upload_url, storage_path, content_type } = await urlRes.json()
 
-            // 2. PUT 到 S3
+            // 2. PUT 到 S3（Content-Type 必須與 presigned URL 簽名一致）
             const uploadRes = await fetch(upload_url, {
                 method: 'PUT',
-                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                headers: { 'Content-Type': content_type || file.type || 'application/octet-stream' },
                 body: file,
             })
             if (!uploadRes.ok) {

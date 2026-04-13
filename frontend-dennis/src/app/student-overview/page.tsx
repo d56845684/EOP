@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { studentsApi, StudentOverviewItem } from '@/lib/api/students'
 import DashboardLayout from '@/components/DashboardLayout'
@@ -252,14 +253,14 @@ export default function StudentOverviewPage() {
                                             </td>
                                             {/* 操作 */}
                                             <td className="px-3 py-2.5 text-center">
-                                                <a href={`/students/view?id=${s.id}`}
+                                                <Link href={`/students/view?id=${s.id}`}
                                                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors"
                                                     style={{ color: 'var(--ep-color-primary)', border: '1px solid var(--ep-color-primary)' }}
                                                     onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--ep-color-primary)'; e.currentTarget.style.color = '#fff' }}
                                                     onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--ep-color-primary)' }}
                                                 >
                                                     <Eye className="w-3 h-3" /> 詳情
-                                                </a>
+                                                </Link>
                                             </td>
                                         </tr>
                                     ))}

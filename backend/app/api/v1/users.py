@@ -5,6 +5,8 @@ from app.core.dependencies import (
     get_current_user, require_staff, require_page_permission, CurrentUser
 )
 from app.services.supabase_service import supabase_service
+from app.services.storage_service import storage_service
+from app.config import settings
 from app.schemas.response import DataResponse, PaginatedResponse, BaseResponse
 from app.schemas.user import UserProfile, AccountInfo, AccountUpdate
 
@@ -48,13 +50,21 @@ async def get_profile(
             if entities:
                 entity_data = entities[0]
 
+    # avatar_url: S3 path → signed URL
+    raw_avatar = entity_data.get("avatar_url")
+    signed_avatar = None
+    if raw_avatar:
+        signed_avatar = await storage_service.create_signed_download_url(
+            bucket=settings.AWS_S3_BUCKET, path=raw_avatar, expires_in=3600,
+        )
+
     return DataResponse(
         data=UserProfile(
             id=current_user.user_id,
             email=current_user.email,
             role=current_user.role,
             name=entity_data.get("name"),
-            avatar_url=entity_data.get("avatar_url"),
+            avatar_url=signed_avatar,
             is_active=entity_data.get("is_active", True)
         )
     )

@@ -48,8 +48,9 @@ export async function fetchWithAuth(
             response = await fetch(url, options)
         } else {
             // refresh 也失敗 → 導向登入頁（避免在 /login 頁面無限迴圈）
-            if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-                window.location.href = `/login?reason=${reason}`
+            if (typeof window !== 'undefined' && !window.location.pathname.endsWith('/login')) {
+                const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/demo'
+                window.location.href = `${basePath}/login?reason=${reason}`
             }
         }
     }

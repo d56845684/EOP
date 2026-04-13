@@ -260,6 +260,14 @@ class LiveAuthTester:
             # 2. 建立角色實體 + user_profiles（編號格式同 trigger）
             uid_prefix = str(user_id).replace("-", "").upper()[:8]
 
+            # role_id 對照（roles 表）
+            role_id_map = {
+                "student": "a0000000-0000-0000-0000-000000000004",
+                "teacher": "a0000000-0000-0000-0000-000000000003",
+                "employee": "a0000000-0000-0000-0000-000000000002",
+            }
+            role_id = role_id_map[ctx.test_role]
+
             if ctx.test_role == "student":
                 student_no = "S" + uid_prefix
                 entity_row = await conn.fetchrow(
@@ -268,8 +276,8 @@ class LiveAuthTester:
                 )
                 assert entity_row, "Failed to insert student"
                 await conn.execute(
-                    "INSERT INTO user_profiles (id, role, student_id) VALUES ($1, 'student', $2)",
-                    user_id, entity_row["id"],
+                    "INSERT INTO user_profiles (id, role_id, student_id) VALUES ($1, $2, $3)",
+                    user_id, __import__('uuid').UUID(role_id), entity_row["id"],
                 )
 
             elif ctx.test_role == "teacher":
@@ -280,8 +288,8 @@ class LiveAuthTester:
                 )
                 assert entity_row, "Failed to insert teacher"
                 await conn.execute(
-                    "INSERT INTO user_profiles (id, role, teacher_id) VALUES ($1, 'teacher', $2)",
-                    user_id, entity_row["id"],
+                    "INSERT INTO user_profiles (id, role_id, teacher_id) VALUES ($1, $2, $3)",
+                    user_id, __import__('uuid').UUID(role_id), entity_row["id"],
                 )
 
             elif ctx.test_role == "employee":
@@ -296,8 +304,8 @@ class LiveAuthTester:
                 )
                 assert entity_row, "Failed to insert employee"
                 await conn.execute(
-                    "INSERT INTO user_profiles (id, role, employee_id, employee_subtype) VALUES ($1, 'employee', $2, 'intern')",
-                    user_id, entity_row["id"],
+                    "INSERT INTO user_profiles (id, role_id, employee_id, employee_subtype) VALUES ($1, $2, $3, 'intern')",
+                    user_id, __import__('uuid').UUID(role_id), entity_row["id"],
                 )
 
             ctx.user_id = str(user_id)

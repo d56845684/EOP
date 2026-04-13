@@ -235,7 +235,7 @@
                   密碼: {{ zoomInfoMap[row.id]?.passcode }}
                 </span>
                 <el-button 
-                  v-if="row.booking_status === 'completed' && (zoomInfoMap[row.id]?.recording_url || zoomInfoMap[row.id]?.drive_view_link)"
+                  v-if="zoomInfoMap[row.id]?.recording_url || zoomInfoMap[row.id]?.drive_view_link"
                   type="info" 
                   size="small" 
                   round
