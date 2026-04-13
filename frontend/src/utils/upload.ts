@@ -1,4 +1,4 @@
-import { uploadContract, confirmUploadContract, uploadContractAddendum, confirmUploadContractAddendum } from '@/api/contract';
+import { uploadStudentContract, confirmUploadContract, uploadStudentContractAddendum, confirmuploadStudentContractAddendum } from '@/api/contract';
 import { uploadTeacherContract, confirmUploadTeacherContract, uploadTeacherContractAddendum, confirmUploadTeacherContractAddendum } from '@/api/teacherContract';
 import { confirmUploadDetail, getUploadDetailUrl } from '@/api/teacherDetails';
 import { getTeacherAvatarUploadUrl, confirmTeacherAvatar } from '@/api/teacher';
@@ -10,10 +10,10 @@ export const uploadContractFile = async (role: 'teacher' | 'student', contractId
   try {
     let urlRes;
     if (addendumId) {
-      const useApi = role === 'teacher' ? uploadTeacherContractAddendum : uploadContractAddendum;
+      const useApi = role === 'teacher' ? uploadTeacherContractAddendum : uploadStudentContractAddendum;
       urlRes = await useApi(contractId, addendumId);
     } else {
-      const useApi = role === 'teacher' ? uploadTeacherContract : uploadContract;
+      const useApi = role === 'teacher' ? uploadTeacherContract : uploadStudentContract;
       urlRes = await useApi(contractId);
     }
     const { upload_url, storage_path } = urlRes;
@@ -31,7 +31,7 @@ export const uploadContractFile = async (role: 'teacher' | 'student', contractId
     }
     let confirmRes
     if (addendumId) {
-      const useApi = role === 'teacher' ? confirmUploadTeacherContractAddendum : confirmUploadContractAddendum;
+      const useApi = role === 'teacher' ? confirmUploadTeacherContractAddendum : confirmuploadStudentContractAddendum;
       confirmRes = await useApi(contractId, addendumId, { storage_path, file_name: file.name });
     } else {
       const useApi = role === 'teacher' ? confirmUploadTeacherContract : confirmUploadContract;

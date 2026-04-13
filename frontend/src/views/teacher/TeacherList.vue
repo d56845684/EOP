@@ -8,7 +8,7 @@
         round
         size="small"
         class="h-30px px-2"
-        @click="openDrawer(null, drawerTypeMap.CREATE)"
+        @click="openDetailDrawer(null)"
       >
         <template #icon>
           <div class="i-hugeicons:plus-sign-square" />
@@ -79,9 +79,16 @@
                 align="center"
               >
                 <el-image
+                  fit="cover"
                   style="width: 100px; height: 100px"
-                  src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"
-                />
+                  :src="teacher?.avatar_url || ''"
+                >
+                  <template #error>
+                    <div class="w-20 h-20 rounded-full bg-[#f3f4f8] flex items-center justify-center">
+                      <div class="i-hugeicons:user text-3xl color-[#b5b5c3]" />
+                    </div>
+                  </template>
+                </el-image>
               </el-descriptions-item>
               <el-descriptions-item label="編號 (No.)">{{ teacher.teacher_no || '-' }}</el-descriptions-item>
               <el-descriptions-item label="等級" align="center" :width="120">
@@ -203,6 +210,9 @@
     <!-- Add Teacher Dialog -->
     <el-dialog v-model="addDialogVisible" :title="$t('teacher.add')" width="500px" @closed="resetAddForm">
       <el-form ref="addFormRef" :model="addForm" :rules="addRules" label-width="120px">
+        <el-form-item :label="$t('teacher.teacherNo')" prop="teacher_no">
+          <el-input v-model="addForm.teacher_no" />
+        </el-form-item>
         <el-form-item :label="$t('common.name')" prop="name">
           <el-input v-model="addForm.name" />
         </el-form-item>
@@ -210,6 +220,9 @@
           <el-input v-model="addForm.email" />
         </el-form-item>
         <el-form-item :label="$t('common.phone')" prop="phone">
+          <el-input v-model="addForm.phone" />
+        </el-form-item>
+        <el-form-item :label="$t('common.address')" prop="address">
           <el-input v-model="addForm.phone" />
         </el-form-item>
         <el-form-item :label="'Teacher Level'" prop="teacher_level">
@@ -304,8 +317,8 @@ onMounted(() => {
   fetchTeachersList();
 });
 
-const openDetailDrawer = (teacher: TeacherOverviewItem) => {
-  selectedTeacherId.value = teacher.id;
+const openDetailDrawer = (teacher: TeacherOverviewItem | null) => {
+  selectedTeacherId.value = teacher?.id || null;
   detailDrawerVisible.value = true;
 };
 

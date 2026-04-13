@@ -38,6 +38,7 @@ export interface TeacherResponse {
   bio?: string | null;
   teacher_level: number;
   is_active: boolean;
+  avatar_url?: string | null;
   email_verified_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -65,6 +66,7 @@ export interface TeacherOverviewParams {
 export interface TeacherOverviewItem {
   account_active: boolean | null;
   active_contracts: number;
+  avatar_url?: string | null;
   bonus_count: number;
   completed_bookings: number;
   created_at: string;
@@ -108,10 +110,10 @@ export function getTeacherOverviewList(params: TeacherOverviewParams) {
   return request.get<any, TeacherOverviewListResponse>('/v1/teachers/overview/list', { params });
 }
 export function createTeacher(data: TeacherCreate) {
-  return request.post('/v1/teachers', data);
+  return request.post<any, TeacherDetailResponse<TeacherResponse>>('/v1/teachers', data);
 }
 export function updateTeacher(teacherId: string, data: TeacherUpdate) {
-  return request.put(`/v1/teachers/${teacherId}`, data);
+  return request.put<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}`, data);
 }
 export function deleteTeacher(teacherId: string) {
   return request.delete(`/v1/teachers/${teacherId}`);

@@ -6,7 +6,7 @@
       <div class="flex items-center gap-5 mb-6">
         <div class="relative group w-20 h-20 flex-shrink-0">
           <el-image
-            :src="avatarUrl || ''"
+            :src="avatarUrl || uploadAvatar.url || ''"
             fit="cover"
             class="w-20 h-20 rounded-full border-2 border-[#e4e6ef] object-cover"
           >
@@ -24,7 +24,7 @@
             accept=".jpg,.jpeg,.png,.webp"
             :auto-upload="false"
             :show-file-list="false"
-            :on-change="handleAvatarChange"
+            :on-change="handleUploadAvatar"
           >
             <div
               class="w-20 h-20 rounded-full flex flex-col items-center justify-center
@@ -182,7 +182,7 @@
       </el-form-item>
       <!-- 上傳檔案：certificate 或 video -->
       <el-form-item
-        v-if="detailForm.detail_type === 'certificate' || detailForm.detail_type === 'video'"
+        v-if="detailForm.detail_type === 'certificate'"
         label="上傳檔案"
       >
         <el-upload
@@ -191,6 +191,7 @@
           :multiple="false"
           :auto-upload="false"
           :show-file-list="true"
+          accept=".pdf, .jpg, .jpeg, .png"
           :on-change="(f: any) => { detailPendingFile = f.raw || null }"
           :on-remove="() => { detailPendingFile = null }"
         >
@@ -200,7 +201,8 @@
           </el-button>
         </el-upload>
         <div v-if="existingFileName && !detailPendingFile" class="text-11px color-[#626aef] mt-1 flex items-center gap-1">
-          <div class="i-hugeicons:file-02" />{{ existingFileName }}（已上傳）
+          <div class="i-hugeicons:file-02" />
+          <span class="text-wrap break-all">{{ existingFileName }}</span>
         </div>
       </el-form-item>
     </el-form>
@@ -218,7 +220,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
-import { getTeacherById, updateTeacher, type TeacherUpdate } from '@/api/teacher';
+import { getTeacherById, createTeacher, updateTeacher, type TeacherCreate, type TeacherUpdate } from '@/api/teacher';
 import {
   getTeacherDetails,
   createTeacherDetail,
@@ -257,6 +259,8 @@ const isVisible = computed({
   set: (val) => emit('update:modelValue', val)
 });
 
+const isEdit = computed(() => !!props.teacherId);
+
 // UI State
 const loading = ref(false);
 const saving = ref(false);
@@ -264,7 +268,7 @@ const uploadingAvatar = ref(false);
 const avatarUrl = ref<string | null>(null);
 
 const drawerTitle = computed(() => {
-  return (basicForm.name ? basicForm.name : 'Teacher Details') + ' 詳情';
+  return isEdit.value ? (basicForm.name ? basicForm.name : 'Teacher Details') + ' 詳情' : '新增教師';
 });
 
 // --- Basic Info Form ---
@@ -427,7 +431,7 @@ const fetchData = async () => {
       basicForm.address = target.address || '';
       basicForm.bio = target.bio || '';
       basicForm.teacher_level = target.teacher_level;
-      avatarUrl.value = (target as any).avatar_url || null;
+      avatarUrl.value = target.avatar_url || null;
     }
   } catch (error) {
     ElMessage.error('載入教師資料失敗');
@@ -436,19 +440,32 @@ const fetchData = async () => {
   }
 };
 
-const handleAvatarChange = async (uploadFile: any) => {
-  const tId = props.teacherId;
-  if (!tId || !uploadFile.raw) return;
+const uploadAvatar = ref({
+  file: null,
+  url: '',
+})
+
+const handleUploadAvatar = (uploadFile: any) => {
   const MAX_SIZE_MB = 2;
   if (uploadFile.raw.size > MAX_SIZE_MB * 1024 * 1024) {
     ElMessage.warning(`檔案大小不可超過 ${MAX_SIZE_MB}MB，請重新選擇`);
     return;
   }
+  uploadAvatar.value.file = uploadFile;
+  uploadAvatar.value.url = URL.createObjectURL(uploadFile.raw);
+  if (isEdit.value) {
+    handleAvatarChange(uploadFile);
+  }
+}
+
+const handleAvatarChange = async (uploadFile: any, teacherId?: string) => {
+  const tId = props.teacherId || teacherId;
+  if (!tId || !uploadFile.raw) return;
   uploadingAvatar.value = true;
   try {
     await uploadTeacherAvatar(tId, uploadFile.raw);
     const res = await getTeacherById(tId);
-    avatarUrl.value = (res.data as any).avatar_url || null;
+    avatarUrl.value = res.data.avatar_url || null;
     ElMessage.success('頭像已更新');
   } catch (e) {
     console.error(e);
@@ -459,14 +476,32 @@ const handleAvatarChange = async (uploadFile: any) => {
 };
 
 const saveBasicInfo = async () => {
-  const tId = props.teacherId;
-  if (!basicFormRef.value || !tId) return;
+  if (!basicFormRef.value) return;
   await basicFormRef.value.validate(async (valid) => {
     if (valid) {
+      const tId = props.teacherId;
       saving.value = true;
       try {
-        await updateTeacher(tId, basicForm);
-        ElMessage.success('基本資料已儲存');
+        if (isEdit.value && tId) {
+          const res = await updateTeacher(tId, basicForm);
+          if (res.success) {
+            ElMessage.success('基本資料已儲存');
+          }
+        } else {
+          try {
+            let teacherId: string;
+            const res = await createTeacher(basicForm as TeacherCreate);
+            if (res.success) {
+              ElMessage.success('基本資料已新增');
+              teacherId = res.data.id;
+              if (uploadAvatar.value.file) {
+                handleAvatarChange(uploadAvatar.value.file, teacherId);
+              }
+            }
+          } catch (error) {
+            ElMessage.error('新增失敗');
+          }
+        }
         emit('saved');
       } catch (e) {
         ElMessage.error('儲存失敗');
