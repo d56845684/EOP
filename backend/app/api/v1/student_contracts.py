@@ -1285,6 +1285,7 @@ async def get_student_contract_upload_url(
         return {
             "upload_url": signed["upload_url"],
             "storage_path": storage_path,
+            "content_type": CONTRACT_ALLOWED_TYPES[ext],
         }
 
     except HTTPException:
@@ -1784,6 +1785,7 @@ async def get_student_addendum_upload_url(
         return {
             "upload_url": signed["upload_url"],
             "storage_path": storage_path,
+            "content_type": "application/pdf",
         }
 
     except HTTPException:

@@ -17,11 +17,27 @@ import asyncio
 import argparse
 import sys
 import os
+import struct
+import zlib
 from datetime import datetime, date, timedelta
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
 _TS = datetime.now().strftime("%H%M%S")
 TEST_PREFIX = f"E2ETCR{_TS}_"
+
+
+def _make_1x1_png() -> bytes:
+    """產生一個 1x1 紅色像素的合法 PNG 檔案"""
+    def _chunk(chunk_type, data):
+        c = chunk_type + data
+        return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xffffffff)
+
+    header = b"\x89PNG\r\n\x1a\n"
+    ihdr = _chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
+    raw_row = b"\x00\xff\x00\x00"  # filter=None, R=255 G=0 B=0
+    idat = _chunk(b"IDAT", zlib.compress(raw_row))
+    iend = _chunk(b"IEND", b"")
+    return header + ihdr + idat + iend
 
 
 class TeacherFlowTester:
@@ -35,6 +51,8 @@ class TeacherFlowTester:
         self.teacher_contract_detail_id = None
         self.teacher_slot_id = None
         self.slot_date = (date.today() + timedelta(days=14)).isoformat()
+        self._upload_url = None
+        self._avatar_storage_path = None
 
     async def _post(self, path, json):
         return await self.client.post(f"{self.url}{path}", json=json)
@@ -110,13 +128,24 @@ class TeacherFlowTester:
             await self._test("教師總覽 — 能找到測試教師", self._verify_teacher_overview)
             await self._test("教師詳情 — 合約/時段區段", self._verify_teacher_detail_view)
 
-            print("\n  Phase 5: 編輯與停用")
+            print("\n  Phase 5: 頭像上傳")
+            print("  " + "-" * 40)
+
+            await self._test("取得頭像上傳 URL", self._get_avatar_upload_url)
+            await self._test("上傳圖片到 S3", self._upload_avatar_to_s3)
+            await self._test("確認頭像上傳", self._confirm_avatar_upload)
+            await self._test("驗證頭像 URL 已設定", self._verify_avatar_set)
+
+            print("\n  Phase 6: 編輯與停用")
             print("  " + "-" * 40)
 
             await self._test("編輯教師（改 bio）", self._update_teacher)
+            await self._test("驗證修改結果", self._verify_teacher_update)
             await self._test("停用教師", self._deactivate_teacher)
+            await self._test("刪除教師", self._delete_teacher)
+            await self._test("驗證刪除（應回 404）", self._verify_teacher_deleted)
 
-            # Cleanup
+            # Cleanup (teacher already deleted)
             print("\n  Cleanup")
             print("  " + "-" * 40)
             await self._cleanup()
@@ -239,6 +268,45 @@ class TeacherFlowTester:
             checks.append("missing contracts")
         return True if not checks else "; ".join(checks)
 
+    async def _get_avatar_upload_url(self):
+        resp = await self._post(
+            f"/api/v1/teachers/{self.teacher_id}/avatar/upload-url?file_ext=png",
+            json={},
+        )
+        if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
+        data = resp.json()
+        self._upload_url = data.get("upload_url")
+        self._avatar_storage_path = data.get("storage_path")
+        if not self._upload_url: return "missing upload_url"
+        if not self._avatar_storage_path: return "missing storage_path"
+        return True
+
+    async def _upload_avatar_to_s3(self):
+        png_bytes = _make_1x1_png()
+        async with httpx.AsyncClient(timeout=30.0) as raw_client:
+            resp = await raw_client.put(
+                self._upload_url,
+                content=png_bytes,
+                headers={"Content-Type": "image/png"},
+            )
+        if resp.status_code not in (200, 201): return f"S3 PUT {resp.status_code} {resp.text[:200]}"
+        return True
+
+    async def _confirm_avatar_upload(self):
+        resp = await self._post(
+            f"/api/v1/teachers/{self.teacher_id}/avatar/confirm-upload",
+            json={"storage_path": self._avatar_storage_path, "file_name": "test_avatar.png"},
+        )
+        if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
+        return True
+
+    async def _verify_avatar_set(self):
+        resp = await self._get(f"/api/v1/teachers/{self.teacher_id}")
+        if resp.status_code != 200: return f"{resp.status_code}"
+        avatar = resp.json()["data"].get("avatar_url")
+        if not avatar: return "avatar_url is empty after upload"
+        return True
+
     async def _update_teacher(self):
         resp = await self._put(f"/api/v1/teachers/{self.teacher_id}", {
             "bio": "E2E 測試教師 — updated",
@@ -246,10 +314,31 @@ class TeacherFlowTester:
         if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
         return True
 
+    async def _verify_teacher_update(self):
+        resp = await self._get(f"/api/v1/teachers/{self.teacher_id}")
+        if resp.status_code != 200: return f"{resp.status_code}"
+        if resp.json()["data"].get("bio") != "E2E 測試教師 — updated": return "bio not updated"
+        return True
+
     async def _deactivate_teacher(self):
         resp = await self._put(f"/api/v1/teachers/{self.teacher_id}", {"is_active": False})
         if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
         return True
+
+    async def _delete_teacher(self):
+        resp = await self._delete(f"/api/v1/teachers/{self.teacher_id}")
+        if resp.status_code not in (200, 204): return f"{resp.status_code} {resp.text[:200]}"
+        self._deleted_teacher_id = self.teacher_id
+        self.teacher_id = None  # skip in cleanup
+        return True
+
+    async def _verify_teacher_deleted(self):
+        resp = await self._get(f"/api/v1/teachers/{self._deleted_teacher_id}")
+        if resp.status_code == 404: return True
+        if resp.status_code == 200:
+            if resp.json().get("data", {}).get("is_deleted") is True: return True
+            return f"GET 200 but is_deleted={resp.json().get('data', {}).get('is_deleted')}"
+        return f"expected 404, got {resp.status_code}"
 
     async def _cleanup(self):
         for name, path in [

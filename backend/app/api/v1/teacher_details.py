@@ -233,6 +233,7 @@ async def get_teacher_detail_upload_url(
         return {
             "upload_url": signed["upload_url"],
             "storage_path": storage_path,
+            "content_type": content_type,
         }
 
     except HTTPException:

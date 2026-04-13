@@ -8,6 +8,7 @@ import { studentTeacherPreferencesApi, StudentTeacherPreference, CreatePreferenc
 import { bookingsApi, CourseOption } from '@/lib/api/bookings'
 import { invitesApi } from '@/lib/api/invites'
 import { Plus, Pencil, Trash2, Search, X, GraduationCap, CheckCircle, XCircle, Mail, Phone, Star, Settings, ArrowLeft, Link, Copy, Check, UserPlus, ArrowUpCircle, Eye } from 'lucide-react'
+import NextLink from 'next/link'
 import DashboardLayout from '@/components/DashboardLayout'
 
 export default function StudentsPage() {
@@ -507,7 +508,7 @@ export default function StudentsPage() {
                                             </td>
                                             {isStaff && (
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    <a href={`/students/view?id=${student.id}`} className="text-cyan-600 hover:text-cyan-900 mr-4" title="綜合檢視"><Eye className="w-5 h-5" /></a>
+                                                    <NextLink href={`/students/view?id=${student.id}`} className="text-cyan-600 hover:text-cyan-900 mr-4" title="綜合檢視"><Eye className="w-5 h-5" /></NextLink>
                                                     {!student.email_verified_at && (
                                                         <button onClick={() => handleGenerateInvite(student)} className="text-green-600 hover:text-green-900 mr-4" title="產生邀請連結"><UserPlus className="w-5 h-5" /></button>
                                                     )}

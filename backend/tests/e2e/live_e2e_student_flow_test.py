@@ -116,10 +116,13 @@ class StudentFlowTester:
             print("  " + "-" * 40)
 
             await self._test("編輯學生資料（加英文名）", self._update_student)
+            await self._test("驗證修改結果", self._verify_student_update)
             await self._test("停用學生", self._deactivate_student)
             await self._test("總覽篩選已停用 — 能找到", self._verify_deactivated_filter)
+            await self._test("刪除學生", self._delete_student)
+            await self._test("驗證刪除（應回 404）", self._verify_student_deleted)
 
-            # Cleanup
+            # Cleanup (student already deleted)
             print("\n  Cleanup")
             print("  " + "-" * 40)
             await self._cleanup()
@@ -184,7 +187,7 @@ class StudentFlowTester:
 
     async def _create_preference(self):
         resp = await self._post("/api/v1/student-teacher-preferences/", {
-            "student_id": self.student_id, "primary_teacher_id": self.teacher_id,
+            "student_id": self.student_id, "primary_teacher_ids": [self.teacher_id],
         })
         if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
         self.preference_id = resp.json()["data"]["id"]
@@ -229,6 +232,12 @@ class StudentFlowTester:
         if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
         return True
 
+    async def _verify_student_update(self):
+        resp = await self._get(f"/api/v1/students/{self.student_id}")
+        if resp.status_code != 200: return f"{resp.status_code}"
+        if resp.json()["data"].get("eng_name") != "Xiao Ming Wang": return "eng_name not updated"
+        return True
+
     async def _deactivate_student(self):
         resp = await self.client.put(f"{self.url}/api/v1/students/{self.student_id}", json={
             "is_active": False,
@@ -243,6 +252,21 @@ class StudentFlowTester:
         if not any(d["id"] == self.student_id for d in data):
             return "停用篩選找不到測試學生"
         return True
+
+    async def _delete_student(self):
+        resp = await self._delete(f"/api/v1/students/{self.student_id}")
+        if resp.status_code not in (200, 204): return f"{resp.status_code} {resp.text[:200]}"
+        self._deleted_student_id = self.student_id
+        self.student_id = None  # skip in cleanup
+        return True
+
+    async def _verify_student_deleted(self):
+        resp = await self._get(f"/api/v1/students/{self._deleted_student_id}")
+        if resp.status_code == 404: return True
+        if resp.status_code == 200:
+            if resp.json().get("data", {}).get("is_deleted") is True: return True
+            return f"GET 200 but is_deleted={resp.json().get('data', {}).get('is_deleted')}"
+        return f"expected 404, got {resp.status_code}"
 
     async def _cleanup(self):
         for name, path in [

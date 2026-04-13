@@ -20,6 +20,15 @@ router = APIRouter(prefix="/teachers", tags=["教師管理"])
 TEACHER_SELECT = "id,teacher_no,name,email,phone,address,bio,avatar_url,teacher_level,is_active,email_verified_at,created_at,updated_at"
 
 
+async def _sign_avatar(raw_path: str | None) -> str | None:
+    """將 S3 raw path 轉成 signed download URL，無頭像則回傳 None"""
+    if not raw_path:
+        return None
+    return await storage_service.create_signed_download_url(
+        bucket=settings.AWS_S3_BUCKET, path=raw_path, expires_in=3600,
+    )
+
+
 @router.get("", response_model=TeacherListResponse)
 async def list_teachers(
     page: int = Query(1, ge=1),
@@ -51,6 +60,9 @@ async def list_teachers(
                 or s in t.get("name", "").lower()
                 or s in t.get("email", "").lower()
             ]
+
+        for t in teachers:
+            t["avatar_url"] = await _sign_avatar(t.get("avatar_url"))
 
         return TeacherListResponse(
             data=[TeacherResponse(**t) for t in teachers],
@@ -236,19 +248,13 @@ async def list_teachers_overview(
 
         items = []
         for row in rows:
-            raw_avatar = row["avatar_url"]
-            avatar_signed_url = None
-            if raw_avatar:
-                avatar_signed_url = await storage_service.create_signed_download_url(
-                    bucket=settings.AWS_S3_BUCKET, path=raw_avatar, expires_in=3600,
-                )
             items.append({
                 "id": str(row["id"]),
                 "teacher_no": row["teacher_no"],
                 "name": row["name"],
                 "email": row["email"],
                 "phone": row["phone"],
-                "avatar_url": avatar_signed_url,
+                "avatar_url": await _sign_avatar(row["avatar_url"]),
                 "teacher_level": row["teacher_level"],
                 "is_active": row["is_active"],
                 "email_verified_at": row["email_verified_at"].isoformat() if row["email_verified_at"] else None,
@@ -295,6 +301,7 @@ async def get_teacher(
         )
         if not result:
             raise HTTPException(status_code=404, detail="教師不存在")
+        result[0]["avatar_url"] = await _sign_avatar(result[0].get("avatar_url"))
         return DataResponse(data=TeacherResponse(**result[0]))
     except HTTPException:
         raise
@@ -432,6 +439,11 @@ AVATAR_ALLOWED_TYPES = {
 AVATAR_MAX_SIZE = 2 * 1024 * 1024  # 2MB
 
 
+class AvatarUploadUrlRequest(BaseModel):
+    """取得頭像上傳連結請求"""
+    file_name: str
+
+
 class AvatarConfirmRequest(BaseModel):
     """確認頭像上傳請求"""
     storage_path: str
@@ -441,12 +453,13 @@ class AvatarConfirmRequest(BaseModel):
 @router.post("/{teacher_id}/avatar/upload-url")
 async def get_teacher_avatar_upload_url(
     teacher_id: str,
-    file_ext: str = Query("jpg", description="檔案格式 (jpg/png/webp)"),
+    body: AvatarUploadUrlRequest,
     current_user: CurrentUser = Depends(require_page_permission("teachers.edit"))
 ):
     """取得教師頭像的 signed upload URL（僅限員工，支援 jpg/png/webp，最大 2MB）"""
+    import os
     try:
-        ext = file_ext.lower().replace(".", "")
+        ext = os.path.splitext(body.file_name)[1].lower().lstrip(".")
         if ext not in AVATAR_ALLOWED_TYPES:
             raise HTTPException(status_code=400, detail=f"不支援的圖片格式: {ext}（允許 jpg/png/webp）")
 
@@ -474,6 +487,7 @@ async def get_teacher_avatar_upload_url(
         return {
             "upload_url": signed["upload_url"],
             "storage_path": storage_path,
+            "content_type": AVATAR_ALLOWED_TYPES[ext],
             "max_size_bytes": AVATAR_MAX_SIZE,
         }
     except HTTPException:
@@ -514,6 +528,7 @@ async def confirm_teacher_avatar_upload(
         if not result:
             raise HTTPException(status_code=500, detail="更新頭像失敗")
 
+        result["avatar_url"] = await _sign_avatar(result.get("avatar_url"))
         return DataResponse(message="頭像上傳成功", data=TeacherResponse(**result))
     except HTTPException:
         raise
@@ -559,17 +574,10 @@ async def get_teacher_view(
 
         r = teacher_row
         # avatar_url: S3 path → presigned URL
-        avatar_signed_url = None
-        raw_avatar = r["avatar_url"]
-        if raw_avatar:
-            avatar_signed_url = await storage_service.create_signed_download_url(
-                bucket=settings.AWS_S3_BUCKET, path=raw_avatar, expires_in=3600,
-            )
-
         teacher = {
             "id": str(r["id"]), "teacher_no": r["teacher_no"], "name": r["name"],
             "email": r["email"], "phone": r["phone"], "address": r["address"],
-            "bio": r["bio"], "avatar_url": avatar_signed_url,
+            "bio": r["bio"], "avatar_url": await _sign_avatar(r["avatar_url"]),
             "teacher_level": r["teacher_level"],
             "is_active": r["is_active"], "email_verified_at": r["email_verified_at"],
             "created_at": r["created_at"],

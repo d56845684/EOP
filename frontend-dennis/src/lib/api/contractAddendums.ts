@@ -152,11 +152,11 @@ export const contractAddendumsApi = {
                 const error = await urlRes.json()
                 return { data: null, error: { message: error.detail || '取得上傳連結失敗' } }
             }
-            const { upload_url, storage_path } = await urlRes.json()
+            const { upload_url, storage_path, content_type } = await urlRes.json()
 
             const uploadRes = await fetch(upload_url, {
                 method: 'PUT',
-                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                headers: { 'Content-Type': content_type || file.type || 'application/octet-stream' },
                 body: file,
             })
             if (!uploadRes.ok) {

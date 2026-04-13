@@ -475,6 +475,10 @@ class LiveSubstituteTester:
     # 指派代課：驗證拒絕
     # ================================================================
 
+    def _err_msg(self, resp) -> str:
+        body = resp.json()
+        return body.get("detail") or body.get("message") or str(body)
+
     async def _test_create_reject_no_slot(self, ctx: Ctx):
         """Teacher D 無 slot → 400"""
         async with httpx.AsyncClient(cookies=ctx.cookies, **self.client_kwargs) as c:
@@ -489,9 +493,9 @@ class LiveSubstituteTester:
             )
             assert resp.status_code == 400, \
                 f"Expected 400 for no-slot teacher, got {resp.status_code}: {resp.text}"
-            detail = resp.json().get("detail", "")
-            assert "時段" in detail, f"Error should mention 時段: {detail}"
-            print(f"(400: {detail})", end=" ")
+            msg = self._err_msg(resp)
+            assert "時段" in msg, f"Error should mention 時段: {msg}"
+            print(f"(400: {msg})", end=" ")
 
     async def _test_create_reject_no_course(self, ctx: Ctx):
         """Teacher C 合約無 course_rate → 400"""
@@ -507,9 +511,9 @@ class LiveSubstituteTester:
             )
             assert resp.status_code == 400, \
                 f"Expected 400 for no-course teacher, got {resp.status_code}: {resp.text}"
-            detail = resp.json().get("detail", "")
-            assert "課程" in detail, f"Error should mention 課程: {detail}"
-            print(f"(400: {detail})", end=" ")
+            msg = self._err_msg(resp)
+            assert "課程" in msg, f"Error should mention 課程: {msg}"
+            print(f"(400: {msg})", end=" ")
 
     async def _test_create_reject_conflict(self, ctx: Ctx):
         """Teacher E 衝堂 → 409"""
@@ -525,9 +529,9 @@ class LiveSubstituteTester:
             )
             assert resp.status_code == 409, \
                 f"Expected 409 for conflicting teacher, got {resp.status_code}: {resp.text}"
-            detail = resp.json().get("detail", "")
-            assert "衝突" in detail, f"Error should mention 衝突: {detail}"
-            print(f"(409: {detail})", end=" ")
+            msg = self._err_msg(resp)
+            assert "衝突" in msg or "衝堂" in msg, f"Error should mention 衝突/衝堂: {msg}"
+            print(f"(409: {msg})", end=" ")
 
     # ================================================================
     # 指派代課：成功

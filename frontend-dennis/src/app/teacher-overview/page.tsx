@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { teachersApi, TeacherOverviewItem } from '@/lib/api/teachers'
 import DashboardLayout from '@/components/DashboardLayout'
@@ -228,12 +229,12 @@ export default function TeacherOverviewPage() {
                                             </td>
                                             {/* 操作 */}
                                             <td className="px-3 py-2.5 text-center">
-                                                <a href={`/teachers/view?id=${t.id}`}
+                                                <Link href={`/teachers/view?id=${t.id}`}
                                                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors
                                                         text-primary-500 border border-primary-500 hover:bg-primary-500 hover:text-white"
                                                 >
                                                     <Eye className="w-3 h-3" /> 詳情
-                                                </a>
+                                                </Link>
                                             </td>
                                         </tr>
                                     ))}
