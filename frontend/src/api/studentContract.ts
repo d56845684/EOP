@@ -112,9 +112,11 @@ interface ResData<T> {
   success: boolean;
 }
 
-interface ConfirmUploadResponse {
+export interface ConfirmUploadResponse {
   storage_path: string;
   upload_url: string;
+  content_type: string;
+  max_size_bytes: number;
 }
 
 export interface GetStudentContractsParams {

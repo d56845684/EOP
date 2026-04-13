@@ -423,7 +423,7 @@ import {
   type StudentContract,
   type StudentContractDetail ,
   type StudentContractAddendum
-} from '@/api/contract';
+} from '@/api/studentContract';
 import { CONTRACT_STATUS, STUDENT_CONTRACT_STATUS_MAP } from '@/constants/contract';
 import { triggerDownload, getFileNameFromResponse}  from '@/utils/download';
 import { uploadContractFile } from '@/utils/upload';

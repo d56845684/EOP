@@ -47,7 +47,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, type PropType } from 'vue'
-import type { StudentContract, StudentContractAddendum } from '@/api/contract';
+import type { StudentContract, StudentContractAddendum } from '@/api/studentContract';
 
 const props = defineProps({
   extendDialogVisible: {

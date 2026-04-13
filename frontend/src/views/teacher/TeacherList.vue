@@ -153,7 +153,13 @@
               </div>
               <div class="right">
                 <el-button v-permission="'teachers.details'" type="primary" plain round size="small" @click="openDetailDrawer(teacher)">
-                  {{ $t('common.viewDetails') }}
+                  <template #icon v-if="hasPermission('teachers.edit')">
+                    <div class="i-hugeicons:edit-02 mr-2px" />
+                  </template>
+                  <template #icon v-else>
+                    <div class="i-hugeicons:view mr-2px" />
+                  </template>
+                  {{ $t('common.baseInfo') }}
                 </el-button>
                 <el-button 
                   v-permission="'teachers.delete'" 
@@ -398,10 +404,10 @@ const handleDelete = async (teacher: TeacherResponse) => {
 const handleVerify = async (teacher: TeacherResponse) => {
   try {
     const res = await generateInviteLinkApi({ entity_type: 'teacher', entity_id: teacher.id });
-    inviteUrl.value = res.invite_url;
+    inviteUrl.value = res.invite_url || '';
     currentVerifyTeacher.value = teacher;
     verifyInviteVisible.value = true;
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
     ElMessage.error('獲取邀請連結失敗');
   }

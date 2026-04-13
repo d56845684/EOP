@@ -65,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { createContractDetail, type StudentContractDetailCreate, type CourseOption, getContractCourseOptions, updateContractDetail, type StudentContractDetail } from '@/api/contract';
+import { createContractDetail, type StudentContractDetailCreate, type CourseOption, getContractCourseOptions, updateContractDetail, type StudentContractDetail } from '@/api/studentContract';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { ref, computed, reactive, onMounted, watch, type PropType, nextTick } from 'vue'
 

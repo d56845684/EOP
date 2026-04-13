@@ -33,6 +33,13 @@ export interface InviteLinkRequest {
   role_id?: string;
 }
 
+export interface InviteLinkResponse {
+  success?: boolean;
+  message?: string;
+  invite_url?: string;
+  expires_at?: string;
+}
+
 export function loginApi(data: LoginRequest) {
   return request.post<any, LoginResponse>('/v1/auth/login', data);
 }
@@ -55,7 +62,7 @@ export function getMeApi() {
 }
 
 export function generateInviteLinkApi(data: InviteLinkRequest) {
-  return request.post<any, { invite_url: string; expires_at: string }>('/v1/invites/generate', data);
+  return request.post<any, InviteLinkResponse>('/v1/invites/generate', data);
 }
 
 export function acceptInviteApi(token: string, password: string) {

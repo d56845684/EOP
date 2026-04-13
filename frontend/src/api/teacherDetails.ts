@@ -33,6 +33,13 @@ interface ResData<T> {
     success: boolean;
 }
 
+export interface UploadDetailUrlResponse {
+    upload_url: string;
+    storage_path: string;
+    content_type: string;
+    max_size_bytes: number;
+}
+
 export function getTeacherDetails(teacherId: string) {
     return request.get<any, Omit<ResData<TeacherDetail[]>, 'message'>>(`/v1/teacher-details`, { params: { teacher_id: teacherId } });
 }
@@ -49,8 +56,8 @@ export function deleteTeacherDetail(detailId: string) {
     return request.delete<any, Omit<ResData<null>, 'data'>>(`/v1/teacher-details/${detailId}`);
 }
 
-export function getUploadDetailUrl(detailId: string) {
-    return request.post<any, { upload_url: string; storage_path: string }>(`/v1/teacher-details/${detailId}/upload-url`);
+export function getUploadDetailUrl(detailId: string, data: { file_name: string }) {
+    return request.post<any, UploadDetailUrlResponse>(`/v1/teacher-details/${detailId}/upload-url`, data);
 }
 
 export function confirmUploadDetail(detailId: string, data: { storage_path: string, file_name: string }) {

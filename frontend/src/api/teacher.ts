@@ -103,6 +103,13 @@ export interface TeacherDetailResponse<T> {
   data: T;
 }
 
+export interface UploadTeacherAvatarUrlResponse {
+  upload_url: string;
+  storage_path: string;
+  content_type: string;
+  max_size_bytes: number;
+}
+
 export function getTeacherList(params: TeacherListParams) {
   return request.get<any, TeacherListResponse>('/v1/teachers', { params });
 }
@@ -121,8 +128,8 @@ export function deleteTeacher(teacherId: string) {
 export function getTeacherById(teacherId: string) {
   return request.get<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}`);
 }
-export function getTeacherAvatarUploadUrl(teacherId: string) {
-  return request.post<any, { upload_url: string, storage_path: string }>(`/v1/teachers/${teacherId}/avatar/upload-url`);
+export function getTeacherAvatarUploadUrl(teacherId: string, data: { file_name: string }) {
+  return request.post<any, UploadTeacherAvatarUrlResponse>(`/v1/teachers/${teacherId}/avatar/upload-url`, data);
 }
 export function confirmTeacherAvatar(teacherId: string, data: { storage_path: string, file_name: string }) {
   return request.post<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}/avatar/confirm-upload`, data);

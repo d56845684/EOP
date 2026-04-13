@@ -1,5 +1,5 @@
 <template>
-  <el-drawer v-model="isVisible" :title="drawerTitle" size="620px" @closed="handleClosed">
+  <el-drawer v-model="isVisible" :title="drawerTitle" size="550px" @closed="handleClosed">
     <div v-loading="loading" class="min-h-full">
       <!-- BLOCK A: Main Contract Form -->
       <el-divider content-position="left" class="mt-1 mb-8">
@@ -136,10 +136,10 @@
                   :key="index" 
                   class="inline-flex items-center px-1.5 py-1 rounded-md mb-2 mx-1 bg-[#e9eaed]"
                 >
-                  <el-time-picker v-model="sch.start_time" format="HH:mm" value-format="HH:mm" placeholder="Start" class="w-90px! h-25px!" />
+                  <el-time-picker v-model="sch.start_time" format="HH:mm" value-format="HH:mm" placeholder="Start" class="w-86px! h-25px!" />
                   <span class="text-xs px-2">~</span>
-                  <el-time-picker v-model="sch.end_time" format="HH:mm" value-format="HH:mm" placeholder="End" class="w-90px! h-25px!" />
-                  <el-button type="danger" size="small" round link @click="removeScheduleFromDay(day.value, index)">
+                  <el-time-picker v-model="sch.end_time" format="HH:mm" value-format="HH:mm" placeholder="End" class="w-86px! h-25px!" />
+                  <el-button type="danger" size="small" round link class="px-2!" @click="removeScheduleFromDay(day.value, index)">
                     <div class="i-hugeicons:delete-02" />
                   </el-button>
                 </div>
@@ -161,7 +161,7 @@
         </el-row>
         <el-row class="mt-2 mb-10">
           <el-col :span="12">
-            <el-button type="primary" round size="small" class="py-3!" :loading="savingContract" @click="saveContractData">
+            <el-button type="primary" round size="small" class="py-3!" :loading="savingContract" @click="saveContract">
               <template #icon>
                 <div class="i-hugeicons:floppy-disk text-lg" />
               </template>
@@ -322,6 +322,7 @@
               <el-option label="底薪" value="base_salary" />
               <el-option label="津貼" value="allowance" />
               <el-option label="課程時薪" value="course_rate" />
+              <el-option label="加班時薪" value="overtime_rate" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -377,7 +378,7 @@
   </el-dialog>
 
   <!-- Addendum dialog -->
-  <el-dialog
+  <!-- <el-dialog
     v-model="showAddendumDialog"
     :title="addendumDialogType === 'create' ? '新增附約' : '編輯附約'"
     width="380px"
@@ -417,7 +418,7 @@
         </el-button>
       </div>
     </template>
-  </el-dialog>
+  </el-dialog> -->
 </template>
 
 <script setup lang="ts">
@@ -433,22 +434,22 @@ import {
   createTeacherContractDetail,
   deleteTeacherContractDetail,
   getCourseOptions,
-  generateTeacherContractPdf,
-  getTeacherContractAddendums,
-  createTeacherContractAddendum,
-  updateTeacherContractAddendum,
-  deleteTeacherContractAddendum,
+  // generateTeacherContractPdf,
+  // getTeacherContractAddendums,
+  // createTeacherContractAddendum,
+  // updateTeacherContractAddendum,
+  // deleteTeacherContractAddendum,
   type TeacherWorkScheduleCreate,
   type CourseOption,
   type TeacherContractDetailResponse,
   type TeacherContractCreate,
   type TeacherContractUpdate,
   type TeacherContractResponse,
-  type TeacherContractAddendumResponse,
+  // type TeacherContractAddendumResponse,
 } from '@/api/teacherContract';
 import { TEACHER_CONTRACT_STATUS_MAP } from '@/constants/contract';
 import { uploadContractFile } from '@/utils/upload';
-import { triggerDownload, getFileNameFromResponse } from '@/utils/download';
+// import { triggerDownload, getFileNameFromResponse } from '@/utils/download';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -510,16 +511,18 @@ const groupedSchedules = ref<Record<number, ScheduleSlot[]>>({
 });
 
 // Detail type options
-type DetailType = 'base_salary' | 'allowance' | 'course_rate';
+type DetailType = 'base_salary' | 'allowance' | 'course_rate' | 'overtime_rate';
 const DETAIL_TYPE_MAP: Record<string, string> = {
   base_salary: '底薪',
   allowance: '津貼',
   course_rate: '課程時薪',
+  overtime_rate: '加班時薪',
 };
 const detailTypeTagType = (type: string) => {
   if (type === 'base_salary') return 'primary';
   if (type === 'allowance') return 'success';
   if (type === 'course_rate') return 'warning';
+  if (type === 'overtime_rate') return 'danger';
   return 'info';
 };
 
@@ -546,16 +549,16 @@ const rateRules = reactive<FormRules>({
 });
 
 // Addendums
-const addendums = ref<TeacherContractAddendumResponse[]>([]);
-const showAddendumDialog = ref(false);
-const addendumDialogType = ref<'create' | 'edit'>('create');
-const editingAddendumId = ref<string | null>(null);
-const savingAddendum = ref(false);
+// const addendums = ref<TeacherContractAddendumResponse[]>([]);
+// const showAddendumDialog = ref(false);
+// const addendumDialogType = ref<'create' | 'edit'>('create');
+// const editingAddendumId = ref<string | null>(null);
+// const savingAddendum = ref(false);
 const uploadingContract = ref(false);
 const contractFileStatus = ref<string | null>(null); // file_uploaded_at from contract
 const contractFileList = ref<any[]>([]);
 
-const addendumForm = reactive({ new_end_date: '', notes: '' });
+// const addendumForm = reactive({ new_end_date: '', notes: '' });
 
 // --- Methods ---
 const loadContracts = async () => {
@@ -606,8 +609,8 @@ const loadContracts = async () => {
     // Filter just to be safe, though details API might return all detail types
     courseRates.value = dRes.data || [];
     // Load Addendums
-    const aRes = await getTeacherContractAddendums(contract.value.id);
-    addendums.value = aRes.success ? aRes.data : [];
+    // const aRes = await getTeacherContractAddendums(contract.value.id);
+    // addendums.value = aRes.success ? aRes.data : [];
 
     // Track contract file upload status (from contract response)
     contractFileStatus.value = (contract.value as any).contract_file_uploaded_at || null;
@@ -621,7 +624,7 @@ const loadContracts = async () => {
     contractForm.trial_to_formal_bonus = 0;
     groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
     courseRates.value = [];
-    addendums.value = [];
+    // addendums.value = [];
     contractFileStatus.value = null;
   }
 
@@ -681,14 +684,24 @@ const saveContract = async () => {
         
         const cId = contractId.value;
         if (hasContract.value && cId) {
-          await updateTeacherContract(cId, payload as TeacherContractUpdate);
-          await saveSchedules();
-          ElMessage.success('Contract updated');
+          const res = await updateTeacherContract(cId, payload as TeacherContractUpdate);
+          if (res.success) {
+            ElMessage.success('教師合約更新成功');
+          }
+          if (contractForm.employment_type === 'full_time') {
+            await saveSchedules();
+          }
         } else {
           payload.teacher_id = tId;
-          await createTeacherContract(payload as TeacherContractCreate);
-          ElMessage.success('Contract created');
-          await saveSchedules();
+          const res = await createTeacherContract(payload as TeacherContractCreate);
+          if (res.success) {
+            contractId.value = res.data.id;
+            hasContract.value = true;
+            ElMessage.success('教師合約新增成功');
+          }
+          if (contractForm.employment_type === 'full_time') {
+            await saveSchedules();
+          }
           await loadContracts(); // Reload to get contract ID
         }
       } catch (e) {
@@ -698,27 +711,6 @@ const saveContract = async () => {
       }
     }
   });
-};
-
-// Alias – must be declared after saveContract
-const saveContractData = saveContract;
-
-// Generate / download PDF
-const downloadContractData = async () => {
-  const cId = contractId.value;
-  if (!cId) { ElMessage.warning('請先儲存合約'); return; }
-  try {
-    savingContract.value = true;
-    const res = await generateTeacherContractPdf(cId);
-    const blob = new Blob([res.data], { type: 'application/pdf' });
-    const fileName = getFileNameFromResponse(res) || `teacher_contract_${cId}.pdf`;
-    triggerDownload(blob, fileName);
-  } catch (e) {
-    console.error(e);
-    ElMessage.error('產生合約書失敗');
-  } finally {
-    savingContract.value = false;
-  }
 };
 
 // Upload contract document
@@ -741,79 +733,97 @@ const uploadContractDoc = async (uploadFile: any) => {
   }
 };
 
+// // Generate / download PDF
+// const downloadContractData = async () => {
+//   const cId = contractId.value;
+//   if (!cId) { ElMessage.warning('請先儲存合約'); return; }
+//   try {
+//     savingContract.value = true;
+//     const res = await generateTeacherContractPdf(cId);
+//     const blob = new Blob([res.data], { type: 'application/pdf' });
+//     const fileName = getFileNameFromResponse(res) || `teacher_contract_${cId}.pdf`;
+//     triggerDownload(blob, fileName);
+//   } catch (e) {
+//     console.error(e);
+//     ElMessage.error('產生合約書失敗');
+//   } finally {
+//     savingContract.value = false;
+//   }
+// };
+
 // Addendums
-const openAddendumDialog = (type: 'create' | 'edit', row?: TeacherContractAddendumResponse) => {
-  addendumDialogType.value = type;
-  if (type === 'edit' && row) {
-    editingAddendumId.value = row.id;
-    addendumForm.new_end_date = row.new_end_date || '';
-    addendumForm.notes = row.notes || '';
-  } else {
-    editingAddendumId.value = null;
-    addendumForm.new_end_date = '';
-    addendumForm.notes = '';
-  }
-  showAddendumDialog.value = true;
-};
+// const openAddendumDialog = (type: 'create' | 'edit', row?: TeacherContractAddendumResponse) => {
+//   addendumDialogType.value = type;
+//   if (type === 'edit' && row) {
+//     editingAddendumId.value = row.id;
+//     addendumForm.new_end_date = row.new_end_date || '';
+//     addendumForm.notes = row.notes || '';
+//   } else {
+//     editingAddendumId.value = null;
+//     addendumForm.new_end_date = '';
+//     addendumForm.notes = '';
+//   }
+//   showAddendumDialog.value = true;
+// };
 
-const resetAddendumForm = () => {
-  addendumForm.new_end_date = '';
-  addendumForm.notes = '';
-  editingAddendumId.value = null;
-};
+// const resetAddendumForm = () => {
+//   addendumForm.new_end_date = '';
+//   addendumForm.notes = '';
+//   editingAddendumId.value = null;
+// };
 
-const saveAddendum = async () => {
-  const cId = contractId.value;
-  if (!cId) return;
-  savingAddendum.value = true;
-  try {
-    if (addendumDialogType.value === 'create') {
-      const res = await createTeacherContractAddendum(cId, addendumForm);
-      if (res && res.success) ElMessage.success('新增附約成功');
-    } else if (editingAddendumId.value) {
-      const res = await updateTeacherContractAddendum(cId, editingAddendumId.value, addendumForm);
-      if (res && res.success) ElMessage.success('更新附約成功');
-    }
-    showAddendumDialog.value = false;
-    await loadContracts();
-  } catch (e) {
-    console.error(e);
-    ElMessage.error(addendumDialogType.value === 'create' ? '新增附約失敗' : '更新附約失敗');
-  } finally {
-    savingAddendum.value = false;
-  }
-};
+// const saveAddendum = async () => {
+//   const cId = contractId.value;
+//   if (!cId) return;
+//   savingAddendum.value = true;
+//   try {
+//     if (addendumDialogType.value === 'create') {
+//       const res = await createTeacherContractAddendum(cId, addendumForm);
+//       if (res && res.success) ElMessage.success('新增附約成功');
+//     } else if (editingAddendumId.value) {
+//       const res = await updateTeacherContractAddendum(cId, editingAddendumId.value, addendumForm);
+//       if (res && res.success) ElMessage.success('更新附約成功');
+//     }
+//     showAddendumDialog.value = false;
+//     await loadContracts();
+//   } catch (e) {
+//     console.error(e);
+//     ElMessage.error(addendumDialogType.value === 'create' ? '新增附約失敗' : '更新附約失敗');
+//   } finally {
+//     savingAddendum.value = false;
+//   }
+// };
 
-const handleDeleteAddendum = async (addendumId: string) => {
-  const cId = contractId.value;
-  if (!cId) return;
-  try {
-    await ElMessageBox.confirm('確定要刪除此附約嗎？', '刪除附約', { type: 'warning', confirmButtonText: '確定', cancelButtonText: '取消' });
-    await deleteTeacherContractAddendum(cId, addendumId);
-    ElMessage.success('附約已刪除');
-    await loadContracts();
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error('刪除附約失敗');
-  }
-};
+// const handleDeleteAddendum = async (addendumId: string) => {
+//   const cId = contractId.value;
+//   if (!cId) return;
+//   try {
+//     await ElMessageBox.confirm('確定要刪除此附約嗎？', '刪除附約', { type: 'warning', confirmButtonText: '確定', cancelButtonText: '取消' });
+//     await deleteTeacherContractAddendum(cId, addendumId);
+//     ElMessage.success('附約已刪除');
+//     await loadContracts();
+//   } catch (e) {
+//     if (e !== 'cancel') ElMessage.error('刪除附約失敗');
+//   }
+// };
 
-const uploadAddendum = async (uploadFile: any, addendumId: string) => {
-  const cId = contractId.value;
-  if (!cId || !uploadFile.raw) return;
-  try {
-    const res = await uploadContractFile('teacher', cId, addendumId, uploadFile.raw);
-    if (res && res.success) {
-      ElMessage.success('附約文件已上傳');
-      await loadContracts();
-    }
-  } catch (e) {
-    console.error(e);
-    ElMessage.error('附約文件上傳失敗');
-  }
-};
+// const uploadAddendum = async (uploadFile: any, addendumId: string) => {
+//   const cId = contractId.value;
+//   if (!cId || !uploadFile.raw) return;
+//   try {
+//     const res = await uploadContractFile('teacher', cId, addendumId, uploadFile.raw);
+//     if (res && res.success) {
+//       ElMessage.success('附約文件已上傳');
+//       await loadContracts();
+//     }
+//   } catch (e) {
+//     console.error(e);
+//     ElMessage.error('附約文件上傳失敗');
+//   }
+// };
 
 // Extend contract shortcut
-const extendContract = (type: 'create' | 'edit') => openAddendumDialog(type);
+// const extendContract = (type: 'create' | 'edit') => openAddendumDialog(type);
 
 // Copy Monday slots (key 0) to Tuesday–Friday (keys 1–4), skip Saturday/Sunday
 const copyMondayToAll = () => {
@@ -869,9 +879,9 @@ const saveSchedules = async () => {
     });
 
     await batchSetTeacherWorkSchedules(cId, { schedules: flattenedSchedules });
-    ElMessage.success('Schedules updated');
+    ElMessage.success('工作時段更新成功');
   } catch (e) {
-    ElMessage.error('Failed to update schedules');
+    ElMessage.error('工作時段更新失敗');
   } finally {
     savingSchedules.value = false;
   }
@@ -932,12 +942,6 @@ const handleDeleteRate = async (detailId: string) => {
   } catch (e) {
     if (e !== 'cancel') ElMessage.error('Failed to delete rate');
   }
-};
-
-const getCourseName = (id: string | null | undefined) => {
-  if (!id) return '-';
-  const c = courseOptions.value.find(o => o.id === id);
-  return c ? c.name : id;
 };
 
 const handleClosed = () => {
