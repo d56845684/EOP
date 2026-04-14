@@ -119,7 +119,7 @@ async def get_allowed_teachers(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/", tags=["學生教師偏好"])
+@router.get("", tags=["學生教師偏好"])
 async def list_preferences(
     student_id: str = Query(..., description="學生 ID"),
     current_user: CurrentUser = Depends(require_page_permission("students.edit"))
@@ -164,7 +164,7 @@ async def list_preferences(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/")
+@router.post("")
 async def create_preference(
     data: StudentTeacherPreferenceCreate,
     current_user: CurrentUser = Depends(require_page_permission("students.edit"))

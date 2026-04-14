@@ -6,7 +6,7 @@ from datetime import datetime
 
 router = APIRouter(prefix="/health", tags=["健康檢查"])
 
-@router.get("/", response_model=dict)
+@router.get("", response_model=dict)
 async def health_check():
     """基本健康檢查"""
     return {
