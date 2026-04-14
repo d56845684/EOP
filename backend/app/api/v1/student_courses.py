@@ -51,7 +51,7 @@ async def get_student_options(
             select="id,student_no,name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
         )
-        return {"data": students}
+        return {"success": True, "message": "操作成功", "data": students}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -67,7 +67,7 @@ async def get_course_options(
             select="id,course_code,course_name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
         )
-        return {"data": courses}
+        return {"success": True, "message": "操作成功", "data": courses}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -196,7 +196,7 @@ async def get_courses_by_student(
                 e["course_name"] = c["course_name"] if c else None
                 e["student_name"] = None  # 已知是同一學生，不需要查
 
-        return {"data": enrollments}
+        return {"success": True, "message": "操作成功", "data": enrollments}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"取得學生選課失敗: {str(e)}")

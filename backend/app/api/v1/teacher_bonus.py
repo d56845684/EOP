@@ -308,6 +308,6 @@ async def get_teacher_options(
             table="teachers", select="id,teacher_no,name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
         )
-        return {"data": teachers}
+        return {"success": True, "message": "操作成功", "data": teachers}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"取得教師選項失敗: {str(e)}")

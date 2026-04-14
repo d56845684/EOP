@@ -51,7 +51,7 @@ async def list_roles_for_employees(
         rows = await supabase_service.pool.fetch(
             "SELECT id, key, name FROM roles ORDER BY key"
         )
-        return {"data": [{"id": str(r["id"]), "key": r["key"], "name": r["name"]} for r in rows]}
+        return {"success": True, "message": "操作成功", "data": [{"id": str(r["id"]), "key": r["key"], "name": r["name"]} for r in rows]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"取得角色列表失敗: {str(e)}")
 

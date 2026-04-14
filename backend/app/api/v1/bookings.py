@@ -812,7 +812,7 @@ async def get_my_student_info(
         user_student_id = current_user.student_id
 
         if not user_student_id:
-            return {"data": None}
+            return {"success": True, "message": "操作成功", "data": None}
 
         student = await supabase_service.table_select(
             table="students",
@@ -821,9 +821,9 @@ async def get_my_student_info(
         )
 
         if not student:
-            return {"data": None}
+            return {"success": True, "message": "操作成功", "data": None}
 
-        return {"data": student[0]}
+        return {"success": True, "message": "操作成功", "data": student[0]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -837,7 +837,7 @@ async def get_my_contracts(
         user_student_id = current_user.student_id
 
         if not user_student_id:
-            return {"data": []}
+            return {"success": True, "message": "操作成功", "data": []}
 
         contracts = await supabase_service.table_select(
             table="student_contracts",
@@ -880,7 +880,7 @@ async def get_my_contracts(
             contract["course_name"] = ", ".join(course_names) if course_names else None
             enriched.append(contract)
 
-        return {"data": enriched}
+        return {"success": True, "message": "操作成功", "data": enriched}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2371,7 +2371,7 @@ async def get_student_options(
             select="id,student_no,name,student_type",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
         )
-        return {"data": students}
+        return {"success": True, "message": "操作成功", "data": students}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2402,7 +2402,7 @@ async def get_teacher_options(
                 filters=filters,
             )
 
-        return {"data": teachers}
+        return {"success": True, "message": "操作成功", "data": teachers}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2457,7 +2457,7 @@ async def get_overlapping_course_options(
                     teacher_course_ids.add(d["course_id"])
 
         if not teacher_course_ids:
-            return {"data": []}
+            return {"success": True, "message": "操作成功", "data": []}
 
         # 3. 決定最終課程 IDs
         if is_trial:
@@ -2478,7 +2478,7 @@ async def get_overlapping_course_options(
             final_course_ids = teacher_course_ids & student_course_ids
 
         if not final_course_ids:
-            return {"data": []}
+            return {"success": True, "message": "操作成功", "data": []}
 
         # 4. 查課程資料
         courses = await supabase_service.table_select(
@@ -2490,7 +2490,7 @@ async def get_overlapping_course_options(
         # 過濾交集課程
         result = [c for c in courses if c["id"] in final_course_ids]
 
-        return {"data": result}
+        return {"success": True, "message": "操作成功", "data": result}
     except HTTPException:
         raise
     except Exception as e:
@@ -2508,7 +2508,7 @@ async def get_course_options(
             select="id,course_code,course_name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
         )
-        return {"data": courses}
+        return {"success": True, "message": "操作成功", "data": courses}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2561,7 +2561,7 @@ async def get_student_contract_options(
             contract["course_name"] = ", ".join(course_names) if course_names else None
             enriched.append(contract)
 
-        return {"data": enriched}
+        return {"success": True, "message": "操作成功", "data": enriched}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2717,7 +2717,7 @@ async def get_substitute_teacher_options(
 
         # 排序：is_preferred=True 排前面
         result.sort(key=lambda x: (not x["is_preferred"], x.get("teacher_no", "")))
-        return {"data": result}
+        return {"success": True, "message": "操作成功", "data": result}
 
     except HTTPException:
         raise
@@ -2741,7 +2741,7 @@ async def get_teacher_contract_options(
                 "contract_status": "eq.active"
             },
         )
-        return {"data": contracts}
+        return {"success": True, "message": "操作成功", "data": contracts}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2774,7 +2774,7 @@ async def get_teacher_slot_options(
         if date_to:
             slots = [s for s in slots if s.get("slot_date") <= date_to.isoformat()]
 
-        return {"data": slots}
+        return {"success": True, "message": "操作成功", "data": slots}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -162,7 +162,7 @@ async def get_teacher_options(
             select="id,teacher_no,name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
         )
-        return {"data": teachers}
+        return {"success": True, "message": "操作成功", "data": teachers}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -178,7 +178,7 @@ async def get_course_options(
             select="id,course_code,course_name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
         )
-        return {"data": courses}
+        return {"success": True, "message": "操作成功", "data": courses}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -693,7 +693,7 @@ async def list_contract_details(
                 d["course_name"] = course[0]["course_name"] if course else None
             enriched.append(d)
 
-        return {"data": [TeacherContractDetailResponse(**d) for d in enriched]}
+        return {"success": True, "message": "操作成功", "data": [TeacherContractDetailResponse(**d) for d in enriched]}
 
     except HTTPException:
         raise
@@ -926,7 +926,7 @@ async def list_work_schedules(
             },
         )
 
-        return {"data": [TeacherWorkScheduleResponse(**s) for s in schedules]}
+        return {"success": True, "message": "操作成功", "data": [TeacherWorkScheduleResponse(**s) for s in schedules]}
 
     except HTTPException:
         raise
