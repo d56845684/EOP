@@ -352,6 +352,20 @@ async def update_preference(
         if not update_data:
             raise HTTPException(status_code=400, detail="沒有需要更新的欄位")
 
+        # 重複檢查：防止更新後與同學生的其他偏好重複
+        current = existing[0]
+        new_teacher_id = update_data.get("primary_teacher_id", current.get("primary_teacher_id"))
+        if new_teacher_id:
+            # 教師模式：檢查同學生是否已有相同教師的偏好
+            dup = await supabase_service.pool.fetch(
+                "SELECT id FROM student_teacher_preferences "
+                "WHERE student_id = $1 AND primary_teacher_id = $2 "
+                "AND is_deleted = false AND id != $3",
+                current["student_id"], new_teacher_id, preference_id,
+            )
+            if dup:
+                raise HTTPException(status_code=400, detail="此學生已有該教師的偏好設定，無法重複指定")
+
         if employee_id:
             update_data["updated_by"] = employee_id
 
