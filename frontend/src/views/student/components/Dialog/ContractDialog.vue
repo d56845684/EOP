@@ -57,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { type StudentContract } from '@/api/contract'
+import { type StudentContract } from '@/api/studentContract'
 import { computed, type PropType } from 'vue'
 import { STUDENT_CONTRACT_STATUS_MAP } from '@/constants/contract';
 

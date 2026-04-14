@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
-import { createContractLeaveRecord, type StudentContractLeaveRecordCreate } from '@/api/contract';
+import { createContractLeaveRecord, type StudentContractLeaveRecordCreate } from '@/api/studentContract';
 import { ElMessage } from 'element-plus';
 
 const props = defineProps({

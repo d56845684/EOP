@@ -31,7 +31,7 @@
                   accept=".pdf"
                   :auto-upload="false"
                   :show-file-list="false"
-                  :on-change="(uploadFile: UploadFile) => uploadContract(uploadFile, 'contract')"
+                  :on-change="(uploadFile: UploadFile) => uploadStudentContract(uploadFile, 'contract')"
                 >
                   <el-button
                     color="#626aef"
@@ -255,7 +255,7 @@
                         accept=".pdf"
                         :auto-upload="false"
                         :show-file-list="false"
-                        :on-change="(uploadFile: UploadFile) => uploadContract(uploadFile, 'addendum')"
+                        :on-change="(uploadFile: UploadFile) => uploadStudentContract(uploadFile, 'addendum')"
                       >
                         <el-button type="primary" round link>
                           <div class="i-hugeicons:upload-01" />
@@ -423,7 +423,7 @@ import {
   type StudentContract,
   type StudentContractDetail ,
   type StudentContractAddendum
-} from '@/api/contract';
+} from '@/api/studentContract';
 import { CONTRACT_STATUS, STUDENT_CONTRACT_STATUS_MAP } from '@/constants/contract';
 import { triggerDownload, getFileNameFromResponse}  from '@/utils/download';
 import { uploadContractFile } from '@/utils/upload';
@@ -562,7 +562,7 @@ const deleteAddendum = () => {
 
 const uploadRef = ref<UploadInstance | null>(null);
 const uploadAddendumRef = ref<UploadInstance | null>(null);
-const uploadContract = async (uploadFile: UploadFile, type: 'contract' | 'addendum' | null) => {
+const uploadStudentContract = async (uploadFile: UploadFile, type: 'contract' | 'addendum' | null) => {
   if (!activeContract.value || (type === 'addendum' && !activeAddendum.value)) return;
   try {
     const activeAddendumId = type === 'addendum' ? activeAddendum.value!.id : null;

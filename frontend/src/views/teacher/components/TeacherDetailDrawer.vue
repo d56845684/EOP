@@ -1,72 +1,81 @@
 <template>
-  <el-drawer v-model="isVisible" :title="drawerTitle" size="600px" @closed="handleClosed">
+  <el-drawer v-model="isVisible" :title="drawerTitle" size="550px" @closed="handleClosed">
     <div v-loading="loading" class="min-h-full">
-
-      <!-- Avatar ------------------------------------------------------- -->
-      <div class="flex items-center gap-5 mb-6">
-        <div class="relative group w-20 h-20 flex-shrink-0">
-          <el-image
-            :src="avatarUrl || ''"
-            fit="cover"
-            class="w-20 h-20 rounded-full border-2 border-[#e4e6ef] object-cover"
-          >
-            <template #error>
-              <div class="w-20 h-20 rounded-full bg-[#f3f4f8] flex items-center justify-center">
-                <div class="i-hugeicons:user text-3xl color-[#b5b5c3]" />
-              </div>
-            </template>
-          </el-image>
-          <el-upload
-            class="absolute inset-0 rounded-full overflow-hidden"
-            action="#"
-            :limit="1"
-            :multiple="false"
-            accept=".jpg,.jpeg,.png,.webp"
-            :auto-upload="false"
-            :show-file-list="false"
-            :on-change="handleAvatarChange"
-          >
-            <div
-              class="w-20 h-20 rounded-full flex flex-col items-center justify-center
-                     bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-            >
-              <div v-if="uploadingAvatar" class="i-hugeicons:loading-03 animate-spin text-white text-xl" />
-              <template v-else>
-                <div class="i-hugeicons:camera-02 text-white text-xl" />
-                <span class="text-white text-10px mt-1">編輯頭像</span>
-              </template>
-            </div>
-          </el-upload>
-        </div>
-        <div class="flex flex-col gap-1 text-xs color-[#7e8299]">
-          <span>支援格式：JPG、PNG、WebP</span>
-          <span>限制２MB</span>
-        </div>
-      </div>
-
-      <!-- Basic Info Form ---------------------------------------------- -->
+      <!-- Basic Info Form ------------------------------------------------>
       <el-form ref="basicFormRef" :model="basicForm" :rules="basicRules" size="small" label-position="top" label-width="120px">
         <el-row>
+          <el-col :span="24">
+            <!-- Avatar --------------------------------------------------------->
+            <div class="flex items-center gap-4 mb-6">
+              <div class="relative group w-20 h-20 flex-shrink-0">
+                <el-image
+                  :src="avatarUrl || uploadAvatar.url || ''"
+                  fit="cover"
+                  class="w-20 h-20 rounded-full border-2 border-[#e4e6ef] object-cover"
+                >
+                  <template #error>
+                    <div class="w-20 h-20 rounded-full bg-[#f3f4f8] flex items-center justify-center">
+                      <div class="i-hugeicons:user text-3xl color-[#b5b5c3]" />
+                    </div>
+                  </template>
+                </el-image>
+                <el-upload
+                  class="absolute inset-0 rounded-full overflow-hidden"
+                  action="#"
+                  :limit="1"
+                  :multiple="false"
+                  accept=".jpg,.jpeg,.png,.webp"
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  :on-change="handleUploadAvatar"
+                >
+                  <div
+                    class="w-20 h-20 rounded-full flex flex-col items-center justify-center
+                          bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <div v-if="uploadingAvatar" class="i-hugeicons:loading-03 animate-spin text-white text-xl" />
+                    <template v-else>
+                      <div class="i-hugeicons:camera-02 text-white text-xl" />
+                      <span class="text-white text-10px mt-1">編輯頭像</span>
+                    </template>
+                  </div>
+                </el-upload>
+              </div>
+              <div class="flex flex-col gap-1 text-xs color-[#7e8299]">
+                <span>支援格式：JPG、PNG、WebP</span>
+                <span>限制２MB</span>
+              </div>
+            </div>
+          </el-col>
+        </el-row>
+        <el-row>
           <el-col :span="10">
-            <el-form-item :label="$t('common.name')" prop="name">
-              <el-input v-model="basicForm.name" class="h-30px!" />
+            <el-form-item :label="$t('teacher.teacherNo')" prop="teacher_no">
+              <el-input :readonly="isEdit" v-model="basicForm.teacher_no" class="h-30px!" />
             </el-form-item>
           </el-col>
           <el-col :span="10" :push="2">
-            <el-form-item :label="$t('common.phone')" prop="phone">
-              <el-input v-model="basicForm.phone" class="h-30px!" />
+            <el-form-item :label="$t('common.name')" prop="name">
+              <el-input v-model="basicForm.name" class="h-30px!" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row>
           <el-col :span="10">
-            <el-form-item :label="$t('common.email')" prop="email">
-              <el-input v-model="basicForm.email" class="h-30px!" />
+            <el-form-item :label="$t('common.phone')" prop="phone">
+              <el-input v-model="basicForm.phone" class="h-30px!" />
             </el-form-item>
           </el-col>
           <el-col :span="10" :push="2">
             <el-form-item label="教師等級" prop="teacher_level">
               <el-input-number v-model="basicForm.teacher_level" :min="1" class="h-30px!" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="18">
+            <el-form-item :label="$t('common.email')" prop="email">
+              <el-input v-model="basicForm.email" class="h-30px!" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -104,11 +113,11 @@
           <!-- Left -->
           <div class="flex flex-col gap-0.5 min-w-0 mr-3">
             <div class="flex items-center gap-1.5 mb-0.5">
-              <el-tag size="small" :type="detailTagType(item.detail_type)" class="text-10px px-5px h-18px!">
+              <el-tag size="small" :type="detailTagType(item.detail_type)" class="text-10px px-5px h-16px!">
                 {{ DETAIL_TYPE_MAP[item.detail_type] || item.detail_type }}
               </el-tag>
             </div>
-            <span class="text-12px text-[#3f4254]">{{ item.content || '-' }}</span>
+            <span class="text-13px text-[#3f4254cc]">{{ item.content || '-' }}</span>
             <div class="flex gap-3 mt-0.5">
               <span v-if="item.issue_date" class="text-11px color-gray-400">發證：{{ item.issue_date }}</span>
               <span v-if="item.expiry_date" class="text-11px color-gray-400">到期：{{ item.expiry_date }}</span>
@@ -148,61 +157,86 @@
   >
     <el-form ref="detailFormRef" :model="detailForm" :rules="detailRules" label-position="top" size="small">
       <!-- 類型 -->
-      <el-form-item label="類型" prop="detail_type">
-        <el-select v-model="detailForm.detail_type" placeholder="請選擇類型" class="w-full">
-          <el-option label="學歷" value="qualification" />
-          <el-option label="證照" value="certificate" />
-          <el-option label="教學影片" value="video" />
-          <el-option label="經歷" value="experience" />
-        </el-select>
-      </el-form-item>
-      <!-- 內容 -->
-      <el-form-item label="內容" prop="content">
-        <el-input v-model="detailForm.content" type="textarea" :rows="4" placeholder="請輸入內容" />
-      </el-form-item>
-      <!-- 發證日期：僅 certificate -->
-      <el-form-item v-if="detailForm.detail_type === 'certificate'" label="發證日期" prop="issue_date">
-        <el-date-picker
-          v-model="detailForm.issue_date"
-          type="date"
-          value-format="YYYY-MM-DD"
-          placeholder="請選擇發證日期"
-          class="w-full! h-30px!"
-        />
-      </el-form-item>
-      <!-- 到期日期：僅 certificate -->
-      <el-form-item v-if="detailForm.detail_type === 'certificate'" label="到期日期" prop="expiry_date">
-        <el-date-picker
-          v-model="detailForm.expiry_date"
-          type="date"
-          value-format="YYYY-MM-DD"
-          placeholder="請選擇到期日期"
-          class="w-full! h-30px!"
-        />
-      </el-form-item>
-      <!-- 上傳檔案：certificate 或 video -->
-      <el-form-item
-        v-if="detailForm.detail_type === 'certificate' || detailForm.detail_type === 'video'"
-        label="上傳檔案"
-      >
-        <el-upload
-          action="#"
-          :limit="1"
-          :multiple="false"
-          :auto-upload="false"
-          :show-file-list="true"
-          :on-change="(f: any) => { detailPendingFile = f.raw || null }"
-          :on-remove="() => { detailPendingFile = null }"
-        >
-          <el-button size="small" round plain>
-            <template #icon><div class="i-hugeicons:upload-01" /></template>
-            選擇檔案
-          </el-button>
-        </el-upload>
-        <div v-if="existingFileName && !detailPendingFile" class="text-11px color-[#626aef] mt-1 flex items-center gap-1">
-          <div class="i-hugeicons:file-02" />{{ existingFileName }}（已上傳）
-        </div>
-      </el-form-item>
+      <el-row>
+        <el-col :span="10">
+          <el-form-item label="類型" prop="detail_type">
+            <el-select v-model="detailForm.detail_type" placeholder="請選擇類型" class="w-full">
+              <el-option label="學歷" value="qualification" />
+              <el-option label="證照" value="certificate" />
+              <el-option label="教學影片" value="video" />
+              <el-option label="經歷" value="experience" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row>
+        <el-col :span="24">
+          <!-- 內容 -->
+          <el-form-item :label="detailForm.detail_type === 'video' ? '影片連結或嵌入影片' : '內容'" prop="content">
+            <el-input 
+              v-model="detailForm.content"
+              type="textarea" :rows="4" 
+              :placeholder="detailForm.detail_type === 'video' ? '請貼上影片連結或嵌入影片原始碼' : '請輸入內容'" 
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row>
+        <el-col :span="11">
+          <!-- 發證日期：僅 certificate -->
+          <el-form-item v-if="detailForm.detail_type === 'certificate'" label="發證日期" prop="issue_date">
+            <el-date-picker
+              v-model="detailForm.issue_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="請選擇發證日期"
+              class="w-full! h-30px!"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="11" :push="2">
+          <!-- 到期日期：僅 certificate -->
+          <el-form-item v-if="detailForm.detail_type === 'certificate'" label="到期日期" prop="expiry_date">
+            <el-date-picker
+              v-model="detailForm.expiry_date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="請選擇到期日期"
+              class="w-full! h-30px!"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row>
+        <el-col>
+          <!-- 上傳檔案：certificate 或 video -->
+          <el-form-item
+            v-if="detailForm.detail_type === 'certificate'"
+            label="上傳檔案"
+            class="w-full upload-field"
+          >
+            <el-upload
+              action="#"
+              :limit="1"
+              :multiple="false"
+              :auto-upload="false"
+              :show-file-list="true"
+              accept=".pdf, .jpg, .jpeg, .png"
+              :on-change="(f: any) => { detailPendingFile = f.raw || null }"
+              :on-remove="() => { detailPendingFile = null }"
+            >
+              <el-button size="small" round plain>
+                <template #icon><div class="i-hugeicons:upload-01" /></template>
+                選擇檔案
+              </el-button>
+            </el-upload>
+            <div v-if="existingFileName && !detailPendingFile" class="text-11px color-[#626aef] mt-1 flex items-center gap-1">
+              <div class="i-hugeicons:file-02" />
+              <span class="text-wrap break-all">{{ existingFileName }}</span>
+            </div>
+          </el-form-item>
+        </el-col>
+      </el-row>
     </el-form>
     <template #footer>
       <div class="flex justify-end gap-2">
@@ -218,7 +252,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
-import { getTeacherById, updateTeacher, type TeacherUpdate } from '@/api/teacher';
+import { getTeacherById, createTeacher, updateTeacher, type TeacherCreate, type TeacherUpdate } from '@/api/teacher';
 import {
   getTeacherDetails,
   createTeacherDetail,
@@ -257,6 +291,8 @@ const isVisible = computed({
   set: (val) => emit('update:modelValue', val)
 });
 
+const isEdit = computed(() => !!props.teacherId);
+
 // UI State
 const loading = ref(false);
 const saving = ref(false);
@@ -264,12 +300,13 @@ const uploadingAvatar = ref(false);
 const avatarUrl = ref<string | null>(null);
 
 const drawerTitle = computed(() => {
-  return (basicForm.name ? basicForm.name : 'Teacher Details') + ' 詳情';
+  return isEdit.value ? (basicForm.name ? basicForm.name : 'Teacher Details') + ' 詳情' : '新增教師';
 });
 
 // --- Basic Info Form ---
 const basicFormRef = ref<FormInstance>();
-const basicForm = reactive<TeacherUpdate>({
+const basicForm = reactive<TeacherUpdate & { teacher_no?: string }>({
+  teacher_no: '',
   name: '',
   email: '',
   phone: '',
@@ -421,13 +458,14 @@ const fetchData = async () => {
     ]);
     const target = teacherRes.data;
     if (target) {
+      basicForm.teacher_no = target.teacher_no;
       basicForm.name = target.name;
       basicForm.email = target.email;
       basicForm.phone = target.phone || '';
       basicForm.address = target.address || '';
       basicForm.bio = target.bio || '';
       basicForm.teacher_level = target.teacher_level;
-      avatarUrl.value = (target as any).avatar_url || null;
+      avatarUrl.value = target.avatar_url || null;
     }
   } catch (error) {
     ElMessage.error('載入教師資料失敗');
@@ -436,20 +474,36 @@ const fetchData = async () => {
   }
 };
 
-const handleAvatarChange = async (uploadFile: any) => {
-  const tId = props.teacherId;
-  if (!tId || !uploadFile.raw) return;
+const uploadAvatar = ref({
+  file: null,
+  url: '',
+})
+
+const handleUploadAvatar = (uploadFile: any) => {
   const MAX_SIZE_MB = 2;
   if (uploadFile.raw.size > MAX_SIZE_MB * 1024 * 1024) {
     ElMessage.warning(`檔案大小不可超過 ${MAX_SIZE_MB}MB，請重新選擇`);
     return;
   }
+  uploadAvatar.value.file = uploadFile;
+  uploadAvatar.value.url = URL.createObjectURL(uploadFile.raw);
+  if (isEdit.value) {
+    handleAvatarChange(uploadFile);
+  }
+}
+
+const handleAvatarChange = async (uploadFile: any, teacherId?: string) => {
+  const tId = props.teacherId || teacherId;
+  if (!tId || !uploadFile.raw) return;
   uploadingAvatar.value = true;
   try {
     await uploadTeacherAvatar(tId, uploadFile.raw);
     const res = await getTeacherById(tId);
-    avatarUrl.value = (res.data as any).avatar_url || null;
+    avatarUrl.value = res.data.avatar_url || null;
     ElMessage.success('頭像已更新');
+    if (isEdit.value) {
+      emit('saved');
+    }
   } catch (e) {
     console.error(e);
     ElMessage.error('頭像上傳失敗');
@@ -459,14 +513,32 @@ const handleAvatarChange = async (uploadFile: any) => {
 };
 
 const saveBasicInfo = async () => {
-  const tId = props.teacherId;
-  if (!basicFormRef.value || !tId) return;
+  if (!basicFormRef.value) return;
   await basicFormRef.value.validate(async (valid) => {
     if (valid) {
+      const tId = props.teacherId;
       saving.value = true;
       try {
-        await updateTeacher(tId, basicForm);
-        ElMessage.success('基本資料已儲存');
+        if (isEdit.value && tId) {
+          const res = await updateTeacher(tId, basicForm);
+          if (res.success) {
+            ElMessage.success('基本資料已儲存');
+          }
+        } else {
+          try {
+            let teacherId: string;
+            const res = await createTeacher(basicForm as TeacherCreate);
+            if (res.success) {
+              ElMessage.success('基本資料已新增');
+              teacherId = res.data.id;
+              if (uploadAvatar.value.file) {
+                handleAvatarChange(uploadAvatar.value.file, teacherId);
+              }
+            }
+          } catch (error) {
+            ElMessage.error('新增失敗');
+          }
+        }
         emit('saved');
       } catch (e) {
         ElMessage.error('儲存失敗');
@@ -490,4 +562,22 @@ watch(() => props.modelValue, (val) => {
 </script>
 
 <style scoped>
+:deep(.upload-field) {
+  .el-form-item__content {
+    & > div {
+      width: 100%;
+      .el-upload-list {
+        width: 60%;
+        &__item {
+          &:hover {
+            border-radius: 5px;
+          }
+          &-file-name {
+            max-width: calc(100% - 20px);
+          }
+        }
+      }
+    }
+  }
+}
 </style>

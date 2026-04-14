@@ -88,7 +88,7 @@
             {{ $t('student.detailsTitle') }}
           </el-button>
           <el-button 
-            v-if="row.student_type === 'trial' && !row._contract_id"
+            v-if="row.student_type === 'trial' && !row.contract_id"
             type="primary" 
             round
             size="small" 

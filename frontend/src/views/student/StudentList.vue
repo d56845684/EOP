@@ -217,7 +217,7 @@ import {
   type StudentContractUpdate,
   type StudentContractDetail,
   type StudentContractLeaveRecord,
-} from '@/api/contract';
+} from '@/api/studentContract';
 import { getBookingList, type BookingItem } from '@/api/booking';
 import BaseInfo from './components/Drawer/BaseInfo.vue';
 import BookingList from './components/Drawer/BookingList.vue';
@@ -372,7 +372,7 @@ const copyEmail = (email: string) => {
 const handleVerify = async (row: StudentOverviewListResponse) => {
   try {
     const res = await generateInviteLinkApi({ entity_type: 'student', entity_id: row.id });
-    inviteUrl.value = res.invite_url;
+    inviteUrl.value = res.invite_url || '';
     currentStudent.value = row;
     verifyInviteVisible.value = true;
   } catch (err) {

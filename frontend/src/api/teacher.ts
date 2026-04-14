@@ -38,6 +38,7 @@ export interface TeacherResponse {
   bio?: string | null;
   teacher_level: number;
   is_active: boolean;
+  avatar_url?: string | null;
   email_verified_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -65,6 +66,7 @@ export interface TeacherOverviewParams {
 export interface TeacherOverviewItem {
   account_active: boolean | null;
   active_contracts: number;
+  avatar_url?: string | null;
   bonus_count: number;
   completed_bookings: number;
   created_at: string;
@@ -101,6 +103,13 @@ export interface TeacherDetailResponse<T> {
   data: T;
 }
 
+export interface UploadTeacherAvatarUrlResponse {
+  upload_url: string;
+  storage_path: string;
+  content_type: string;
+  max_size_bytes: number;
+}
+
 export function getTeacherList(params: TeacherListParams) {
   return request.get<any, TeacherListResponse>('/v1/teachers', { params });
 }
@@ -108,10 +117,10 @@ export function getTeacherOverviewList(params: TeacherOverviewParams) {
   return request.get<any, TeacherOverviewListResponse>('/v1/teachers/overview/list', { params });
 }
 export function createTeacher(data: TeacherCreate) {
-  return request.post('/v1/teachers', data);
+  return request.post<any, TeacherDetailResponse<TeacherResponse>>('/v1/teachers', data);
 }
 export function updateTeacher(teacherId: string, data: TeacherUpdate) {
-  return request.put(`/v1/teachers/${teacherId}`, data);
+  return request.put<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}`, data);
 }
 export function deleteTeacher(teacherId: string) {
   return request.delete(`/v1/teachers/${teacherId}`);
@@ -119,8 +128,8 @@ export function deleteTeacher(teacherId: string) {
 export function getTeacherById(teacherId: string) {
   return request.get<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}`);
 }
-export function getTeacherAvatarUploadUrl(teacherId: string) {
-  return request.post<any, { upload_url: string, storage_path: string }>(`/v1/teachers/${teacherId}/avatar/upload-url`);
+export function getTeacherAvatarUploadUrl(teacherId: string, data: { file_name: string }) {
+  return request.post<any, UploadTeacherAvatarUrlResponse>(`/v1/teachers/${teacherId}/avatar/upload-url`, data);
 }
 export function confirmTeacherAvatar(teacherId: string, data: { storage_path: string, file_name: string }) {
   return request.post<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}/avatar/confirm-upload`, data);

@@ -122,13 +122,14 @@ export interface CourseOption {
   course_name?: string;
 }
 export interface OptionsResponse {
-  success: boolean;
   data: CourseOption[];
 }
 
 export interface ConfirmUploadResponse {
   upload_url: string;
   storage_path: string;
+  content_type: string;
+  max_size_bytes: number;
 }
 
 export interface ResData<T> {
@@ -247,5 +248,5 @@ export function confirmUploadTeacherContractAddendum(contractId: string, addendu
 
 // Options
 export function getCourseOptions() {
-  return request.get<any, CourseOption[]>('/v1/teacher-contracts/options/courses');
+  return request.get<any, OptionsResponse>('/v1/teacher-contracts/options/courses');
 }

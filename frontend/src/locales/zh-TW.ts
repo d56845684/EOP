@@ -41,7 +41,6 @@ export default {
     inactive: '停用',
     basicInfo: '基本資料',
     searchKeyword: '關鍵字搜尋',
-
     courses: '預約課程',
     verified: '已驗證',
     unverified: '未驗證',
@@ -49,6 +48,7 @@ export default {
     verify: '驗證',
     engName: '英文姓名',
     deleteConfirm: '確定要刪除{name}嗎？',
+    baseInfo: '基本資料' ,
   },
   menu: {
     dashboard: '儀表板',

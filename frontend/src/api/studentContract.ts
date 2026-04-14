@@ -112,9 +112,11 @@ interface ResData<T> {
   success: boolean;
 }
 
-interface ConfirmUploadResponse {
+export interface ConfirmUploadResponse {
   storage_path: string;
   upload_url: string;
+  content_type: string;
+  max_size_bytes: number;
 }
 
 export interface GetStudentContractsParams {
@@ -177,7 +179,7 @@ export function generateContract(contractId: string) {
   return request.get(`/v1/student-contracts/${contractId}/generate-docx`, { responseType: 'blob' });
 }
 
-export function uploadContract(contractId: string) {
+export function uploadStudentContract(contractId: string) {
   return request.post<any, ConfirmUploadResponse>(`/v1/student-contracts/${contractId}/upload-url`);
 }
 
@@ -201,10 +203,10 @@ export function deleteAddendum(contractId: string, addendumId: string) {
   return request.delete(`/v1/student-contracts/${contractId}/addendums/${addendumId}`);
 }
 
-export function uploadContractAddendum(contractId: string, addendumId: string) {
+export function uploadStudentContractAddendum(contractId: string, addendumId: string) {
   return request.post<any, ConfirmUploadResponse>(`/v1/student-contracts/${contractId}/addendums/${addendumId}/upload-url`);
 }
 
-export function confirmUploadContractAddendum(contractId: string, addendumId: string, data: { storage_path: string, file_name: string }) {
+export function confirmuploadStudentContractAddendum(contractId: string, addendumId: string, data: { storage_path: string, file_name: string }) {
   return request.post<any, ResData<StudentContract>>(`/v1/student-contracts/${contractId}/addendums/${addendumId}/confirm-upload`, data);
 }
