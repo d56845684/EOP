@@ -18,12 +18,24 @@ docker compose down -v         # Stop and remove volumes
 ```
 
 ### IMPORTANT: Backend 修改後測試流程
-修改 backend 程式碼後，必須重新 build 並啟動才能測試：
+修改 backend 程式碼後，必須重新 build 並啟動，然後跑 E2E 測試確認沒有 regression：
 ```bash
-docker compose up --build backend -d   # 重新 build 並啟動 backend
-# 或
-docker compose down && docker compose up --build -d  # 完整重建所有服務
+# 1. 重新 build 並啟動 backend
+docker compose up --build backend -d
+
+# 2. 跑 E2E 測試（必須在 backend 啟動後執行）
+cd backend
+python -m pytest tests/e2e/ -v
+
+# 單獨跑某個 E2E 測試
+python -m pytest tests/e2e/live_e2e_booking_flow_test.py -v
+python -m pytest tests/e2e/live_e2e_contracts_test.py -v
+python -m pytest tests/e2e/live_e2e_courses_test.py -v
+python -m pytest tests/e2e/live_e2e_leave_flow_test.py -v
+python -m pytest tests/e2e/live_e2e_student_flow_test.py -v
+python -m pytest tests/e2e/live_e2e_teacher_flow_test.py -v
 ```
+**後端每次修改都必須跑過 E2E 測試才能 commit。**
 
 ### Frontend 修改注意
 前端修改只能在 `frontend-dennis/` 目錄下進行，絕對不可以動到 `frontend/` 目錄。

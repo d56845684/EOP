@@ -237,6 +237,7 @@ async def update_employee(
                 raise HTTPException(status_code=500, detail="更新員工失敗")
 
         # 同步 user_profiles 角色（僅限已有帳號的員工）
+        profile = None
         try:
             profile = await supabase_service.table_select(
                 table="user_profiles", select="id,role_id",
@@ -256,8 +257,6 @@ async def update_employee(
                         sync_data["role_id"] = str(role_row["id"])
                 if data.employee_type:
                     sync_data["employee_subtype"] = data.employee_type
-            elif requested_role_id:
-                raise HTTPException(status_code=400, detail="此員工尚未建立帳號，無法設定角色")
                 if sync_data:
                     await supabase_service.table_update(
                         table="user_profiles",
@@ -265,8 +264,22 @@ async def update_employee(
                         filters={"id": profile[0]["id"]},
                     )
                     logger.info(f"Employee {employee_id}: user_profiles 同步 {sync_data}")
+            elif requested_role_id:
+                raise HTTPException(status_code=400, detail="此員工尚未建立帳號，無法設定角色")
         except Exception as sync_err:
             logger.warning(f"Employee {employee_id}: 同步角色失敗: {sync_err}")
+
+        # 清除 Redis 權限快取，讓更改立即生效（不需重新登入）
+        if profile:
+            try:
+                from app.services.redis_service import redis_service
+                uid = profile[0]['id']
+                await redis_service.delete(f"permission_level:{uid}")
+                await redis_service.delete(f"role_id:{uid}")
+                await redis_service.delete(f"employee_type:{uid}")
+                await redis_service.delete(f"page_perm:{uid}")
+            except Exception:
+                pass
 
         enriched = await enrich_employee(result)
         return DataResponse(message="員工更新成功", data=EmployeeResponse(**enriched))

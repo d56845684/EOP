@@ -121,6 +121,25 @@ class PermissionService:
         except Exception:
             return None
 
+    async def get_user_role_id(self, user_id: str) -> Optional[str]:
+        """取得用戶目前的 role_id（從 Redis 快取或 DB）"""
+        cache_key = f"role_id:{user_id}"
+        cached = await redis_service.get(cache_key)
+        if cached is not None:
+            return cached if cached != "null" else None
+
+        try:
+            result = await supabase_service.table_select(
+                table="user_profiles",
+                select="role_id",
+                filters={"id": f"eq.{user_id}"},
+            )
+            role_id = str(result[0]["role_id"]) if result and result[0].get("role_id") else None
+            await redis_service.set(cache_key, role_id or "null", expire_seconds=self.CACHE_TTL)
+            return role_id
+        except Exception:
+            return None
+
     async def check_permission(
         self,
         user_id: str,

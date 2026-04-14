@@ -155,17 +155,22 @@ async def get_current_user(request: Request) -> CurrentUser:
         teacher_id = identity["teacher_id"]
         employee_id = identity["employee_id"]
 
-    # 如果 token 中沒有權限資訊，從服務查詢
-    if permission_level == 0 and employee_id is not None:
+    # 員工每次都從 Redis/DB 取最新權限（避免改角色後要重新登入）
+    role = payload.get("role", "student")
+    role_id = payload.get("role_id")
+    if employee_id is not None:
         permission_level = await permission_service.get_user_permission_level(user_id)
+        fresh_role_id = await permission_service.get_user_role_id(user_id)
+        if fresh_role_id:
+            role_id = fresh_role_id
         if not employee_type:
             employee_type = await permission_service.get_user_employee_type(user_id)
 
     return CurrentUser(
         user_id=user_id,
         email=payload.get("email", ""),
-        role=payload.get("role", "student"),
-        role_id=payload.get("role_id"),
+        role=role,
+        role_id=role_id,
         session_id=session_id,
         session_data=session_data,
         employee_type=employee_type,
