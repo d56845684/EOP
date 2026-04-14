@@ -2,8 +2,8 @@
 // This avoids CORS issues with the Supabase client
 
 import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { API_BASE_URL } from './config'
+import { apiAction } from './client'
 
 interface AuthResponse {
     success: boolean
@@ -132,26 +132,9 @@ export const authApi = {
         }
     },
 
-    async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/auth/password/change`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    current_password: currentPassword,
-                    new_password: newPassword,
-                }),
-            })
-
-            const result = await response.json()
-
-            if (!response.ok || !result.success) {
-                return { success: false, error: { message: result.detail || result.message || '密碼變更失敗' } }
-            }
-
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    changePassword: (currentPassword: string, newPassword: string) =>
+        apiAction('POST', '/api/v1/auth/password/change', {
+            current_password: currentPassword,
+            new_password: newPassword,
+        }, '密碼變更失敗'),
 }

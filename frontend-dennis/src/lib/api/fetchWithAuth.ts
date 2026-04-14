@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { API_BASE_URL } from './config'
 
 let refreshPromise: Promise<boolean> | null = null
 
@@ -10,8 +10,14 @@ async function refreshTokens(): Promise<boolean> {
     return response.ok
 }
 
-/** 從 401 response body 判斷登出原因 */
-function detectLogoutReason(detail: string): string {
+/** 從 401 response body 判斷登出原因（優先用 error_code，fallback 到中文字串比對） */
+function detectLogoutReason(body: Record<string, unknown>): string {
+    const code = body.error_code as string | undefined
+    if (code === 'AUTH_IDLE_TIMEOUT') return 'idle'
+    if (code === 'AUTH_SESSION_REPLACED') return 'replaced'
+    if (code) return 'expired'
+    // fallback: 舊格式相容
+    const detail = (body.detail || body.message || '') as string
     if (detail.includes('閒置超時')) return 'idle'
     if (detail.includes('其他裝置')) return 'replaced'
     return 'expired'
@@ -31,7 +37,7 @@ export async function fetchWithAuth(
         let reason = 'expired'
         try {
             const errBody = await errClone.json()
-            reason = detectLogoutReason(errBody.detail || '')
+            reason = detectLogoutReason(errBody)
         } catch { /* ignore parse errors */ }
 
         // Mutex: 同一時間只有一個 refresh 請求

@@ -1,10 +1,9 @@
 import { fetchWithAuth } from './fetchWithAuth'
+import { API_BASE_URL } from './config'
 
 /**
  * Line 綁定 API
  */
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export interface LineBindingStatus {
   is_bound: boolean

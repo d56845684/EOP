@@ -1,6 +1,6 @@
 import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { API_BASE_URL } from './config'
+import { apiGet, apiPost, apiPut, apiDelete, qs } from './client'
 
 export interface Teacher {
     id: string
@@ -103,198 +103,63 @@ export interface TeacherSelfUpdateData {
     address?: string
 }
 
-function parseErrorDetail(detail: unknown): string {
-    if (typeof detail === 'string') return detail
-    if (Array.isArray(detail) && detail.length > 0) {
-        const msg = detail[0]?.msg || ''
-        return msg.replace(/^Value error,\s*/, '')
-    }
-    return ''
-}
-
 export const teachersApi = {
-    async list(params?: {
-        page?: number
-        per_page?: number
-        search?: string
-        is_active?: boolean
-    }): Promise<{ data: TeacherListResponse | null, error: any }> {
-        try {
-            const queryParams = new URLSearchParams()
-            if (params?.page) queryParams.set('page', params.page.toString())
-            if (params?.per_page) queryParams.set('per_page', params.per_page.toString())
-            if (params?.search) queryParams.set('search', params.search)
-            if (params?.is_active !== undefined) queryParams.set('is_active', params.is_active.toString())
+    list: (params?: { page?: number; per_page?: number; search?: string; is_active?: boolean }) =>
+        apiGet<TeacherListResponse>(`/api/v1/teachers${qs(params || {})}`, '取得教師列表失敗', { extractData: false }),
 
-            const url = `${API_BASE_URL}/api/v1/teachers${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-            const response = await fetchWithAuth(url, { method: 'GET' })
+    create: (data: CreateTeacherData) =>
+        apiPost<Teacher>('/api/v1/teachers', data, '建立教師失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得教師列表失敗' } }
-            }
+    update: (teacherId: string, data: UpdateTeacherData) =>
+        apiPut<Teacher>(`/api/v1/teachers/${teacherId}`, data, '更新教師失敗'),
 
-            const result: TeacherListResponse = await response.json()
-            return { data: result, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    updateSelf: (data: TeacherSelfUpdateData) =>
+        apiPut<Teacher>('/api/v1/teachers/me', data, '更新個人資料失敗'),
 
-    async create(data: CreateTeacherData): Promise<{ data: Teacher | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
+    delete: (teacherId: string) =>
+        apiDelete(`/api/v1/teachers/${teacherId}`, '刪除教師失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '建立教師失敗' } }
-            }
+    listOverview: (params?: { page?: number; per_page?: number; search?: string; is_active?: boolean; has_account?: boolean; has_active_contract?: boolean; role?: string }) =>
+        apiGet<{ data: TeacherOverviewItem[]; total: number; page: number; per_page: number; total_pages: number }>(
+            `/api/v1/teachers/overview/list${qs(params || {})}`, '取得教師總覽失敗', { extractData: false }),
 
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    getView: (teacherId: string) =>
+        apiGet<TeacherViewData>(`/api/v1/teachers/${teacherId}/view`, '取得教師資訊失敗'),
 
-    async update(teacherId: string, data: UpdateTeacherData): Promise<{ data: Teacher | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '更新教師失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async updateSelf(data: TeacherSelfUpdateData): Promise<{ data: Teacher | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/me`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '更新個人資料失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async delete(teacherId: string): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}`, {
-                method: 'DELETE',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: parseErrorDetail(error.detail) || '刪除教師失敗' } }
-            }
-
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
+    /** 頭像上傳（presigned URL 流程，無法用 apiPost 簡化） */
     async uploadAvatar(teacherId: string, file: File): Promise<{ data: Teacher | null, error: any }> {
         try {
-            // 1. 取得 presigned URL
             const urlRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}/avatar/upload-url`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ file_name: file.name }),
             })
             if (!urlRes.ok) {
-                const error = await urlRes.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得上傳連結失敗' } }
+                const err = await urlRes.json()
+                return { data: null, error: { message: err.detail || '取得上傳連結失敗' } }
             }
             const { upload_url, storage_path, content_type } = await urlRes.json()
 
-            // 2. PUT 到 S3（Content-Type 必須與 presigned URL 簽名一致）
             const uploadRes = await fetch(upload_url, {
                 method: 'PUT',
                 headers: { 'Content-Type': content_type || file.type || 'application/octet-stream' },
                 body: file,
             })
-            if (!uploadRes.ok) {
-                return { data: null, error: { message: '頭像上傳失敗' } }
-            }
+            if (!uploadRes.ok) return { data: null, error: { message: '頭像上傳失敗' } }
 
-            // 3. 確認上傳
             const confirmRes = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}/avatar/confirm-upload`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ storage_path, file_name: file.name }),
             })
             if (!confirmRes.ok) {
-                const error = await confirmRes.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '確認上傳失敗' } }
+                const err = await confirmRes.json()
+                return { data: null, error: { message: err.detail || '確認上傳失敗' } }
             }
             const result = await confirmRes.json()
             return { data: result.data || null, error: null }
-        } catch (err) {
+        } catch {
             return { data: null, error: { message: '網路錯誤' } }
-        }
-    },
-
-    async listOverview(params?: {
-        page?: number; per_page?: number; search?: string
-        is_active?: boolean; has_account?: boolean
-        has_active_contract?: boolean; role?: string
-    }): Promise<{ data: { data: TeacherOverviewItem[]; total: number; page: number; per_page: number; total_pages: number } | null, error: any }> {
-        try {
-            const sp = new URLSearchParams()
-            if (params?.page) sp.set('page', String(params.page))
-            if (params?.per_page) sp.set('per_page', String(params.per_page))
-            if (params?.search) sp.set('search', params.search)
-            if (params?.is_active !== undefined) sp.set('is_active', String(params.is_active))
-            if (params?.has_account !== undefined) sp.set('has_account', String(params.has_account))
-            if (params?.has_active_contract !== undefined) sp.set('has_active_contract', String(params.has_active_contract))
-            if (params?.role) sp.set('role', params.role)
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/overview/list?${sp}`)
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得教師總覽失敗' } }
-            }
-            return { data: await response.json(), error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async getView(teacherId: string): Promise<{ data: TeacherViewData | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teachers/${teacherId}/view`)
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得教師資訊失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
         }
     },
 }

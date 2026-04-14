@@ -1,6 +1,6 @@
 import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { API_BASE_URL } from './config'
+import { apiGet, apiPost, apiPut, apiDelete, qs } from './client'
 
 export interface AccountInfo {
   id: string
@@ -57,147 +57,33 @@ export interface UserPageOverride {
 }
 
 export const accountsApi = {
-  async list(params: {
-    page?: number
-    per_page?: number
-    role?: string
-    search?: string
-  }): Promise<{ data: AccountListResponse | null; error: any }> {
-    try {
-      const query = new URLSearchParams()
-      if (params.page) query.set('page', String(params.page))
-      if (params.per_page) query.set('per_page', String(params.per_page))
-      if (params.role) query.set('role', params.role)
-      if (params.search) query.set('search', params.search)
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/users/?${query.toString()}`)
-      if (!response.ok) {
-        const err = await response.json()
-        return { data: null, error: { message: err.detail || '取得帳號列表失敗' } }
-      }
-      const data = await response.json()
-      return { data, error: null }
-    } catch (e: any) {
-      return { data: null, error: { message: e.message || '取得帳號列表失敗' } }
-    }
-  },
+  list: (params: { page?: number; per_page?: number; role?: string; search?: string }) =>
+    apiGet<AccountListResponse>(`/api/v1/users/${qs(params)}`, '取得帳號列表失敗', { extractData: false }),
 
-  async update(userId: string, data: AccountUpdateData): Promise<{ data: any; error: any }> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/users/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!response.ok) {
-        const err = await response.json()
-        return { data: null, error: { message: err.detail || '更新帳號失敗' } }
-      }
-      const result = await response.json()
-      return { data: result, error: null }
-    } catch (e: any) {
-      return { data: null, error: { message: e.message || '更新帳號失敗' } }
-    }
-  },
+  update: (userId: string, data: AccountUpdateData) =>
+    apiPut(`/api/v1/users/${userId}`, data, '更新帳號失敗', { extractData: false }),
 
-  async deactivate(userId: string): Promise<{ data: any; error: any }> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/users/${userId}`, {
-        method: 'DELETE',
-      })
-      if (!response.ok) {
-        const err = await response.json()
-        return { data: null, error: { message: err.detail || '停用帳號失敗' } }
-      }
-      const result = await response.json()
-      return { data: result, error: null }
-    } catch (e: any) {
-      return { data: null, error: { message: e.message || '停用帳號失敗' } }
-    }
-  },
+  deactivate: (userId: string) =>
+    apiDelete(`/api/v1/users/${userId}`, '停用帳號失敗'),
 
   // ========== Roles ==========
 
-  async getRoles(): Promise<{ data: RoleInfo[] | null; error: any }> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/roles`)
-      if (!response.ok) {
-        const err = await response.json()
-        return { data: null, error: { message: err.detail || '取得角色列表失敗' } }
-      }
-      const result = await response.json()
-      return { data: result.data || [], error: null }
-    } catch (e: any) {
-      return { data: null, error: { message: e.message || '取得角色列表失敗' } }
-    }
-  },
+  getRoles: () =>
+    apiGet<RoleInfo[]>('/api/v1/roles', '取得角色列表失敗'),
 
-  async createRole(data: { key: string; name: string; description?: string }): Promise<{ data: any; error: any }> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/roles`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!response.ok) {
-        const err = await response.json()
-        return { data: null, error: { message: err.detail || '建立角色失敗' } }
-      }
-      const result = await response.json()
-      return { data: result, error: null }
-    } catch (e: any) {
-      return { data: null, error: { message: e.message || '建立角色失敗' } }
-    }
-  },
+  createRole: (data: { key: string; name: string; description?: string }) =>
+    apiPost('/api/v1/roles', data, '建立角色失敗', { extractData: false }),
 
-  async updateRole(roleId: string, data: { name?: string; description?: string }): Promise<{ data: any; error: any }> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/roles/${roleId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!response.ok) {
-        const err = await response.json()
-        return { data: null, error: { message: err.detail || '更新角色失敗' } }
-      }
-      const result = await response.json()
-      return { data: result, error: null }
-    } catch (e: any) {
-      return { data: null, error: { message: e.message || '更新角色失敗' } }
-    }
-  },
+  updateRole: (roleId: string, data: { name?: string; description?: string }) =>
+    apiPut(`/api/v1/roles/${roleId}`, data, '更新角色失敗', { extractData: false }),
 
-  async deleteRole(roleId: string): Promise<{ data: any; error: any }> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/roles/${roleId}`, {
-        method: 'DELETE',
-      })
-      if (!response.ok) {
-        const err = await response.json()
-        return { data: null, error: { message: err.detail || '刪除角色失敗' } }
-      }
-      const result = await response.json()
-      return { data: result, error: null }
-    } catch (e: any) {
-      return { data: null, error: { message: e.message || '刪除角色失敗' } }
-    }
-  },
+  deleteRole: (roleId: string) =>
+    apiDelete(`/api/v1/roles/${roleId}`, '刪除角色失敗'),
 
   // ========== Permission wrappers ==========
 
-  async getAllPages(): Promise<{ data: PageInfo[] | null; error: any }> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/pages?per_page=200`)
-      if (!response.ok) {
-        const err = await response.json()
-        return { data: null, error: { message: err.detail || '取得頁面列表失敗' } }
-      }
-      const result = await response.json()
-      return { data: result.data || [], error: null }
-    } catch (e: any) {
-      return { data: null, error: { message: e.message || '取得頁面列表失敗' } }
-    }
-  },
+  getAllPages: () =>
+    apiGet<PageInfo[]>('/api/v1/pages?per_page=200', '取得頁面列表失敗'),
 
   async getRolePages(roleId: string): Promise<{ data: PageInfo[] | null; error: any }> {
     try {
@@ -213,23 +99,8 @@ export const accountsApi = {
     }
   },
 
-  async setRolePages(roleId: string, pageIds: string[]): Promise<{ data: any; error: any }> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/role-pages`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role_id: roleId, page_ids: pageIds }),
-      })
-      if (!response.ok) {
-        const err = await response.json()
-        return { data: null, error: { message: err.detail || '設定角色頁面失敗' } }
-      }
-      const result = await response.json()
-      return { data: result, error: null }
-    } catch (e: any) {
-      return { data: null, error: { message: e.message || '設定角色頁面失敗' } }
-    }
-  },
+  setRolePages: (roleId: string, pageIds: string[]) =>
+    apiPut('/api/v1/role-pages', { role_id: roleId, page_ids: pageIds }, '設定角色頁面失敗', { extractData: false }),
 
   async getUserOverrides(userId: string): Promise<{ data: UserPageOverride[] | null; error: any }> {
     try {
@@ -245,24 +116,9 @@ export const accountsApi = {
     }
   },
 
-  async setUserOverrides(
+  setUserOverrides: (
     userId: string,
     overrides: { page_id: string; access_type: 'grant' | 'revoke' }[]
-  ): Promise<{ data: any; error: any }> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/user-pages/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ overrides }),
-      })
-      if (!response.ok) {
-        const err = await response.json()
-        return { data: null, error: { message: err.detail || '設定用戶覆寫失敗' } }
-      }
-      const result = await response.json()
-      return { data: result, error: null }
-    } catch (e: any) {
-      return { data: null, error: { message: e.message || '設定用戶覆寫失敗' } }
-    }
-  },
+  ) =>
+    apiPut(`/api/v1/user-pages/${userId}`, { overrides }, '設定用戶覆寫失敗', { extractData: false }),
 }

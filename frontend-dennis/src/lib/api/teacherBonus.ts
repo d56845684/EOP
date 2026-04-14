@@ -1,6 +1,4 @@
-import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { apiGet, apiPost, apiPut, apiDelete, qs } from './client'
 
 export type BonusType = 'trial_completed' | 'trial_to_formal' | 'performance' | 'substitute' | 'referral' | 'other'
 
@@ -66,120 +64,26 @@ export interface TeacherOption {
     name: string
 }
 
-function parseErrorDetail(detail: unknown): string {
-    if (typeof detail === 'string') return detail
-    if (Array.isArray(detail) && detail.length > 0) {
-        const msg = detail[0]?.msg || ''
-        return msg.replace(/^Value error,\s*/, '')
-    }
-    return ''
-}
-
 export const teacherBonusApi = {
-    async list(params?: {
+    list: (params?: {
         page?: number
         per_page?: number
         teacher_id?: string
         bonus_type?: BonusType
         date_from?: string
         date_to?: string
-    }): Promise<{ data: TeacherBonusListResponse | null, error: any }> {
-        try {
-            const queryParams = new URLSearchParams()
-            if (params?.page) queryParams.set('page', params.page.toString())
-            if (params?.per_page) queryParams.set('per_page', params.per_page.toString())
-            if (params?.teacher_id) queryParams.set('teacher_id', params.teacher_id)
-            if (params?.bonus_type) queryParams.set('bonus_type', params.bonus_type)
-            if (params?.date_from) queryParams.set('date_from', params.date_from)
-            if (params?.date_to) queryParams.set('date_to', params.date_to)
+    }) =>
+        apiGet<TeacherBonusListResponse>(`/api/v1/teacher-bonus${qs(params || {})}`, '取得教師獎金列表失敗', { extractData: false }),
 
-            const url = `${API_BASE_URL}/api/v1/teacher-bonus${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-            const response = await fetchWithAuth(url, { method: 'GET' })
+    create: (data: CreateTeacherBonusData) =>
+        apiPost<TeacherBonus>('/api/v1/teacher-bonus', data, '新增教師獎金失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得教師獎金列表失敗' } }
-            }
+    update: (bonusId: string, data: UpdateTeacherBonusData) =>
+        apiPut<TeacherBonus>(`/api/v1/teacher-bonus/${bonusId}`, data, '更新教師獎金失敗'),
 
-            const result: TeacherBonusListResponse = await response.json()
-            return { data: result, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    delete: (bonusId: string) =>
+        apiDelete(`/api/v1/teacher-bonus/${bonusId}`, '刪除教師獎金失敗'),
 
-    async create(data: CreateTeacherBonusData): Promise<{ data: TeacherBonus | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-bonus`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '新增教師獎金失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async update(bonusId: string, data: UpdateTeacherBonusData): Promise<{ data: TeacherBonus | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-bonus/${bonusId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '更新教師獎金失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async delete(bonusId: string): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-bonus/${bonusId}`, {
-                method: 'DELETE',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: parseErrorDetail(error.detail) || '刪除教師獎金失敗' } }
-            }
-
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async getTeacherOptions(): Promise<{ data: TeacherOption[], error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-bonus/options/teachers`, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: [], error: { message: parseErrorDetail(error.detail) || '取得教師選項失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: [], error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    getTeacherOptions: () =>
+        apiGet<TeacherOption[]>('/api/v1/teacher-bonus/options/teachers', '取得教師選項失敗'),
 }
