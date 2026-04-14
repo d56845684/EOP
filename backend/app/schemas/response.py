@@ -13,6 +13,7 @@ class DataResponse(BaseResponse, Generic[T]):
 class ErrorResponse(BaseModel):
     success: bool = False
     message: str
+    detail: Optional[str] = None
     error_code: Optional[str] = None
     details: Optional[Any] = None
 
