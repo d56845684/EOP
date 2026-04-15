@@ -70,7 +70,7 @@ async def get_profile(
     )
 
 
-@router.get("/", response_model=PaginatedResponse[AccountInfo])
+@router.get("", response_model=PaginatedResponse[AccountInfo])
 async def list_users(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),

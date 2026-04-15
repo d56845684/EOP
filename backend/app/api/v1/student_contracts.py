@@ -171,7 +171,7 @@ async def get_student_options(
             select="id,student_no,name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
         )
-        return {"data": students}
+        return {"success": True, "message": "操作成功", "data": students}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -198,7 +198,7 @@ async def get_course_options(
                 },
             )
             if not enrollments:
-                return {"data": []}
+                return {"success": True, "message": "操作成功", "data": []}
 
             course_ids = [e["course_id"] for e in enrollments]
 
@@ -213,14 +213,14 @@ async def get_course_options(
             )
             courses = [{"id": str(r["id"]), "course_code": r["course_code"], "course_name": r["course_name"]} for r in rows]
 
-            return {"data": courses}
+            return {"success": True, "message": "操作成功", "data": courses}
         else:
             courses = await supabase_service.table_select(
                 table="courses",
                 select="id,course_code,course_name",
                 filters={"is_deleted": "eq.false", "is_active": "eq.true"},
             )
-            return {"data": courses}
+            return {"success": True, "message": "操作成功", "data": courses}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -236,7 +236,7 @@ async def get_teacher_options(
             select="id,teacher_no,name",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
         )
-        return {"data": teachers}
+        return {"success": True, "message": "操作成功", "data": teachers}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -771,7 +771,7 @@ async def list_contract_details(
                 d["course_name"] = course[0]["course_name"] if course else None
             enriched.append(d)
 
-        return {"data": [StudentContractDetailResponse(**d) for d in enriched]}
+        return {"success": True, "message": "操作成功", "data": [StudentContractDetailResponse(**d) for d in enriched]}
 
     except HTTPException:
         raise
@@ -1058,7 +1058,7 @@ async def list_leave_records(
             },
         )
 
-        return {"data": [StudentContractLeaveRecordResponse(**r) for r in records]}
+        return {"success": True, "message": "操作成功", "data": [StudentContractLeaveRecordResponse(**r) for r in records]}
 
     except HTTPException:
         raise

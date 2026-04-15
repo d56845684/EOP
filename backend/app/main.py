@@ -9,7 +9,8 @@ from app.api.v1.router import api_router
 from app.services.redis_service import redis_service
 from app.middleware.auth_middleware import AuthMiddleware, RateLimitMiddleware
 from app.middleware.logging_middleware import LoggingMiddleware
-from app.core.exceptions import AuthException
+from app.core.exceptions import AuthException, AppException
+from app.core.error_codes import ErrorCode, infer_error_code
 from app.core.logging import setup_logging, get_logger
 
 # 設定統一 JSON Logger
@@ -219,50 +220,41 @@ app.add_middleware(
 
 # ========== 例外處理 ==========
 
-@app.exception_handler(AuthException)
-async def auth_exception_handler(request: Request, exc: AuthException):
+def _error_response(status_code: int, message: str, error_code: str) -> JSONResponse:
+    """統一錯誤回傳格式：message 向後相容、detail 相容前端 parseErrorDetail"""
     return JSONResponse(
-        status_code=exc.status_code,
+        status_code=status_code,
         content={
             "success": False,
-            "message": exc.detail,
-            "error_code": "AUTH_ERROR"
+            "message": message,
+            "detail": message,
+            "error_code": error_code,
         }
     )
+
+@app.exception_handler(AuthException)
+async def auth_exception_handler(request: Request, exc: AuthException):
+    error_code = getattr(exc, "error_code", None) or ErrorCode.AUTH_ERROR
+    return _error_response(exc.status_code, exc.detail, error_code)
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """攔截所有 HTTPException：5xx 錯誤隱藏內部細節，4xx 正常回傳"""
+    detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+
     if exc.status_code >= 500:
-        logger.error(f"HTTP {exc.status_code} on {request.method} {request.url.path}: {exc.detail}")
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "success": False,
-                "message": "伺服器內部錯誤，請稍後再試",
-                "error_code": "INTERNAL_ERROR"
-            }
-        )
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "success": False,
-            "message": exc.detail,
-        }
-    )
+        logger.error(f"HTTP {exc.status_code} on {request.method} {request.url.path}: {detail}")
+        return _error_response(exc.status_code, "伺服器內部錯誤，請稍後再試", ErrorCode.INTERNAL_ERROR)
+
+    # 優先使用 AppException 明確指定的 error_code，否則自動推斷
+    explicit_code = getattr(exc, "error_code", None)
+    error_code = explicit_code or infer_error_code(exc.status_code, detail)
+    return _error_response(exc.status_code, detail, error_code)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception(f"未處理的例外: {exc}")
-
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success": False,
-            "message": "伺服器內部錯誤",
-            "error_code": "INTERNAL_ERROR"
-        }
-    )
+    return _error_response(500, "伺服器內部錯誤", ErrorCode.INTERNAL_ERROR)
 
 # ========== 路由 ==========
 

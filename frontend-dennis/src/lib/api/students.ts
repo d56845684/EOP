@@ -1,6 +1,4 @@
-import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { apiGet, apiPost, apiPut, apiDelete, qs } from './client'
 
 export interface Student {
     id: string
@@ -105,15 +103,6 @@ export interface UpdateStudentData {
     google_drive_folder_id?: string
 }
 
-function parseErrorDetail(detail: unknown): string {
-    if (typeof detail === 'string') return detail
-    if (Array.isArray(detail) && detail.length > 0) {
-        const msg = detail[0]?.msg || ''
-        return msg.replace(/^Value error,\s*/, '')
-    }
-    return ''
-}
-
 export interface ConvertToFormalData {
     contract_no: string
     total_lessons: number
@@ -146,151 +135,25 @@ export interface ConvertToFormalResponse {
 }
 
 export const studentsApi = {
-    async list(params?: {
-        page?: number
-        per_page?: number
-        search?: string
-        is_active?: boolean
-        student_type?: string
-    }): Promise<{ data: StudentListResponse | null, error: any }> {
-        try {
-            const queryParams = new URLSearchParams()
-            if (params?.page) queryParams.set('page', params.page.toString())
-            if (params?.per_page) queryParams.set('per_page', params.per_page.toString())
-            if (params?.search) queryParams.set('search', params.search)
-            if (params?.is_active !== undefined) queryParams.set('is_active', params.is_active.toString())
-            if (params?.student_type) queryParams.set('student_type', params.student_type)
+    list: (params?: { page?: number; per_page?: number; search?: string; is_active?: boolean; student_type?: string }) =>
+        apiGet<StudentListResponse>(`/api/v1/students${qs(params || {})}`, '取得學生列表失敗', { extractData: false }),
 
-            const url = `${API_BASE_URL}/api/v1/students${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-            const response = await fetchWithAuth(url, { method: 'GET' })
+    create: (data: CreateStudentData) =>
+        apiPost<Student>('/api/v1/students', data, '建立學生失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得學生列表失敗' } }
-            }
+    update: (studentId: string, data: UpdateStudentData) =>
+        apiPut<Student>(`/api/v1/students/${studentId}`, data, '更新學生失敗'),
 
-            const result: StudentListResponse = await response.json()
-            return { data: result, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    delete: (studentId: string) =>
+        apiDelete(`/api/v1/students/${studentId}`, '刪除學生失敗'),
 
-    async create(data: CreateStudentData): Promise<{ data: Student | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
+    convertToFormal: (studentId: string, data: ConvertToFormalData) =>
+        apiPost<ConvertToFormalResponse>(`/api/v1/students/${studentId}/convert-to-formal`, data, '試上轉正失敗', { extractData: false }),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '建立學生失敗' } }
-            }
+    listOverview: (params?: { page?: number; per_page?: number; search?: string; student_type?: string; is_active?: boolean; has_account?: boolean; has_active_contract?: boolean; role?: string }) =>
+        apiGet<{ data: StudentOverviewItem[]; total: number; page: number; per_page: number; total_pages: number }>(
+            `/api/v1/students/overview/list${qs(params || {})}`, '取得學生總覽失敗', { extractData: false }),
 
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async update(studentId: string, data: UpdateStudentData): Promise<{ data: Student | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students/${studentId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '更新學生失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async delete(studentId: string): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students/${studentId}`, {
-                method: 'DELETE',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: parseErrorDetail(error.detail) || '刪除學生失敗' } }
-            }
-
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async convertToFormal(studentId: string, data: ConvertToFormalData): Promise<{ data: ConvertToFormalResponse | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students/${studentId}/convert-to-formal`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '試上轉正失敗' } }
-            }
-
-            const result: ConvertToFormalResponse = await response.json()
-            return { data: result, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async listOverview(params?: {
-        page?: number; per_page?: number; search?: string
-        student_type?: string; is_active?: boolean
-        has_account?: boolean; has_active_contract?: boolean
-        role?: string
-    }): Promise<{ data: { data: StudentOverviewItem[]; total: number; page: number; per_page: number; total_pages: number } | null, error: any }> {
-        try {
-            const sp = new URLSearchParams()
-            if (params?.page) sp.set('page', String(params.page))
-            if (params?.per_page) sp.set('per_page', String(params.per_page))
-            if (params?.search) sp.set('search', params.search)
-            if (params?.student_type) sp.set('student_type', params.student_type)
-            if (params?.is_active !== undefined) sp.set('is_active', String(params.is_active))
-            if (params?.has_account !== undefined) sp.set('has_account', String(params.has_account))
-            if (params?.has_active_contract !== undefined) sp.set('has_active_contract', String(params.has_active_contract))
-            if (params?.role) sp.set('role', params.role)
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students/overview/list?${sp}`)
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得學生總覽失敗' } }
-            }
-            return { data: await response.json(), error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async getView(studentId: string): Promise<{ data: StudentViewData | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/students/${studentId}/view`)
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得學生資訊失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    getView: (studentId: string) =>
+        apiGet<StudentViewData>(`/api/v1/students/${studentId}/view`, '取得學生資訊失敗'),
 }

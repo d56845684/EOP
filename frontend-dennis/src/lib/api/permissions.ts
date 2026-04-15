@@ -1,6 +1,4 @@
-import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { apiGet } from './client'
 
 export interface PageInfo {
   id: string
@@ -20,17 +18,6 @@ export interface MyPermissionsResponse {
 }
 
 export const permissionsApi = {
-  async getMyPermissions(): Promise<{ data: MyPermissionsResponse | null; error: any }> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/permissions/me`)
-      if (!response.ok) {
-        const err = await response.json()
-        return { data: null, error: { message: err.detail || '取得權限失敗' } }
-      }
-      const data = await response.json()
-      return { data, error: null }
-    } catch (e: any) {
-      return { data: null, error: { message: e.message || '取得權限失敗' } }
-    }
-  },
+  getMyPermissions: () =>
+    apiGet<MyPermissionsResponse>('/api/v1/permissions/me', '取得權限失敗', { extractData: false }),
 }

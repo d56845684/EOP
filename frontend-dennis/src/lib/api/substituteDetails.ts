@@ -1,6 +1,4 @@
-import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { apiGet, apiPost, apiDelete, qs } from './client'
 
 export interface SubstituteDetail {
     id: string
@@ -28,69 +26,18 @@ export interface SubstituteDetailListResponse {
     total_pages: number
 }
 
-function parseErrorDetail(detail: unknown): string {
-    if (typeof detail === 'string') return detail
-    if (Array.isArray(detail) && detail.length > 0) {
-        const msg = detail[0]?.msg || ''
-        return msg.replace(/^Value error,\s*/, '')
-    }
-    return ''
-}
-
 export const substituteDetailsApi = {
-    async create(data: {
+    create: (data: {
         booking_id: string
         substitute_teacher_id: string
         substitute_contract_id: string
         reason?: string
-    }): Promise<{ data: SubstituteDetail | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/substitute-details`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '指派代課失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    }) =>
+        apiPost<SubstituteDetail>('/api/v1/substitute-details', data, '指派代課失敗'),
 
-    async list(params?: { page?: number; per_page?: number }): Promise<{ data: SubstituteDetailListResponse | null, error: any }> {
-        try {
-            const queryParams = new URLSearchParams()
-            if (params?.page) queryParams.set('page', params.page.toString())
-            if (params?.per_page) queryParams.set('per_page', params.per_page.toString())
-            const url = `${API_BASE_URL}/api/v1/substitute-details${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-            const response = await fetchWithAuth(url, { method: 'GET' })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得代課紀錄失敗' } }
-            }
-            const result: SubstituteDetailListResponse = await response.json()
-            return { data: result, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    list: (params?: { page?: number; per_page?: number }) =>
+        apiGet<SubstituteDetailListResponse>(`/api/v1/substitute-details${qs(params || {})}`, '取得代課紀錄失敗', { extractData: false }),
 
-    async delete(subId: string): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/substitute-details/${subId}`, {
-                method: 'DELETE',
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: parseErrorDetail(error.detail) || '取消代課失敗' } }
-            }
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    delete: (subId: string) =>
+        apiDelete(`/api/v1/substitute-details/${subId}`, '取消代課失敗'),
 }

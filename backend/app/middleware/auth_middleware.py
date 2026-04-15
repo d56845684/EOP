@@ -38,7 +38,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 else:
                     return JSONResponse(
                         status_code=401,
-                        content={"detail": "無效的 API Key"}
+                        content={
+                            "success": False,
+                            "message": "無效的 API Key",
+                            "detail": "無效的 API Key",
+                            "error_code": "AUTH_API_KEY_INVALID",
+                        }
                     )
             else:
                 # 驗證 Token
@@ -49,7 +54,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     if await session_service.is_token_blacklisted(token):
                         return JSONResponse(
                             status_code=401,
-                            content={"detail": "Token 已失效"}
+                            content={
+                                "success": False,
+                                "message": "Token 已失效",
+                                "detail": "Token 已失效",
+                                "error_code": "AUTH_TOKEN_INVALID",
+                            }
                         )
 
                     # 解碼並附加到 request.state（供 dependencies 複用，避免重複檢查）
@@ -88,7 +98,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if current > self.requests_per_minute:
                 return JSONResponse(
                     status_code=429,
-                    content={"detail": "請求過於頻繁，請稍後再試"}
+                    content={
+                        "success": False,
+                        "message": "請求過於頻繁，請稍後再試",
+                        "detail": "請求過於頻繁，請稍後再試",
+                        "error_code": "RATE_LIMITED",
+                    }
                 )
         except:
             # Redis 不可用時跳過速率限制

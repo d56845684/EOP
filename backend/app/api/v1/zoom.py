@@ -386,7 +386,7 @@ async def batch_get_meetings_by_bookings(
                 allowed = []
             booking_ids = [str(r["id"]) for r in allowed]
             if not booking_ids:
-                return {"data": {}}
+                return {"success": True, "message": "操作成功", "data": {}}
 
         # 一次查全部 zoom meeting logs
         rows = await pool.fetch(
@@ -433,7 +433,7 @@ async def batch_get_meetings_by_bookings(
             item["teacher_name"] = teacher_map.get(str(row.get("teacher_id")))
             result[bid] = ZoomMeetingLogResponse(**item).model_dump(mode="json")
 
-        return {"data": result}
+        return {"success": True, "message": "操作成功", "data": result}
 
     except HTTPException:
         raise

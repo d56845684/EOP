@@ -1,6 +1,4 @@
-import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { apiGet, apiPost, qs } from './client'
 
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
@@ -41,100 +39,19 @@ export interface LeaveRecordListResponse {
     total_pages: number
 }
 
-function parseErrorDetail(detail: unknown): string {
-    if (typeof detail === 'string') return detail
-    if (Array.isArray(detail) && detail.length > 0) {
-        const msg = detail[0]?.msg || ''
-        return msg.replace(/^Value error,\s*/, '')
-    }
-    return ''
-}
-
 export const leaveRecordsApi = {
-    async create(data: { booking_id: string; reason: string }): Promise<{ data: LeaveRecord | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/leave-records`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '建立請假申請失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    create: (data: { booking_id: string; reason: string }) =>
+        apiPost<LeaveRecord>('/api/v1/leave-records', data, '建立請假申請失敗'),
 
-    async list(params?: { page?: number; per_page?: number; leave_status?: LeaveStatus }): Promise<{ data: LeaveRecordListResponse | null, error: any }> {
-        try {
-            const queryParams = new URLSearchParams()
-            if (params?.page) queryParams.set('page', params.page.toString())
-            if (params?.per_page) queryParams.set('per_page', params.per_page.toString())
-            if (params?.leave_status) queryParams.set('leave_status', params.leave_status)
-            const url = `${API_BASE_URL}/api/v1/leave-records${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-            const response = await fetchWithAuth(url, { method: 'GET' })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得請假紀錄失敗' } }
-            }
-            const result: LeaveRecordListResponse = await response.json()
-            return { data: result, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    list: (params?: { page?: number; per_page?: number; leave_status?: LeaveStatus }) =>
+        apiGet<LeaveRecordListResponse>(`/api/v1/leave-records${qs(params || {})}`, '取得請假紀錄失敗', { extractData: false }),
 
-    async approve(leaveId: string): Promise<{ data: LeaveRecord | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/leave-records/${leaveId}/approve`, {
-                method: 'POST',
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '核准請假失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    approve: (leaveId: string) =>
+        apiPost<LeaveRecord>(`/api/v1/leave-records/${leaveId}/approve`, undefined, '核准請假失敗'),
 
-    async reject(leaveId: string, rejection_reason: string): Promise<{ data: LeaveRecord | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/leave-records/${leaveId}/reject`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rejection_reason }),
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '駁回請假失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    reject: (leaveId: string, rejection_reason: string) =>
+        apiPost<LeaveRecord>(`/api/v1/leave-records/${leaveId}/reject`, { rejection_reason }, '駁回請假失敗'),
 
-    async cancel(leaveId: string): Promise<{ data: LeaveRecord | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/leave-records/${leaveId}/cancel`, {
-                method: 'POST',
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '撤回請假失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    cancel: (leaveId: string) =>
+        apiPost<LeaveRecord>(`/api/v1/leave-records/${leaveId}/cancel`, undefined, '撤回請假失敗'),
 }

@@ -171,7 +171,7 @@ async def get_teacher_options(
             select="id,teacher_no,name,teacher_level",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
         )
-        return {"data": teachers}
+        return {"success": True, "message": "操作成功", "data": teachers}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -185,7 +185,7 @@ async def get_my_contracts(
         user_teacher_id = current_user.teacher_id
 
         if not user_teacher_id:
-            return {"data": []}
+            return {"success": True, "message": "操作成功", "data": []}
 
         contracts = await supabase_service.table_select(
             table="teacher_contracts",
@@ -196,7 +196,7 @@ async def get_my_contracts(
                 "contract_status": "eq.active"
             },
         )
-        return {"data": contracts}
+        return {"success": True, "message": "操作成功", "data": contracts}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

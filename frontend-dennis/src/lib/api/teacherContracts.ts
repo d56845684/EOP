@@ -1,6 +1,6 @@
 import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { API_BASE_URL } from './config'
+import { apiGet, apiPost, apiPut, apiDelete, qs } from './client'
 
 export type ContractStatus = 'pending' | 'active' | 'expired' | 'terminated' | 'suspended'
 export type EmploymentType = 'hourly' | 'full_time'
@@ -130,120 +130,29 @@ export interface TeacherOption {
 }
 
 export const teacherContractsApi = {
-    async list(params?: {
+    list: (params?: {
         page?: number
         per_page?: number
         search?: string
         contract_status?: ContractStatus
         employment_type?: EmploymentType
         teacher_id?: string
-    }): Promise<{ data: TeacherContractListResponse | null, error: any }> {
-        try {
-            const queryParams = new URLSearchParams()
-            if (params?.page) queryParams.set('page', params.page.toString())
-            if (params?.per_page) queryParams.set('per_page', params.per_page.toString())
-            if (params?.search) queryParams.set('search', params.search)
-            if (params?.contract_status) queryParams.set('contract_status', params.contract_status)
-            if (params?.employment_type) queryParams.set('employment_type', params.employment_type)
-            if (params?.teacher_id) queryParams.set('teacher_id', params.teacher_id)
+    }) =>
+        apiGet<TeacherContractListResponse>(`/api/v1/teacher-contracts${qs(params || {})}`, '取得教師合約列表失敗', { extractData: false }),
 
-            const url = `${API_BASE_URL}/api/v1/teacher-contracts${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+    get: (contractId: string) =>
+        apiGet<TeacherContract>(`/api/v1/teacher-contracts/${contractId}`, '取得教師合約失敗'),
 
-            const response = await fetchWithAuth(url, {
-                method: 'GET',
-            })
+    create: (data: CreateTeacherContractData) =>
+        apiPost<TeacherContract>('/api/v1/teacher-contracts', data, '建立教師合約失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: error.detail || '取得教師合約列表失敗' } }
-            }
+    update: (contractId: string, data: UpdateTeacherContractData) =>
+        apiPut<TeacherContract>(`/api/v1/teacher-contracts/${contractId}`, data, '更新教師合約失敗'),
 
-            const result: TeacherContractListResponse = await response.json()
-            return { data: result, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    delete: (contractId: string) =>
+        apiDelete(`/api/v1/teacher-contracts/${contractId}`, '刪除教師合約失敗'),
 
-    async get(contractId: string): Promise<{ data: TeacherContract | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}`, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: error.detail || '取得教師合約失敗' } }
-            }
-
-            const result: TeacherContractResponse = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async create(data: CreateTeacherContractData): Promise<{ data: TeacherContract | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: error.detail || '建立教師合約失敗' } }
-            }
-
-            const result: TeacherContractResponse = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async update(contractId: string, data: UpdateTeacherContractData): Promise<{ data: TeacherContract | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: error.detail || '更新教師合約失敗' } }
-            }
-
-            const result: TeacherContractResponse = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async delete(contractId: string): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}`, {
-                method: 'DELETE',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: error.detail || '刪除教師合約失敗' } }
-            }
-
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
+    // Presigned URL upload flow — keep fetchWithAuth
     async uploadFile(contractId: string, file: File): Promise<{ data: TeacherContract | null, error: any }> {
         try {
             const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf'
@@ -289,12 +198,10 @@ export const teacherContractsApi = {
 
     async generatePdf(contractId: string): Promise<{ success: boolean, error: any }> {
         try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/generate-pdf`, {
-                method: 'GET',
-            })
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/generate-pdf`)
             if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: error.detail || '產生合約 PDF 失敗' } }
+                const err = await response.json()
+                return { success: false, error: { message: err.detail || '產生合約 PDF 失敗' } }
             }
             const blob = await response.blob()
             const contentDisposition = response.headers.get('Content-Disposition')
@@ -312,184 +219,45 @@ export const teacherContractsApi = {
             document.body.removeChild(a)
             window.URL.revokeObjectURL(url)
             return { success: true, error: null }
-        } catch (err) {
+        } catch {
             return { success: false, error: { message: '網路錯誤，請稍後再試' } }
         }
     },
 
     async downloadFile(contractId: string): Promise<{ url: string | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/download-url`, {
-                method: 'GET',
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { url: null, error: { message: error.detail || '取得下載連結失敗' } }
-            }
-            const { download_url } = await response.json()
-            return { url: download_url, error: null }
-        } catch (err) {
-            return { url: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
+        const { data, error } = await apiGet<{ download_url: string }>(`/api/v1/teacher-contracts/${contractId}/download-url`, '取得下載連結失敗', { extractData: false })
+        if (error) return { url: null, error }
+        return { url: data!.download_url, error: null }
     },
 
-    async getTeacherOptions(): Promise<{ data: TeacherOption[], error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/options/teachers`, {
-                method: 'GET',
-            })
+    getTeacherOptions: () =>
+        apiGet<TeacherOption[]>('/api/v1/teacher-contracts/options/teachers', '取得教師選項失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: [], error: { message: error.detail || '取得教師選項失敗' } }
-            }
+    getCourseOptions: () =>
+        apiGet<CourseOption[]>('/api/v1/teacher-contracts/options/courses', '取得課程選項失敗'),
 
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: [], error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    // ========== Details API ==========
 
-    async getCourseOptions(): Promise<{ data: CourseOption[], error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/options/courses`, {
-                method: 'GET',
-            })
+    listDetails: (contractId: string) =>
+        apiGet<TeacherContractDetail[]>(`/api/v1/teacher-contracts/${contractId}/details`, '取得合約明細失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: [], error: { message: error.detail || '取得課程選項失敗' } }
-            }
+    createDetail: (contractId: string, data: CreateDetailData) =>
+        apiPost<TeacherContractDetail>(`/api/v1/teacher-contracts/${contractId}/details`, data, '新增合約明細失敗'),
 
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: [], error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    updateDetail: (contractId: string, detailId: string, data: UpdateDetailData) =>
+        apiPut<TeacherContractDetail>(`/api/v1/teacher-contracts/${contractId}/details/${detailId}`, data, '更新合約明細失敗'),
 
-    async listDetails(contractId: string): Promise<{ data: TeacherContractDetail[], error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details`, {
-                method: 'GET',
-            })
+    deleteDetail: (contractId: string, detailId: string) =>
+        apiDelete(`/api/v1/teacher-contracts/${contractId}/details/${detailId}`, '刪除合約明細失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: [], error: { message: error.detail || '取得合約明細失敗' } }
-            }
+    // ========== Work Schedules API ==========
 
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: [], error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    listWorkSchedules: (contractId: string) =>
+        apiGet<TeacherWorkSchedule[]>(`/api/v1/teacher-contracts/${contractId}/work-schedules`, '取得工作時段失敗'),
 
-    async createDetail(contractId: string, data: CreateDetailData): Promise<{ data: TeacherContractDetail | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
+    setWorkSchedules: (contractId: string, schedules: TeacherWorkScheduleInput[]) =>
+        apiPut<TeacherWorkSchedule[]>(`/api/v1/teacher-contracts/${contractId}/work-schedules`, { schedules }, '更新工作時段失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: error.detail || '新增合約明細失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async updateDetail(contractId: string, detailId: string, data: UpdateDetailData): Promise<{ data: TeacherContractDetail | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details/${detailId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: error.detail || '更新合約明細失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async deleteDetail(contractId: string, detailId: string): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/details/${detailId}`, {
-                method: 'DELETE',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: error.detail || '刪除合約明細失敗' } }
-            }
-
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async listWorkSchedules(contractId: string): Promise<{ data: TeacherWorkSchedule[], error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/work-schedules`, {
-                method: 'GET',
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: [], error: { message: error.detail || '取得工作時段失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: [], error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async setWorkSchedules(contractId: string, schedules: TeacherWorkScheduleInput[]): Promise<{ data: TeacherWorkSchedule[], error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/work-schedules`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ schedules }),
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: [], error: { message: error.detail || '更新工作時段失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: [], error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async clearWorkSchedules(contractId: string): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/teacher-contracts/${contractId}/work-schedules`, {
-                method: 'DELETE',
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: error.detail || '清除工作時段失敗' } }
-            }
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    clearWorkSchedules: (contractId: string) =>
+        apiDelete(`/api/v1/teacher-contracts/${contractId}/work-schedules`, '清除工作時段失敗'),
 }

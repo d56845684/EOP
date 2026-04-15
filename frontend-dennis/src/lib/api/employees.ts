@@ -1,6 +1,4 @@
-import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { apiGet, apiPost, apiPut, apiDelete, qs } from './client'
 
 export type EmployeeType = 'admin' | 'full_time' | 'part_time' | 'intern'
 
@@ -62,92 +60,18 @@ export interface EmployeeListResponse {
 }
 
 export const employeesApi = {
-    async list(params?: {
-        page?: number
-        per_page?: number
-        search?: string
-        is_active?: boolean
-        employee_type?: string
-    }): Promise<{ data: EmployeeListResponse | null, error: any }> {
-        try {
-            const searchParams = new URLSearchParams()
-            if (params?.page) searchParams.set('page', String(params.page))
-            if (params?.per_page) searchParams.set('per_page', String(params.per_page))
-            if (params?.search) searchParams.set('search', params.search)
-            if (params?.is_active !== undefined) searchParams.set('is_active', String(params.is_active))
-            if (params?.employee_type) searchParams.set('employee_type', params.employee_type)
+    list: (params?: { page?: number; per_page?: number; search?: string; is_active?: boolean; employee_type?: string }) =>
+        apiGet<EmployeeListResponse>(`/api/v1/employees${qs(params || {})}`, '取得員工列表失敗', { extractData: false }),
 
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/employees?${searchParams}`)
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: error.detail || '取得員工列表失敗' } }
-            }
-            const result = await response.json()
-            return { data: result, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    create: (data: CreateEmployeeData) =>
+        apiPost<Employee>('/api/v1/employees', data, '建立員工失敗'),
 
-    async create(data: CreateEmployeeData): Promise<{ data: Employee | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/employees`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: error.detail || '建立員工失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    update: (id: string, data: UpdateEmployeeData) =>
+        apiPut<Employee>(`/api/v1/employees/${id}`, data, '更新員工失敗'),
 
-    async update(id: string, data: UpdateEmployeeData): Promise<{ data: Employee | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/employees/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: error.detail || '更新員工失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    delete: (id: string) =>
+        apiDelete(`/api/v1/employees/${id}`, '刪除員工失敗'),
 
-    async listRoles(): Promise<{ data: Role[], error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/employees/roles`)
-            if (!response.ok) return { data: [], error: null }
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch {
-            return { data: [], error: null }
-        }
-    },
-
-    async delete(id: string): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/employees/${id}`, {
-                method: 'DELETE',
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: error.detail || '刪除員工失敗' } }
-            }
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    listRoles: () =>
+        apiGet<Role[]>('/api/v1/employees/roles', '取得角色列表失敗'),
 }

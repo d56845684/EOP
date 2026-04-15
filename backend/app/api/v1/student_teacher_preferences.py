@@ -58,7 +58,7 @@ async def get_teacher_options(
             select="id,teacher_no,name,teacher_level",
             filters={"is_deleted": "eq.false", "is_active": "eq.true"},
         )
-        return {"success": True, "data": teachers}
+        return {"success": True, "message": "操作成功", "data": teachers}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -77,11 +77,11 @@ async def get_course_options(
             filters={"student_id": student_id, "is_deleted": "eq.false"},
         )
         if not student_courses:
-            return {"success": True, "data": []}
+            return {"success": True, "message": "操作成功", "data": []}
 
         course_ids = [sc["course_id"] for sc in student_courses if sc.get("course_id")]
         if not course_ids:
-            return {"success": True, "data": []}
+            return {"success": True, "message": "操作成功", "data": []}
 
         # 查詢課程詳情
         pool = supabase_service.pool
@@ -89,7 +89,7 @@ async def get_course_options(
             "SELECT id, course_name FROM courses WHERE id = ANY($1) AND is_deleted = FALSE",
             course_ids,
         )
-        return {"success": True, "data": [dict(c) for c in courses]}
+        return {"success": True, "message": "操作成功", "data": [dict(c) for c in courses]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -104,7 +104,7 @@ async def get_allowed_teachers(
         allowed_set, has_preferences = await preference_service.get_student_allowed_teachers(student_id)
 
         if not has_preferences:
-            return {"success": True, "data": []}
+            return {"success": True, "message": "操作成功", "data": []}
 
         # 查詢白名單內的教師完整資料
         teachers = await supabase_service.table_select(
@@ -114,12 +114,12 @@ async def get_allowed_teachers(
         )
         filtered = [t for t in teachers if str(t["id"]) in allowed_set]
 
-        return {"success": True, "data": filtered}
+        return {"success": True, "message": "操作成功", "data": filtered}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/", tags=["學生教師偏好"])
+@router.get("", tags=["學生教師偏好"])
 async def list_preferences(
     student_id: str = Query(..., description="學生 ID"),
     current_user: CurrentUser = Depends(require_page_permission("students.edit"))
@@ -159,12 +159,12 @@ async def list_preferences(
                 p["course_name"] = c_map.get(str(p.get("course_id")))
                 p["primary_teacher_name"] = t_map.get(str(p.get("primary_teacher_id")))
 
-        return {"success": True, "data": prefs}
+        return {"success": True, "message": "操作成功", "data": prefs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/")
+@router.post("")
 async def create_preference(
     data: StudentTeacherPreferenceCreate,
     current_user: CurrentUser = Depends(require_page_permission("students.edit"))
@@ -351,6 +351,20 @@ async def update_preference(
 
         if not update_data:
             raise HTTPException(status_code=400, detail="沒有需要更新的欄位")
+
+        # 重複檢查：防止更新後與同學生的其他偏好重複
+        current = existing[0]
+        new_teacher_id = update_data.get("primary_teacher_id", current.get("primary_teacher_id"))
+        if new_teacher_id:
+            # 教師模式：檢查同學生是否已有相同教師的偏好
+            dup = await supabase_service.pool.fetch(
+                "SELECT id FROM student_teacher_preferences "
+                "WHERE student_id = $1 AND primary_teacher_id = $2 "
+                "AND is_deleted = false AND id != $3",
+                current["student_id"], new_teacher_id, preference_id,
+            )
+            if dup:
+                raise HTTPException(status_code=400, detail="此學生已有該教師的偏好設定，無法重複指定")
 
         if employee_id:
             update_data["updated_by"] = employee_id

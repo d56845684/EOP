@@ -1,6 +1,6 @@
 import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { API_BASE_URL } from './config'
+import { apiGet, apiPost, apiPut, apiDelete } from './client'
 
 export type AddendumStatus = 'pending' | 'active' | 'expired' | 'terminated'
 export type ContractType = 'student' | 'teacher'
@@ -38,76 +38,31 @@ function contractBasePath(contractType: ContractType): string {
 }
 
 export const contractAddendumsApi = {
-    async list(contractType: ContractType, contractId: string): Promise<{ data: ContractAddendum[], error: any }> {
-        try {
-            const base = contractBasePath(contractType)
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/${base}/${contractId}/addendums`, {
-                method: 'GET',
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: [], error: { message: error.detail || '取得附約列表失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: [], error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    list: (contractType: ContractType, contractId: string) =>
+        apiGet<ContractAddendum[]>(
+            `/api/v1/${contractBasePath(contractType)}/${contractId}/addendums`,
+            '取得附約列表失敗',
+        ),
 
-    async create(contractType: ContractType, contractId: string, data: CreateAddendumData): Promise<{ data: ContractAddendum | null, error: any }> {
-        try {
-            const base = contractBasePath(contractType)
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/${base}/${contractId}/addendums`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: error.detail || '建立附約失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    create: (contractType: ContractType, contractId: string, data: CreateAddendumData) =>
+        apiPost<ContractAddendum>(
+            `/api/v1/${contractBasePath(contractType)}/${contractId}/addendums`,
+            data,
+            '建立附約失敗',
+        ),
 
-    async update(contractType: ContractType, contractId: string, addendumId: string, data: UpdateAddendumData): Promise<{ data: ContractAddendum | null, error: any }> {
-        try {
-            const base = contractBasePath(contractType)
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/${base}/${contractId}/addendums/${addendumId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: error.detail || '更新附約失敗' } }
-            }
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    update: (contractType: ContractType, contractId: string, addendumId: string, data: UpdateAddendumData) =>
+        apiPut<ContractAddendum>(
+            `/api/v1/${contractBasePath(contractType)}/${contractId}/addendums/${addendumId}`,
+            data,
+            '更新附約失敗',
+        ),
 
-    async delete(contractType: ContractType, contractId: string, addendumId: string): Promise<{ success: boolean, error: any }> {
-        try {
-            const base = contractBasePath(contractType)
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/${base}/${contractId}/addendums/${addendumId}`, {
-                method: 'DELETE',
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: error.detail || '刪除附約失敗' } }
-            }
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    delete: (contractType: ContractType, contractId: string, addendumId: string) =>
+        apiDelete(
+            `/api/v1/${contractBasePath(contractType)}/${contractId}/addendums/${addendumId}`,
+            '刪除附約失敗',
+        ),
 
     async generatePdf(contractType: ContractType, contractId: string, addendumId: string): Promise<{ success: boolean, error: any }> {
         try {

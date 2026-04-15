@@ -1,6 +1,4 @@
-import { fetchWithAuth } from './fetchWithAuth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+import { apiGet, apiPost, apiPut, apiAction, apiDelete, qs } from './client'
 
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled'
 
@@ -189,17 +187,8 @@ export interface SlotAvailabilityResponse {
     blocks: TimeBlock[]
 }
 
-function parseErrorDetail(detail: unknown): string {
-    if (typeof detail === 'string') return detail
-    if (Array.isArray(detail) && detail.length > 0) {
-        const msg = detail[0]?.msg || ''
-        return msg.replace(/^Value error,\s*/, '')
-    }
-    return ''
-}
-
 export const bookingsApi = {
-    async list(params?: {
+    list: (params?: {
         page?: number
         per_page?: number
         search?: string
@@ -209,449 +198,72 @@ export const bookingsApi = {
         course_id?: string
         date_from?: string
         date_to?: string
-    }): Promise<{ data: BookingListResponse | null, error: any }> {
-        try {
-            const queryParams = new URLSearchParams()
-            if (params?.page) queryParams.set('page', params.page.toString())
-            if (params?.per_page) queryParams.set('per_page', params.per_page.toString())
-            if (params?.search) queryParams.set('search', params.search)
-            if (params?.booking_status) queryParams.set('booking_status', params.booking_status)
-            if (params?.student_id) queryParams.set('student_id', params.student_id)
-            if (params?.teacher_id) queryParams.set('teacher_id', params.teacher_id)
-            if (params?.course_id) queryParams.set('course_id', params.course_id)
-            if (params?.date_from) queryParams.set('date_from', params.date_from)
-            if (params?.date_to) queryParams.set('date_to', params.date_to)
+    }) =>
+        apiGet<BookingListResponse>(`/api/v1/bookings${qs(params || {})}`, '取得預約列表失敗', { extractData: false }),
 
-            const url = `${API_BASE_URL}/api/v1/bookings${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+    get: (bookingId: string) =>
+        apiGet<Booking>(`/api/v1/bookings/${bookingId}`, '取得預約失敗'),
 
-            const response = await fetchWithAuth(url, {
-                method: 'GET',
-            })
+    create: (data: CreateBookingData) =>
+        apiPost<Booking>('/api/v1/bookings', data, '建立預約失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得預約列表失敗' } }
-            }
+    update: (bookingId: string, data: UpdateBookingData) =>
+        apiPut<Booking>(`/api/v1/bookings/${bookingId}`, data, '更新預約失敗'),
 
-            const result: BookingListResponse = await response.json()
-            return { data: result, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async get(bookingId: string): Promise<{ data: Booking | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/${bookingId}`, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得預約失敗' } }
-            }
-
-            const result: BookingResponse = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async create(data: CreateBookingData): Promise<{ data: Booking | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '建立預約失敗' } }
-            }
-
-            const result: BookingResponse = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async update(bookingId: string, data: UpdateBookingData): Promise<{ data: Booking | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/${bookingId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '更新預約失敗' } }
-            }
-
-            const result: BookingResponse = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async delete(bookingId: string): Promise<{ success: boolean, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/${bookingId}`, {
-                method: 'DELETE',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: parseErrorDetail(error.detail) || '刪除預約失敗' } }
-            }
-
-            return { success: true, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    delete: (bookingId: string) =>
+        apiDelete(`/api/v1/bookings/${bookingId}`, '刪除預約失敗'),
 
     // 批次操作 API
-    async createBatch(data: BatchCreateData): Promise<{ success: boolean, message?: string, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/batch`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
+    createBatch: (data: BatchCreateData) =>
+        apiAction('POST', '/api/v1/bookings/batch', data, '批次建立預約失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: parseErrorDetail(error.detail) || '批次建立預約失敗' } }
-            }
+    updateByIds: (data: BatchUpdateByIdsData) =>
+        apiAction('POST', '/api/v1/bookings/batch-by-ids/update', data, '批次更新預約失敗'),
 
-            const result = await response.json()
-            if (result.success === false) {
-                return { success: false, message: result.message, error: { message: result.message || '批次建立預約失敗' } }
-            }
-            return { success: true, message: result.message, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    deleteByIds: (data: BatchDeleteByIdsData) =>
+        apiAction('POST', '/api/v1/bookings/batch-by-ids/delete', data, '批次刪除預約失敗'),
 
-    async updateByIds(data: BatchUpdateByIdsData): Promise<{ success: boolean, message?: string, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/batch-by-ids/update`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
+    updateBatch: (data: BatchUpdateData) =>
+        apiAction('PUT', '/api/v1/bookings/batch', data, '批次更新預約失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: parseErrorDetail(error.detail) || '批次更新預約失敗' } }
-            }
-
-            const result = await response.json()
-            return { success: true, message: result.message, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async deleteByIds(data: BatchDeleteByIdsData): Promise<{ success: boolean, message?: string, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/batch-by-ids/delete`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: parseErrorDetail(error.detail) || '批次刪除預約失敗' } }
-            }
-
-            const result = await response.json()
-            return { success: true, message: result.message, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async updateBatch(data: BatchUpdateData): Promise<{ success: boolean, message?: string, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/batch`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: parseErrorDetail(error.detail) || '批次更新預約失敗' } }
-            }
-
-            const result = await response.json()
-            return { success: true, message: result.message, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async deleteBatch(data: BatchDeleteData): Promise<{ success: boolean, message?: string, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/batch`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { success: false, error: { message: parseErrorDetail(error.detail) || '批次刪除預約失敗' } }
-            }
-
-            const result = await response.json()
-            return { success: true, message: result.message, error: null }
-        } catch (err) {
-            return { success: false, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    deleteBatch: (data: BatchDeleteData) =>
+        apiAction('DELETE', '/api/v1/bookings/batch', data, '批次刪除預約失敗'),
 
     // 取得下拉選單選項
-    async getStudentOptions(): Promise<{ data: StudentOption[] | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/students`, {
-                method: 'GET',
-            })
+    getStudentOptions: () =>
+        apiGet<StudentOption[]>('/api/v1/bookings/options/students', '取得學生選項失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得學生選項失敗' } }
-            }
+    getTeacherOptions: (params?: { student_id?: string; course_id?: string }) =>
+        apiGet<TeacherOption[]>(`/api/v1/bookings/options/teachers${qs(params || {})}`, '取得教師選項失敗'),
 
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    getOverlappingCourseOptions: (studentId: string, teacherId: string) =>
+        apiGet<CourseOption[]>(`/api/v1/bookings/options/overlapping-courses${qs({ student_id: studentId, teacher_id: teacherId })}`, '取得交集課程選項失敗'),
 
-    async getTeacherOptions(params?: { student_id?: string, course_id?: string }): Promise<{ data: TeacherOption[] | null, error: any }> {
-        try {
-            const queryParams = new URLSearchParams()
-            if (params?.student_id) queryParams.set('student_id', params.student_id)
-            if (params?.course_id) queryParams.set('course_id', params.course_id)
+    getCourseOptions: () =>
+        apiGet<CourseOption[]>('/api/v1/bookings/options/courses', '取得課程選項失敗'),
 
-            const url = `${API_BASE_URL}/api/v1/bookings/options/teachers${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+    getStudentContractOptions: (studentId: string) =>
+        apiGet<StudentContractOption[]>(`/api/v1/bookings/options/student-contracts/${studentId}`, '取得學生合約選項失敗'),
 
-            const response = await fetchWithAuth(url, {
-                method: 'GET',
-            })
+    getTeacherContractOptions: (teacherId: string) =>
+        apiGet<TeacherContractOption[]>(`/api/v1/bookings/options/teacher-contracts/${teacherId}`, '取得教師合約選項失敗'),
 
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得教師選項失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-
-    async getOverlappingCourseOptions(studentId: string, teacherId: string): Promise<{ data: CourseOption[] | null, error: any }> {
-        try {
-            const queryParams = new URLSearchParams()
-            queryParams.set('student_id', studentId)
-            queryParams.set('teacher_id', teacherId)
-
-            const url = `${API_BASE_URL}/api/v1/bookings/options/overlapping-courses?${queryParams.toString()}`
-
-            const response = await fetchWithAuth(url, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得交集課程選項失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async getCourseOptions(): Promise<{ data: CourseOption[] | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/courses`, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得課程選項失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async getStudentContractOptions(studentId: string): Promise<{ data: StudentContractOption[] | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/student-contracts/${studentId}`, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得學生合約選項失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async getTeacherContractOptions(teacherId: string): Promise<{ data: TeacherContractOption[] | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/teacher-contracts/${teacherId}`, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得教師合約選項失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
-
-    async getTeacherSlotOptions(teacherId: string, dateFrom?: string, dateTo?: string): Promise<{ data: TeacherSlotOption[] | null, error: any }> {
-        try {
-            const queryParams = new URLSearchParams()
-            if (dateFrom) queryParams.set('date_from', dateFrom)
-            if (dateTo) queryParams.set('date_to', dateTo)
-
-            const url = `${API_BASE_URL}/api/v1/bookings/options/teacher-slots/${teacherId}${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-
-            const response = await fetchWithAuth(url, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得教師時段選項失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    getTeacherSlotOptions: (teacherId: string, dateFrom?: string, dateTo?: string) =>
+        apiGet<TeacherSlotOption[]>(`/api/v1/bookings/options/teacher-slots/${teacherId}${qs({ date_from: dateFrom, date_to: dateTo })}`, '取得教師時段選項失敗'),
 
     // 取得當前學生的資料（學生用）
-    async getMyStudentInfo(): Promise<{ data: StudentOption | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/my-student-info`, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得學生資料失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    getMyStudentInfo: () =>
+        apiGet<StudentOption>('/api/v1/bookings/my-student-info', '取得學生資料失敗'),
 
     // 取得時段的 30 分鐘區塊可用狀態
-    async getSlotAvailability(slotId: string): Promise<{ data: SlotAvailabilityResponse | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/slot-availability/${slotId}`, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得時段可用狀態失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || null, error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    getSlotAvailability: (slotId: string) =>
+        apiGet<SlotAvailabilityResponse>(`/api/v1/bookings/slot-availability/${slotId}`, '取得時段可用狀態失敗'),
 
     // 取得可用代課教師選項
-    async getSubstituteTeacherOptions(bookingId: string): Promise<{ data: SubstituteTeacherOption[] | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/options/substitute-teachers?booking_id=${encodeURIComponent(bookingId)}`, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得代課教師選項失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    getSubstituteTeacherOptions: (bookingId: string) =>
+        apiGet<SubstituteTeacherOption[]>(`/api/v1/bookings/options/substitute-teachers${qs({ booking_id: bookingId })}`, '取得代課教師選項失敗'),
 
     // 取得當前學生的合約（學生用）
-    async getMyContracts(): Promise<{ data: StudentContractOption[] | null, error: any }> {
-        try {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/bookings/my-contracts`, {
-                method: 'GET',
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                return { data: null, error: { message: parseErrorDetail(error.detail) || '取得學生合約選項失敗' } }
-            }
-
-            const result = await response.json()
-            return { data: result.data || [], error: null }
-        } catch (err) {
-            return { data: null, error: { message: '網路錯誤，請稍後再試' } }
-        }
-    },
+    getMyContracts: () =>
+        apiGet<StudentContractOption[]>('/api/v1/bookings/my-contracts', '取得學生合約選項失敗'),
 }

@@ -74,6 +74,9 @@ class E2EContext:
     auto_student_id: Optional[str] = None
     auto_teacher_id: Optional[str] = None
 
+    # Phase 4.1: 偏好白名單驗證用（不在白名單的教師）
+    teacher_d_id: Optional[str] = None
+
     # 衍生資料
     course_duration: int = 60
     slot_date: str = ""
@@ -203,6 +206,18 @@ class E2EBookingFlowTester:
                 ("驗證重複預約被拒絕 (409)", self._test_duplicate_booking_rejected),
             ]
             for name, fn in tests_phase4:
+                await self._run_test(name, fn, ctx)
+
+            # ── Phase 4.1: 偏好白名單驗證 ──
+            print("\n  Phase 4.1: 偏好白名單驗證")
+            print("  " + "-" * 40)
+            tests_preference_check = [
+                ("建立白名單外教師 D（無偏好）", self._test_create_teacher_d_no_preference),
+                ("CREATE 白名單外教師 D 預約（應拒絕 400）", self._test_create_booking_disallowed_teacher),
+                ("CREATE 白名單內教師 B 預約（成功）", self._test_create_booking_allowed_teacher_b),
+                ("刪除教師 B 預約（清理）", self._test_delete_booking_teacher_b),
+            ]
+            for name, fn in tests_preference_check:
                 await self._run_test(name, fn, ctx)
 
             # ── Phase 4.5: Zoom 會議（如果有 Zoom 帳號） ──
@@ -738,6 +753,67 @@ class E2EBookingFlowTester:
             return True
         return f"Expected 409 Conflict, got {resp.status_code}"
 
+    # ────────────────── Phase 4.1: 偏好白名單驗證 ──────────────────
+
+    async def _test_create_teacher_d_no_preference(self, ctx: E2EContext):
+        """建立教師 D — 不在學生偏好白名單中"""
+        resp = await self._post("/api/v1/teachers", {
+            "teacher_no": f"{TEST_PREFIX}T005",
+            "name": f"{TEST_PREFIX}測試教師D_非白名單",
+            "email": f"e2e_teacher_d_{datetime.now().strftime('%H%M%S')}@test.local",
+            "teacher_level": 1,
+        })
+        if resp.status_code != 200:
+            return f"Create teacher D failed: {resp.status_code} {resp.text[:200]}"
+        ctx.teacher_d_id = resp.json()["data"]["id"]
+        return True
+
+    async def _test_create_booking_disallowed_teacher(self, ctx: E2EContext):
+        """CREATE 預約用白名單外教師 D → 應被拒絕 400"""
+        resp = await self._post("/api/v1/bookings", {
+            "student_id": ctx.student_id,
+            "teacher_id": ctx.teacher_d_id,
+            "course_id": ctx.course_id,
+            "student_contract_id": ctx.student_contract_id,
+            "teacher_slot_id": ctx.teacher_slot_id,
+            "booking_date": ctx.slot_date,
+            "start_time": "10:00",
+            "end_time": "11:00",
+            "notes": f"{TEST_PREFIX}should_fail_disallowed",
+        })
+        if resp.status_code == 400:
+            return True
+        return f"Expected 400 (not in whitelist), got {resp.status_code}: {resp.text[:200]}"
+
+    async def _test_create_booking_allowed_teacher_b(self, ctx: E2EContext):
+        """CREATE 預約用白名單內教師 B → 應成功（驗證白名單內教師可建立）"""
+        resp = await self._post("/api/v1/bookings", {
+            "student_id": ctx.student_id,
+            "teacher_id": ctx.teacher_b_id,
+            "course_id": ctx.course_id,
+            "student_contract_id": ctx.student_contract_id,
+            "teacher_contract_id": ctx.teacher_b_contract_id,
+            "teacher_slot_id": ctx.teacher_slot_id,
+            "booking_date": ctx.slot_date,
+            "start_time": "10:00",
+            "end_time": "11:00",
+            "notes": f"{TEST_PREFIX}teacher_b_booking",
+        })
+        if resp.status_code != 200:
+            return f"Expected 200, got {resp.status_code}: {resp.text[:200]}"
+        ctx._teacher_b_booking_id = resp.json()["data"]["id"]
+        return True
+
+    async def _test_delete_booking_teacher_b(self, ctx: E2EContext):
+        """刪除教師 B 的預約（清理，避免影響後續測試）"""
+        bid = getattr(ctx, '_teacher_b_booking_id', None)
+        if not bid:
+            return "no teacher B booking to delete"
+        resp = await self._delete(f"/api/v1/bookings/{bid}")
+        if resp.status_code not in (200, 204):
+            return f"{resp.status_code} {resp.text[:200]}"
+        return True
+
     # ────────────────── Phase 4.5: Zoom ──────────────────
 
     async def _test_check_zoom_accounts(self, ctx: E2EContext):
@@ -889,6 +965,7 @@ class E2EBookingFlowTester:
             )),
             ("teacher_contract", f"/api/v1/teacher-contracts/{ctx.teacher_contract_id}" if ctx.teacher_contract_id else None),
             ("student_contract", f"/api/v1/student-contracts/{ctx.student_contract_id}" if ctx.student_contract_id else None),
+            ("teacher_d", f"/api/v1/teachers/{ctx.teacher_d_id}" if ctx.teacher_d_id else None),
             ("teacher_c", f"/api/v1/teachers/{ctx.teacher_c_id}" if ctx.teacher_c_id else None),
             ("teacher_b", f"/api/v1/teachers/{ctx.teacher_b_id}" if ctx.teacher_b_id else None),
             ("teacher", f"/api/v1/teachers/{ctx.teacher_id}" if ctx.teacher_id else None),
