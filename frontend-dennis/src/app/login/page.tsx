@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { lineApi } from '@/lib/api/line'
 
@@ -113,6 +114,12 @@ function LoginForm() {
         >
           {loading ? '登入中...' : '登入'}
         </button>
+
+        <div className="text-right mt-2">
+          <Link href="/forgot-password" className="text-sm text-primary-600 hover:underline">
+            忘記密碼？
+          </Link>
+        </div>
       </form>
 
       <div className="relative my-6">

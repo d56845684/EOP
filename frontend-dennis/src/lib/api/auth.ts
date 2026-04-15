@@ -137,4 +137,7 @@ export const authApi = {
             current_password: currentPassword,
             new_password: newPassword,
         }, '密碼變更失敗'),
+
+    requestPasswordReset: (email: string) =>
+        apiAction('POST', '/api/v1/auth/password/reset', { email }, '發送重設密碼郵件失敗'),
 }
