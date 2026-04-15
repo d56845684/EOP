@@ -60,6 +60,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { title: '系統設定', icon: 'i-hugeicons:settings-01' }, // A parent wrapper
         children: [
             {
+                path: 'employees',
+                name: 'EmployeeSettings',
+                component: () => import('../views/settings/EmployeeList.vue'),
+                meta: { title: '員工管理', icon: 'i-hugeicons:user-settings-01', pageKey: 'employees.list' }
+            },
+            {
                 path: 'account',
                 name: 'AccountSettings',
                 component: () => import('../views/settings/AccountList.vue'),

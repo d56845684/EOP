@@ -17,8 +17,15 @@ export interface UserInfo {
   id: string;
   email: string;
   role: string; // 'student' | 'teacher' | 'employee'
+  role_id?: string | null;
+  created_at?: string | null;
+  employee_type?: string | null;
+  permission_level?: number;
+  must_change_password?: boolean;
+  teacher_id?: string | null;
+  student_id?: string | null;
+  employee_id?: string | null;
   name?: string | null;
-  // ... other fields can be added as needed
 }
 
 export interface LoginResponse {

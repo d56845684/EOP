@@ -53,8 +53,8 @@
     <!-- Student Status -->
     <el-table-column prop="student_status" :label="$t('student.status')" width="80" align="center">
       <template #default="{ row }">
-        <el-tag size="small" :type="STUDENT_STATUS_COLOR[row.student_status]" class="w-50px">
-          {{ STUDENT_STATUS_LABEL[row.student_status] }}
+        <el-tag size="small" :type="STUDENT_STATUS_TAG_MAP[row.student_status]" class="w-50px">
+          {{ formatStudentStatusLabel(row.student_status, row.student_status, t) }}
         </el-tag>
       </template>
     </el-table-column>
@@ -145,19 +145,10 @@
 <script setup lang="ts">
 import type { StudentResponse } from '@/api/student'
 import { STUDENT_STATUS } from '@/constants/student'
+import { STUDENT_STATUS_TAG_MAP } from '@/constants/display';
 import { usePermissionStore } from '@/stores/permission';
-
-  const STUDENT_STATUS_LABEL: Record<string, string> = {
-    [STUDENT_STATUS.ACTIVE]: '課程中',
-    [STUDENT_STATUS.TERMINATED]: '解約',
-    [STUDENT_STATUS.TRIAL]: '試上'
-  };
-
-  const STUDENT_STATUS_COLOR: Record<string, string> = {
-    [STUDENT_STATUS.ACTIVE]: 'success',
-    [STUDENT_STATUS.TERMINATED]: 'info',
-    [STUDENT_STATUS.TRIAL]: 'warning'
-  }
+import { formatStudentStatusLabel } from '@/utils/i18n-formatters';
+import { useI18n } from 'vue-i18n';
 
   const TAB_MAP = {
     BASIC: 'basic',
@@ -185,6 +176,7 @@ import { usePermissionStore } from '@/stores/permission';
   })
 
   const permissionStore = usePermissionStore();
+  const { t } = useI18n();
   const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
   const emit = defineEmits(['openDrawer', 'openConvertToFormalDialog', 'handleDelete', 'handleStatusChange', 'handleVerify', 'copyEmail'])
   const openDrawer = (student: StudentResponse, type: string) => {

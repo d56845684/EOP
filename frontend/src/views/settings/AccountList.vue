@@ -7,7 +7,7 @@
         type="primary"
         round
         size="small"
-        class="h-30px! px-2!"
+        class="h-30px! px-2"
         @click="openDrawer(null, 'add')"
       >
         <template #icon>

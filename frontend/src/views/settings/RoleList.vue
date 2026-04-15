@@ -7,7 +7,7 @@
         type="primary"
         size="small"
         round
-        class="h-30px! px-2!"
+        class="h-30px! px-2"
         @click="handleCreate"
       >
         <template #icon>

@@ -635,7 +635,7 @@ onMounted(() => {
 .settings-container {
   min-height: 200px;
   :deep(.el-card) {
-    &__body {
+    .el-card__body {
       padding: 12px;
     }
   }

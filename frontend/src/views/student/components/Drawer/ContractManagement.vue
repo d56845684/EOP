@@ -228,7 +228,7 @@
           <el-table-column prop="addendum_no" label="附約編號" width="180" />
           <el-table-column prop="addendum_status" label="附約狀態" width="80">
             <template #default="scope">
-              {{ STUDENT_CONTRACT_STATUS_MAP[scope.row.addendum_status] }}
+              {{ formatStudentContractStatusLabel(scope.row.addendum_status, scope.row.addendum_status, t) }}
             </template>
           </el-table-column>
           <el-table-column prop="new_end_date" label="展延結束日期" width="120" />
@@ -363,7 +363,7 @@
       </el-table-column>
       <el-table-column prop="contract_status" label="合約狀態" width="100" align="center">
         <template #default="{ row }">
-          {{ STUDENT_CONTRACT_STATUS_MAP[row.contract_status] || row.contract_status }}
+          {{ formatStudentContractStatusLabel(row.contract_status, row.contract_status, t) }}
         </template>
       </el-table-column>
       <el-table-column label="檢視" width="60" align="center">
@@ -425,9 +425,11 @@ import {
   type StudentContractDetail ,
   type StudentContractAddendum
 } from '@/api/studentContract';
-import { CONTRACT_STATUS, STUDENT_CONTRACT_STATUS_MAP } from '@/constants/contract';
+import { CONTRACT_STATUS } from '@/constants/contract';
 import { triggerDownload, getFileNameFromResponse}  from '@/utils/download';
+import { formatStudentContractStatusLabel } from '@/utils/i18n-formatters';
 import { uploadContractFile } from '@/utils/upload';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps({
   contracts: {
@@ -451,6 +453,8 @@ const props = defineProps({
     required: true
   }
 })
+
+const { t } = useI18n();
 
 const contractForm = ref({
   contract_status: 'pending',
@@ -698,7 +702,7 @@ watch(activeContract, (newVal: StudentContract | null) => {
   max-width: 200px;
   .el-upload-list {
     width: 100%;
-    &__item-name {
+    .el-upload-list__item-name {
       font-size: 11px !important;
     }
   }

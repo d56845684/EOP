@@ -72,8 +72,17 @@
         </el-table-column>
         <el-table-column prop="course_name" :label="$t('course.courseName')" width="200px" />
         <el-table-column prop="description" :label="$t('course.description')" min-width="200px" />
-        <el-table-column prop="duration_minutes" :label="$t('course.duration')" width="120px" align="center" />
-        <el-table-column prop="is_active" :label="$t('common.active') + $t('common.status')" width="120px" align="center">
+        <el-table-column prop="duration_minutes" :label="$t('course.duration')" width="110px" align="center" />
+        <el-table-column :label="$t('common.actions')" fixed="right" width="120px" align="center">
+          <template #default="{ row }">
+             <el-button type="primary" link size="small" @click="openDrawer(row, 'edit')">{{ $t('common.edit') }}</el-button>
+             <el-button type="danger" link size="small" @click="handleDelete(row)">
+              <div class="i-hugeicons:delete-02 mr-2px" />
+              {{ $t('common.delete') }}
+            </el-button>
+          </template>
+        </el-table-column>
+        <el-table-column prop="is_active" :label="$t('common.status')" width="72px" align="center" fixed="right">
           <template #default="{ row }">
             <el-switch
               v-if="hasPermission('courses.edit')"
@@ -83,15 +92,6 @@
               @change="handleStatusChange(row)"
             />
             <el-tag v-else :type="row.is_active ? 'success' : 'info'" size="small" effect="light" class="w-36px! text-10px text-center">{{ row.is_active ? '啟用' : '停用' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('common.actions')" fixed="right" width="180px" align="center">
-          <template #default="{ row }">
-             <el-button type="primary" link size="small" @click="openDrawer(row, 'edit')">{{ $t('common.edit') }}</el-button>
-             <el-button type="danger" link size="small" @click="handleDelete(row)">
-              <div class="i-hugeicons:delete-02 mr-2px" />
-              {{ $t('common.delete') }}
-            </el-button>
           </template>
         </el-table-column>
       </el-table>

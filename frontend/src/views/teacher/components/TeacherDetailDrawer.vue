@@ -565,11 +565,11 @@ watch(() => props.modelValue, (val) => {
       width: 100%;
       .el-upload-list {
         width: 60%;
-        &__item {
+        .el-upload-list__item {
           &:hover {
             border-radius: 5px;
           }
-          &-file-name {
+          .el-upload-list__item-file-name {
             max-width: calc(100% - 20px);
           }
         }

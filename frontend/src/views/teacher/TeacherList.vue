@@ -111,7 +111,7 @@
                     size="small"
                     @click="handleVerify(teacher)"
                   >
-                    <div class="i-hugeicons:mail-validation mr-2px" />
+                    <div class="i-hugeicons:mail-validation-01 mr-2px" />
                     帳號驗證
                   </el-button>
                   <div v-else class="flex items-center justify-center gap-1 color-success">

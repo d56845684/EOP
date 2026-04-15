@@ -54,7 +54,12 @@
           <el-col :span="8">
             <el-form-item :label="$t('contract.contractStatus')" prop="status">
             <el-select v-model="contractForm.contract_status" class="w-full">
-              <el-option v-for="(label, value) in TEACHER_CONTRACT_STATUS_MAP" :key="value" :label="label" :value="value" />
+              <el-option
+                v-for="option in teacherContractStatusOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
             </el-select>
             </el-form-item>
           </el-col>
@@ -448,8 +453,9 @@ import {
   // type TeacherContractAddendumResponse,
 } from '@/api/teacherContract';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
-import { TEACHER_CONTRACT_STATUS_MAP } from '@/constants/contract';
+import { getTeacherContractStatusOptions } from '@/utils/i18n-formatters';
 import { uploadContractFile } from '@/utils/upload';
+import { useI18n } from 'vue-i18n';
 // import { triggerDownload, getFileNameFromResponse } from '@/utils/download';
 
 const props = defineProps<{
@@ -458,6 +464,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits(['update:modelValue', 'saved']);
+const { t } = useI18n();
 
 const isVisible = computed({
   get: () => props.modelValue,
@@ -493,6 +500,8 @@ const contractRules = reactive<FormRules>({
   contract_status: [{ required: true, message: 'Status is required' }],
   employment_type: [{ required: true, message: 'Employment type is required' }]
 });
+
+const teacherContractStatusOptions = computed(() => getTeacherContractStatusOptions(t));
 
 // Schedules
 const weekdaysInfo = [
