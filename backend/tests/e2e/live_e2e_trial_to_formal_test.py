@@ -223,12 +223,12 @@ class TrialToFormalTester:
         # 建立 trial students
         self.student_1_id = db_value(
             f"INSERT INTO students (student_no, name, email, phone, student_type, is_active) "
-            f"VALUES ('{TEST_PREFIX}S1', '{TEST_PREFIX}試上生1', '{TEST_PREFIX}s1@test.local', "
+            f"VALUES ('{TEST_PREFIX}S1', '{TEST_PREFIX}試上生1', '{TEST_PREFIX}s1@example.com', "
             f"'0900000001', 'trial', true) RETURNING id"
         )
         self.student_2_id = db_value(
             f"INSERT INTO students (student_no, name, email, phone, student_type, is_active) "
-            f"VALUES ('{TEST_PREFIX}S2', '{TEST_PREFIX}試上生2', '{TEST_PREFIX}s2@test.local', "
+            f"VALUES ('{TEST_PREFIX}S2', '{TEST_PREFIX}試上生2', '{TEST_PREFIX}s2@example.com', "
             f"'0900000002', 'trial', true) RETURNING id"
         )
         if not self.student_1_id or not self.student_2_id:

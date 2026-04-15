@@ -15,7 +15,128 @@ import logging
 import math
 import uuid
 
+from app.services.google_service import google_calendar_service
+from app.services.alert_service import alert_service
+
 router = APIRouter(prefix="/bookings", tags=["預約管理"])
+
+logger = logging.getLogger(__name__)
+
+
+async def _sync_calendar_create(booking: dict):
+    """非阻塞：建立 Calendar 事件"""
+    try:
+        student_email = booking.get("student_email")
+        teacher_email = booking.get("teacher_email")
+        if not student_email and not teacher_email:
+            # 查詢 email
+            pool = supabase_service.pool
+            if booking.get("student_id"):
+                row = await pool.fetchval(
+                    "SELECT email FROM students WHERE id = $1",
+                    uuid.UUID(booking["student_id"]),
+                )
+                student_email = row
+            if booking.get("teacher_id"):
+                row = await pool.fetchval(
+                    "SELECT email FROM teachers WHERE id = $1",
+                    uuid.UUID(booking["teacher_id"]),
+                )
+                teacher_email = row
+
+        course_name = booking.get("course_name", "課程")
+        student_name = booking.get("student_name", "")
+        teacher_name = booking.get("teacher_name", "")
+        booking_date = str(booking.get("booking_date", ""))
+        start_time = str(booking.get("start_time", ""))[:8]
+        end_time = str(booking.get("end_time", ""))[:8]
+
+        summary = f"[{booking.get('booking_no', '')}] {course_name}"
+        description = (
+            f"學生：{student_name}\n"
+            f"教師：{teacher_name}\n"
+            f"課程：{course_name}\n"
+            f"時間：{booking_date} {start_time}-{end_time}\n"
+            f"預約編號：{booking.get('booking_no', '')}"
+        )
+
+        await google_calendar_service.create_calendar_event(
+            booking_id=str(booking["id"]),
+            summary=summary,
+            description=description,
+            date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            student_email=student_email,
+            teacher_email=teacher_email,
+        )
+    except Exception as e:
+        logger.error(f"Calendar 同步失敗（不影響預約）: {e}")
+        await alert_service.create(
+            alert_type="calendar_sync_failed",
+            title=f"預約 {booking.get('booking_no', '')} Calendar 同步失敗",
+            message=str(e),
+            metadata={"booking_id": str(booking.get("id", "")), "action": "create"},
+        )
+
+
+async def _sync_calendar_update(booking: dict):
+    """非阻塞：更新 Calendar 事件"""
+    try:
+        pool = supabase_service.pool
+        student_email = None
+        teacher_email = None
+        if booking.get("student_id"):
+            student_email = await pool.fetchval(
+                "SELECT email FROM students WHERE id = $1",
+                uuid.UUID(booking["student_id"]),
+            )
+        if booking.get("teacher_id"):
+            teacher_email = await pool.fetchval(
+                "SELECT email FROM teachers WHERE id = $1",
+                uuid.UUID(booking["teacher_id"]),
+            )
+
+        course_name = booking.get("course_name", "課程")
+        student_name = booking.get("student_name", "")
+        teacher_name = booking.get("teacher_name", "")
+        booking_date = str(booking.get("booking_date", ""))
+        start_time = str(booking.get("start_time", ""))[:8]
+        end_time = str(booking.get("end_time", ""))[:8]
+        status = booking.get("booking_status", "")
+
+        if status == "cancelled":
+            await google_calendar_service.cancel_calendar_event(str(booking["id"]))
+            return
+
+        summary = f"[{booking.get('booking_no', '')}] {course_name}"
+        description = (
+            f"學生：{student_name}\n"
+            f"教師：{teacher_name}\n"
+            f"課程：{course_name}\n"
+            f"時間：{booking_date} {start_time}-{end_time}\n"
+            f"狀態：{status}\n"
+            f"預約編號：{booking.get('booking_no', '')}"
+        )
+
+        await google_calendar_service.update_calendar_event(
+            booking_id=str(booking["id"]),
+            summary=summary,
+            description=description,
+            date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            student_email=student_email,
+            teacher_email=teacher_email,
+        )
+    except Exception as e:
+        logger.error(f"Calendar 更新同步失敗（不影響預約）: {e}")
+        await alert_service.create(
+            alert_type="calendar_sync_failed",
+            title=f"預約 {booking.get('booking_no', '')} Calendar 更新同步失敗",
+            message=str(e),
+            metadata={"booking_id": str(booking.get("id", "")), "action": "update"},
+        )
 
 
 def calculate_lessons_used(start_time: time, end_time: time, duration_minutes: int) -> int:
@@ -1295,6 +1416,9 @@ async def create_booking(
 
         enriched = await enrich_booking_with_relations(result)
 
+        # 非阻塞 Calendar 同步
+        asyncio.create_task(_sync_calendar_create(enriched))
+
         return DataResponse(
             message="預約建立成功",
             data=BookingResponse(**enriched)
@@ -1630,6 +1754,9 @@ async def update_booking(
         # 添加關聯名稱
         enriched = await enrich_booking_with_relations(result)
 
+        # 非阻塞 Calendar 同步
+        asyncio.create_task(_sync_calendar_update(enriched))
+
         return DataResponse(
             message="預約更新成功",
             data=BookingResponse(**enriched)
@@ -1846,6 +1973,9 @@ async def delete_booking(
                 )
         except Exception:
             pass
+
+        # 取消 Calendar 事件
+        asyncio.create_task(google_calendar_service.cancel_calendar_event(booking_id))
 
         return BaseResponse(message="預約刪除成功")
 

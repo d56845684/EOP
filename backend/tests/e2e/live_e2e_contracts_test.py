@@ -179,7 +179,7 @@ class ContractsTester:
     async def _create_student(self):
         resp = await self._post("/api/v1/students", {
             "student_no": f"{TEST_PREFIX}S01", "name": f"{TEST_PREFIX}合約測試學生",
-            "email": f"{TEST_PREFIX}s@test.local", "student_type": "formal",
+            "email": f"{TEST_PREFIX}s@example.com", "student_type": "formal",
         })
         if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
         self.student_id = resp.json()["data"]["id"]
@@ -188,7 +188,7 @@ class ContractsTester:
     async def _create_teacher(self):
         resp = await self._post("/api/v1/teachers", {
             "teacher_no": f"{TEST_PREFIX}T01", "name": f"{TEST_PREFIX}合約測試教師",
-            "email": f"{TEST_PREFIX}t@test.local", "teacher_level": 2,
+            "email": f"{TEST_PREFIX}t@example.com", "teacher_level": 2,
         })
         if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
         self.teacher_id = resp.json()["data"]["id"]

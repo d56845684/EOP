@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime, date
 
@@ -8,7 +8,7 @@ class EmployeeCreate(BaseModel):
     employee_no: str = Field(..., min_length=1, max_length=50, description="員工編號")
     employee_type: str = Field(..., description="員工類型 (admin/full_time/part_time/intern)")
     name: str = Field(..., min_length=1, max_length=100, description="姓名")
-    email: str = Field(..., max_length=255, description="Email")
+    email: EmailStr = Field(..., description="Email")
     phone: Optional[str] = Field(None, max_length=20, description="電話")
     address: Optional[str] = Field(None, description="地址")
     hire_date: date = Field(..., description="到職日")
@@ -20,7 +20,7 @@ class EmployeeUpdate(BaseModel):
     """更新員工"""
     employee_type: Optional[str] = Field(None, description="員工類型 (admin/full_time/part_time/intern)")
     name: Optional[str] = Field(None, min_length=1, max_length=100)
-    email: Optional[str] = Field(None, max_length=255)
+    email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
     hire_date: Optional[date] = None

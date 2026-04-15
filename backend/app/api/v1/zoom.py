@@ -798,7 +798,7 @@ async def get_download_token(data: DownloadTokenRequest):
             raise HTTPException(404, "無可用錄影檔案")
 
         # 取得 Google Drive 設定
-        from app.services.google_drive_service import google_drive_service
+        from app.services.google_service import google_drive_service
         drive_config = await google_drive_service.get_drive_config()
 
         drive_mode = "sa"

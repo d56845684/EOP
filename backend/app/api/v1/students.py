@@ -108,7 +108,22 @@ async def create_student(
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if existing_email:
-            raise HTTPException(status_code=400, detail="Email 已存在")
+            raise HTTPException(status_code=400, detail="此 Email 已被其他學生使用")
+
+        # 跨表檢查：email 全域不可重複
+        dup_teacher = await supabase_service.table_select(
+            table="teachers", select="id",
+            filters={"email": data.email, "is_deleted": "eq.false"}
+        )
+        if dup_teacher:
+            raise HTTPException(status_code=400, detail="此 Email 已被教師使用")
+
+        dup_employee = await supabase_service.table_select(
+            table="employees", select="id",
+            filters={"email": data.email, "is_deleted": "eq.false"}
+        )
+        if dup_employee:
+            raise HTTPException(status_code=400, detail="此 Email 已被員工使用")
 
         student_data = data.model_dump()
         if student_data.get("birth_date"):
@@ -152,7 +167,21 @@ async def update_student(
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup:
-                raise HTTPException(status_code=400, detail="Email 已存在")
+                raise HTTPException(status_code=400, detail="此 Email 已被其他學生使用")
+
+            dup_teacher = await supabase_service.table_select(
+                table="teachers", select="id",
+                filters={"email": data.email, "is_deleted": "eq.false"}
+            )
+            if dup_teacher:
+                raise HTTPException(status_code=400, detail="此 Email 已被教師使用")
+
+            dup_employee = await supabase_service.table_select(
+                table="employees", select="id",
+                filters={"email": data.email, "is_deleted": "eq.false"}
+            )
+            if dup_employee:
+                raise HTTPException(status_code=400, detail="此 Email 已被員工使用")
 
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
         if "birth_date" in update_data and update_data["birth_date"]:

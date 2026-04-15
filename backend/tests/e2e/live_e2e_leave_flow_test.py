@@ -222,12 +222,12 @@ class LeaveFlowTester:
         # Student
         self.student_id = db_value(
             f"INSERT INTO students (student_no, name, email, phone, is_active) "
-            f"VALUES ('{TEST_PREFIX}S1', '{TEST_PREFIX}學生', '{TEST_PREFIX}s@test.local', '0900111222', true) RETURNING id"
+            f"VALUES ('{TEST_PREFIX}S1', '{TEST_PREFIX}學生', '{TEST_PREFIX}s@example.com', '0900111222', true) RETURNING id"
         )
         # Teacher
         self.teacher_id = db_value(
             f"INSERT INTO teachers (teacher_no, name, email, phone, is_active, teacher_level) "
-            f"VALUES ('{TEST_PREFIX}T1', '{TEST_PREFIX}教師', '{TEST_PREFIX}t@test.local', '0900333444', true, 3) RETURNING id"
+            f"VALUES ('{TEST_PREFIX}T1', '{TEST_PREFIX}教師', '{TEST_PREFIX}t@example.com', '0900333444', true, 3) RETURNING id"
         )
         if not all([self.course_id, self.student_id, self.teacher_id]):
             return "Failed to create base data"

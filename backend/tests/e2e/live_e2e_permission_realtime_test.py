@@ -379,7 +379,7 @@ class PermissionRealtimeTester:
                 json={
                     "employee_no": "NOPE999",
                     "name": "Should Fail",
-                    "email": "nope@test.local",
+                    "email": "nope@example.com",
                     "employee_type": "intern",
                 },
             )

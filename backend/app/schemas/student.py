@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime, date
 
@@ -8,7 +8,7 @@ class StudentCreate(BaseModel):
     student_no: Optional[str] = Field(None, max_length=50, description="學生編號（留空自動產生 EOPS 格式）")
     name: str = Field(..., min_length=1, max_length=100, description="姓名")
     eng_name: Optional[str] = Field(None, max_length=100, description="英文名")
-    email: str = Field(..., max_length=255, description="Email")
+    email: EmailStr = Field(..., description="Email")
     phone: Optional[str] = Field(None, max_length=20, description="電話")
     address: Optional[str] = Field(None, description="地址")
     birth_date: Optional[date] = Field(None, description="生日")
@@ -22,7 +22,7 @@ class StudentUpdate(BaseModel):
     """更新學生"""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     eng_name: Optional[str] = Field(None, max_length=100)
-    email: Optional[str] = Field(None, max_length=255)
+    email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
     birth_date: Optional[date] = None

@@ -334,7 +334,22 @@ async def create_teacher(
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if existing_email:
-            raise HTTPException(status_code=400, detail="Email 已存在")
+            raise HTTPException(status_code=400, detail="此 Email 已被其他教師使用")
+
+        # 跨表檢查：email 全域不可重複
+        dup_student = await supabase_service.table_select(
+            table="students", select="id",
+            filters={"email": data.email, "is_deleted": "eq.false"}
+        )
+        if dup_student:
+            raise HTTPException(status_code=400, detail="此 Email 已被學生使用")
+
+        dup_employee = await supabase_service.table_select(
+            table="employees", select="id",
+            filters={"email": data.email, "is_deleted": "eq.false"}
+        )
+        if dup_employee:
+            raise HTTPException(status_code=400, detail="此 Email 已被員工使用")
 
         teacher_data = data.model_dump()
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -375,7 +390,21 @@ async def update_teacher(
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup:
-                raise HTTPException(status_code=400, detail="Email 已存在")
+                raise HTTPException(status_code=400, detail="此 Email 已被其他教師使用")
+
+            dup_student = await supabase_service.table_select(
+                table="students", select="id",
+                filters={"email": data.email, "is_deleted": "eq.false"}
+            )
+            if dup_student:
+                raise HTTPException(status_code=400, detail="此 Email 已被學生使用")
+
+            dup_employee = await supabase_service.table_select(
+                table="employees", select="id",
+                filters={"email": data.email, "is_deleted": "eq.false"}
+            )
+            if dup_employee:
+                raise HTTPException(status_code=400, detail="此 Email 已被員工使用")
 
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
         if not update_data:

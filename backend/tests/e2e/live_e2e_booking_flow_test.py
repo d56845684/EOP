@@ -305,7 +305,7 @@ class E2EBookingFlowTester:
         resp = await self._post("/api/v1/students", {
             "student_no": f"{TEST_PREFIX}S001",
             "name": f"{TEST_PREFIX}測試學生",
-            "email": f"e2e_student_{datetime.now().strftime('%H%M%S')}@test.local",
+            "email": f"e2e_student_{datetime.now().strftime('%H%M%S')}@example.com",
             "student_type": "formal",
         })
         if resp.status_code != 200:
@@ -317,7 +317,7 @@ class E2EBookingFlowTester:
         resp = await self._post("/api/v1/teachers", {
             "teacher_no": f"{TEST_PREFIX}T001",
             "name": f"{TEST_PREFIX}測試教師",
-            "email": f"e2e_teacher_{datetime.now().strftime('%H%M%S')}@test.local",
+            "email": f"e2e_teacher_{datetime.now().strftime('%H%M%S')}@example.com",
             "teacher_level": 1,
         })
         if resp.status_code != 200:
@@ -416,7 +416,7 @@ class E2EBookingFlowTester:
         resp = await self._post("/api/v1/teachers", {
             "teacher_no": f"{TEST_PREFIX}T002",
             "name": f"{TEST_PREFIX}測試教師B",
-            "email": f"e2e_teacher_b_{datetime.now().strftime('%H%M%S')}@test.local",
+            "email": f"e2e_teacher_b_{datetime.now().strftime('%H%M%S')}@example.com",
             "teacher_level": 2,
         })
         if resp.status_code != 200:
@@ -509,7 +509,7 @@ class E2EBookingFlowTester:
         resp = await self._post("/api/v1/teachers", {
             "teacher_no": f"{TEST_PREFIX}T003",
             "name": f"{TEST_PREFIX}臨時教師",
-            "email": f"e2e_temp_teacher_{datetime.now().strftime('%H%M%S%f')}@test.local",
+            "email": f"e2e_temp_teacher_{datetime.now().strftime('%H%M%S%f')}@example.com",
             "teacher_level": 1,
         })
         if resp.status_code != 200:
@@ -544,7 +544,7 @@ class E2EBookingFlowTester:
         resp = await self._post("/api/v1/teachers", {
             "teacher_no": f"{TEST_PREFIX}T004",
             "name": f"{TEST_PREFIX}測試教師C",
-            "email": f"e2e_teacher_c_{datetime.now().strftime('%H%M%S')}@test.local",
+            "email": f"e2e_teacher_c_{datetime.now().strftime('%H%M%S')}@example.com",
             "teacher_level": 3,
         })
         if resp.status_code != 200:
@@ -644,7 +644,7 @@ class E2EBookingFlowTester:
         """不提供 student_no，驗證自動產生 EOPS 格式"""
         resp = await self._post("/api/v1/students", {
             "name": f"{TEST_PREFIX}自動編號學生",
-            "email": f"e2e_auto_s_{datetime.now().strftime('%H%M%S%f')}@test.local",
+            "email": f"e2e_auto_s_{datetime.now().strftime('%H%M%S%f')}@example.com",
         })
         if resp.status_code != 200:
             return f"Create auto student failed: {resp.status_code} {resp.text[:200]}"
@@ -659,7 +659,7 @@ class E2EBookingFlowTester:
         """不提供 teacher_no，驗證自動產生 EOPT 格式"""
         resp = await self._post("/api/v1/teachers", {
             "name": f"{TEST_PREFIX}自動編號教師",
-            "email": f"e2e_auto_t_{datetime.now().strftime('%H%M%S%f')}@test.local",
+            "email": f"e2e_auto_t_{datetime.now().strftime('%H%M%S%f')}@example.com",
         })
         if resp.status_code != 200:
             return f"Create auto teacher failed: {resp.status_code} {resp.text[:200]}"
@@ -760,7 +760,7 @@ class E2EBookingFlowTester:
         resp = await self._post("/api/v1/teachers", {
             "teacher_no": f"{TEST_PREFIX}T005",
             "name": f"{TEST_PREFIX}測試教師D_非白名單",
-            "email": f"e2e_teacher_d_{datetime.now().strftime('%H%M%S')}@test.local",
+            "email": f"e2e_teacher_d_{datetime.now().strftime('%H%M%S')}@example.com",
             "teacher_level": 1,
         })
         if resp.status_code != 200:
