@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse, PaginatedResponse } from './response';
 
 export interface UserProfile {
   id: string;
@@ -13,7 +14,8 @@ export interface UserProfile {
 export interface DataResponse_UserProfile_ {
   data: UserProfile;
   message?: string;
-  success?: boolean;
+  success: boolean;
+  error_code?: string | null;
 }
 
 export function getUserProfileApi() {
@@ -48,17 +50,17 @@ export interface AccountUpdate {
 }
 
 export function getUsersApi(params?: { page?: number; per_page?: number; role?: string; search?: string }) {
-  return request.get<any, any>('/v1/users/', { params });
+  return request.get<any, PaginatedResponse<AccountInfo>>('/v1/users/', { params });
 }
 
 export function getRolesApi() {
-  return request.get<any, any>('/v1/roles');
+  return request.get<any, DataResponse<RoleInfo[]>>('/v1/roles');
 }
 
 export function updateUserApi(userId: string, data: AccountUpdate) {
-  return request.put<any, any>(`/v1/users/${userId}`, data);
+  return request.put<any, DataResponse<AccountInfo>>(`/v1/users/${userId}`, data);
 }
 
 export function deleteUserApi(userId: string) {
-  return request.delete<any, any>(`/v1/users/${userId}`);
+  return request.delete<any, BaseResponse>(`/v1/users/${userId}`);
 }

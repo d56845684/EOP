@@ -172,6 +172,7 @@ import { getTeacherSlots, createTeacherSlot, batchCreateTeacherSlots, deleteTeac
 import dayjs from 'dayjs';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { MoreFilled } from '@element-plus/icons-vue';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
@@ -236,8 +237,8 @@ const fetchSlots = async () => {
             date_from: start,
             date_to: end
         };
-        const res: any = await getTeacherSlots(params);
-        const dataList = res.data || res || [];
+        const res = assertApiSuccess(await getTeacherSlots(params), '載入時段失敗');
+        const dataList = res.data || [];
         
         slots.value = dataList.map((s: any) => ({
             id: s.id,
@@ -248,7 +249,7 @@ const fetchSlots = async () => {
         }));
     } catch (e: any) {
         console.error(e);
-        ElMessage.error(e.response?.data?.message || 'Failed to fetch slots');
+        ElMessage.error(getApiErrorMessage(e, 'Failed to fetch slots'));
     }
 };
 
@@ -308,11 +309,11 @@ const handleSlotAction = (cmd: string, slot: any) => {
             }
         ).then(async () => {
             try {
-                await deleteTeacherSlot(slot.id);
+                const res = assertApiSuccess(await deleteTeacherSlot(slot.id), '刪除時段失敗');
                 await fetchSlots();
-                ElMessage.success(t('common.done'));
+                ElMessage.success(res.message || t('common.done'));
             } catch (e: any) {
-                ElMessage.error(e.response?.data?.message || 'Failed to delete slot');
+                ElMessage.error(getApiErrorMessage(e, 'Failed to delete slot'));
             }
         });
     }
@@ -357,7 +358,7 @@ const saveTimeSlot = async () => {
                 end_time: timeEndStr,
                 is_available: true
             };
-            await createTeacherSlot(data);
+            assertApiSuccess(await createTeacherSlot(data), '新增時段失敗');
         } else if (addForm.repeatType === 'custom') {
             if (addForm.weekDays.length === 0) {
                 ElMessage.warning('Please select at least one day of week');
@@ -375,14 +376,14 @@ const saveTimeSlot = async () => {
                 start_time: timeStartStr,
                 end_time: timeEndStr,
             };
-            await batchCreateTeacherSlots(data);
+            assertApiSuccess(await batchCreateTeacherSlots(data), '批次新增時段失敗');
         }
         
         addDialogVisible.value = false;
         await fetchSlots();
         ElMessage.success(t('common.done'));
     } catch (e: any) {
-        ElMessage.error(e.response?.data?.message || 'Failed to save slots');
+        ElMessage.error(getApiErrorMessage(e, 'Failed to save slots'));
     }
 };
 

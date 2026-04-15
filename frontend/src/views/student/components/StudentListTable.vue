@@ -88,7 +88,7 @@
             {{ $t('student.detailsTitle') }}
           </el-button>
           <el-button 
-            v-if="row.student_type === 'trial' && !row.contract_id"
+            v-if="row.student_status === 'trial' && row.active_contracts === 0"
             type="primary" 
             round
             size="small" 
@@ -99,7 +99,7 @@
             轉正
           </el-button>
           <el-button
-            v-if="row.student_type === 'formal'"
+            v-else
             v-permission="'students.contracts'"
             round
             size="small"

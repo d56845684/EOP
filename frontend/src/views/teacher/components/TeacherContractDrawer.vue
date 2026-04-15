@@ -447,6 +447,7 @@ import {
   type TeacherContractResponse,
   // type TeacherContractAddendumResponse,
 } from '@/api/teacherContract';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { TEACHER_CONTRACT_STATUS_MAP } from '@/constants/contract';
 import { uploadContractFile } from '@/utils/upload';
 // import { triggerDownload, getFileNameFromResponse } from '@/utils/download';
@@ -563,69 +564,77 @@ const contractFileList = ref<any[]>([]);
 // --- Methods ---
 const loadContracts = async () => {
   if (!props.teacherId) return;
-  const cRes = await getTeacherContracts(props.teacherId);
-  if (cRes.success && cRes.data.length > 0) {
-    // Take the most recent contract for simplicity, or active one
-    contract.value = cRes.data[0] || null;
-    if (!contract.value) return;
-    contractId.value = contract.value.id;
-    hasContract.value = true;
-    
-    contractForm.contract_status = contract.value.contract_status;
-    contractForm.employment_type = contract.value.employment_type || 'hourly';
-    contractForm.trial_completed_bonus = contract.value.trial_completed_bonus;
-    contractForm.trial_to_formal_bonus = contract.value.trial_to_formal_bonus;
-    
-    if (contract.value.start_date && contract.value.end_date) {
-      contractDates.value = [contract.value.start_date, contract.value.end_date];
-    } else {
-      contractDates.value = null;
-    }
-
-    // Load Schedules
-    if (contract.value.employment_type === 'full_time') {
-      const sRes = await getTeacherWorkSchedules(contract.value.id);
-      groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
-      if (sRes.data) {
-        sRes.data.forEach(s => {
-          let arr = groupedSchedules.value[s.weekday];
-          if (!arr) {
-            arr = [];
-            groupedSchedules.value[s.weekday] = arr;
-          }
-          arr.push({
-            start_time: s.start_time,
-            end_time: s.end_time,
-            notes: s.notes || ''
-          });
-        });
+  try {
+    const cRes = assertApiSuccess(await getTeacherContracts(props.teacherId), '載入教師合約失敗');
+    if (cRes.data.length > 0) {
+      // Take the most recent contract for simplicity, or active one
+      contract.value = cRes.data[0] || null;
+      if (!contract.value) return;
+      contractId.value = contract.value.id;
+      hasContract.value = true;
+      
+      contractForm.contract_status = contract.value.contract_status;
+      contractForm.employment_type = contract.value.employment_type || 'hourly';
+      contractForm.trial_completed_bonus = contract.value.trial_completed_bonus;
+      contractForm.trial_to_formal_bonus = contract.value.trial_to_formal_bonus;
+      
+      if (contract.value.start_date && contract.value.end_date) {
+        contractDates.value = [contract.value.start_date, contract.value.end_date];
+      } else {
+        contractDates.value = null;
       }
+
+      // Load Schedules
+      if (contract.value.employment_type === 'full_time') {
+        const sRes = assertApiSuccess(await getTeacherWorkSchedules(contract.value.id), '載入工作時段失敗');
+        groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+        if (sRes.data) {
+          sRes.data.forEach(s => {
+            let arr = groupedSchedules.value[s.weekday];
+            if (!arr) {
+              arr = [];
+              groupedSchedules.value[s.weekday] = arr;
+            }
+            arr.push({
+              start_time: s.start_time,
+              end_time: s.end_time,
+              notes: s.notes || ''
+            });
+          });
+        }
+      } else {
+        groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+      }
+
+      // Load Course Rates
+      const dRes = assertApiSuccess(await getTeacherContractDetails(contract.value.id), '載入合約明細失敗');
+      // Filter just to be safe, though details API might return all detail types
+      courseRates.value = dRes.data || [];
+      // Load Addendums
+      // const aRes = await getTeacherContractAddendums(contract.value.id);
+      // addendums.value = aRes.success ? aRes.data : [];
+
+      // Track contract file upload status (from contract response)
+      contractFileStatus.value = (contract.value as any).contract_file_uploaded_at || null;
     } else {
+      hasContract.value = false;
+      contractId.value = null;
+      contractDates.value = null;
+      contractForm.contract_status = 'pending';
+      contractForm.employment_type = 'hourly';
+      contractForm.trial_completed_bonus = 0;
+      contractForm.trial_to_formal_bonus = 0;
       groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+      courseRates.value = [];
+      contract.value = null;
+      // addendums.value = [];
+      contractFileStatus.value = null;
     }
-
-    // Load Course Rates
-    const dRes = await getTeacherContractDetails(contract.value.id);
-    // Filter just to be safe, though details API might return all detail types
-    courseRates.value = dRes.data || [];
-    // Load Addendums
-    // const aRes = await getTeacherContractAddendums(contract.value.id);
-    // addendums.value = aRes.success ? aRes.data : [];
-
-    // Track contract file upload status (from contract response)
-    contractFileStatus.value = (contract.value as any).contract_file_uploaded_at || null;
-  } else {
+  } catch (error) {
     hasContract.value = false;
     contractId.value = null;
-    contractDates.value = null;
-    contractForm.contract_status = 'pending';
-    contractForm.employment_type = 'hourly';
-    contractForm.trial_completed_bonus = 0;
-    contractForm.trial_to_formal_bonus = 0;
-    groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
-    courseRates.value = [];
-    // addendums.value = [];
-    contractFileStatus.value = null;
+    contract.value = null;
+    ElMessage.error(getApiErrorMessage(error, '載入教師合約失敗'));
   }
 
   // Clear any stale validation state that may have fired during async load
@@ -640,10 +649,10 @@ const openAddRateDialog = async (row?: TeacherContractDetailResponse) => {
   }
   if (courseOptions.value.length === 0) {
     try {
-      const res = await getCourseOptions();
+      const res = assertApiSuccess(await getCourseOptions(), '載入課程選單失敗');
       courseOptions.value = res.data || [];
     } catch (e) {
-      ElMessage.error('載入課程選單失敗');
+      ElMessage.error(getApiErrorMessage(e, '載入課程選單失敗'));
     }
   }
   if (row) {
@@ -684,28 +693,24 @@ const saveContract = async () => {
         
         const cId = contractId.value;
         if (hasContract.value && cId) {
-          const res = await updateTeacherContract(cId, payload as TeacherContractUpdate);
-          if (res.success) {
-            ElMessage.success('教師合約更新成功');
-          }
+          const res = assertApiSuccess(await updateTeacherContract(cId, payload as TeacherContractUpdate), '教師合約更新失敗');
+          ElMessage.success(res.message || '教師合約更新成功');
           if (contractForm.employment_type === 'full_time') {
             await saveSchedules();
           }
         } else {
           payload.teacher_id = tId;
-          const res = await createTeacherContract(payload as TeacherContractCreate);
-          if (res.success) {
-            contractId.value = res.data.id;
-            hasContract.value = true;
-            ElMessage.success('教師合約新增成功');
-          }
+          const res = assertApiSuccess(await createTeacherContract(payload as TeacherContractCreate), '教師合約新增失敗');
+          contractId.value = res.data.id;
+          hasContract.value = true;
+          ElMessage.success(res.message || '教師合約新增成功');
           if (contractForm.employment_type === 'full_time') {
             await saveSchedules();
           }
           await loadContracts(); // Reload to get contract ID
         }
       } catch (e) {
-        ElMessage.error('Failed to save contract');
+        ElMessage.error(getApiErrorMessage(e, 'Failed to save contract'));
       } finally {
         savingContract.value = false;
       }
@@ -721,12 +726,12 @@ const uploadContractDoc = async (uploadFile: any) => {
   try {
     const res = await uploadContractFile('teacher', cId, null, uploadFile.raw);
     if (res && res.success) {
-      ElMessage.success('合約書已上傳');
+      ElMessage.success(res.message || '合約書已上傳');
       await loadContracts();
     }
   } catch (e) {
     console.error(e);
-    ElMessage.error('合約書上傳失敗');
+    ElMessage.error(getApiErrorMessage(e, '合約書上傳失敗'));
   } finally {
     uploadingContract.value = false;
     contractFileList.value = [];
@@ -878,10 +883,10 @@ const saveSchedules = async () => {
       }
     });
 
-    await batchSetTeacherWorkSchedules(cId, { schedules: flattenedSchedules });
-    ElMessage.success('工作時段更新成功');
+    const res = assertApiSuccess(await batchSetTeacherWorkSchedules(cId, { schedules: flattenedSchedules }), '工作時段更新失敗');
+    ElMessage.success(res.message || '工作時段更新成功');
   } catch (e) {
-    ElMessage.error('工作時段更新失敗');
+    ElMessage.error(getApiErrorMessage(e, '工作時段更新失敗'));
   } finally {
     savingSchedules.value = false;
   }
@@ -913,17 +918,17 @@ const saveRate = async () => {
         };
         if (editingRateId.value) {
           // No update API — delete & re-create
-          await deleteTeacherContractDetail(cId, editingRateId.value);
-          await createTeacherContractDetail(cId, payload);
-          ElMessage.success('合約明細已更新');
+          assertApiSuccess(await deleteTeacherContractDetail(cId, editingRateId.value), '更新合約明細失敗');
+          const res = assertApiSuccess(await createTeacherContractDetail(cId, payload), '更新合約明細失敗');
+          ElMessage.success(res.message || '合約明細已更新');
         } else {
-          await createTeacherContractDetail(cId, payload);
-          ElMessage.success('合約明細已新增');
+          const res = assertApiSuccess(await createTeacherContractDetail(cId, payload), '新增合約明細失敗');
+          ElMessage.success(res.message || '合約明細已新增');
         }
         showAddRateDialog.value = false;
         await loadContracts();
       } catch (e) {
-        ElMessage.error(editingRateId.value ? '更新合約明細失敗' : '新增合約明細失敗');
+        ElMessage.error(getApiErrorMessage(e, editingRateId.value ? '更新合約明細失敗' : '新增合約明細失敗'));
       } finally {
         savingRate.value = false;
       }
@@ -936,11 +941,11 @@ const handleDeleteRate = async (detailId: string) => {
   if (!cId) return;
   try {
     await ElMessageBox.confirm('Are you sure you want to delete this course rate?', 'Warning', { type: 'warning' });
-    await deleteTeacherContractDetail(cId, detailId);
-    ElMessage.success('Rate deleted');
+    const res = assertApiSuccess(await deleteTeacherContractDetail(cId, detailId), '刪除合約明細失敗');
+    ElMessage.success(res.message || 'Rate deleted');
     await loadContracts(); // Reload rates
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('Failed to delete rate');
+    if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, 'Failed to delete rate'));
   }
 };
 

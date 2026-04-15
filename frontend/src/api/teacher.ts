@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse, ListResponse } from './response';
 
 export interface TeacherListParams {
   page?: number;
@@ -45,6 +46,9 @@ export interface TeacherResponse {
 }
 
 export interface TeacherListResponse {
+  success: boolean;
+  message?: string;
+  error_code?: string | null;
   data: TeacherResponse[];
   total: number;
   page: number;
@@ -90,6 +94,8 @@ export interface TeacherOverviewItem {
 
 export interface TeacherOverviewListResponse {
   success: boolean;
+  message?: string;
+  error_code?: string | null;
   data: TeacherOverviewItem[];
   total: number;
   page: number;
@@ -100,10 +106,14 @@ export interface TeacherOverviewListResponse {
 export interface TeacherDetailResponse<T> {
   success: boolean;
   message: string;
+  error_code?: string | null;
   data: T;
 }
 
 export interface UploadTeacherAvatarUrlResponse {
+  success?: boolean;
+  message?: string;
+  error_code?: string | null;
   upload_url: string;
   storage_path: string;
   content_type: string;
@@ -123,7 +133,7 @@ export function updateTeacher(teacherId: string, data: TeacherUpdate) {
   return request.put<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}`, data);
 }
 export function deleteTeacher(teacherId: string) {
-  return request.delete(`/v1/teachers/${teacherId}`);
+  return request.delete<any, BaseResponse>(`/v1/teachers/${teacherId}`);
 }
 export function getTeacherById(teacherId: string) {
   return request.get<any, TeacherDetailResponse<TeacherResponse>>(`/v1/teachers/${teacherId}`);

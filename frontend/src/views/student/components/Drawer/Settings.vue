@@ -21,7 +21,7 @@
           <div class="flex justify-between items-center">
             <div class="flex items-center gap-2">
               <el-tag type="primary" size="small" effect="light">{{ enrollment.course_code || '—' }}</el-tag>
-              <span class="text-sm text-[#303133] font-500">{{ enrollment.course_name || enrollment.course_id }}</span>
+              <span class="text-sm text-[#303133] font-500">{{ enrollment.course_name || enrollment.id }}</span>
             </div>
             <el-button link type="danger" size="small" @click="handleCourseDelete(enrollment.id)">移除</el-button>
           </div>
@@ -34,8 +34,8 @@
       <!-- Add Course Dialog -->
       <el-dialog
         v-model="courseDialogVisible"
-        title="新增選課"
-        width="500px"
+        title="選課管理"
+        width="540px"
         body-class="min-h-200px"
         append-to-body
         destroy-on-close
@@ -57,20 +57,37 @@
                 :key="opt.id"
                 :label="opt.course_name + (opt.course_code ? ` (${opt.course_code})` : '')"
                 :value="opt.id"
-                :disabled="isPendingOrEnrolled(opt.id)"
+                :disabled="isInDialogList(opt.id)"
               />
             </el-select>
           </el-col>
 
-          <!-- Right: pending courses -->
+          <!-- Right: all courses (enrolled + pending) -->
           <el-col :xs="24" :sm="14">
-            <div class="panel-label">待加入的課程 <span class="panel-count">({{ pendingCourses.length }})</span></div>
+            <div class="panel-label">
+              加入的課程
+              <span class="panel-count">({{ dialogEnrolledCourses.length + pendingCourses.length }})</span>
+            </div>
             <div class="pending-panel">
-              <template v-if="pendingCourses.length > 0">
+              <template v-if="dialogEnrolledCourses.length > 0 || pendingCourses.length > 0">
                 <div class="flex flex-wrap gap-2 p-2">
+                  <!-- Already enrolled: closable, deletes from server -->
+                  <el-tag
+                    v-for="item in dialogEnrolledCourses"
+                    :key="'enrolled-' + item.id"
+                    closable
+                    type="success"
+                    effect="light"
+                    class="cursor-default"
+                    :loading="deletingCourseIds.has(item.id)"
+                    @close="handleDialogDeleteEnrolled(item)"
+                  >
+                    {{ item.course_name }}
+                  </el-tag>
+                  <!-- Pending new: closable, removes from local list -->
                   <el-tag
                     v-for="item in pendingCourses"
-                    :key="item.id"
+                    :key="'pending-' + item.id"
                     closable
                     type="primary"
                     effect="light"
@@ -78,6 +95,7 @@
                     @close="removePending(item.id)"
                   >
                     {{ item.course_name }}
+                    <span class="text-9px ml-0.5 opacity-60">待新增</span>
                   </el-tag>
                 </div>
               </template>
@@ -88,12 +106,13 @@
 
         <template #footer>
           <span class="dialog-footer">
-            <el-button round size="small" class="px-5! h-30px!" @click="courseDialogVisible = false">取消</el-button>
+            <el-button round size="small" class="px-5! h-30px!" @click="courseDialogVisible = false">返回</el-button>
             <el-button
               type="primary" round size="small" class="px-5! h-30px!"
               :loading="courseSaving"
+              :disabled="pendingCourses.length === 0"
               @click="handleConfirmAddCourses"
-            >確認新增</el-button>
+            >確認新增 ({{ pendingCourses.length }})</el-button>
           </span>
         </template>
       </el-dialog>
@@ -176,9 +195,31 @@
 
           <template v-if="formData.type === 'specify_teacher'">
             <el-row>
-              <el-col :span="10">
+              <el-col :span="24">
                 <el-form-item label="主要教師">
-                  <el-select v-model="formData.primary_teacher_id" placeholder="請選擇老師" filterable class="w-full">
+                  <el-select 
+                    v-if="dialogType === 'add'"
+                    v-model="formData.primary_teacher_ids" 
+                    placeholder="請選擇老師 (可複選)" 
+                    filterable 
+                    multiple
+                    class="w-full"
+                  >
+                    <el-option 
+                      v-for="teacher in teachers" 
+                      :key="teacher.id" 
+                      :label="teacher.name" 
+                      :value="teacher.id" 
+                      :disabled="existingPrimaryTeacherIds.has(teacher.id)"
+                    />
+                  </el-select>
+                  <el-select 
+                    v-else
+                    v-model="formData.primary_teacher_id" 
+                    placeholder="請選擇老師" 
+                    filterable 
+                    class="w-full"
+                  >
                     <el-option label="不指定" :value="null" />
                     <el-option v-for="teacher in teachers" :key="teacher.id" :label="teacher.name" :value="teacher.id" />
                   </el-select>
@@ -191,7 +232,7 @@
             <el-row>
               <el-col :span="10">
                 <el-form-item label="適用課程">
-                  <el-select v-model="formData.course_id" placeholder="請選擇課程" class="w-full">
+                  <el-select v-model="formData.course_id" placeholder="請選擇課程" class="w-full" :loading="coursesLoading2">
                     <el-option label="全域課程" :value="null" />
                     <el-option v-for="course in courses" :key="course.id" :label="course.course_name" :value="course.id" />
                   </el-select>
@@ -227,12 +268,12 @@ import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { usePermissionStore } from '@/stores/permission';
 import {
-  getStudentCourses,
   deleteStudentCourse,
   getCourseOptions,
   createStudentCourse,
-  type StudentCourseResponse,
+  getStudentCoursesByStudentId,
   type CourseOption,
+  type StudentCourseResponse
 } from '@/api/studentCourse';
 import { 
   getStudentTeacherPreferences, 
@@ -247,6 +288,7 @@ import {
   type PreferenceTeacherOption,
   type PreferenceCourseOption,
 } from '@/api/studentTeacherPreference';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 const props = defineProps<{
   studentId: string;
 }>();
@@ -265,23 +307,34 @@ const selectedCourseId = ref<string | null>(null);
 const courseOptions = ref<CourseOption[]>([]);
 const courseOptionsLoading = ref(false);
 const pendingCourses = ref<{ id: string; course_name: string }[]>([]);
+// Courses shown in the dialog right panel (mirrors currently enrolled, for in-dialog deletes)
+const dialogEnrolledCourses = ref<StudentCourseResponse[]>([]);
+const deletingCourseIds = ref<Set<string>>(new Set());
 
-// Set of enrolled course IDs for quick look-up
+// Set of enrolled course IDs for quick look-up (main list)
 const enrolledCourseIds = computed(() => new Set(studentCourses.value.map((e) => e.course_id)));
 
-const isPendingOrEnrolled = (courseId: string): boolean => {
-  return pendingCourses.value.some((p) => p.id === courseId) || enrolledCourseIds.value.has(courseId);
+/** Returns true if courseId is already enrolled or pending to be added */
+const isInDialogList = (courseId: string): boolean => {
+  return (
+    dialogEnrolledCourses.value.some((e) => e.course_id === courseId) ||
+    pendingCourses.value.some((p) => p.id === courseId)
+  );
 };
 
+/** Legacy alias used by old code paths (kept for safety) */
+const isPendingOrEnrolled = isInDialogList;
+
 const loadStudentCourses = async () => {
+  console.log(props.studentId)
   if (!props.studentId) return;
   coursesLoading.value = true;
   try {
-    const res = await getStudentCourses(props.studentId);
+    const res = assertApiSuccess(await getStudentCoursesByStudentId(props.studentId), '載入已選課程失敗');
     studentCourses.value = res.data || [];
   } catch (err) {
     console.error(err);
-    ElMessage.error('載入已選課程失敗');
+    ElMessage.error(getApiErrorMessage(err, '載入已選課程失敗'));
   } finally {
     coursesLoading.value = false;
   }
@@ -290,20 +343,42 @@ const loadStudentCourses = async () => {
 const loadCourseOptions = async () => {
   courseOptionsLoading.value = true;
   try {
-    const res = await getCourseOptions();
+    const res = assertApiSuccess(await getCourseOptions(), '載入課程選單失敗');
     courseOptions.value = res.data || [];
   } catch (err) {
     console.error(err);
+    ElMessage.error(getApiErrorMessage(err, '載入課程選單失敗'));
   } finally {
     courseOptionsLoading.value = false;
   }
 };
 
 const openCourseDialog = (_type: 'add') => {
+  // Snapshot current enrolled courses into the dialog list so user can delete inline
+  dialogEnrolledCourses.value = [...studentCourses.value];
   pendingCourses.value = [];
   selectedCourseId.value = null;
   loadCourseOptions();
   courseDialogVisible.value = true;
+};
+
+/** Delete an already-enrolled course directly from within the dialog */
+const handleDialogDeleteEnrolled = async (item: StudentCourseResponse) => {
+  deletingCourseIds.value = new Set([...deletingCourseIds.value, item.id]);
+  try {
+    const res = assertApiSuccess(await deleteStudentCourse(item.id), '移除失敗');
+    dialogEnrolledCourses.value = dialogEnrolledCourses.value.filter((e) => e.id !== item.id);
+    // Also update main list immediately
+    studentCourses.value = studentCourses.value.filter((e) => e.id !== item.id);
+    ElMessage.success(res.message || '移除成功');
+  } catch (err) {
+    console.error(err);
+    ElMessage.error(getApiErrorMessage(err, '移除失敗'));
+  } finally {
+    const next = new Set(deletingCourseIds.value);
+    next.delete(item.id);
+    deletingCourseIds.value = next;
+  }
 };
 
 const handleCourseSelect = (courseId: string | null) => {
@@ -326,7 +401,7 @@ const removePending = (courseId: string) => {
 
 const handleConfirmAddCourses = async () => {
   if (pendingCourses.value.length === 0) {
-    ElMessage.warning('請先選擇至少一門課程');
+    ElMessage.warning('請先搜尋並選擇至少一門新課程');
     return;
   }
   courseSaving.value = true;
@@ -335,7 +410,7 @@ const handleConfirmAddCourses = async () => {
       createStudentCourse({ student_id: props.studentId, course_id: course.id })
     );
     const results = await Promise.allSettled(requests);
-    const failed = results.filter((r) => r.status === 'rejected').length;
+    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.success === false)).length;
     if (failed === 0) {
       ElMessage.success('選課新增成功');
     } else {
@@ -360,12 +435,12 @@ const handleCourseDelete = (enrollmentId: string) => {
   })
     .then(async () => {
       try {
-        await deleteStudentCourse(enrollmentId);
-        ElMessage.success('移除成功');
+        const res = assertApiSuccess(await deleteStudentCourse(enrollmentId), '移除失敗');
+        ElMessage.success(res.message || '移除成功');
         loadStudentCourses();
       } catch (err) {
         console.error(err);
-        ElMessage.error('移除失敗');
+        ElMessage.error(getApiErrorMessage(err, '移除失敗'));
       }
     })
     .catch(() => {});
@@ -375,6 +450,16 @@ const handleCourseDelete = (enrollmentId: string) => {
 const loading = ref(false);
 const preferences = ref<StudentTeacherPreferenceResponse[]>([]);
 
+const existingPrimaryTeacherIds = computed(() => {
+  const ids = new Set<string>();
+  preferences.value.forEach(p => {
+    if (p.primary_teacher_id) {
+      ids.add(p.primary_teacher_id);
+    }
+  });
+  return ids;
+});
+
 const dialogVisible = ref(false);
 const dialogType = ref<'add' | 'edit'>('add');
 const saving = ref(false);
@@ -383,6 +468,7 @@ const currentEditId = ref<string | null>(null);
 const formData = reactive({
   type: 'specify_teacher' as 'specify_teacher' | 'min_level',
   primary_teacher_id: null as string | null,
+  primary_teacher_ids: [] as string[],
   course_id: null as string | null,
   min_teacher_level: 1 as number | null
 });
@@ -394,11 +480,11 @@ const loadPreferences = async () => {
   if (!props.studentId) return;
   loading.value = true;
   try {
-    const res = await getStudentTeacherPreferences(props.studentId);
+    const res = assertApiSuccess(await getStudentTeacherPreferences(props.studentId), '載入偏好設定失敗');
     preferences.value = res.data || [];
   } catch (err) {
     console.error(err);
-    ElMessage.error('載入偏好設定失敗');
+    ElMessage.error(getApiErrorMessage(err, '載入偏好設定失敗'));
   } finally {
     loading.value = false;
   }
@@ -410,10 +496,25 @@ const loadOptions = async () => {
       getPreferenceTeacherOptions(),
       getPreferenceCourseOptions(props.studentId)
     ]);
-    teachers.value = teacherRes.data || [];
-    courses.value = courseRes.data || [];
+    teachers.value = assertApiSuccess(teacherRes).data || [];
+    courses.value = assertApiSuccess(courseRes).data || [];
   } catch (err) {
     console.error(err);
+    ElMessage.error(getApiErrorMessage(err, '載入選項失敗'));
+  }
+};
+
+const coursesLoading2 = ref(false);
+const reloadCourseOptions = async () => {
+  coursesLoading2.value = true;
+  try {
+    const res = assertApiSuccess(await getPreferenceCourseOptions(props.studentId), '載入課程選單失敗');
+    courses.value = res.data || [];
+  } catch (err) {
+    console.error(err);
+    ElMessage.error(getApiErrorMessage(err, '載入課程選單失敗'));
+  } finally {
+    coursesLoading2.value = false;
   }
 };
 
@@ -423,10 +524,13 @@ const handleTypeChange = () => {
     formData.min_teacher_level = null;
   } else {
     formData.primary_teacher_id = null;
+    formData.primary_teacher_ids = [];
     // defaults
     if (!formData.min_teacher_level) {
       formData.min_teacher_level = 1;
     }
+    // Reload course options to get latest data
+    reloadCourseOptions();
   }
 };
 
@@ -436,6 +540,7 @@ const openDialog = (type: 'add' | 'edit', item?: StudentTeacherPreferenceRespons
     currentEditId.value = null;
     formData.type = 'specify_teacher';
     formData.primary_teacher_id = null;
+    formData.primary_teacher_ids = [];
     formData.course_id = null;
     formData.min_teacher_level = 1;
   } else if (item) {
@@ -443,6 +548,7 @@ const openDialog = (type: 'add' | 'edit', item?: StudentTeacherPreferenceRespons
     if (item.primary_teacher_id) {
       formData.type = 'specify_teacher';
       formData.primary_teacher_id = item.primary_teacher_id;
+      formData.primary_teacher_ids = [];
       formData.course_id = null;
       formData.min_teacher_level = null;
     } else {
@@ -456,9 +562,15 @@ const openDialog = (type: 'add' | 'edit', item?: StudentTeacherPreferenceRespons
 };
 
 const handleSave = async () => {
-  if (formData.type === 'specify_teacher' && !formData.primary_teacher_id) {
-    ElMessage.warning('請選擇主要教師');
-    return;
+  if (formData.type === 'specify_teacher') {
+    if (dialogType.value === 'add' && formData.primary_teacher_ids.length === 0) {
+      ElMessage.warning('請選擇主要教師');
+      return;
+    }
+    if (dialogType.value === 'edit' && !formData.primary_teacher_id) {
+      ElMessage.warning('請選擇主要教師');
+      return;
+    }
   }
   if (formData.type === 'min_level' && !formData.min_teacher_level) {
     ElMessage.warning('請輸入最低教師等級');
@@ -472,24 +584,24 @@ const handleSave = async () => {
         student_id: props.studentId,
         course_id: formData.type === 'min_level' ? formData.course_id : null,
         min_teacher_level: formData.type === 'min_level' ? formData.min_teacher_level : null,
-        primary_teacher_id: formData.type === 'specify_teacher' ? formData.primary_teacher_id : null,
+        primary_teacher_ids: formData.type === 'specify_teacher' ? formData.primary_teacher_ids : null,
       };
-      await createStudentTeacherPreference(payload);
-      ElMessage.success('新增偏好設定成功');
+      const res = assertApiSuccess(await createStudentTeacherPreference(payload), '新增失敗');
+      ElMessage.success(res.message || '新增偏好設定成功');
     } else if (currentEditId.value) {
       const payload: StudentTeacherPreferenceUpdate = {
         course_id: formData.type === 'min_level' ? formData.course_id : null,
         min_teacher_level: formData.type === 'min_level' ? formData.min_teacher_level : null,
         primary_teacher_id: formData.type === 'specify_teacher' ? formData.primary_teacher_id : null,
       };
-      await updateStudentTeacherPreference(currentEditId.value, payload);
-      ElMessage.success('更新偏好設定成功');
+      const res = assertApiSuccess(await updateStudentTeacherPreference(currentEditId.value, payload), '更新失敗');
+      ElMessage.success(res.message || '更新偏好設定成功');
     }
     dialogVisible.value = false;
     loadPreferences();
   } catch (err) {
     console.error(err);
-    ElMessage.error(dialogType.value === 'add' ? '新增失敗' : '更新失敗');
+    ElMessage.error(getApiErrorMessage(err, dialogType.value === 'add' ? '新增失敗' : '更新失敗'));
   } finally {
     saving.value = false;
   }
@@ -502,12 +614,12 @@ const handleDelete = (id: string) => {
     type: 'warning',
   }).then(async () => {
     try {
-      await deleteStudentTeacherPreference(id);
-      ElMessage.success('刪除成功');
+      const res = assertApiSuccess(await deleteStudentTeacherPreference(id), '刪除失敗');
+      ElMessage.success(res.message || '刪除成功');
       loadPreferences();
     } catch (err) {
       console.error(err);
-      ElMessage.error('刪除失敗');
+      ElMessage.error(getApiErrorMessage(err, '刪除失敗'));
     }
   }).catch(() => {});
 };

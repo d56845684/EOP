@@ -60,6 +60,7 @@
   import { ElMessage, type FormRules, type FormInstance } from 'element-plus';
   import { updateUserApi, type RoleInfo, type AccountInfo } from '@/api/user';
   import { createEmployeeApi, type Employee } from '@/api/employee';
+  import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 
   const submitting = ref(false);
   const formRef = ref<FormInstance>();
@@ -133,18 +134,18 @@
       if (valid) {
         submitting.value = true;
         try {
-          await updateUserApi(props.editUserId, {
+          const res = assertApiSuccess(await updateUserApi(props.editUserId, {
             role_id: form.value.role_id,
             employee_subtype: form.value.employee_subtype || null,
             is_active: form.value.is_active
-          });
-          ElMessage.success('更新成功');
+          }), '更新失敗');
+          ElMessage.success(res.message || '更新成功');
           dialogVisible.value = false;
           emit('update:modelValue', false);
           emit('fetch-users');
           emit('clear-user')
         } catch (error) {
-          ElMessage.error('更新失敗');
+          ElMessage.error(getApiErrorMessage(error, '更新失敗'));
         } finally {
           submitting.value = false;
         }
@@ -152,4 +153,3 @@
     });
   };
 </script>
-

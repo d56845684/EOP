@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse } from './response';
 
 export interface Employee {
     id: string;
@@ -17,7 +18,9 @@ export interface Employee {
 
 export interface PageResponse_Employee_ {
     data: Employee[];
-    success?: boolean;
+    success: boolean;
+    message?: string;
+    error_code?: string | null;
     page: number;
     per_page: number;
     total: number;
@@ -29,13 +32,13 @@ export const getEmployeesApi = (params: any) => {
 }
 
 export const createEmployeeApi = (data: any) => {
-    return request.post<any, Omit<Employee, 'id' | 'created_at' | 'updated_at'>>('/v1/employees', data);
+    return request.post<any, DataResponse<Employee>>('/v1/employees', data);
 }
 
 export const updateEmployeeApi = (id: string, data: any) => {
-    return request.put<any, Omit<Employee, 'id' | 'created_at' | 'updated_at'>>(`/v1/employees/${id}`, data);
+    return request.put<any, DataResponse<Employee>>(`/v1/employees/${id}`, data);
 }
 
 export const deleteEmployeeApi = (id: string) => {
-    return request.delete<any, { success: boolean, message?: string }>(`/v1/employees/${id}`);
+    return request.delete<any, BaseResponse>(`/v1/employees/${id}`);
 }

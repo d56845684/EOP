@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse } from './response';
 
 export interface ZoomMeetingLogResponse {
   id: string;
@@ -30,12 +31,6 @@ export interface ZoomMeetingLogResponse {
   teacher_name?: string | null;
 }
 
-interface DataResponse<T> {
-  success: boolean;
-  message?: string;
-  data: T;
-}
-
 /** 查詢預約的 Zoom 會議資訊（join_url、passcode 等） */
 export function getZoomMeetingByBooking(bookingId: string) {
   return request.get<any, DataResponse<ZoomMeetingLogResponse>>(
@@ -60,17 +55,25 @@ export function fetchZoomRecording(bookingId: string) {
 
 /** 取得 Zoom OAuth 授權 URL（教師綁定用） */
 export function getZoomOAuthUrl() {
-  return request.get<any, { authorize_url: string }>('/v1/zoom/oauth/authorize');
+  return request.get<any, { success: boolean; message?: string; error_code?: string | null; authorize_url: string }>('/v1/zoom/oauth/authorize');
 }
 
 /** 查詢教師 Zoom 綁定狀態 */
 export function getZoomLinkStatus() {
-  return request.get<any, { linked: boolean; account_email?: string | null }>(
+  return request.get<any, { success: boolean; message?: string; error_code?: string | null; linked?: boolean; is_linked?: boolean; account_email?: string | null; zoom_email?: string | null }>(
     '/v1/zoom/oauth/status'
   );
 }
 
 /** 解除教師 Zoom 綁定 */
 export function unlinkZoom() {
-  return request.delete('/v1/zoom/oauth/unlink');
+  return request.delete<any, BaseResponse>('/v1/zoom/oauth/unlink');
+}
+
+/** 批次查詢多筆預約的 Zoom 會議資訊 */ 
+export function batchGetZoomMeetings(bookingIds: string[]) {
+  return request.post<any, DataResponse<Record<string, ZoomMeetingLogResponse>>>(
+    '/v1/zoom/meetings/batch',
+    { booking_ids: bookingIds }
+  );
 }

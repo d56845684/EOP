@@ -103,6 +103,7 @@
 
 <script setup lang="ts">
 import { convertToFormal, type ConvertToFormalRequest, type StudentResponse } from '@/api/student';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { reactive, ref, computed, type PropType } from 'vue'
 
@@ -172,16 +173,16 @@ const submitConvert = async () => {
           booking_id: convertForm.booking_id || null,
           notes: convertForm.notes || null,
         };
-        const res: any = await convertToFormal(props.currentStudent.id, payload);
-        ElMessage.success('轉換學生身份成功');
+        const res = assertApiSuccess(await convertToFormal(props.currentStudent.id, payload), '轉換學生身份失敗');
+        ElMessage.success(res.message || '轉換學生身份成功');
           
         const rowAny: any = props.currentStudent;
         rowAny.student_type = 'formal';
-        rowAny._contract_id = res.data?.contract?.id || res.data?.id || res.contract?.id;
+        rowAny._contract_id = res.data?.contract?.id || res.data?.id;
           
         emit('submit-finish');
       } catch (err) {
-        ElMessage.error('轉換學生身份失敗');
+        ElMessage.error(getApiErrorMessage(err, '轉換學生身份失敗'));
       } finally {
         converting.value = false;
       }

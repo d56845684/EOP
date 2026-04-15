@@ -4,6 +4,7 @@ import { loginApi, logout as logoutApi, getMeApi, type LoginRequest, type UserIn
 import { usePermissionStore } from '@/stores/permission';
 import router from '@/router';
 import { getUserProfileApi, type UserProfile } from '@/api/user';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { ElMessage } from 'element-plus';
 import adminAvatar from '@/assets/avatars/admin.svg?url';
 import teacherAvatar from '@/assets/avatars/teacher.svg?url';
@@ -40,15 +41,15 @@ export const useAuthStore = defineStore('auth', () => {
   // Actions
   const fetchProfile = async () => {
     try {
-      const res = await getUserProfileApi();
-      if (res && res.data) {
+      const res = assertApiSuccess(await getUserProfileApi(), '取得使用者資料失敗');
+      if (res.data) {
         profile.value = res.data;
       } else {
         clearLocalState();
       }
     } catch (error) {
       console.error('Fetch profile failed:', error);
-      ElMessage.error('Failed to fetch user profile');
+      ElMessage.error(getApiErrorMessage(error, 'Failed to fetch user profile'));
       clearLocalState();
     }
   };
@@ -67,7 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const checkAuth = async () => {
     try {
-      const res = await getMeApi();
+      const res = assertApiSuccess(await getMeApi(), '取得登入資訊失敗');
       if (res.success && res.data) {
         userInfo.value = res.data;
       } else {

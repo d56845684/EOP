@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse, ListResponse } from './response';
 
 export interface StudentListParams {
   page?: number;
@@ -70,7 +71,8 @@ export interface StudentResponse {
 
 export interface StudentListResponse<T> {
   success: boolean;
-  message: string;
+  message?: string;
+  error_code?: string | null;
   data: T[];
   total: number;
   page: number;
@@ -104,7 +106,8 @@ export interface StudentOverviewListResponse {
 
 export interface StudentOverviewResponse {
   success: boolean;
-  message: string;
+  message?: string;
+  error_code?: string | null;
   data: StudentOverviewDetail;
 }
 
@@ -209,21 +212,21 @@ export function getStudentOverviewList(params: StudentOverviewListParams) {
 }
 
 export function createStudent(data: StudentCreate) {
-  return request.post<StudentResponse>('/v1/students', data);
+  return request.post<any, DataResponse<StudentResponse>>('/v1/students', data);
 }
 
 export function updateStudent(id: string, data: StudentUpdate) {
-  return request.put<StudentResponse>(`/v1/students/${id}`, data);
+  return request.put<any, DataResponse<StudentResponse>>(`/v1/students/${id}`, data);
 }
 
 export function deleteStudent(id: string) {
-  return request.delete(`/v1/students/${id}`);
+  return request.delete<any, BaseResponse>(`/v1/students/${id}`);
 }
 
 export function convertToFormal(id: string, data: ConvertToFormalRequest) {
-  return request.post<StudentResponse>(`/v1/students/${id}/convert-to-formal`, data);
+  return request.post<any, DataResponse<StudentResponse & { contract?: { id?: string | null } }>>(`/v1/students/${id}/convert-to-formal`, data);
 }
 
 export function getStudentView(id: string) {
-  return request.get<StudentOverviewResponse>(`/v1/students/${id}/view`);
+  return request.get<any, StudentOverviewResponse>(`/v1/students/${id}/view`);
 }

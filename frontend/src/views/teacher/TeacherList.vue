@@ -254,9 +254,14 @@ import TeacherContractDrawer from './components/TeacherContractDrawer.vue';
 import VerifyInviteDialog from '@/components/Auth/VerifyInviteDialog.vue';
 import { generateInviteLinkApi } from '@/api/auth';
 import { usePermissionStore } from '@/stores/permission';
+import { code } from '@/constants/code';
+import { useI18n } from 'vue-i18n';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 
 const permissionStore = usePermissionStore();
 const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
+
+const { t } = useI18n();
 
 const teachersData = ref<TeacherOverviewItem[]>([]);
 const totalTeachers = ref(0);
@@ -289,8 +294,8 @@ const addForm = reactive<TeacherCreate>({
 });
 
 const addRules = reactive<FormRules>({
-  name: [{ required: true, message: 'Name is required', trigger: 'blur' }],
-  email: [{ required: true, message: 'Email is required', trigger: 'blur', type: 'email' }]
+  name: [{ required: true, message: '姓名為必填', trigger: 'blur' }],
+  email: [{ required: true, message: 'Email為必填', trigger: 'blur', type: 'email' }]
 });
 
 const fetchTeachersList = async () => {
@@ -302,11 +307,11 @@ const fetchTeachersList = async () => {
       search: queryParams.search || undefined,
       is_active: queryParams.is_active === 'all' ? undefined : queryParams.is_active
     };
-    const res = await getTeacherOverviewList(params);
+    const res = assertApiSuccess(await getTeacherOverviewList(params), '載入老師列表失敗');
     teachersData.value = res.data;
     totalTeachers.value = res.total;
   } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to fetch teachers');
+    ElMessage.error(getApiErrorMessage(e, t('common.fetchFailed')));
   } finally {
     loading.value = false;
   }
@@ -333,10 +338,6 @@ const openContractDrawer = (teacher: TeacherOverviewItem) => {
   contractDrawerVisible.value = true;
 };
 
-const openAddDialog = () => {
-  addDialogVisible.value = true;
-};
-
 const resetAddForm = () => {
   if (addFormRef.value) addFormRef.value.resetFields();
   addForm.name = '';
@@ -352,14 +353,14 @@ const handleAdd = async () => {
     if (valid) {
       addingFile.value = true;
       try {
-        await createTeacher(addForm);
-        ElMessage.success('Teacher added successfully');
+        const res = assertApiSuccess(await createTeacher(addForm), '新增老師失敗');
+        ElMessage.success(res.message || t('common.addSuccess'));
         addDialogVisible.value = false;
         fetchTeachersList();
         // optionally open drawer for newly created teacher if API returned it:
         // if (res.data?.id) { selectedTeacherId.value = res.data.id; detailDrawerVisible.value = true; }
       } catch (e: any) {
-        ElMessage.error('Failed to add teacher');
+        ElMessage.error(getApiErrorMessage(e, t('common.addFailed')));
       } finally {
         addingFile.value = false;
       }
@@ -369,17 +370,17 @@ const handleAdd = async () => {
 
 const handleToggleStatus = (teacher: TeacherResponse): Promise<boolean> => {
   return new Promise((resolve, reject) => {
-    ElMessageBox.confirm(`確定要${teacher.is_active ? '停用' : '啟用'}此教師嗎？`, 'Warning', {
-      confirmButtonText: 'Confirm',
-      cancelButtonText: 'Cancel',
+    ElMessageBox.confirm(`確定要${teacher.is_active ? '停用' : '啟用'}此教師嗎？`, '警告', {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning',
     }).then(async () => {
       try {
-        await updateTeacher(teacher.id, { is_active: !teacher.is_active });
-        ElMessage.success('Status updated');
+        const res = assertApiSuccess(await updateTeacher(teacher.id, { is_active: !teacher.is_active }), '更新教師狀態失敗');
+        ElMessage.success(res.message || t('common.updateSuccess'));
         resolve(true);
       } catch (e) {
-        ElMessage.error('Failed to update status');
+        ElMessage.error(getApiErrorMessage(e, t('common.updateFailed')));
         reject(false);
       }
     }).catch(() => {
@@ -390,26 +391,34 @@ const handleToggleStatus = (teacher: TeacherResponse): Promise<boolean> => {
 
 const handleDelete = async (teacher: TeacherResponse) => {
   try {
-    await ElMessageBox.confirm(`Are you sure you want to delete teacher ${teacher.name}?`, 'Warning', {
+    await ElMessageBox.confirm(`是否確定刪除 ${teacher.name} 老師?`, '警告', {
       type: 'warning'
     });
-    await deleteTeacher(teacher.id);
-    ElMessage.success('Teacher deleted');
+    const res = assertApiSuccess(await deleteTeacher(teacher.id), '刪除老師失敗');
+    ElMessage.success(res.message || t('common.deleteSuccess'));
     fetchTeachersList();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('Delete failed');
+    if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, t('common.deleteFailed')));
   }
 };
 
 const handleVerify = async (teacher: TeacherResponse) => {
   try {
     const res = await generateInviteLinkApi({ entity_type: 'teacher', entity_id: teacher.id });
+    if (res.success === false && res.error_code === code.VALIDATION_ERROR) {
+      ElMessage.error('此Email已有登入帳號');
+      return;
+    }
     inviteUrl.value = res.invite_url || '';
     currentVerifyTeacher.value = teacher;
     verifyInviteVisible.value = true;
   } catch (err: any) {
-    console.error(err);
-    ElMessage.error('獲取邀請連結失敗');
+    // console.error(err);
+    if (err.error_code === code.VALIDATION_ERROR) {
+      ElMessage.error('此Email已有登入帳號');
+      return;
+    }
+    ElMessage.error(t('common.operationFailed'));
   }
 };
 </script>

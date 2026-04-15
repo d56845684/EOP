@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse } from './response';
 
 // Role Definitions
 export interface RoleInfo {
@@ -25,13 +26,16 @@ export interface RoleListResponse {
   pages: PageResponse[];
   role_id: string;
   success: boolean;
+  message?: string;
+  error_code?: string | null;
 }
 
 
 export interface DataResponse<T> {
   data: T;
   message?: string;
-  success?: boolean;
+  success: boolean;
+  error_code?: string | null;
 }
 
 export interface PaginatedData<T> {
@@ -58,7 +62,7 @@ export function updateRoleApi(roleId: string, data: RoleUpdate) {
 }
 
 export function deleteRoleApi(roleId: string) {
-  return request.delete<any, DataResponse<null>>(`/v1/roles/${roleId}`);
+  return request.delete<any, BaseResponse>(`/v1/roles/${roleId}`);
 }
 
 // Pages Definitions
@@ -78,6 +82,9 @@ export interface RolePagesBatchSet {
 }
 
 export interface RolePagesResponse {
+  success?: boolean;
+  message?: string;
+  error_code?: string | null;
   role: string | null;
   page_keys: string[];
   pages: PageResponse[];
@@ -98,5 +105,5 @@ export function getRolePagesApi(roleId: string) {
 }
 
 export function updateRolePagesApi(data: RolePagesBatchSet) {
-  return request.put<any, DataResponse<null>>('/v1/role-pages', data);
+  return request.put<any, BaseResponse>('/v1/role-pages', data);
 }

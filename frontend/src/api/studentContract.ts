@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse } from './response';
 
 // ========================
 // Type Definitions
@@ -110,9 +111,13 @@ interface ResData<T> {
   data: T;
   message: string;
   success: boolean;
+  error_code?: string | null;
 }
 
 export interface ConfirmUploadResponse {
+  success?: boolean;
+  message?: string;
+  error_code?: string | null;
   storage_path: string;
   upload_url: string;
   content_type: string;
@@ -128,51 +133,51 @@ export interface GetStudentContractsParams {
 // ========================
 
 export function getContractTeacherOptions() {
-  return request.get<TeacherOption[]>('/v1/student-contracts/options/teachers');
+  return request.get<any, DataResponse<TeacherOption[]>>('/v1/student-contracts/options/teachers');
 }
 
 export function getContractCourseOptions(studentId: string) {
-  return request.get<CourseOption[]>('/v1/student-contracts/options/courses', { params: { student_id: studentId } });
+  return request.get<any, DataResponse<CourseOption[]>>('/v1/student-contracts/options/courses', { params: { student_id: studentId } });
 }
 
 export function getStudentContracts(params: GetStudentContractsParams) {
-  return request.get<StudentContract[]>('/v1/student-contracts', { params });
+  return request.get<any, DataResponse<StudentContract[]>>('/v1/student-contracts', { params });
 }
 
 export function updateStudentContract(contractId: string, data: StudentContractUpdate) {
-  return request.put<StudentContract>(`/v1/student-contracts/${contractId}`, data);
+  return request.put<any, ResData<StudentContract>>(`/v1/student-contracts/${contractId}`, data);
 }
 
 export function getContractDetails(contractId: string) {
-  return request.get<StudentContractDetail[]>(`/v1/student-contracts/${contractId}/details`);
+  return request.get<any, DataResponse<StudentContractDetail[]>>(`/v1/student-contracts/${contractId}/details`);
 }
 
 export function createContractDetail(contractId: string, data: StudentContractDetailCreate) {
-  return request.post<StudentContractDetail>(`/v1/student-contracts/${contractId}/details`, data);
+  return request.post<any, ResData<StudentContractDetail>>(`/v1/student-contracts/${contractId}/details`, data);
 }
 
 export function updateContractDetail(contractId: string, detailId: string, data: StudentContractDetailCreate) {
-  return request.put<StudentContractDetail>(`/v1/student-contracts/${contractId}/details/${detailId}`, data);
+  return request.put<any, ResData<StudentContractDetail>>(`/v1/student-contracts/${contractId}/details/${detailId}`, data);
 }
 
 export function deleteContractDetail(contractId: string, detailId: string) {
-  return request.delete(`/v1/student-contracts/${contractId}/details/${detailId}`);
+  return request.delete<any, BaseResponse>(`/v1/student-contracts/${contractId}/details/${detailId}`);
 }
 
 export function getContractLeaveRecords(contractId: string) {
-  return request.get<StudentContractLeaveRecord[]>(`/v1/student-contracts/${contractId}/leave-records`);
+  return request.get<any, DataResponse<StudentContractLeaveRecord[]>>(`/v1/student-contracts/${contractId}/leave-records`);
 }
 
 export function createContractLeaveRecord(contractId: string, data: StudentContractLeaveRecordCreate) {
-  return request.post<StudentContractLeaveRecord>(`/v1/student-contracts/${contractId}/leave-records`, data);
+  return request.post<any, ResData<StudentContractLeaveRecord>>(`/v1/student-contracts/${contractId}/leave-records`, data);
 }
 
 export function deleteContractLeaveRecord(contractId: string, recordId: string) {
-  return request.delete(`/v1/student-contracts/${contractId}/leave-records/${recordId}`);
+  return request.delete<any, BaseResponse>(`/v1/student-contracts/${contractId}/leave-records/${recordId}`);
 }
 
 export function getContractDownloadUrl(contractId: string) {
-  return request.get<string>(`/v1/student-contracts/${contractId}/download-url`);
+  return request.get<any, DataResponse<string>>(`/v1/student-contracts/${contractId}/download-url`);
 }
 
 export function generateContract(contractId: string) {
@@ -200,7 +205,7 @@ export function updateAddendum(contractId: string, addendumId: string, data: Stu
 }
 
 export function deleteAddendum(contractId: string, addendumId: string) {
-  return request.delete(`/v1/student-contracts/${contractId}/addendums/${addendumId}`);
+  return request.delete<any, BaseResponse>(`/v1/student-contracts/${contractId}/addendums/${addendumId}`);
 }
 
 export function uploadStudentContractAddendum(contractId: string, addendumId: string) {

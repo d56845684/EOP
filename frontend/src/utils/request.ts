@@ -49,18 +49,19 @@ service.interceptors.response.use(
     return response.data;
   },
   async (error) => {
+    const { response } = error;
     const originalRequest = error.config;
 
     // --- 新增：處理 Blob 類型的錯誤訊息 ---
-    if (error.response?.data instanceof Blob && error.response.data.type === 'application/json') {
+    if (response?.data instanceof Blob && response.data.type === 'application/json') {
       // 將 Blob 轉回 JSON 文字，這樣才能顯示正確的錯誤訊息
-      const text = await error.response.data.text();
+      const text = await response.data.text();
       const errorData = JSON.parse(text);
-      ElMessage.error(errorData.message || '下載失敗');
+      ElMessage.error(errorData.message || '操作失敗');
       return Promise.reject(errorData);
     }
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (response?.status === 401 && !originalRequest._retry) {
       // Prevent infinite loops if the refresh API itself returns 401
       if (originalRequest.url?.includes('/v1/auth/refresh')) {
         const authStore = useAuthStore();
@@ -102,13 +103,27 @@ service.interceptors.response.use(
       ElMessage.error('網路連線異常，請稍後再試');
     }
 
-    // if (error.response?.status !== 401) {
-    //   // 處理非 401 的一般錯誤
-    //   const message = error.response?.data?.message || '系統異常';
-    //   ElMessage.error(message);
-    // }
-
-    return Promise.reject(error);
+    // 處理 400 或其他一般錯誤
+    if (response) {
+      // 這裡提取後端回傳的錯誤內容
+      // 假設後端格式為 { message: "手機號碼格式錯誤", code: 40001 }
+      const errorMessage = response.data?.message || '系統異常';
+      
+      // 根據需求決定是否要過濾 401（因為 401 可能由上面的重刷邏輯處理）
+      if (response.status !== 401) {
+        if (originalRequest?.showError !== false) {
+          ElMessage.closeAll();
+          ElMessage.error(errorMessage);
+        }
+      }
+      
+      // 即將後端的錯誤資料傳回，讓組件知道發生什麼事，但不一定要再彈窗
+      return Promise.reject(response.data); 
+    } else {
+      // 網路中斷或 Timeout
+      ElMessage.error('網路連線異常，請稍後再試');
+      return Promise.reject(error);
+    }
   }
 );
 

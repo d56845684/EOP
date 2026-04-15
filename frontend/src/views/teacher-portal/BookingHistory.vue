@@ -112,11 +112,10 @@ import { useMockStore, type Booking } from '../../stores/mockStore';
 import dayjs from 'dayjs';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { CopyDocument } from '@element-plus/icons-vue';
-import { useClipboard } from '@vueuse/core';
+import { copyToClipboardUtil } from '@/utils/clipboard';
 
 const { t } = useI18n();
 const store = useMockStore();
-const { copy } = useClipboard();
 
 // --- State ---
 const filterIncomplete = ref(false);
@@ -298,8 +297,7 @@ const submitLeave = async () => {
 };
 
 const copyLink = (url: string) => {
-    copy(url);
-    ElMessage.success(t('teacherRecords.msgCopySuccess'));
+    copyToClipboardUtil(url, t('teacherRecords.msgCopySuccess'));
 };
 
 </script>

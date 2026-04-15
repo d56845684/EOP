@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse } from './response';
 
 export interface CourseListParams {
     page?: number;
@@ -23,7 +24,7 @@ export interface CourseUpdate {
     is_active?: boolean | null;
 }
 
-export interface CourseResponse {
+export interface CourseResponseData {
     id: string;
     course_code: string;
     course_name: string;
@@ -34,9 +35,18 @@ export interface CourseResponse {
     updated_at?: string | null;
 }
 
+export interface CourseResponse<T> {
+  success: boolean;
+  message?: string;
+  error_code?: string | null;
+  data: T;
+}
+
 export interface CourseListResponse {
-    success: boolean;
-    data: CourseResponse[];
+  success: boolean;
+  message?: string;
+  error_code?: string | null;
+  data: CourseResponseData[];
     total: number;
     page: number;
     per_page: number;
@@ -48,13 +58,13 @@ export function getCourseList(params: CourseListParams) {
 }
 
 export function createCourse(data: CourseCreate) {
-    return request.post('/v1/courses', data);
+  return request.post<any, CourseResponse<CourseResponseData>>('/v1/courses', data);
 }
 
 export function updateCourse(courseId: string, data: CourseUpdate) {
-    return request.put(`/v1/courses/${courseId}`, data);
+    return request.put<any, CourseResponse<CourseResponseData>>(`/v1/courses/${courseId}`, data);
 }
 
 export function deleteCourse(courseId: string) {
-    return request.delete(`/v1/courses/${courseId}`);
+  return request.delete<any, BaseResponse>(`/v1/courses/${courseId}`);
 }

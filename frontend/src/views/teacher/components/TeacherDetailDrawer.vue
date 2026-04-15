@@ -260,6 +260,7 @@ import {
   deleteTeacherDetail,
   type TeacherDetail,
 } from '@/api/teacherDetails';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { uploadTeacherAvatar, uploadDetailFile } from '@/utils/upload';
 
 type DetailType = 'qualification' | 'certificate' | 'video' | 'experience';
@@ -386,8 +387,8 @@ const saveDetail = async () => {
           issue_date: detailForm.detail_type === 'certificate' ? detailForm.issue_date : null,
           expiry_date: detailForm.detail_type === 'certificate' ? detailForm.expiry_date : null,
         });
-        savedId = res.data.id;
-        ElMessage.success('教師明細已更新');
+        savedId = assertApiSuccess(res, '更新教師明細失敗').data.id;
+        ElMessage.success(res.message || '教師明細已更新');
       } else {
         // Create
         const res = await createTeacherDetail({
@@ -397,8 +398,8 @@ const saveDetail = async () => {
           issue_date: detailForm.detail_type === 'certificate' ? detailForm.issue_date : null,
           expiry_date: detailForm.detail_type === 'certificate' ? detailForm.expiry_date : null,
         });
-        savedId = res.data.id;
-        ElMessage.success('教師明細已新增');
+        savedId = assertApiSuccess(res, '新增教師明細失敗').data.id;
+        ElMessage.success(res.message || '教師明細已新增');
       }
 
       // Upload file if pending
@@ -414,7 +415,7 @@ const saveDetail = async () => {
       await loadDetails();
     } catch (e) {
       console.error(e);
-      ElMessage.error(editingDetailId.value ? '更新教師明細失敗' : '新增教師明細失敗');
+      ElMessage.error(getApiErrorMessage(e, editingDetailId.value ? '更新教師明細失敗' : '新增教師明細失敗'));
     } finally {
       savingDetail.value = false;
     }
@@ -428,11 +429,11 @@ const handleDeleteDetail = async (detailId: string) => {
       confirmButtonText: '確定',
       cancelButtonText: '取消',
     });
-    await deleteTeacherDetail(detailId);
-    ElMessage.success('明細已刪除');
+    const res = assertApiSuccess(await deleteTeacherDetail(detailId), '刪除教師明細失敗');
+    ElMessage.success(res.message || '明細已刪除');
     await loadDetails();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('刪除失敗');
+    if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, '刪除失敗'));
   }
 };
 
@@ -441,10 +442,10 @@ const loadDetails = async () => {
   const tId = props.teacherId;
   if (!tId) return;
   try {
-    const res = await getTeacherDetails(tId);
+    const res = assertApiSuccess(await getTeacherDetails(tId), '載入教師明細失敗');
     teacherDetails.value = res.data || [];
   } catch (e) {
-    ElMessage.error('載入教師明細失敗');
+    ElMessage.error(getApiErrorMessage(e, '載入教師明細失敗'));
   }
 };
 
@@ -456,7 +457,7 @@ const fetchData = async () => {
       getTeacherById(props.teacherId),
       loadDetails(),
     ]);
-    const target = teacherRes.data;
+    const target = assertApiSuccess(teacherRes, '載入教師資料失敗').data;
     if (target) {
       basicForm.teacher_no = target.teacher_no;
       basicForm.name = target.name;
@@ -468,7 +469,7 @@ const fetchData = async () => {
       avatarUrl.value = target.avatar_url || null;
     }
   } catch (error) {
-    ElMessage.error('載入教師資料失敗');
+    ElMessage.error(getApiErrorMessage(error, '載入教師資料失敗'));
   } finally {
     loading.value = false;
   }
@@ -498,7 +499,7 @@ const handleAvatarChange = async (uploadFile: any, teacherId?: string) => {
   uploadingAvatar.value = true;
   try {
     await uploadTeacherAvatar(tId, uploadFile.raw);
-    const res = await getTeacherById(tId);
+    const res = assertApiSuccess(await getTeacherById(tId), '載入教師資料失敗');
     avatarUrl.value = res.data.avatar_url || null;
     ElMessage.success('頭像已更新');
     if (isEdit.value) {
@@ -506,7 +507,7 @@ const handleAvatarChange = async (uploadFile: any, teacherId?: string) => {
     }
   } catch (e) {
     console.error(e);
-    ElMessage.error('頭像上傳失敗');
+    ElMessage.error(getApiErrorMessage(e, '頭像上傳失敗'));
   } finally {
     uploadingAvatar.value = false;
   }
@@ -520,28 +521,24 @@ const saveBasicInfo = async () => {
       saving.value = true;
       try {
         if (isEdit.value && tId) {
-          const res = await updateTeacher(tId, basicForm);
-          if (res.success) {
-            ElMessage.success('基本資料已儲存');
-          }
+          const res = assertApiSuccess(await updateTeacher(tId, basicForm), '儲存失敗');
+          ElMessage.success(res.message || '基本資料已儲存');
         } else {
           try {
             let teacherId: string;
-            const res = await createTeacher(basicForm as TeacherCreate);
-            if (res.success) {
-              ElMessage.success('基本資料已新增');
-              teacherId = res.data.id;
-              if (uploadAvatar.value.file) {
-                handleAvatarChange(uploadAvatar.value.file, teacherId);
-              }
+            const res = assertApiSuccess(await createTeacher(basicForm as TeacherCreate), '新增失敗');
+            ElMessage.success(res.message || '基本資料已新增');
+            teacherId = res.data.id;
+            if (uploadAvatar.value.file) {
+              handleAvatarChange(uploadAvatar.value.file, teacherId);
             }
           } catch (error) {
-            ElMessage.error('新增失敗');
+            ElMessage.error(getApiErrorMessage(error, '新增失敗'));
           }
         }
         emit('saved');
       } catch (e) {
-        ElMessage.error('儲存失敗');
+        ElMessage.error(getApiErrorMessage(e, '儲存失敗'));
       } finally {
         saving.value = false;
       }
