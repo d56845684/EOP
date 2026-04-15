@@ -1972,13 +1972,13 @@ async def batch_create_bookings(
             if not has_course_rate:
                 raise HTTPException(status_code=400, detail="教師無此課程的授課資格")
 
-        # 驗證教師等級是否符合學生偏好（主要教師不受等級限制）
-        await preference_service.validate_teacher_level_for_course(
-            student_id=data.student_id,
-            teacher_id=data.teacher_id,
-            course_id=course_id,
-            teacher_level=teacher[0].get("teacher_level", 1),
-        )
+        # 驗證教師是否在學生偏好白名單內
+        allowed_set, _ = await preference_service.get_student_allowed_teachers(data.student_id)
+        if data.teacher_id not in allowed_set:
+            raise HTTPException(
+                status_code=400,
+                detail="此教師不在學生的偏好可預約教師範圍內，請先設定教師偏好"
+            )
 
         # 驗證教師合約存在（如果有提供）
         teacher_contract_id = data.teacher_contract_id

@@ -319,14 +319,8 @@ async def create_teacher(
         # 自動產生 EOPT 編號
         if not data.teacher_no:
             pool = supabase_service.pool
-            row = await pool.fetchrow(
-                "SELECT teacher_no FROM teachers WHERE teacher_no LIKE 'EOPT%' ORDER BY teacher_no DESC LIMIT 1"
-            )
-            if row and row["teacher_no"]:
-                last_num = int(row["teacher_no"].replace("EOPT", ""))
-                data.teacher_no = f"EOPT{last_num + 1}"
-            else:
-                data.teacher_no = "EOPT0"
+            row = await pool.fetchrow("SELECT nextval('teachers_eopt_seq') AS seq")
+            data.teacher_no = f"EOPT{row['seq']}"
 
         existing = await supabase_service.table_select(
             table="teachers", select="id",
