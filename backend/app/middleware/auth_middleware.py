@@ -1,0 +1,112 @@
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+from app.services.session_service import session_service
+from app.core.security import get_token_from_request, decode_token
+from app.core.logging import get_logger, user_id_var
+from app.config import settings
+
+logger = get_logger(__name__)
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """認證中間件：處理 Token 驗證和 Session 追蹤"""
+    
+    # 不需要認證的路徑
+    PUBLIC_PATHS = [
+        "/api/v1/health",
+        "/api/v1/auth/login",
+        "/api/v1/auth/password/reset",
+        "/api/v1/auth/refresh",
+        "/api/v1/invites/accept",
+        "/docs",
+        "/redoc",
+        "/openapi.json"
+    ]
+    
+    async def dispatch(self, request: Request, call_next) -> Response:
+        # 檢查是否為公開路徑
+        path = request.url.path
+        is_public = any(path.startswith(p) for p in self.PUBLIC_PATHS)
+
+        if not is_public:
+            # 優先檢查 Service Account API Key
+            api_key = request.headers.get("X-API-Key")
+            if api_key:
+                if settings.SERVICE_API_KEY and api_key == settings.SERVICE_API_KEY:
+                    request.state.is_service_account = True
+                    user_id_var.set("service_account")
+                else:
+                    return JSONResponse(
+                        status_code=401,
+                        content={
+                            "success": False,
+                            "message": "無效的 API Key",
+                            "detail": "無效的 API Key",
+                            "error_code": "AUTH_API_KEY_INVALID",
+                        }
+                    )
+            else:
+                # 驗證 Token
+                token = get_token_from_request(request)
+
+                if token:
+                    # 檢查黑名單
+                    if await session_service.is_token_blacklisted(token):
+                        return JSONResponse(
+                            status_code=401,
+                            content={
+                                "success": False,
+                                "message": "Token 已失效",
+                                "detail": "Token 已失效",
+                                "error_code": "AUTH_TOKEN_INVALID",
+                            }
+                        )
+
+                    # 解碼並附加到 request.state（供 dependencies 複用，避免重複檢查）
+                    payload = decode_token(token)
+                    if payload:
+                        request.state.user_id = payload.get("sub")
+                        request.state.user_role = payload.get("role")
+                        request.state.token_payload = payload
+                        # 寫入 contextvars 供 logger 使用
+                        user_id_var.set(payload.get("sub", ""))
+
+        return await call_next(request)
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """速率限制中間件"""
+    
+    def __init__(self, app, requests_per_minute: int = 60):
+        super().__init__(app)
+        self.requests_per_minute = requests_per_minute
+    
+    async def dispatch(self, request: Request, call_next) -> Response:
+        # 取得客戶端 IP
+        client_ip = request.client.host if request.client else "unknown"
+        
+        # 建立速率限制 key
+        rate_key = f"rate_limit:{client_ip}"
+        
+        try:
+            from app.services.redis_service import redis_service
+            
+            current = await redis_service.client.incr(rate_key)
+            
+            if current == 1:
+                await redis_service.expire(rate_key, 60)
+            
+            if current > self.requests_per_minute:
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "success": False,
+                        "message": "請求過於頻繁，請稍後再試",
+                        "detail": "請求過於頻繁，請稍後再試",
+                        "error_code": "RATE_LIMITED",
+                    }
+                )
+        except:
+            # Redis 不可用時跳過速率限制
+            pass
+        
+        return await call_next(request)

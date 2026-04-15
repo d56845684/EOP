@@ -1,0 +1,207 @@
+from pydantic_settings import BaseSettings
+from pydantic import BaseModel
+from functools import lru_cache
+from typing import Optional, Dict, Literal
+
+# 頻道類型
+ChannelType = Literal["student", "teacher", "employee"]
+
+
+class LineChannelConfig(BaseModel):
+    """單一 Line Channel 設定"""
+    channel_id: str = ""
+    channel_secret: str = ""
+    callback_url: str = ""
+    messaging_token: str = ""
+
+    @property
+    def is_configured(self) -> bool:
+        """檢查此頻道是否已設定"""
+        return bool(self.channel_id and self.channel_secret)
+
+    @property
+    def messaging_enabled(self) -> bool:
+        """檢查 Messaging API 是否已設定"""
+        return bool(self.messaging_token)
+
+
+class Settings(BaseSettings):
+    # App
+    APP_NAME: str = "Education Management System"
+    APP_ENV: str = "development"
+    DEBUG: bool = True
+    SECRET_KEY: str
+
+    # Database
+    DATABASE_URL: str = "postgresql://postgres:password@db:5432/postgres"
+
+    # Supabase (legacy, optional)
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_JWT_SECRET: str = ""
+
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_PASSWORD: Optional[str] = None
+
+    # Cookie
+    COOKIE_DOMAIN: str = "localhost"
+    COOKIE_SECURE: bool = False
+    COOKIE_SAMESITE: str = "lax"
+    COOKIE_HTTPONLY: bool = True
+
+    # Session & Token
+    SESSION_EXPIRE_MINUTES: int = 1440  # 24 hours
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    IDLE_TIMEOUT_MINUTES: int = 10  # 閒置超時自動登出
+
+    # ============================================
+    # Line Login（登入認證）- 所有角色共用同一個 Channel
+    # ============================================
+    LINE_LOGIN_CHANNEL_ID: str = ""
+    LINE_LOGIN_CHANNEL_SECRET: str = ""
+    LINE_LOGIN_CALLBACK_URL: str = "http://localhost:8001/api/v1/auth/line/callback"
+
+    # ============================================
+    # Line Messaging（發送通知）- 每個角色使用不同的 Channel
+    # ============================================
+    # 學生頻道
+    LINE_STUDENT_MESSAGING_TOKEN: str = ""
+
+    # 老師頻道
+    LINE_TEACHER_MESSAGING_TOKEN: str = ""
+
+    # 員工頻道
+    LINE_EMPLOYEE_MESSAGING_TOKEN: str = ""
+
+    # AWS S3
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "ap-northeast-1"
+    AWS_S3_BUCKET: str = "teaching-platform-contracts"
+
+    # Zoom OAuth 2.0（教師自用綁定）
+    ZOOM_OAUTH_CLIENT_ID: str = ""
+    ZOOM_OAUTH_CLIENT_SECRET: str = ""
+    ZOOM_OAUTH_REDIRECT_URI: str = "http://localhost:8001/api/v1/zoom/oauth/callback"
+    # Zoom Webhook
+    ZOOM_WEBHOOK_SECRET_TOKEN: str = ""
+    # Feature toggle
+    ZOOM_ENABLED: bool = False
+
+    # Google Drive OAuth（個人 Gmail 上傳錄影用）
+    GOOGLE_DRIVE_OAUTH_CLIENT_ID: str = ""
+    GOOGLE_DRIVE_OAUTH_CLIENT_SECRET: str = ""
+    GOOGLE_DRIVE_OAUTH_REDIRECT_URI: str = "http://localhost:8001/api/v1/google-drive/oauth/callback"
+
+    @property
+    def google_drive_oauth_configured(self) -> bool:
+        return bool(self.GOOGLE_DRIVE_OAUTH_CLIENT_ID and self.GOOGLE_DRIVE_OAUTH_CLIENT_SECRET)
+
+    # 試上課錄影統一放到此資料夾（留空 = 放預設資料夾）
+    TRIAL_STUDENT_DRIVE_FOLDER_ID: str = ""
+
+    # SQS（Zoom 錄影轉移至 Google Drive）
+    SQS_QUEUE_URL: str = ""
+    RECORDING_CALLBACK_SECRET: str = ""
+    BACKEND_BASE_URL: str = "http://localhost:8001"
+
+    # Email Notification (SQS → Lambda → SES)
+    NOTIFICATION_SQS_QUEUE_URL: str = ""
+    AWS_SES_SENDER_EMAIL: str = "noreply@eop-system.com"
+    NOTIFICATION_ENABLED: bool = False
+
+    # Super Admin（預設最高權限帳號，留空 = 不建立）
+    SUPER_ADMIN_EMAIL: str = ""
+    SUPER_ADMIN_PASSWORD: str = ""
+
+    # Service Account API Key（留空 = 停用）
+    SERVICE_API_KEY: str = ""
+
+    # Frontend URL (for OAuth redirects)
+    FRONTEND_URL: str = "http://localhost:4173"
+
+    @property
+    def is_production(self) -> bool:
+        return self.APP_ENV == "production"
+
+    @property
+    def line_login_config(self) -> LineChannelConfig:
+        """取得 Line Login Channel 設定（所有角色共用）"""
+        return LineChannelConfig(
+            channel_id=self.LINE_LOGIN_CHANNEL_ID,
+            channel_secret=self.LINE_LOGIN_CHANNEL_SECRET,
+            callback_url=self.LINE_LOGIN_CALLBACK_URL,
+            messaging_token="",  # Login channel 不用於發送訊息
+        )
+
+    def get_messaging_token(self, channel_type: ChannelType) -> str:
+        """根據角色取得對應的 Messaging Token"""
+        tokens = {
+            "student": self.LINE_STUDENT_MESSAGING_TOKEN,
+            "teacher": self.LINE_TEACHER_MESSAGING_TOKEN,
+            "employee": self.LINE_EMPLOYEE_MESSAGING_TOKEN,
+        }
+        return tokens.get(channel_type, "")
+
+    def get_line_channel(self, channel_type: ChannelType) -> LineChannelConfig:
+        """根據角色取得對應的 Line Channel 設定（向後相容）"""
+        # Login 使用共用的 channel，Messaging 使用各自的 token
+        return LineChannelConfig(
+            channel_id=self.LINE_LOGIN_CHANNEL_ID,
+            channel_secret=self.LINE_LOGIN_CHANNEL_SECRET,
+            callback_url=self.LINE_LOGIN_CALLBACK_URL,
+            messaging_token=self.get_messaging_token(channel_type),
+        )
+
+    def get_line_channel_by_role(self, role: str) -> LineChannelConfig:
+        """根據用戶角色取得對應的 Line Channel 設定"""
+        role_to_channel: Dict[str, ChannelType] = {
+            "student": "student",
+            "teacher": "teacher",
+            "employee": "employee",
+            "admin": "employee",  # admin 使用員工頻道
+        }
+        channel_type = role_to_channel.get(role, "student")
+        return self.get_line_channel(channel_type)
+
+    @property
+    def line_login_enabled(self) -> bool:
+        """檢查 Line Login 是否已設定"""
+        return self.line_login_config.is_configured
+
+    @property
+    def line_enabled(self) -> bool:
+        """檢查是否有 Line 功能已設定（向後相容）"""
+        return self.line_login_enabled
+
+    @property
+    def zoom_enabled(self) -> bool:
+        """檢查 Zoom 功能是否啟用"""
+        return self.ZOOM_ENABLED
+
+    @property
+    def zoom_oauth_configured(self) -> bool:
+        """檢查 Zoom OAuth（教師綁定）是否已設定"""
+        return bool(self.ZOOM_OAUTH_CLIENT_ID and self.ZOOM_OAUTH_CLIENT_SECRET)
+
+    @property
+    def line_messaging_enabled(self) -> bool:
+        """檢查是否有任何 Line Messaging API 已設定"""
+        return any([
+            bool(self.LINE_STUDENT_MESSAGING_TOKEN),
+            bool(self.LINE_TEACHER_MESSAGING_TOKEN),
+            bool(self.LINE_EMPLOYEE_MESSAGING_TOKEN),
+        ])
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()
+
+settings = get_settings()

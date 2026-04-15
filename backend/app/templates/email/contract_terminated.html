@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<p>{{ recipient_name }} 您好，</p>
+<p>您的課程合約已終止：</p>
+<table class="info-table">
+  <tr><td>合約編號</td><td>{{ contract_no }}</td></tr>
+  <tr><td>剩餘堂數</td><td>{{ remaining_lessons }} 堂</td></tr>
+</table>
+<p>如有任何疑問，請聯繫我們的客服團隊。</p>
+{% endblock %}

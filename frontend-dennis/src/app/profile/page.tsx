@@ -1,0 +1,538 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '@/lib/hooks/useAuth'
+import { useLine } from '@/lib/hooks/useLine'
+import { User, Link as LinkIcon, Unlink, BookOpen, Save, Video, Bell } from 'lucide-react'
+import DashboardLayout from '@/components/DashboardLayout'
+import { studentCoursesApi, StudentCourse } from '@/lib/api/studentCourses'
+import { teachersApi, TeacherSelfUpdateData } from '@/lib/api/teachers'
+import { zoomApi, ZoomTeacherLinkStatus } from '@/lib/api/zoom'
+import { notificationsApi, NotificationPreferences } from '@/lib/api/notifications'
+
+export default function ProfilePage() {
+  const { user, profile } = useAuth()
+  const { bindings, loading: lineLoading, startBinding, unbind } = useLine()
+
+  // Student courses state
+  const [myCourses, setMyCourses] = useState<StudentCourse[]>([])
+  const [coursesLoading, setCoursesLoading] = useState(false)
+
+  const isStudent = profile?.student_id != null
+  const isTeacher = profile?.teacher_id != null
+
+  // Teacher self-update state
+  const [teacherBio, setTeacherBio] = useState('')
+  const [teacherPhone, setTeacherPhone] = useState('')
+  const [teacherAddress, setTeacherAddress] = useState('')
+  const [teacherSaving, setTeacherSaving] = useState(false)
+  const [teacherSaveMsg, setTeacherSaveMsg] = useState<string | null>(null)
+  const [teacherSaveError, setTeacherSaveError] = useState<string | null>(null)
+
+  // Zoom binding state (teacher only)
+  const [zoomStatus, setZoomStatus] = useState<ZoomTeacherLinkStatus | null>(null)
+  const [zoomLoading, setZoomLoading] = useState(false)
+  const [zoomUnlinking, setZoomUnlinking] = useState(false)
+
+  // Notification preferences state
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences | null>(null)
+  const [notifLoading, setNotifLoading] = useState(false)
+  const [notifSaving, setNotifSaving] = useState(false)
+  const [notifMsg, setNotifMsg] = useState<string | null>(null)
+
+  const fetchNotifPrefs = useCallback(async () => {
+    setNotifLoading(true)
+    const { data } = await notificationsApi.getPreferences()
+    if (data) setNotifPrefs(data)
+    setNotifLoading(false)
+  }, [])
+
+  useEffect(() => {
+    if (user) fetchNotifPrefs()
+  }, [user, fetchNotifPrefs])
+
+  const handleNotifToggle = async (key: keyof NotificationPreferences) => {
+    if (!notifPrefs) return
+    const updated = { ...notifPrefs, [key]: !notifPrefs[key] }
+
+    // 關閉全域開關時，所有子項一起關
+    if (key === 'email_enabled' && !updated.email_enabled) {
+      updated.booking_confirmed = false
+      updated.booking_cancelled = false
+      updated.contract_activated = false
+      updated.contract_converted = false
+      updated.contract_terminated = false
+    }
+
+    setNotifPrefs(updated)
+    setNotifSaving(true)
+    const { error } = await notificationsApi.updatePreferences(updated)
+    if (!error) {
+      setNotifMsg('通知設定已更新')
+      setTimeout(() => setNotifMsg(null), 2000)
+    }
+    setNotifSaving(false)
+  }
+
+  // Fetch Zoom binding status
+  const fetchZoomStatus = useCallback(async () => {
+    if (!isTeacher) return
+    setZoomLoading(true)
+    const { data } = await zoomApi.getOAuthStatus()
+    if (data) setZoomStatus(data)
+    setZoomLoading(false)
+  }, [isTeacher])
+
+  useEffect(() => {
+    if (user && isTeacher) fetchZoomStatus()
+  }, [user, isTeacher, fetchZoomStatus])
+
+  // Check URL for zoom=linked callback
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('zoom') === 'linked') {
+        fetchZoomStatus()
+        window.history.replaceState({}, '', '/profile')
+      }
+    }
+  }, [fetchZoomStatus])
+
+  const handleBindZoom = async () => {
+    const { data, error } = await zoomApi.getOAuthUrl()
+    if (data?.authorize_url) {
+      window.location.href = data.authorize_url
+    } else if (error) {
+      alert(error.message)
+    }
+  }
+
+  const handleUnbindZoom = async () => {
+    if (!confirm('確定要解除 Zoom 綁定嗎？')) return
+    setZoomUnlinking(true)
+    const { error } = await zoomApi.unlinkZoom()
+    if (!error) {
+      setZoomStatus({ success: true, is_linked: false })
+    }
+    setZoomUnlinking(false)
+  }
+
+  // Fetch student's enrolled courses
+  const fetchMyCourses = useCallback(async () => {
+    if (!isStudent) return
+    setCoursesLoading(true)
+    const { data } = await studentCoursesApi.list({ per_page: 100 })
+    if (data) {
+      setMyCourses(data.data)
+    }
+    setCoursesLoading(false)
+  }, [isStudent])
+
+  useEffect(() => {
+    if (user && isStudent) {
+      fetchMyCourses()
+    }
+  }, [user, isStudent, fetchMyCourses])
+
+  const handleBindLine = async () => {
+    await startBinding()
+  }
+
+  const handleUnbindLine = async (channel: string) => {
+    if (confirm('確定要解除 Line 綁定嗎？')) {
+      await unbind(channel)
+    }
+  }
+
+  const handleTeacherSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setTeacherSaveError(null)
+    setTeacherSaveMsg(null)
+    setTeacherSaving(true)
+
+    const data: TeacherSelfUpdateData = {}
+    if (teacherBio) data.bio = teacherBio
+    if (teacherPhone) data.phone = teacherPhone
+    if (teacherAddress) data.address = teacherAddress
+
+    const { error } = await teachersApi.updateSelf(data)
+    if (error) {
+      setTeacherSaveError(error.message)
+    } else {
+      setTeacherSaveMsg('資料更新成功')
+      setTimeout(() => setTeacherSaveMsg(null), 3000)
+    }
+    setTeacherSaving(false)
+  }
+
+  const roleLabels: Record<string, string> = {
+    admin: '管理員',
+    teacher: '老師',
+    student: '學生',
+    employee: '員工',
+  }
+
+  const channelLabels: Record<string, string> = {
+    student: '學生',
+    teacher: '老師',
+    employee: '員工',
+  }
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('zh-TW')
+  }
+
+  return (
+    <DashboardLayout>
+      <div className="p-6">
+        <div className="max-w-2xl space-y-6">
+          {/* Header */}
+          <h1 className="text-2xl font-bold">個人設定</h1>
+
+          {/* Profile Card */}
+          <div className="card">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt="Avatar"
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                ) : (
+                  <User className="w-8 h-8 text-blue-600" />
+                )}
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold">
+                  {profile?.full_name || user?.email}
+                </h2>
+                <p className="text-gray-500">{user?.email}</p>
+                {profile?.role && (
+                  <span className="inline-block mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-sm rounded">
+                    {roleLabels[profile.role] || profile.role}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-2">帳號資訊</h3>
+              <dl className="space-y-2 text-sm">
+                <div className="flex">
+                  <dt className="w-24 text-gray-500">Email</dt>
+                  <dd>{user?.email}</dd>
+                </div>
+                {profile?.phone && (
+                  <div className="flex">
+                    <dt className="w-24 text-gray-500">電話</dt>
+                    <dd>{profile.phone}</dd>
+                  </div>
+                )}
+                <div className="flex">
+                  <dt className="w-24 text-gray-500">User ID</dt>
+                  <dd className="font-mono text-xs text-gray-400">{user?.id}</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+
+          {/* Teacher Self-Update Card */}
+          {isTeacher && (
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <User className="w-6 h-6 text-purple-600" />
+                <h3 className="text-lg font-semibold">教師資料更新</h3>
+              </div>
+
+              {teacherSaveMsg && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">{teacherSaveMsg}</div>}
+              {teacherSaveError && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{teacherSaveError}</div>}
+
+              <form onSubmit={handleTeacherSave} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">電話</label>
+                  <input type="text" value={teacherPhone}
+                    onChange={(e) => setTeacherPhone(e.target.value)}
+                    className="input-field" placeholder="輸入電話號碼" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">地址</label>
+                  <input type="text" value={teacherAddress}
+                    onChange={(e) => setTeacherAddress(e.target.value)}
+                    className="input-field" placeholder="輸入地址" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">簡介</label>
+                  <textarea value={teacherBio}
+                    onChange={(e) => setTeacherBio(e.target.value)}
+                    className="input-field" rows={3} placeholder="教學經歷、專長等..." />
+                </div>
+                <button type="submit" disabled={teacherSaving} className="btn-primary flex items-center gap-2">
+                  <Save className="w-4 h-4" />
+                  {teacherSaving ? '儲存中...' : '儲存變更'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Student's Enrolled Courses Card */}
+          {isStudent && (
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <BookOpen className="w-6 h-6 text-blue-600" />
+                <h3 className="text-lg font-semibold">我的課程</h3>
+              </div>
+
+              {coursesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+              ) : myCourses.length === 0 ? (
+                <div className="text-center py-8">
+                  <BookOpen className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500">尚未選修任何課程</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {myCourses.map((course) => (
+                    <div key={course.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-xs text-gray-500 bg-white px-2 py-0.5 rounded">
+                          {course.course_code}
+                        </span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {course.course_name}
+                        </span>
+                      </div>
+                      {course.enrolled_at && (
+                        <span className="text-xs text-gray-400">
+                          {formatDate(course.enrolled_at)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Zoom Binding Card (Teacher Only) */}
+          {isTeacher && (
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <Video className="w-6 h-6 text-blue-600" />
+                <h3 className="text-lg font-semibold">Zoom 帳號綁定</h3>
+              </div>
+
+              {zoomLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+              ) : zoomStatus?.is_linked ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center">
+                        <Video className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{zoomStatus.zoom_email}</p>
+                        <p className="text-sm text-gray-500">Zoom 帳號已綁定</p>
+                        {zoomStatus.linked_at && (
+                          <p className="text-xs text-gray-400">
+                            綁定於 {new Date(zoomStatus.linked_at).toLocaleDateString('zh-TW')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleUnbindZoom}
+                      disabled={zoomUnlinking}
+                      className="btn-danger flex items-center gap-1 text-sm py-1.5 px-3"
+                    >
+                      <Unlink className="w-4 h-4" />
+                      {zoomUnlinking ? '解除中...' : '解除綁定'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    綁定後，30 分鐘以內的課程預約將優先使用您的 Zoom 帳號建立會議。
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                    <Video className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 mb-4">尚未綁定 Zoom 帳號</p>
+                  <p className="text-sm text-gray-400 mb-6">
+                    綁定後，30 分鐘以內的課程預約將優先使用您的 Zoom 帳號建立會議
+                  </p>
+                  <button
+                    onClick={handleBindZoom}
+                    className="btn-primary flex items-center justify-center gap-2 mx-auto"
+                  >
+                    <LinkIcon className="w-4 h-4" />
+                    綁定 Zoom 帳號
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Line Binding Card */}
+          <div className="card">
+            <div className="flex items-center gap-2 mb-4">
+              <svg className="w-6 h-6 text-[#06C755]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+              </svg>
+              <h3 className="text-lg font-semibold">Line 帳號綁定</h3>
+            </div>
+
+            {lineLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#06C755]"></div>
+              </div>
+            ) : bindings.length > 0 && bindings.some(b => b.is_bound) ? (
+              <div className="space-y-4">
+                {bindings.filter(b => b.is_bound).map((binding) => (
+                  <div
+                    key={binding.channel_type}
+                    className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200"
+                  >
+                    <div className="flex items-center gap-3">
+                      {binding.line_picture_url ? (
+                        <img
+                          src={binding.line_picture_url}
+                          alt="Line Avatar"
+                          className="w-12 h-12 rounded-full"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-[#06C755] flex items-center justify-center">
+                          <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                          </svg>
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-medium">{binding.line_display_name}</p>
+                        <p className="text-sm text-gray-500">
+                          {channelLabels[binding.channel_type] || binding.channel_type} 頻道
+                        </p>
+                        {binding.bound_at && (
+                          <p className="text-xs text-gray-400">
+                            綁定於 {new Date(binding.bound_at).toLocaleDateString('zh-TW')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleUnbindLine(binding.channel_type)}
+                      className="btn-danger flex items-center gap-1 text-sm py-1.5 px-3"
+                    >
+                      <Unlink className="w-4 h-4" />
+                      解除綁定
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                  <LinkIcon className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500 mb-4">尚未綁定 Line 帳號</p>
+                <p className="text-sm text-gray-400 mb-6">
+                  綁定後可接收課程通知、預約提醒等訊息
+                </p>
+                <button
+                  onClick={handleBindLine}
+                  className="btn-line flex items-center justify-center gap-2 mx-auto"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  綁定 Line 帳號
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Notification Preferences Card */}
+          <div className="card">
+            <div className="flex items-center gap-2 mb-4">
+              <Bell className="w-6 h-6 text-amber-600" />
+              <h3 className="text-lg font-semibold">通知設定</h3>
+              {notifSaving && <span className="text-xs text-gray-400 ml-auto">儲存中...</span>}
+            </div>
+
+            {notifMsg && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                {notifMsg}
+              </div>
+            )}
+
+            {notifLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-amber-600"></div>
+              </div>
+            ) : notifPrefs ? (
+              <div className="space-y-1">
+                {/* 全域開關 */}
+                <label className="flex items-center justify-between px-3 py-3 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100">
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">Email 通知</div>
+                    <div className="text-xs text-gray-400">關閉後將不會收到任何 Email 通知</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifPrefs.email_enabled}
+                    onChange={() => handleNotifToggle('email_enabled')}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </label>
+
+                {/* 子項 */}
+                {([
+                  { key: 'booking_confirmed' as const, label: '預約確認通知', desc: '課程預約被確認時' },
+                  { key: 'booking_cancelled' as const, label: '預約取消通知', desc: '課程預約被取消時' },
+                  { key: 'contract_activated' as const, label: '合約啟動通知', desc: '課程合約啟動時' },
+                  { key: 'contract_converted' as const, label: '試上轉正通知', desc: '試上課程轉為正式時' },
+                  { key: 'contract_terminated' as const, label: '合約終止通知', desc: '課程合約終止時' },
+                ]).map(({ key, label, desc }) => (
+                  <label
+                    key={key}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                      notifPrefs.email_enabled ? 'hover:bg-gray-50' : 'opacity-40 cursor-not-allowed'
+                    }`}
+                  >
+                    <div>
+                      <div className="text-sm text-gray-800">{label}</div>
+                      <div className="text-xs text-gray-400">{desc}</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifPrefs[key]}
+                      onChange={() => handleNotifToggle(key)}
+                      disabled={!notifPrefs.email_enabled}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 py-4 text-center">無法載入通知設定</p>
+            )}
+          </div>
+
+          {/* Instructions */}
+          <div className="card bg-blue-50 border border-blue-200">
+            <h3 className="font-medium text-blue-800 mb-2">關於 Line 綁定</h3>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• 綁定後可透過 Line 接收系統通知</li>
+              <li>• 包含課程提醒、預約確認等重要訊息</li>
+              <li>• 您可以隨時解除綁定</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  )
+}
