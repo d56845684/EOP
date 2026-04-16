@@ -15,6 +15,19 @@ class EmployeeCreate(BaseModel):
     termination_date: Optional[date] = Field(None, description="離職日")
     is_active: bool = Field(True, description="是否啟用")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "employee_no": "E003",
+                "employee_type": "full_time",
+                "name": "林雅婷",
+                "email": "yating.lin@example.com",
+                "phone": "0955123456",
+                "hire_date": "2026-01-15",
+            }]
+        }
+    }
+
 
 class EmployeeUpdate(BaseModel):
     """更新員工"""
@@ -27,6 +40,16 @@ class EmployeeUpdate(BaseModel):
     termination_date: Optional[date] = None
     role_id: Optional[str] = Field(None, description="系統角色 ID（僅限已有帳號的員工）")
     is_active: Optional[bool] = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "name": "林雅婷",
+                "phone": "0955123456",
+                "employee_type": "full_time",
+            }]
+        }
+    }
 
 
 class EmployeeResponse(BaseModel):

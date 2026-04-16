@@ -34,6 +34,18 @@ class TeacherBonusCreate(BaseModel):
     related_booking_id: Optional[str] = Field(None, description="關聯預約 ID")
     notes: Optional[str] = Field(None, description="備註")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "teacher_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "bonus_type": "trial_to_formal",
+                "amount": 500.0,
+                "bonus_date": "2026-04-10",
+                "description": "學生王小明試上轉正獎金",
+            }]
+        }
+    }
+
 
 class TeacherBonusUpdate(BaseModel):
     """更新教師獎金紀錄"""
@@ -44,6 +56,16 @@ class TeacherBonusUpdate(BaseModel):
     related_student_id: Optional[str] = Field(None, description="關聯學生 ID")
     related_booking_id: Optional[str] = Field(None, description="關聯預約 ID")
     notes: Optional[str] = Field(None, description="備註")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "amount": 600.0,
+                "description": "調整獎金金額",
+                "notes": "主管核准調整",
+            }]
+        }
+    }
 
 
 class TeacherBonusResponse(BaseModel):

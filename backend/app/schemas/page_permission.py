@@ -19,11 +19,30 @@ class RoleCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200, description="角色顯示名稱")
     description: Optional[str] = Field(None, description="角色描述")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "key": "senior_teacher",
+                "name": "資深教師",
+                "description": "具備進階排課與學生管理權限的教師角色",
+            }]
+        }
+    }
+
 
 class RoleUpdate(BaseModel):
     """更新角色"""
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "name": "資深教師（已更新）",
+                "description": "更新角色描述與權限範圍",
+            }]
+        }
+    }
 
 
 # ========== Pages ==========
@@ -37,6 +56,18 @@ class PageCreate(BaseModel):
     sort_order: int = Field(0, description="排序")
     is_active: bool = Field(True, description="是否啟用")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "key": "booking_management",
+                "name": "預約管理",
+                "description": "學生預約課程管理頁面",
+                "parent_key": "dashboard",
+                "sort_order": 3,
+            }]
+        }
+    }
+
 
 class PageUpdate(BaseModel):
     """更新頁面"""
@@ -46,6 +77,16 @@ class PageUpdate(BaseModel):
     parent_key: Optional[str] = Field(None, max_length=100)
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "name": "預約管理（進階）",
+                "sort_order": 5,
+                "is_active": True,
+            }]
+        }
+    }
 
 
 class PageResponse(BaseModel):
@@ -88,6 +129,18 @@ class RolePagesBatchSet(BaseModel):
     role_id: str = Field(..., description="角色 UUID")
     page_ids: List[str] = Field(..., description="頁面 ID 列表")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "role_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "page_ids": [
+                    "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                    "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                ],
+            }]
+        }
+    }
+
 
 # ========== User Page Overrides ==========
 
@@ -117,6 +170,17 @@ class UserPageOverrideEntry(BaseModel):
 class UserPageOverridesBatchSet(BaseModel):
     """批次設定用戶覆寫"""
     overrides: List[UserPageOverrideEntry] = Field(..., description="覆寫列表")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "overrides": [
+                    {"page_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901", "access_type": "grant"},
+                    {"page_id": "c3d4e5f6-a7b8-9012-cdef-123456789012", "access_type": "revoke"},
+                ],
+            }]
+        }
+    }
 
 
 # ========== Roles ==========

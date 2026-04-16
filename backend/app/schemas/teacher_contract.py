@@ -19,10 +19,33 @@ class TeacherWorkScheduleCreate(BaseModel):
             raise ValueError("start_time 必須小於 end_time")
         return self
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "weekday": 1,
+                "start_time": "09:00:00",
+                "end_time": "12:00:00",
+                "notes": "週二上午時段",
+            }]
+        }
+    }
+
 
 class TeacherWorkScheduleBatchSet(BaseModel):
     """全量替換教師工作時段"""
     schedules: list[TeacherWorkScheduleCreate] = Field(..., description="工作時段列表")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "schedules": [
+                    {"weekday": 1, "start_time": "09:00:00", "end_time": "12:00:00"},
+                    {"weekday": 3, "start_time": "14:00:00", "end_time": "17:00:00"},
+                    {"weekday": 5, "start_time": "09:00:00", "end_time": "12:00:00"},
+                ],
+            }]
+        }
+    }
 
 
 class TeacherWorkScheduleResponse(BaseModel):
@@ -78,12 +101,32 @@ class TeacherContractDetailCreate(BaseModel):
             raise ValueError("非 course_rate 類型不可指定 course_id")
         return self
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "detail_type": "course_rate",
+                "course_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                "description": "英語會話課時薪",
+                "amount": 800.0,
+            }]
+        }
+    }
+
 
 class TeacherContractDetailUpdate(BaseModel):
     """更新教師合約明細（不可改 detail_type 和 course_id）"""
     description: Optional[str] = Field(None, max_length=100, description="說明文字")
     amount: Optional[float] = Field(None, ge=0, description="金額")
     notes: Optional[str] = Field(None, description="備註")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "description": "英語會話課時薪（調整）",
+                "amount": 850.0,
+            }]
+        }
+    }
 
 
 class TeacherContractDetailResponse(BaseModel):
@@ -120,7 +163,20 @@ class TeacherContractBase(BaseModel):
 
 class TeacherContractCreate(TeacherContractBase):
     """建立教師合約的請求"""
-    pass
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "teacher_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "contract_status": "active",
+                "start_date": "2026-03-01",
+                "end_date": "2026-08-31",
+                "employment_type": "hourly",
+                "trial_completed_bonus": 200.0,
+                "trial_to_formal_bonus": 500.0,
+            }]
+        }
+    }
 
 
 class TeacherContractUpdate(BaseModel):
@@ -135,6 +191,18 @@ class TeacherContractUpdate(BaseModel):
     work_start_time: Optional[time] = Field(None, description="正職上班開始時間")
     work_end_time: Optional[time] = Field(None, description="正職上班結束時間")
     notes: Optional[str] = Field(None, description="備註")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "contract_status": "active",
+                "employment_type": "full_time",
+                "work_start_time": "09:00:00",
+                "work_end_time": "18:00:00",
+                "notes": "轉為正職教師",
+            }]
+        }
+    }
 
 
 class TeacherContractResponse(BaseModel):

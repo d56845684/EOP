@@ -9,6 +9,17 @@ class SubstituteDetailCreate(BaseModel):
     substitute_contract_id: str = Field(..., description="代課教師合約 ID")
     reason: Optional[str] = Field(None, description="代課原因")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "booking_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "substitute_teacher_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "substitute_contract_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                "reason": "原教師臨時請假，安排代課",
+            }]
+        }
+    }
+
 
 class SubstituteDetailResponse(BaseModel):
     id: str

@@ -20,6 +20,15 @@ class LeaveRecordCreate(BaseModel):
     booking_id: str = Field(..., description="預約 ID")
     reason: str = Field(..., min_length=1, description="請假原因")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "booking_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "reason": "身體不適，需要請假一次",
+            }]
+        }
+    }
+
 
 class LeaveRecordReject(BaseModel):
     rejection_reason: str = Field(..., min_length=1, description="駁回原因")

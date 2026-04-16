@@ -10,11 +10,34 @@ class StudentTeacherPreferenceCreate(BaseModel):
     min_teacher_level: Optional[int] = Field(None, description="最高可預約教師等級", ge=1)
     primary_teacher_ids: Optional[List[str]] = Field(None, description="主要教師 ID 列表（1 筆走單筆，多筆走批次）")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "student_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "course_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "min_teacher_level": 3,
+                "primary_teacher_ids": [
+                    "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                    "d4e5f6a7-b8c9-0123-defa-234567890123",
+                ],
+            }]
+        }
+    }
+
 
 class StudentTeacherPreferenceUpdate(BaseModel):
     """更新學生教師偏好"""
     min_teacher_level: Optional[int] = Field(None, description="最低可預約教師等級", ge=1)
     primary_teacher_id: Optional[str] = Field(None, description="主要教師 ID")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "min_teacher_level": 2,
+                "primary_teacher_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+            }]
+        }
+    }
 
 
 class StudentTeacherPreferenceResponse(BaseModel):

@@ -36,12 +36,32 @@ class StudentContractDetailCreate(BaseModel):
             raise ValueError("非 lesson_price 類型不可指定 course_id")
         return self
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "detail_type": "lesson_price",
+                "course_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                "description": "英語會話課程單價",
+                "amount": 1500.0,
+            }]
+        }
+    }
+
 
 class StudentContractDetailUpdate(BaseModel):
     """更新學生合約明細（不可改 detail_type 和 course_id）"""
     description: Optional[str] = Field(None, max_length=100, description="說明文字")
     amount: Optional[float] = Field(None, description="金額")
     notes: Optional[str] = Field(None, description="備註")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "description": "英語會話課程單價（調整）",
+                "amount": 1600.0,
+            }]
+        }
+    }
 
 
 class StudentContractDetailResponse(BaseModel):
@@ -67,6 +87,15 @@ class StudentContractLeaveRecordCreate(BaseModel):
     """建立請假紀錄"""
     leave_date: date = Field(..., description="請假日期")
     reason: Optional[str] = Field(None, description="請假原因")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "leave_date": "2026-04-20",
+                "reason": "家庭旅遊",
+            }]
+        }
+    }
 
 
 class StudentContractLeaveRecordResponse(BaseModel):
@@ -98,7 +127,21 @@ class StudentContractBase(BaseModel):
 
 class StudentContractCreate(StudentContractBase):
     """建立學生合約的請求"""
-    pass
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "student_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "contract_status": "active",
+                "start_date": "2026-03-01",
+                "end_date": "2026-08-31",
+                "total_lessons": 48,
+                "remaining_lessons": 48,
+                "total_amount": 72000.0,
+                "is_recurring": True,
+            }]
+        }
+    }
 
 
 class StudentContractUpdate(BaseModel):
@@ -113,6 +156,16 @@ class StudentContractUpdate(BaseModel):
     total_leave_allowed: Optional[int] = Field(None, ge=0, description="可請假次數")
     is_recurring: Optional[bool] = Field(None, description="是否為帶狀學生")
     notes: Optional[str] = Field(None, description="備註")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "contract_status": "active",
+                "remaining_lessons": 40,
+                "notes": "已完成八堂課",
+            }]
+        }
+    }
 
 
 class StudentContractResponse(BaseModel):

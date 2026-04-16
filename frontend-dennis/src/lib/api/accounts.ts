@@ -58,7 +58,7 @@ export interface UserPageOverride {
 
 export const accountsApi = {
   list: (params: { page?: number; per_page?: number; role?: string; search?: string }) =>
-    apiGet<AccountListResponse>(`/api/v1/users/${qs(params)}`, '取得帳號列表失敗', { extractData: false }),
+    apiGet<AccountListResponse>(`/api/v1/users${qs(params)}`, '取得帳號列表失敗', { extractData: false }),
 
   update: (userId: string, data: AccountUpdateData) =>
     apiPut(`/api/v1/users/${userId}`, data, '更新帳號失敗', { extractData: false }),

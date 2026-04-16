@@ -4,7 +4,7 @@ from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.config import settings
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_teacher, require_page_permission, get_user_employee_id
-from app.schemas.teacher import TeacherCreate, TeacherUpdate, TeacherResponse, TeacherListResponse
+from app.schemas.teacher import TeacherCreate, TeacherUpdate, TeacherSelfUpdate, TeacherResponse, TeacherListResponse
 from app.schemas.teacher_view import TeacherViewResponse
 from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
@@ -73,13 +73,6 @@ async def list_teachers(
 
 
 # ========== 教師自我更新（必須在 /{teacher_id} 之前定義）==========
-
-class TeacherSelfUpdate(BaseModel):
-    """教師自行更新的欄位"""
-    bio: Optional[str] = Field(None, description="簡介")
-    phone: Optional[str] = Field(None, max_length=20, description="電話")
-    address: Optional[str] = Field(None, description="地址")
-
 
 @router.put("/me", response_model=DataResponse[TeacherResponse])
 async def update_teacher_self(

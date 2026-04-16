@@ -28,6 +28,18 @@ class TeacherSlotBase(BaseModel):
 class TeacherSlotCreate(TeacherSlotBase):
     """建立教師時段的請求，時段日期不得超過今天起三個月"""
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "teacher_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "slot_date": "2026-05-01",
+                "start_time": "09:00:00",
+                "end_time": "12:00:00",
+                "is_available": True,
+            }]
+        }
+    }
+
     @model_validator(mode="after")
     def validate_slot_date(self):
         today = date.today()
@@ -47,6 +59,20 @@ class TeacherSlotBatchCreate(BaseModel):
     start_time: time = Field(..., description="開始時間")
     end_time: time = Field(..., description="結束時間")
     notes: Optional[str] = Field(None, description="備註")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "teacher_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "start_date": "2026-04-14",
+                "end_date": "2026-06-30",
+                "weekdays": [0, 2, 4],
+                "start_time": "09:00:00",
+                "end_time": "10:00:00",
+                "notes": "每週一三五上午固定時段",
+            }]
+        }
+    }
 
     @model_validator(mode="after")
     def validate_date_range(self):
@@ -68,6 +94,17 @@ class TeacherSlotBatchDelete(BaseModel):
     start_time: Optional[time] = Field(None, description="開始時間，篩選特定時段")
     end_time: Optional[time] = Field(None, description="結束時間，篩選特定時段")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "teacher_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "start_date": "2026-05-01",
+                "end_date": "2026-05-31",
+                "weekdays": [0, 2, 4],
+            }]
+        }
+    }
+
 
 class TeacherSlotBatchUpdate(BaseModel):
     """批次更新教師時段的請求"""
@@ -84,10 +121,31 @@ class TeacherSlotBatchUpdate(BaseModel):
     is_available: Optional[bool] = Field(None, description="是否可預約")
     notes: Optional[str] = Field(None, description="備註")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "teacher_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "start_date": "2026-04-14",
+                "end_date": "2026-04-30",
+                "weekdays": [1, 3],
+                "is_available": False,
+                "notes": "批次關閉週二四時段",
+            }]
+        }
+    }
+
 
 class TeacherSlotBatchDeleteByIds(BaseModel):
     """根據 ID 批次刪除教師時段"""
     slot_ids: List[str] = Field(..., description="時段 ID 列表")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "slot_ids": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890", "b2c3d4e5-f6a7-8901-bcde-f12345678901"],
+            }]
+        }
+    }
 
 
 class TeacherSlotBatchUpdateByIds(BaseModel):
@@ -99,6 +157,16 @@ class TeacherSlotBatchUpdateByIds(BaseModel):
     is_available: Optional[bool] = Field(None, description="是否可預約")
     notes: Optional[str] = Field(None, description="備註")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "slot_ids": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+                "is_available": False,
+                "notes": "批次關閉時段",
+            }]
+        }
+    }
+
 
 class TeacherSlotUpdate(BaseModel):
     """更新教師時段的請求"""
@@ -108,6 +176,17 @@ class TeacherSlotUpdate(BaseModel):
     end_time: Optional[time] = Field(None, description="結束時間")
     is_available: Optional[bool] = Field(None, description="是否可預約")
     notes: Optional[str] = Field(None, description="備註")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "start_time": "14:00:00",
+                "end_time": "15:00:00",
+                "is_available": True,
+                "notes": "調整為下午時段",
+            }]
+        }
+    }
 
 
 class TeacherSlotResponse(BaseModel):

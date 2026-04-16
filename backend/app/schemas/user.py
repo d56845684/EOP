@@ -43,3 +43,13 @@ class AccountUpdate(BaseModel):
     role_id: Optional[str] = None
     employee_subtype: Optional[str] = None
     is_active: Optional[bool] = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "role_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "employee_subtype": "full_time",
+                "is_active": True,
+            }]
+        }
+    }

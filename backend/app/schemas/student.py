@@ -17,6 +17,19 @@ class StudentCreate(BaseModel):
     is_active: bool = Field(True, description="是否啟用")
     google_drive_folder_id: Optional[str] = Field(None, description="Google Drive 資料夾 ID")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "name": "王小明",
+                "email": "xiaoming.wang@example.com",
+                "eng_name": "Ming",
+                "phone": "0912345678",
+                "birth_date": "2015-03-15",
+                "student_type": "formal",
+            }]
+        }
+    }
+
 
 class StudentUpdate(BaseModel):
     """更新學生"""
@@ -30,6 +43,16 @@ class StudentUpdate(BaseModel):
     student_type: Optional[str] = Field(None, description="學生類型 (formal/trial)")
     is_active: Optional[bool] = None
     google_drive_folder_id: Optional[str] = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "name": "王小明",
+                "phone": "0922333444",
+                "student_type": "formal",
+            }]
+        }
+    }
 
 
 class StudentResponse(BaseModel):
@@ -77,6 +100,18 @@ class ConvertToFormalRequest(BaseModel):
     teacher_id: Optional[str] = Field(None, description="指定教師 ID（計算轉正獎金）")
     booking_id: Optional[str] = Field(None, description="關聯的試上預約 ID")
     notes: Optional[str] = Field(None, description="備註")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "contract_no": "SC-2026-001",
+                "total_lessons": 24,
+                "total_amount": 36000.0,
+                "start_date": "2026-02-01",
+                "end_date": "2026-07-31",
+            }]
+        }
+    }
 
 
 class ConvertToFormalContractInfo(BaseModel):

@@ -13,7 +13,17 @@ class CourseBase(BaseModel):
 
 class CourseCreate(CourseBase):
     """建立課程的請求"""
-    pass
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "course_code": "ENG-CONV-01",
+                "course_name": "英語日常會話",
+                "description": "適合初學者的日常英語會話課程",
+                "duration_minutes": 60,
+            }]
+        }
+    }
 
 
 class CourseUpdate(BaseModel):
@@ -23,6 +33,15 @@ class CourseUpdate(BaseModel):
     description: Optional[str] = None
     duration_minutes: Optional[int] = Field(None, ge=15, le=480)
     is_active: Optional[bool] = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "course_name": "英語日常會話（進階）",
+                "duration_minutes": 90,
+            }]
+        }
+    }
 
 
 class CourseResponse(CourseBase):
