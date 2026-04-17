@@ -31,9 +31,21 @@ export interface PaginatedResponse<T> extends BaseResponse {
 }
 
 type ApiErrorLike = Partial<ApiResponseMeta> & {
+  detail?: unknown;
   response?: {
-    data?: Partial<ApiResponseMeta>;
+    data?: Partial<ApiResponseMeta> & { detail?: unknown };
   };
+};
+
+const getDetailMessage = (detail: unknown) => {
+  if (typeof detail === 'string') return detail;
+
+  if (Array.isArray(detail) && detail.length > 0) {
+    const message = detail.find((item) => typeof item?.msg === 'string')?.msg;
+    return message?.replace(/^Value error,\s*/, '');
+  }
+
+  return '';
 };
 
 export const assertApiSuccess = <T extends Partial<ApiResponseMeta>>(response: T, fallback = '操作失敗'): T => {
@@ -50,5 +62,9 @@ export const assertApiSuccess = <T extends Partial<ApiResponseMeta>>(response: T
 
 export const getApiErrorMessage = (error: unknown, fallback = '操作失敗') => {
   const apiError = error as ApiErrorLike | undefined;
-  return apiError?.response?.data?.message || apiError?.message || fallback;
+  return apiError?.response?.data?.message
+    || getDetailMessage(apiError?.response?.data?.detail)
+    || apiError?.message
+    || getDetailMessage(apiError?.detail)
+    || fallback;
 };

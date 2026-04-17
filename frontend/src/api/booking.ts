@@ -43,6 +43,10 @@ export interface BookingItem {
     course_name?: string | null;
     student_contract_no?: string | null;
     teacher_contract_no?: string | null;
+    substitute_detail_id?: string | null;
+    substitute_teacher_name?: string | null;
+    has_pending_leave?: boolean;
+    pending_leave_initiator_type?: string | null;
 }
 
 export interface BookingCreate {
@@ -183,6 +187,7 @@ export interface BookingStudentContractOption {
     id: string;
     contract_no: string;
     course_id: string;
+    course_ids?: string[];
     remaining_lessons: number;
     contract_status: string;
     course_name: string;
@@ -217,6 +222,6 @@ export function getBookingOptionStudentContracts(studentId: string) {
     return request.get<any, DataResponse<BookingStudentContractOption[]>>(`/v1/bookings/options/student-contracts/${studentId}`);
 }
 
-export function getBookingOptionTeacherSlots(teacherId: string) {
-    return request.get<any, DataResponse<BookingTeacherSlotOption[]>>(`/v1/bookings/options/teacher-slots/${teacherId}`);
+export function getBookingOptionTeacherSlots(teacherId: string, params?: { date_from?: string; date_to?: string }) {
+    return request.get<any, DataResponse<BookingTeacherSlotOption[]>>(`/v1/bookings/options/teacher-slots/${teacherId}`, { params });
 }

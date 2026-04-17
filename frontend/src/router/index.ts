@@ -10,6 +10,12 @@ const router = createRouter({
             component: () => import('../views/auth/LoginView.vue'),
         },
         {
+            path: '/accept-invite',
+            name: 'AcceptInvite',
+            alias: '/demo/accept-invite',
+            component: () => import('../views/auth/AcceptInviteView.vue'),
+        },
+        {
             path: '/auth/success',
             name: 'AuthSuccess',
             component: () => import('../views/auth/AuthSuccess.vue'),

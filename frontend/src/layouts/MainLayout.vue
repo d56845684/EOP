@@ -20,13 +20,11 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import NavBar from './NavBar.vue';
 import SideBar from './SideBar.vue';
 
 // i18n
-const router = useRouter();
 const authStore = useAuthStore();
 
 // Auto-logout
@@ -46,8 +44,7 @@ const handleCollapse = (status: boolean) => {
 };
 
 const handleLogout = async () => {
-    authStore.logout();
-    router.push('/login');
+    await authStore.logout();
 };
 </script>
 

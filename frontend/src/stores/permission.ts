@@ -10,6 +10,7 @@ export const usePermissionStore = defineStore('permission', () => {
   const routes = ref<RouteRecordRaw[]>([]);
   const addRoutes = ref<RouteRecordRaw[]>([]);
   const isRoutesGenerated = ref<boolean>(false);
+  const routeRemovers: Array<() => void> = [];
 
   // Define pageKeys
   const pageKeys = ref<string[]>([]);
@@ -69,7 +70,20 @@ export const usePermissionStore = defineStore('permission', () => {
     return accessedRoutes;
   };
 
+  const removeDynamicRoutes = () => {
+    while (routeRemovers.length > 0) {
+      const removeRoute = routeRemovers.pop();
+      removeRoute?.();
+    }
+  };
+
+  const setDynamicRouteRemovers = (removers: Array<() => void>) => {
+    removeDynamicRoutes();
+    routeRemovers.push(...removers);
+  };
+
   const resetState = () => {
+    removeDynamicRoutes();
     routes.value = [];
     addRoutes.value = [];
     pageKeys.value = [];
@@ -83,6 +97,6 @@ export const usePermissionStore = defineStore('permission', () => {
     return adminRoutes;
   };
 
-  return { routes, addRoutes, isRoutesGenerated, generateRoutes, generateRoutesUnfiltered, resetState, menuModules: SYSTEM_MODULES, pageKeys, hasPermission };
+  return { routes, addRoutes, isRoutesGenerated, generateRoutes, generateRoutesUnfiltered, resetState, setDynamicRouteRemovers, menuModules: SYSTEM_MODULES, pageKeys, hasPermission };
 });
 

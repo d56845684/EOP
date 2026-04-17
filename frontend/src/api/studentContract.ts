@@ -1,5 +1,5 @@
 import request from '@/utils/request';
-import type { BaseResponse, DataResponse } from './response';
+import type { BaseResponse, DataResponse, ListResponse } from './response';
 
 // ========================
 // Type Definitions
@@ -18,7 +18,7 @@ export interface StudentContract {
   student_id: string;
   student_name: string;
   contract_no: string;
-  contract_status: 'pending' | 'active' | 'expired' | 'terminated';
+  contract_status: StudentContractStatus;
   contract_file_uploaded_at?: string | null;
   contract_file_name?: string | null;
   contract_file_path?: string | null;
@@ -37,7 +37,7 @@ export interface StudentContract {
   leave_records: StudentContractLeaveRecord[];
   emergency_leave_quota: number;
   used_emergency_leave_count: number;
-  addendums: [];
+  addendums: StudentContractAddendum[];
 }
 
 export interface StudentContractUpdate {
@@ -92,14 +92,14 @@ export interface StudentContractAddendum {
   original_end_date: string;
   new_end_date: string;
   addendum_status: string;
-  file_path: string;
-  file_name: string;
-  file_uploaded_at: string;
-  notes: string;
+  file_path?: string | null;
+  file_name?: string | null;
+  file_uploaded_at?: string | null;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
-  parent_contract_no: string;
-  person_name: string;
+  parent_contract_no?: string | null;
+  person_name?: string | null;
 }
 
 export interface StudentContractAddendumUpdate {
@@ -125,8 +125,14 @@ export interface ConfirmUploadResponse {
 }
 
 export interface GetStudentContractsParams {
-  student_id: string;
+  student_id?: string;
+  page?: number;
+  per_page?: number;
+  search?: string;
+  contract_status?: StudentContractStatus | '';
 }
+
+export type StudentContractStatus = 'pending' | 'active' | 'expired' | 'terminated' | 'suspended';
 
 // ========================
 // API Functions
@@ -141,7 +147,7 @@ export function getContractCourseOptions(studentId: string) {
 }
 
 export function getStudentContracts(params: GetStudentContractsParams) {
-  return request.get<any, DataResponse<StudentContract[]>>('/v1/student-contracts', { params });
+  return request.get<any, ListResponse<StudentContract>>('/v1/student-contracts', { params });
 }
 
 export function updateStudentContract(contractId: string, data: StudentContractUpdate) {
