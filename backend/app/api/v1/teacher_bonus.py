@@ -298,7 +298,7 @@ async def delete_teacher_bonus(
 
 # ========== Options ==========
 
-@router.get("/options/teachers")
+@router.get("/options/teachers", response_model=DataResponse)
 async def get_teacher_options(
     current_user: CurrentUser = Depends(require_page_permission("teachers.bonus"))
 ):

@@ -42,7 +42,7 @@ async def enrich_employee(emp: dict) -> dict:
     return emp
 
 
-@router.get("/roles", tags=["員工管理"])
+@router.get("/roles", tags=["員工管理"], response_model=DataResponse)
 async def list_roles_for_employees(
     current_user: CurrentUser = Depends(require_page_permission("employees.list"))
 ):

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import CurrentUser, require_staff, require_page_permission
-from app.schemas.response import BaseResponse
+from app.schemas.response import BaseResponse, AlertListResponse, UnreadCountResponse
 from typing import Optional
 import math
 import uuid
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/alerts", tags=["系統告警"])
 ALERT_SELECT = "id,alert_type,severity,title,message,metadata,is_read,read_by,read_at,created_at"
 
 
-@router.get("")
+@router.get("", response_model=AlertListResponse)
 async def list_alerts(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
@@ -129,7 +129,7 @@ async def mark_all_read(
         raise HTTPException(status_code=500, detail=f"標記失敗: {e}")
 
 
-@router.get("/unread-count")
+@router.get("/unread-count", response_model=UnreadCountResponse)
 async def get_unread_count(
     current_user: CurrentUser = Depends(require_page_permission("dashboard.alerts")),
 ):
