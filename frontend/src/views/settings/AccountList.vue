@@ -1,23 +1,14 @@
 <template>
   <div class="account-list pl-2 pr-4">
     <div class="flex justify-between items-center px-1 mb-2">
-      <h3 class="my-0">{{ $t('menu.account_settings') }}</h3>
-      <el-button
-        v-permission="'accounts.create'"
-        type="primary"
-        round
-        size="small"
-        class="h-30px! px-2"
-        @click="openDrawer(null, 'add')"
-      >
-        <template #icon>
-          <div class="i-hugeicons:plus-sign-square" />
-        </template>
-        {{ $t('account.add') }}
-      </el-button>
+      <div>
+        <h3 class="my-0">{{ $t('account.title') }}</h3>
+        <div class="text-12px text-[var(--el-text-color-secondary)] mt-1">
+        </div>
+      </div>
     </div>
+
     <el-card class="filter-card mb-14px">
-      <!-- Area A: Filter Section -->
       <el-form
         :inline="true"
         :model="queryParams"
@@ -31,7 +22,7 @@
             v-model="queryParams.search"
             :placeholder="$t('account.searchPlaceholder')"
             clearable
-            class="w-240px h-30px!"
+            class="w-260px h-30px!"
             @clear="handleSearch"
             @keyup.enter="handleSearch"
           >
@@ -40,30 +31,29 @@
             </template>
           </el-input>
         </el-form-item>
-        
+
         <el-form-item :label="$t('account.role')">
           <el-select
             v-model="queryParams.role"
-            :placeholder="$t('account.role')" 
+            :placeholder="$t('common.all')"
             clearable
-            class="w-120px"
+            class="w-150px"
             @clear="handleSearch"
             @change="handleSearch"
           >
-            <el-option v-for="r in roleList" :key="r.id" :label="r.name" :value="r.key" />
+            <el-option v-for="role in roleList" :key="role.id" :label="role.name" :value="role.key" />
           </el-select>
         </el-form-item>
 
         <el-form-item :label="$t('common.status')">
           <el-select
             v-model="queryParams.is_active"
-            :placeholder="$t('common.status')"
+            :placeholder="$t('common.all')"
             clearable
-            class="w-120px"
+            class="w-130px"
             @clear="handleSearch"
             @change="handleSearch"
           >
-            <el-option :label="$t('common.all')" value="all" />
             <el-option :label="$t('common.active')" :value="true" />
             <el-option :label="$t('common.inactive')" :value="false" />
           </el-select>
@@ -87,226 +77,563 @@
     </el-card>
 
     <el-card>
-      <!-- Area B: Data Table -->
-      <el-table :data="users" size="small" class="w-full" v-loading="loading">
-        <el-table-column prop="name" min-width="140" :label="$t('account.nickname')" />
-        <el-table-column prop="email" min-width="260" :label="$t('account.account')" />
-        <!-- <el-table-column prop="role" :label="$t('account.role')" /> -->
-        <el-table-column prop="employee_subtype" min-width="120" align="center" :label="$t('account.employeeSubtype')">
+      <el-table :data="accounts" size="small" class="w-full" v-loading="loading">
+        <el-table-column prop="email" min-width="240" :label="$t('account.account')" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.employee_subtype || '-' }}
+            <div class="flex items-center gap-2">
+              <el-tooltip v-if="row.is_protected" content="受保護帳號" placement="top">
+                <div class="i-hugeicons:lock-key text-amber" />
+              </el-tooltip>
+              <span class="truncate">{{ row.email }}</span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('account.createdTime')" width="160" align="center">
-           <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+
+        <el-table-column prop="name" min-width="140" :label="$t('account.nickname')">
+          <template #default="{ row }">
+            {{ row.name || '-' }}
+          </template>
         </el-table-column>
-        <el-table-column :label="$t('common.status')" align="center">
-           <template #default="{ row }">
-              <!-- <el-tag size="small" :type="row.is_active ? 'success' : 'info'" effect='plain' class="w-50px">
-                {{ row.is_active ? $t('common.active') : $t('common.inactive') }}
-              </el-tag> -->
-              <el-switch 
-                v-model="row.is_active" 
-                :disabled="row.is_protected"
-                inline-prompt
-                active-text="啟用" 
-                inactive-text="停用" 
-                size="small"
-                :before-change="() => handleDeactivate(row)"
-              />
-           </template>
+
+        <el-table-column prop="role" width="100" align="center" :label="$t('account.role')">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain" :type="getRoleTagType(row.role)">
+              {{ getRoleLabel(row.role) }}
+            </el-tag>
+          </template>
         </el-table-column>
-        
-        <el-table-column :label="$t('common.actions')" width="100" fixed="right" align="center">
-            <template #default="{ row }">
+
+        <el-table-column prop="employee_subtype" width="100" align="center" :label="$t('account.employeeSubtype')">
+          <template #default="{ row }">
+            <el-tag
+              v-if="row.employee_subtype"
+              size="small"
+              effect="plain"
+              :type="EMPLOYEE_TYPE_TAG_MAP[row.employee_subtype as EmployeeType] || 'info'"
+            >
+              {{ formatEmployeeTypeLabel(row.employee_subtype as EmployeeType, row.employee_subtype, t) }}
+            </el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column width="160" align="center" :label="$t('account.createdTime')">
+          <template #default="{ row }">
+            {{ formatTime(row.created_at) }}
+          </template>
+        </el-table-column>
+
+        <el-table-column :label="$t('common.actions')" width="150" fixed="right" align="center">
+          <template #default="{ row }">
+            <div v-if="row.is_protected" class="flex items-center justify-center gap-1">
+              <div class="i-hugeicons:square-lock-01 text-md text-gray-400" />
+              <span class="text-12px text-[var(--el-text-color-secondary)]">受保護</span>
+            </div>
+            <div v-else class="flex items-center justify-center gap-1">
               <el-button
-                type="primary" 
+                v-if="hasPermission('employees.edit')"
+                type="primary"
                 link
                 size="small"
-                @click="openDrawer(row, 'edit')" 
-                :disabled="row.is_protected"
+                @click="openEditDrawer(row)"
               >
-                  {{ $t('common.edit') }}
+                {{ $t('common.edit') }}
               </el-button>
-            </template>
+
+              <el-button
+                v-if="canManageUserPages"
+                type="success"
+                link
+                size="small"
+                @click="openPermissionDrawer(row)"
+              >
+                <div class="flex items-center gap-0.5">
+                  <div class="i-hugeicons:shield-key" />
+                  權限設定
+                </div>
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="資料狀態" width="75" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-switch
+              v-model="row.is_active"
+              :disabled="!canToggleAccountStatus(row)"
+              :loading="statusUpdatingId === row.id"
+              inline-prompt
+              size="small"
+              :before-change="() => handleStatusSwitch(row)"
+            />
+          </template>
         </el-table-column>
       </el-table>
-      
-      <!-- Area C: Pagination -->
+
       <div class="pagination-footer">
-          <el-pagination
-            v-model:current-page="queryParams.page"
-            v-model:page-size="queryParams.per_page"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next, jumper"
-            :total="total"
-            @size-change="fetchUsers"
-            @current-change="fetchUsers"
-          />
+        <el-pagination
+          v-model:current-page="queryParams.page"
+          v-model:page-size="queryParams.per_page"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="total"
+          @size-change="fetchAccounts"
+          @current-change="fetchAccounts"
+        />
       </div>
     </el-card>
 
-    <!-- Area D: Edit Drawer -->
-     <EditEmployeeDrawer
-      v-model="drawerVisible"
-      :editUserId="editUserId"
-      :current-user="currentUser"
-      :roles="roleList"
-      @fetch-users="fetchUsers"
-      @clear-user="clearUser"
-    />
+    <el-drawer
+      v-model="editDrawerVisible"
+      size="420px"
+      :title="$t('account.editTitle')"
+      @closed="resetEditForm"
+    >
+      <el-form
+        ref="editFormRef"
+        :model="editForm"
+        :rules="editRules"
+        size="small"
+        label-position="top"
+        v-loading="savingAccount"
+      >
+        <el-row>
+          <el-col :span="24">
+            <el-form-item :label="$t('account.account')">
+              <el-input :model-value="editingAccount?.email || '-'" disabled class="w-full h-30px!" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item :label="$t('account.nickname')">
+              <el-input :model-value="editingAccount?.name || '-'" disabled class="w-full h-30px!" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('account.role')" prop="role_id">
+              <el-select v-model="editForm.role_id" class="w-full h-30px!" :placeholder="$t('account.role')">
+                <el-option v-for="role in roleList" :key="role.id" :label="role.name" :value="role.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="12">
+            <el-form-item v-if="shouldShowEmployeeSubtype" :label="$t('account.employeeSubtype')">
+              <el-select v-model="editForm.employee_subtype" clearable class="w-full h-30px!">
+                <el-option
+                  v-for="type in employeeTypeOptions"
+                  :key="type.value"
+                  :label="type.label"
+                  :value="type.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <div class="flex justify-end gap-2 mt-6">
+          <el-button round size="small" class="h-30px! px-5!" @click="editDrawerVisible = false">
+            {{ $t('common.cancel') }}
+          </el-button>
+          <el-button
+            round
+            size="small"
+            class="h-30px! px-5!"
+            type="primary"
+            :loading="savingAccount"
+            @click="handleSaveAccount"
+          >
+            {{ $t('common.save') }}
+          </el-button>
+        </div>
+      </el-form>
+    </el-drawer>
+
+    <el-drawer
+      v-model="permissionDrawerVisible"
+      size="400px"
+      title="頁面權限"
+      @closed="resetPermissionDrawer"
+    >
+      <div v-if="permissionAccount" class="h-64px mb-4 rounded-2 bg-[var(--el-fill-color-light)] px-4 py-3">
+        <div class="text-14px font-600 color-[var(--el-text-color-primary)]">{{ permissionAccount.email }}</div>
+        <div class="text-12px color-[var(--el-text-color-secondary)] mt-1">
+          {{ permissionAccount.name || '-' }} / {{ getRoleLabel(permissionAccount.role) }}
+        </div>
+      </div>
+
+      <PermissionTreeEditor
+        class="permission-tree-section"
+        :pages="allPages"
+        :checked-page-ids="effectivePermissionIds"
+        :loading="permissionLoading"
+        :saving="savingPermissions"
+        :forced-page-keys="FORCED_PERMISSION_KEYS"
+        @cancel="permissionDrawerVisible = false"
+        @save="handleSavePermissions"
+      />
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import dayjs from 'dayjs';
-import { getUsersApi, getRolesApi, updateUserApi, deleteUserApi, type AccountInfo, type RoleInfo } from '@/api/user';
+import {
+  deleteUserApi,
+  getRolesApi,
+  getUserPageOverridesApi,
+  getUsersApi,
+  updateUserApi,
+  updateUserPageOverridesApi,
+  type AccountInfo,
+  type RoleInfo,
+  type UserPageOverrideEntry,
+} from '@/api/user';
+import { getPagesApi, getRolePagesApi, type PageResponse } from '@/api/role';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
-import EditEmployeeDrawer from './components/EditEmployeeDrawer.vue';
+import { EMPLOYEE_TYPE_TAG_MAP, type DisplayTagType } from '@/constants/display';
+import type { EmployeeType } from '@/api/employee';
+import { usePermissionStore } from '@/stores/permission';
+import { formatEmployeeTypeLabel, formatRoleLabel } from '@/utils/i18n-formatters';
+import PermissionTreeEditor from './components/PermissionTreeEditor.vue';
 
-// State
-const users = ref<AccountInfo[]>([]);
+type AccountStatusFilter = boolean | '';
+
+interface QueryParams {
+  page: number;
+  per_page: number;
+  search: string;
+  role: string;
+  is_active: AccountStatusFilter;
+}
+
+const { t } = useI18n();
+const permissionStore = usePermissionStore();
+const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
+const FORCED_PERMISSION_KEYS = ['dashboard'];
+
+const accounts = ref<AccountInfo[]>([]);
 const roles = ref<RoleInfo[]>([]);
 const total = ref(0);
 const loading = ref(false);
-
-interface QueryParams {
-  page?: number;
-  per_page?: number;
-  search?: string;
-  role?: string;
-  is_active?: boolean | string;
-}
+const statusUpdatingId = ref('');
 
 const queryParams = reactive<QueryParams>({
   page: 1,
   per_page: 10,
   search: '',
-  role: 'employee',
-  is_active: 'all'
-});
-
-// Drawer State
-const drawerVisible = ref(false);
-const editUserId = ref('');
-
-const currentUser = reactive<AccountInfo>({
-  id: '',
-  email: '',
-  name: null,
   role: '',
+  is_active: '',
+});
+
+const roleList = computed(() => roles.value);
+const roleNameMap = computed(() => new Map(roles.value.map((role) => [role.key, role.name])));
+const roleIdMap = computed(() => new Map(roles.value.map((role) => [role.id, role])));
+const canManageUserPages = computed(() =>
+  hasPermission('permissions.users') && hasPermission('permissions.pages') && hasPermission('permissions.roles')
+);
+
+const employeeTypeOptions = computed(() => {
+  const types: EmployeeType[] = ['admin', 'full_time', 'part_time', 'intern'];
+  return types.map((value) => ({
+    label: formatEmployeeTypeLabel(value, value, t),
+    value,
+  }));
+});
+
+const editDrawerVisible = ref(false);
+const savingAccount = ref(false);
+const editFormRef = ref<FormInstance>();
+const editingAccount = ref<AccountInfo | null>(null);
+const editForm = reactive({
   role_id: '',
-  employee_subtype: null,
-  is_active: false,
-  is_protected: false,
-  created_at: ''
+  employee_subtype: '' as EmployeeType | '',
+  is_active: true,
 });
 
-// Helpers
-const formatTime = (t: string) => t ? dayjs(t).format('YYYY-MM-DD HH:mm') : '-';
-
-const roleList = computed(() => {
-  const exception = ['teacher', 'student']
-  return roles.value.filter(r => !exception.includes(r.key));
+const editRules = reactive<FormRules>({
+  role_id: [{ required: true, message: '請選擇角色', trigger: 'change' }],
 });
 
-// API Calls
+const selectedEditRole = computed(() => roleIdMap.value.get(editForm.role_id));
+const shouldShowEmployeeSubtype = computed(() => {
+  const roleKey = selectedEditRole.value?.key;
+  return roleKey === 'admin' || roleKey === 'employee' || Boolean(editingAccount.value?.employee_subtype);
+});
+
+const permissionDrawerVisible = ref(false);
+const permissionLoading = ref(false);
+const savingPermissions = ref(false);
+const permissionAccount = ref<AccountInfo | null>(null);
+const allPages = ref<PageResponse[]>([]);
+const rolePageIds = ref<Set<string>>(new Set());
+const pageOverrides = ref<Map<string, 'grant' | 'revoke'>>(new Map());
+const pageById = computed(() => new Map(allPages.value.map((page) => [page.id, page])));
+
+const isForcedPermissionPage = (pageId: string) => {
+  const page = pageById.value.get(pageId);
+  return page ? FORCED_PERMISSION_KEYS.includes(page.key) : false;
+};
+
+const effectivePermissionIds = computed(() => {
+  const selected = new Set(rolePageIds.value);
+
+  pageOverrides.value.forEach((accessType, pageId) => {
+    if (accessType === 'grant') {
+      selected.add(pageId);
+    } else if (accessType === 'revoke') {
+      selected.delete(pageId);
+    }
+  });
+
+  allPages.value.forEach((page) => {
+    if (FORCED_PERMISSION_KEYS.includes(page.key)) {
+      selected.add(page.id);
+    }
+  });
+
+  return Array.from(selected);
+});
+
+const formatTime = (time?: string | null) => (time ? dayjs(time).format('YYYY-MM-DD HH:mm') : '-');
+
+const getRoleLabel = (role?: string | null) => {
+  if (!role) return '-';
+  return roleNameMap.value.get(role) || formatRoleLabel(role, role, t);
+};
+
+const getRoleTagType = (role?: string | null): DisplayTagType => {
+  const tagMap: Record<string, DisplayTagType> = {
+    admin: 'danger',
+    employee: 'primary',
+    teacher: 'success',
+    student: 'warning',
+  };
+  return role ? tagMap[role] || 'info' : 'info';
+};
+
+const buildQueryParams = () => {
+  const params: NonNullable<Parameters<typeof getUsersApi>[0]> = {
+    page: queryParams.page,
+    per_page: queryParams.per_page,
+  };
+
+  if (queryParams.search.trim()) params.search = queryParams.search.trim();
+  if (queryParams.role) params.role = queryParams.role;
+  if (queryParams.is_active !== '') params.is_active = queryParams.is_active;
+
+  return params;
+};
+
 const fetchRoles = async () => {
   try {
     const res = assertApiSuccess(await getRolesApi(), '載入角色失敗');
     roles.value = res.data || [];
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, 'Failed to load roles'));
+    ElMessage.error(getApiErrorMessage(error, '載入角色失敗'));
   }
 };
 
-const fetchUsers = async () => {
+const fetchAccounts = async () => {
   loading.value = true;
   try {
-    const dataToSend = { ...queryParams };
-    if (!dataToSend.search) delete dataToSend.search;
-    if (!dataToSend.role) delete dataToSend.role;
-    if (dataToSend.is_active === 'all') delete dataToSend.is_active;
-
-    const res = assertApiSuccess(await getUsersApi(dataToSend), '載入帳號失敗');
-    users.value = res.data.items || [];
-    total.value = res.data.total || 0;
+    const res = assertApiSuccess(await getUsersApi(buildQueryParams()), '載入帳號失敗');
+    accounts.value = sortProtectedAccountsFirst(res.data || []);
+    total.value = res.total || 0;
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, 'Failed to load users'));
+    ElMessage.error(getApiErrorMessage(error, '載入帳號失敗'));
   } finally {
     loading.value = false;
   }
 };
 
-// Handlers
+const sortProtectedAccountsFirst = (accountList: AccountInfo[]) => {
+  return [...accountList].sort((a, b) => Number(b.is_protected) - Number(a.is_protected));
+};
+
 const handleSearch = () => {
   queryParams.page = 1;
-  fetchUsers();
+  fetchAccounts();
 };
 
 const resetQuery = () => {
   queryParams.search = '';
   queryParams.role = '';
+  queryParams.is_active = '';
   handleSearch();
 };
 
-const openDrawer = (row: AccountInfo | null, type: string) => {
-  if (type === 'edit' && row) {
-    editUserId.value = row.id;
-    Object.assign(currentUser, row);
-  }
-  drawerVisible.value = true;
+const openEditDrawer = (account: AccountInfo) => {
+  editingAccount.value = account;
+  editForm.role_id = account.role_id || '';
+  editForm.employee_subtype = (account.employee_subtype || '') as EmployeeType | '';
+  editForm.is_active = account.is_active;
+  editDrawerVisible.value = true;
 };
 
-const clearUser = () => {
-  Object.assign(currentUser, {
-    id: '',
-    email: '',
-    name: null,
-    role: '',
-    role_id: '',
-    employee_subtype: null,
-    is_active: false,
-    is_protected: false,
-    created_at: ''
-  })
-}
+const resetEditForm = () => {
+  editingAccount.value = null;
+  editForm.role_id = '';
+  editForm.employee_subtype = '';
+  editForm.is_active = true;
+  editFormRef.value?.clearValidate();
+};
 
-const handleDeactivate = (row: AccountInfo): Promise<boolean> => {
-  return new Promise((resolve, reject) => {
-    ElMessageBox.confirm(`確定要${row.is_active ? '停用' : '啟用'}此帳號嗎？`, 'Warning', {
+const handleSaveAccount = async () => {
+  if (!editingAccount.value || !editFormRef.value) return;
+
+  await editFormRef.value.validate(async (valid) => {
+    if (!valid || !editingAccount.value) return;
+
+    savingAccount.value = true;
+    try {
+      const employeeSubtype = shouldShowEmployeeSubtype.value ? editForm.employee_subtype || null : null;
+      const res = assertApiSuccess(await updateUserApi(editingAccount.value.id, {
+        role_id: editForm.role_id,
+        employee_subtype: employeeSubtype,
+        is_active: editForm.is_active,
+      }), '更新帳號失敗');
+
+      ElMessage.success(res.message || '帳號更新成功');
+      editDrawerVisible.value = false;
+      fetchAccounts();
+    } catch (error) {
+      ElMessage.error(getApiErrorMessage(error, '更新帳號失敗'));
+    } finally {
+      savingAccount.value = false;
+    }
+  });
+};
+
+const canToggleAccountStatus = (account: AccountInfo) => {
+  if (account.is_protected || statusUpdatingId.value === account.id) return false;
+  return account.is_active ? hasPermission('employees.delete') : hasPermission('employees.edit');
+};
+
+const handleStatusSwitch = async (account: AccountInfo) => {
+  const nextActive = !account.is_active;
+  const actionText = nextActive ? '啟用' : '停用';
+
+  try {
+    await ElMessageBox.confirm(`確定要${actionText}「${account.email}」嗎？`, `${actionText}帳號`, {
       confirmButtonText: '確定',
       cancelButtonText: '取消',
-      type: 'warning'
-    }).then(async () => {
-      try {
-        if (row.is_active) {
-          const res = assertApiSuccess(await deleteUserApi(row.id), '停用帳號失敗');
-          ElMessage.success(res.message || '更新成功');
-        } else {
-          const res = assertApiSuccess(await updateUserApi(row.id, {
-            is_active: true
-          }), '啟用帳號失敗');
-          ElMessage.success(res.message || '更新成功');
-        }
-        fetchUsers();
-        resolve(true)
-      } catch (error) {
-        ElMessage.error(getApiErrorMessage(error, '更新失敗'));
-        reject(false)
+      type: nextActive ? 'info' : 'warning',
+    });
+
+    statusUpdatingId.value = account.id;
+    const res = nextActive
+      ? assertApiSuccess(await updateUserApi(account.id, { is_active: true }), '啟用帳號失敗')
+      : assertApiSuccess(await deleteUserApi(account.id), '停用帳號失敗');
+
+    ElMessage.success(res.message || `${actionText}成功`);
+    fetchAccounts();
+    return true;
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(getApiErrorMessage(error, `${actionText}帳號失敗`));
+    }
+    return false;
+  } finally {
+    statusUpdatingId.value = '';
+  }
+};
+
+const openPermissionDrawer = async (account: AccountInfo) => {
+  if (!account.role_id) {
+    ElMessage.warning('此帳號尚未設定角色，無法編輯頁面權限');
+    return;
+  }
+
+  permissionAccount.value = account;
+  permissionDrawerVisible.value = true;
+  permissionLoading.value = true;
+
+  try {
+    const [pagesRes, rolePagesRes, overridesRes] = await Promise.all([
+      getPagesApi({ per_page: 200 }),
+      getRolePagesApi(account.role_id),
+      getUserPageOverridesApi(account.id),
+    ]);
+
+    const pages = assertApiSuccess(pagesRes, '載入頁面權限失敗').data || [];
+    const rolePages = assertApiSuccess(rolePagesRes, '載入角色權限失敗').pages || [];
+    const overrides = assertApiSuccess(overridesRes, '載入個人權限失敗').overrides || [];
+
+    allPages.value = pages.filter((page) => page.is_active !== false);
+    rolePageIds.value = new Set(rolePages.map((page) => page.id));
+    pageOverrides.value = new Map(
+      overrides
+        .filter((override) => !isForcedPermissionPage(override.page_id))
+        .map((override) => [override.page_id, override.access_type]),
+    );
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '載入頁面權限失敗'));
+  } finally {
+    permissionLoading.value = false;
+  }
+};
+
+const handleSavePermissions = async (pageIds: string[]) => {
+  if (!permissionAccount.value) return;
+
+  savingPermissions.value = true;
+  try {
+    const selectedPageIds = new Set(pageIds);
+    const overrides: UserPageOverrideEntry[] = [];
+
+    allPages.value.forEach((page) => {
+      if (FORCED_PERMISSION_KEYS.includes(page.key)) return;
+
+      const isSelected = selectedPageIds.has(page.id);
+      const isRoleDefault = rolePageIds.value.has(page.id);
+
+      if (isSelected && !isRoleDefault) {
+        overrides.push({ page_id: page.id, access_type: 'grant' });
+      } else if (!isSelected && isRoleDefault) {
+        overrides.push({ page_id: page.id, access_type: 'revoke' });
       }
-    }).catch(() => {reject(false)});
-  });
+    });
+
+    const res = assertApiSuccess(
+      await updateUserPageOverridesApi(permissionAccount.value.id, overrides),
+      '儲存頁面權限失敗',
+    );
+
+    ElMessage.success(res.message || '頁面權限已更新');
+    permissionDrawerVisible.value = false;
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '儲存頁面權限失敗'));
+  } finally {
+    savingPermissions.value = false;
+  }
+};
+
+const resetPermissionDrawer = () => {
+  permissionAccount.value = null;
+  allPages.value = [];
+  rolePageIds.value = new Set();
+  pageOverrides.value = new Map();
 };
 
 onMounted(() => {
   fetchRoles();
-  fetchUsers();
+  fetchAccounts();
 });
 </script>
 
 <style scoped>
-.pagination-footer { display: flex; justify-content: flex-end; margin-top: 20px; }
+.pagination-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.permission-tree-section {
+  height: calc(100% - 80px);
+}
 </style>

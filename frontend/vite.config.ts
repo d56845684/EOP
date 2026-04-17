@@ -57,6 +57,18 @@ const elementPlusChunkMap: Record<string, string> = {
   upload: 'element-plus-form',
 };
 
+const rewriteDevSetCookie = (setCookieHeader: string | string[] | undefined) => {
+  if (!setCookieHeader) return undefined;
+
+  const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+  return cookies.map((cookie) =>
+    cookie
+      .replace(/;\s*Domain=[^;]*/gi, '')
+      .replace(/;\s*SameSite=None/gi, '; SameSite=Lax')
+      .replace(/;\s*Secure/gi, '')
+  );
+};
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue(), UnoCSS(), svgLoader()],
@@ -118,8 +130,18 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
+        secure: false,
         target: 'http://13.159.135.69:8001',
+        // target: 'https://preintelligent-claudette-oathfully.ngrok-free.dev/',
         changeOrigin: true,
+        configure(proxy) {
+          proxy.on('proxyRes', (proxyRes) => {
+            const rewrittenCookies = rewriteDevSetCookie(proxyRes.headers['set-cookie']);
+            if (rewrittenCookies) {
+              proxyRes.headers['set-cookie'] = rewrittenCookies;
+            }
+          });
+        },
       }
     }
   }

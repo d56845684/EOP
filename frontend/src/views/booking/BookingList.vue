@@ -255,7 +255,9 @@
         <el-table-column :label="$t('common.actions')" width="120" align="center" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openDialog('edit', row)">{{ $t('common.edit') }}</el-button>
-            <el-button link type="danger" size="small" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
+            <el-button link type="danger" size="small" @click="handleDelete(row)">
+              <div class="i-hugeicons:delete-02 mr-2px" />{{ $t('common.delete') }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>

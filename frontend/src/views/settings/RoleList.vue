@@ -82,6 +82,7 @@
                   plain
                   @click="handlePermission(row)"
                 >
+                  <template #icon><div class="i-hugeicons:shield-key" /></template>
                   {{ $t('role.settings') }}
                 </el-button>
                 <el-button
@@ -114,8 +115,9 @@
                 </template>
               </el-popconfirm>
             </el-space>
-            <div v-else class="flex justify-center">
+            <div v-else class="flex items-center justify-center gap-1">
               <div class="i-hugeicons:square-lock-01 text-md text-gray-400" />
+              <span class="text-12px text-[var(--el-text-color-secondary)]">受保護</span>
             </div>
           </template>
         </el-table-column>
@@ -191,47 +193,21 @@
       size="400px"
       destroy-on-close
     >
-      <div class="h-full flex flex-col" v-loading="treeLoading">
-        <div class="flex-1 overflow-y-auto pr-2">
-          <el-tree
-            ref="treeRef"
-            size="small"
-            :data="permissionTree"
-            show-checkbox
-            node-key="id"
-            :props="defaultProps"
-            :default-checked-keys="defaultCheckedKeys"
-            default-expand-all
-            :expand-on-click-node="false"
-          />
-        </div>
-        <div class="mt-4 pt-4 border-t flex justify-end gap-2">
-          <el-button 
-            size="small" 
-            round 
-            class="h-30px! px-4!" 
-            @click="drawerVisible = false"
-          >
-            {{ $t('common.cancel') }}
-          </el-button>
-          <el-button 
-            size="small" 
-            round 
-            class="h-30px! px-4!" 
-            type="primary" 
-            :loading="saveTreeLoading" 
-            @click="savePermissions"
-          >
-            {{ $t('common.save') }}
-          </el-button>
-        </div>
-      </div>
+      <PermissionTreeEditor
+        :pages="permissionPages"
+        :checked-page-ids="checkedPageIds"
+        :loading="treeLoading"
+        :saving="saveTreeLoading"
+        :forced-page-keys="FORCED_CHECKED_KEYS"
+        @cancel="drawerVisible = false"
+        @save="savePermissions"
+      />
     </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -241,6 +217,7 @@ import {
   getPagesApi, getRolePagesApi, updateRolePagesApi
 } from '@/api/role';
 import type { RoleInfo, RoleCreate, RoleUpdate, PageResponse } from '@/api/role';
+import PermissionTreeEditor from './components/PermissionTreeEditor.vue';
 
 const { t } = useI18n();
 
@@ -274,52 +251,11 @@ const rules = reactive<FormRules>({
 const drawerVisible = ref(false);
 const treeLoading = ref(false);
 const saveTreeLoading = ref(false);
-const treeRef = ref<any>(null);
 const currentRole = ref<RoleInfo | null>(null);
-const permissionTree = ref<any[]>([]);
-const defaultCheckedKeys = ref<string[]>([]);
-
-const defaultProps = {
-  children: 'children',
-  label: 'name',
-};
-
-// --- Tree Building Logic ---
-interface TreeNode extends PageResponse {
-  disabled?: boolean;
-  children?: TreeNode[];
-}
+const permissionPages = ref<PageResponse[]>([]);
+const checkedPageIds = ref<string[]>([]);
 
 const FORCED_CHECKED_KEYS = ['dashboard'];
-
-const buildTree = (pages: PageResponse[]): { tree: TreeNode[]; forcedIds: string[] } => {
-  const map = new Map<string, TreeNode>();
-  const tree: TreeNode[] = [];
-  const forcedIds: string[] = [];
-
-  // First pass: create node objects
-  pages.forEach(page => {
-    map.set(page.key, { ...page, children: [] });
-  });
-
-  // Second pass: attach to parents
-  pages.forEach(page => {
-    const node = map.get(page.key);
-    if (node) {
-      if (FORCED_CHECKED_KEYS.includes(node.key)) {
-        node.disabled = true;
-        forcedIds.push(node.id);
-      }
-      if (page.parent_key && map.has(page.parent_key)) {
-        map.get(page.parent_key)!.children!.push(node);
-      } else {
-        tree.push(node);
-      }
-    }
-  });
-
-  return { tree, forcedIds };
-};
 
 // --- Methods ---
 
@@ -404,46 +340,17 @@ const submitForm = async () => {
 
 const handlePermission = async (row: RoleInfo) => {
   currentRole.value = row;
-  // Reset forced keys before each open to avoid accumulation
-  defaultCheckedKeys.value = [];
+  permissionPages.value = [];
+  checkedPageIds.value = [];
   drawerVisible.value = true;
   treeLoading.value = true;
   try {
-    // 1. Fetch all pages and build tree
     const pagesRes = assertApiSuccess(await getPagesApi(), '載入頁面權限失敗');
-    let allPages: PageResponse[] = [];
-    let forcedIds: string[] = [];
-    if (pagesRes.data) {
-      allPages = pagesRes.data;
-      const result = buildTree(allPages);
-      permissionTree.value = result.tree;
-      forcedIds = result.forcedIds;
-      // Set default checked keys for disabled nodes
-      defaultCheckedKeys.value = [...forcedIds];
-    }
+    permissionPages.value = pagesRes.data || [];
 
-    // 2. Fetch current role permissions
     const rolePagesRes = assertApiSuccess(await getRolePagesApi(row.id), '載入角色權限失敗');
     const existingPages = rolePagesRes?.pages || [];
-    
-    // We only want to set checked keys for leaf nodes in element-plus tree,
-    // otherwise parent nodes will auto-select all children.
-    const parentKeys = new Set(allPages.map(p => p.parent_key).filter(Boolean));
-    const leafIds = existingPages
-      .filter(p => !parentKeys.has(p.key))
-      .map(p => p.id);
-    
-    // Merge forced ids so disabled nodes always stay checked
-    const mergedIds = Array.from(new Set([...forcedIds, ...leafIds]));
-
-    // Wait for the drawer and tree to be rendered
-    nextTick(() => {
-      setTimeout(() => {
-        if (treeRef.value) {
-          treeRef.value.setCheckedKeys(mergedIds);
-        }
-      }, 50);
-    });
+    checkedPageIds.value = existingPages.map((page) => page.id);
 
   } catch (error) {
     console.error('Failed to load permissions:', error);
@@ -453,19 +360,14 @@ const handlePermission = async (row: RoleInfo) => {
   }
 };
 
-const savePermissions = async () => {
-  if (!currentRole.value || !treeRef.value) return;
+const savePermissions = async (pageIds: string[]) => {
+  if (!currentRole.value) return;
   
   saveTreeLoading.value = true;
   try {
-    // Get both fully checked and half checked (indeterminate) keys
-    const checkedKeys = treeRef.value.getCheckedKeys();
-    const halfCheckedKeys = treeRef.value.getHalfCheckedKeys();
-    const allPageIds = [...checkedKeys, ...halfCheckedKeys];
-
     const res = assertApiSuccess(await updateRolePagesApi({
       role_id: currentRole.value.id,
-      page_ids: allPageIds,
+      page_ids: pageIds,
     }), '儲存權限失敗');
     
     ElMessage.success(res.message || t('common.done'));
