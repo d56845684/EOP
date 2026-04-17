@@ -92,8 +92,8 @@ export const teacherRoutes: RouteRecordRaw[] = [
     {
         path: '/teacher-portal/profile',
         name: 'TeacherProfile',
-        component: () => import('../views/teacher-portal/TeacherProfile.vue'),
-        meta: { title: '個人設定', icon: 'i-hugeicons:user-settings-01', pageKey: 'teachers.details' }
+        component: () => import('../views/Profile.vue'),
+        meta: { title: '個人設定', icon: 'i-hugeicons:user-settings-01' }
     },
     {
         path: '/teacher-portal/schedule',
@@ -120,13 +120,19 @@ export const studentRoutes: RouteRecordRaw[] = [
     {
         path: '/student-portal/profile',
         name: 'StudentProfile',
-        component: () => import('../views/student-portal/StudentProfile.vue'),
-        meta: { title: '個人設定', icon: 'i-hugeicons:user-settings-01', pageKey: 'student_portal' }
+        component: () => import('../views/Profile.vue'),
+        meta: { title: '個人設定', icon: 'i-hugeicons:user-settings-01' }
     },
     {
         path: '/student-portal/booking',
-        name: 'StudentBooking',
+        name: 'ClassBooking',
         component: () => import('../views/student-portal/ClassBooking.vue'),
-        meta: { title: '我的預約', icon: 'i-hugeicons:calendar-02', pageKey: 'student_portal' }
+        meta: { title: '課堂預約', icon: 'i-hugeicons:calendar-02', pageKey: 'student_portal' }
+    },
+    {
+        path: '/student-portal/contracts',
+        name: 'StudentContracts',
+        component: () => import('../views/student-portal/StudentContracts.vue'),
+        meta: { title: '我的合約', icon: 'i-hugeicons:file-02', pageKey: 'student_portal' }
     }
 ];

@@ -1,5 +1,7 @@
 const ROUTE_KEY_MAP: Record<string, string> = {
     'Dashboard': 'dashboard',
+    'TeacherDashboard': 'dashboard',
+    'StudentDashboard': 'dashboard',
     'Profile': 'profile',
     'Reports': 'reports',
     'Teachers': 'teacher_mgmt',
@@ -14,6 +16,7 @@ const ROUTE_KEY_MAP: Record<string, string> = {
     'TeacherProfile': 'teacher_profile',
     'ClassBooking': 'class_booking',
     'StudentProfile': 'student_profile',
+    'StudentContracts': 'my_contracts',
     'Settings': 'settings_mgmt',
     'EmployeeSettings': 'employee_settings',
 };

@@ -6,7 +6,7 @@ import { ElMessage } from 'element-plus';
 console.log('🛡️ 路由守衛檔案已成功載入！');
 // Optional: import NProgress from 'nprogress'; // If you use a loading bar
 
-const whiteList = ['/login', '/register', '/404'];
+const whiteList = ['/login', '/register', '/404', '/accept-invite', '/demo/accept-invite'];
 
 router.beforeEach(async (to, _from, next) => {
     console.log(`🚀 準備前往路由：${to.path}`);
@@ -52,9 +52,10 @@ router.beforeEach(async (to, _from, next) => {
             console.log("accessRoutes", accessRoutes)
 
             // Dynamically add routes to the router
-            accessRoutes.forEach((route) => {
-                router.addRoute('Layout', route); // Add as children of Layout
+            const routeRemovers = accessRoutes.map((route) => {
+                return router.addRoute('Layout', route); // Add as children of Layout
             });
+            permissionStore.setDynamicRouteRemovers(routeRemovers);
 
             // Hack: replace: true ensures the dynamically added routes are completely resolved before navigating
             next({ ...to, replace: true });
