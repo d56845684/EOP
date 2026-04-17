@@ -23,7 +23,7 @@
         :model="queryParams"
         size="small"
         label-position="top"
-        class="flex items-end"
+        class="filter-form flex items-end"
         @submit.prevent="handleSearch"
       >
         <el-form-item :label="$t('common.searchKeyword')" class="mb-0">
@@ -40,11 +40,11 @@
             </template>
           </el-input>
         </el-form-item>
-        <el-form-item :label="$t('employee.filter.type')" class="mb-0">
+        <el-form-item :label="$t('employee.filter.type')">
           <el-select
             v-model="queryParams.employee_type"
             clearable
-            class="w-140px!"
+            class="w-150px"
             @clear="handleSearch"
             @change="handleSearch"
           >
@@ -57,10 +57,10 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('common.status')" class="mb-0">
+        <el-form-item :label="$t('common.status')">
           <el-select
             v-model="queryParams.is_active"
-            class="w-120px!"
+            class="w-120px"
             @change="handleSearch"
           >
             <el-option :label="$t('common.all')" value="all" />
@@ -134,24 +134,7 @@
             {{ formatDate(row.hire_date) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.status')" width="85" align="center" fixed="right">
-          <template #default="{ row }">
-            <el-switch
-              v-if="hasPermission('employees.edit')"
-              :model-value="row.is_active"
-              size="small"
-              :loading="statusChangingIds.has(row.id)"
-              inline-prompt
-              active-text="啟用"
-              inactive-text="停用"
-              :before-change="() => handleToggleStatus(row)"
-            />
-            <el-tag v-else :type="row.is_active ? 'success' : 'info'" size="small" effect="light">
-              {{ row.is_active ? $t('common.active') : $t('common.inactive') }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('common.actions')" width="100" fixed="right" align="center">
+        <el-table-column :label="$t('common.actions')" width="120" fixed="right" align="center">
           <template #default="{ row }">
             <el-button
               v-if="hasPermission('employees.edit')"
@@ -169,8 +152,24 @@
               size="small"
               @click="handleDelete(row)"
             >
+              <div class="i-hugeicons:delete-02 mr-2px" />
               {{ $t('common.delete') }}
             </el-button>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('common.status')" width="85" align="center" fixed="right">
+          <template #default="{ row }">
+            <el-switch
+              v-if="hasPermission('employees.edit')"
+              :model-value="row.is_active"
+              size="small"
+              :loading="statusChangingIds.has(row.id)"
+              inline-prompt
+              :before-change="() => handleToggleStatus(row)"
+            />
+            <el-tag v-else :type="row.is_active ? 'success' : 'info'" size="small" effect="light">
+              {{ row.is_active ? $t('common.active') : $t('common.inactive') }}
+            </el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -191,7 +190,7 @@
 
     <el-drawer
       v-model="drawerVisible"
-      :title="drawerMode === 'create' ? $t('employee.addTitle') : $t('employee.editTitle')"
+      :title="drawerMode === 'create' ? $t('employee.addTitle') : `${$t('employee.editTitle')} - ${form.name}`"
       size="460px"
       destroy-on-close
       @closed="handleDrawerClosed"
@@ -205,7 +204,7 @@
         size="small"
         label-position="top"
       >
-        <el-row :gutter="12">
+        <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('employee.employeeNo')" prop="employee_no">
               <el-input v-model="form.employee_no" :disabled="drawerMode === 'edit'" class="h-30px!" />
@@ -225,7 +224,7 @@
           </el-col>
         </el-row>
 
-        <el-row :gutter="12">
+        <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('common.name')" prop="name">
               <el-input v-model="form.name" class="h-30px!" />
@@ -238,7 +237,7 @@
           </el-col>
         </el-row>
 
-        <el-row :gutter="12">
+        <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('common.phone')">
               <el-input v-model="form.phone" class="h-30px!" />
@@ -250,13 +249,13 @@
                 v-model="form.hire_date"
                 type="date"
                 value-format="YYYY-MM-DD"
-                class="w-full!"
+                class="w-full! h-30px!"
               />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <el-row :gutter="12">
+        <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item :label="$t('common.address')">
               <el-input v-model="form.address" class="h-30px!" />
@@ -264,14 +263,14 @@
           </el-col>
         </el-row>
 
-        <el-row :gutter="12">
+        <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('employee.terminationDate')">
               <el-date-picker
                 v-model="form.termination_date"
                 type="date"
                 value-format="YYYY-MM-DD"
-                class="w-full!"
+                class="w-full! h-30px!"
                 clearable
               />
             </el-form-item>
@@ -294,15 +293,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-
-        <el-form-item :label="$t('common.status')">
-          <el-switch
-            v-model="form.is_active"
-            inline-prompt
-            active-text="啟用"
-            inactive-text="停用"
-          />
-        </el-form-item>
       </el-form>
 
       <template #footer>

@@ -10,6 +10,7 @@ import adminAvatar from '@/assets/avatars/admin.svg?url';
 import teacherAvatar from '@/assets/avatars/teacher.svg?url';
 import studentAvatar from '@/assets/avatars/student.svg?url';
 import defaultAvatar from '@/assets/avatars/default.svg?url';
+import { clearAuthTokens, setAuthTokens } from '@/utils/auth-token';
 
 
 export const useAuthStore = defineStore('auth', () => {
@@ -46,16 +47,19 @@ export const useAuthStore = defineStore('auth', () => {
         profile.value = res.data;
       } else {
         clearLocalState();
+        throw new Error('Profile data is empty');
       }
     } catch (error) {
       console.error('Fetch profile failed:', error);
       ElMessage.error(getApiErrorMessage(error, 'Failed to fetch user profile'));
       clearLocalState();
+      throw error;
     }
   };
   const login = async (credentials: LoginRequest) => {
     const res = await loginApi(credentials);
     if (res.success) {
+      setAuthTokens(res.tokens);
       if (res.user) {
         userInfo.value = res.user;
       } else {
@@ -79,10 +83,12 @@ export const useAuthStore = defineStore('auth', () => {
       console.error('Check Auth failed:', e);
       userInfo.value = null;
       clearLocalState();
+      throw e;
     }
   };
 
-  const clearLocalState = () => {
+  const clearLocalState = (options: { redirect?: boolean } = {}) => {
+    const { redirect = true } = options;
     console.log('clearLocalState');
     // 1. Clear user info & profile
     userInfo.value = null;
@@ -94,10 +100,11 @@ export const useAuthStore = defineStore('auth', () => {
 
     // 3. Clear LocalStorage/SessionStorage if you have any persisted data
     localStorage.removeItem('auth'); // Adjust based on your persistence setup
+    clearAuthTokens();
 
     // 4. Redirect to login
-    if (router) {
-      router.push('/login');
+    if (redirect && router) {
+      router.replace({ name: 'Login' }).catch(() => {});
     }
   };
 

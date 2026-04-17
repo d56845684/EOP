@@ -69,7 +69,7 @@ export const adminRoutes: RouteRecordRaw[] = [
                 path: 'account',
                 name: 'AccountSettings',
                 component: () => import('../views/settings/AccountList.vue'),
-                meta: { title: '帳號管理', icon: 'i-hugeicons:account-setting-02', pageKey: 'settings.account' }
+                meta: { title: '帳號管理', icon: 'i-hugeicons:account-setting-02', pageKey: 'employees.list' }
             },
             {
                 path: 'role',

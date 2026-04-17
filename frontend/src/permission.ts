@@ -36,6 +36,10 @@ router.beforeEach(async (to, _from, next) => {
             if (!authStore.userInfo) {
                 await authStore.checkAuth(); // using checkAuth which exists in the store
             }
+
+            if (!authStore.userInfo) {
+                throw new Error('Missing authenticated user');
+            }
             
             // If profile is missing, fetch it
             if (!authStore.profile) {
@@ -58,9 +62,9 @@ router.beforeEach(async (to, _from, next) => {
         } catch (error) {
             // If any API fails (e.g., 401 Unauthorized because cookie expired or missing)
             console.error('Permission Error:', error);
-            await authStore.logout(); // Clear any residual state
+            authStore.clearLocalState({ redirect: false }); // Clear any residual state
             ElMessage.error('登入驗證失敗或已過期，請重新登入');
-            next(`/login?redirect=${to.path}`);
+            next({ name: 'Login', query: { redirect: to.fullPath }, replace: true });
         }
     }
 });
