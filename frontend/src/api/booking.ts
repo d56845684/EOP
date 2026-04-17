@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse } from './response';
 
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
 
@@ -112,7 +113,8 @@ export interface BookingBatchDeleteByIds {
 // API Response Wrap
 export interface BookingListResponse {
     success: boolean;
-    message: string;
+    message?: string;
+    error_code?: string | null;
     data: BookingItem[];
     total: number;
     page: number;
@@ -126,32 +128,35 @@ export function getBookingList(params: BookingListParams) {
 }
 
 export function createBooking(data: BookingCreate) {
-    return request.post<any, any>('/v1/bookings', data);
+    return request.post<any, DataResponse<BookingItem>>('/v1/bookings', data);
 }
 
 export function updateBooking(id: string, data: BookingUpdate) {
-    return request.put<any, any>(`/v1/bookings/${id}`, data);
+    return request.put<any, DataResponse<BookingItem>>(`/v1/bookings/${id}`, data);
 }
 
 // Batch APIs
 export function batchCreateBookings(data: BookingBatchCreate) {
-    return request.post<any, any>('/v1/bookings/batch', data);
+    return request.post<any, BaseResponse & { data?: BookingItem[] }>(
+      '/v1/bookings/batch',
+      data
+    );
 }
 
 export function batchUpdateBookings(data: BookingBatchUpdate) {
-    return request.put<any, any>('/v1/bookings/batch', data);
+    return request.put<any, BaseResponse>('/v1/bookings/batch', data);
 }
 
 export function batchDeleteBookings(data: BookingBatchDelete) {
-    return request.delete<any, any>('/v1/bookings/batch', { data });
+    return request.delete<any, BaseResponse>('/v1/bookings/batch', { data });
 }
 
 export function batchUpdateBookingsByIds(data: BookingBatchUpdateByIds) {
-    return request.post<any, any>('/v1/bookings/batch-by-ids/update', data);
+    return request.post<any, BaseResponse>('/v1/bookings/batch-by-ids/update', data);
 }
 
 export function batchDeleteBookingsByIds(data: BookingBatchDeleteByIds) {
-    return request.post<any, any>('/v1/bookings/batch-by-ids/delete', data);
+    return request.post<any, BaseResponse>('/v1/bookings/batch-by-ids/delete', data);
 }
 
 // Options API
@@ -193,25 +198,25 @@ export interface BookingTeacherSlotOption {
 }
 
 export function getBookingOptionStudents() {
-    return request.get<any, { data: BookingStudentOption[] }>('/v1/bookings/options/students');
+    return request.get<any, DataResponse<BookingStudentOption[]>>('/v1/bookings/options/students');
 }
 
 export function getBookingOptionTeachers(params?: { student_id?: string }) {
-    return request.get<any, { data: BookingTeacherOption[] }>('/v1/bookings/options/teachers', { params });
+    return request.get<any, DataResponse<BookingTeacherOption[]>>('/v1/bookings/options/teachers', { params });
 }
 
 export function getBookingOptionOverlappingCourses(params: { student_id: string; teacher_id: string }) {
-    return request.get<any, { data: BookingCourseOption[] }>('/v1/bookings/options/overlapping-courses', { params });
+    return request.get<any, DataResponse<BookingCourseOption[]>>('/v1/bookings/options/overlapping-courses', { params });
 }
 
 export function getBookingCourseOptions() {
-    return request.get<any, { data: BookingCourseOption[] }>('/v1/bookings/options/courses');
+    return request.get<any, DataResponse<BookingCourseOption[]>>('/v1/bookings/options/courses');
 }
 
 export function getBookingOptionStudentContracts(studentId: string) {
-    return request.get<any, { data: BookingStudentContractOption[] }>(`/v1/bookings/options/student-contracts/${studentId}`);
+    return request.get<any, DataResponse<BookingStudentContractOption[]>>(`/v1/bookings/options/student-contracts/${studentId}`);
 }
 
 export function getBookingOptionTeacherSlots(teacherId: string) {
-    return request.get<any, { data: BookingTeacherSlotOption[] }>(`/v1/bookings/options/teacher-slots/${teacherId}`);
+    return request.get<any, DataResponse<BookingTeacherSlotOption[]>>(`/v1/bookings/options/teacher-slots/${teacherId}`);
 }

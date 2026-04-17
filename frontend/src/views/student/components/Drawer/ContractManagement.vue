@@ -204,23 +204,23 @@
               <el-row class="px-4">
                 <el-col :span="24" class="my-1">
                   <label class="text-12px color-gray-400 font-500 mr-4">備註</label>
-                  <span class="text-12px">{{ props.row.notes }}</span>
+                  <span class="text-12px">{{ props.row.notes || '-' }}</span>
                 </el-col>
                 <el-col :span="24" class="my-1">
                   <label class="text-12px color-gray-400 font-500 mr-4">附約文件</label>
-                  <span class="text-12px">{{ props.row.file_name }}</span>
+                  <span class="text-12px">{{ props.row.file_name || '-' }}</span>
                 </el-col>
                 <el-col :span="24" class="my-1">
                   <label class="text-12px color-gray-400 font-500 mr-4">上傳時間</label>
-                  <span class="text-12px">{{ formatDateTime(props.row.file_uploaded_at) }}</span>
+                  <span class="text-12px">{{ props.row.file_uploaded_at ? formatDateTime(props.row.file_uploaded_at) : '-' }}</span>
                 </el-col>
                 <el-col :span="24" class="my-1">
                   <label class="text-12px color-gray-400 font-500 mr-4">建立時間</label>
-                  <span class="text-12px">{{ formatDateTime(props.row.created_at) }}</span>
+                  <span class="text-12px">{{ props.row.created_at ? formatDateTime(props.row.created_at) : '-' }}</span>
                 </el-col>
                 <el-col :span="24" class="my-1">
                   <label class="text-12px color-gray-400 font-500 mr-4">更新時間</label>
-                  <span class="text-12px">{{ formatDateTime(props.row.updated_at) }}</span>
+                  <span class="text-12px">{{ props.row.updated_at ? formatDateTime(props.row.updated_at) : '-' }}</span>
                 </el-col>
               </el-row>
             </template>
@@ -228,7 +228,7 @@
           <el-table-column prop="addendum_no" label="附約編號" width="180" />
           <el-table-column prop="addendum_status" label="附約狀態" width="80">
             <template #default="scope">
-              {{ STUDENT_CONTRACT_STATUS_MAP[scope.row.addendum_status] }}
+              {{ formatStudentContractStatusLabel(scope.row.addendum_status, scope.row.addendum_status, t) }}
             </template>
           </el-table-column>
           <el-table-column prop="new_end_date" label="展延結束日期" width="120" />
@@ -363,7 +363,7 @@
       </el-table-column>
       <el-table-column prop="contract_status" label="合約狀態" width="100" align="center">
         <template #default="{ row }">
-          {{ STUDENT_CONTRACT_STATUS_MAP[row.contract_status] || row.contract_status }}
+          {{ formatStudentContractStatusLabel(row.contract_status, row.contract_status, t) }}
         </template>
       </el-table-column>
       <el-table-column label="檢視" width="60" align="center">
@@ -410,6 +410,7 @@
 <script setup lang="ts">
 import { h, ref, watch, computed } from 'vue';
 import { dayjs, ElDivider, ElMessage, ElMessageBox, type UploadFile, type UploadInstance } from 'element-plus'
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import ContractDetailsDialog from '../Dialog/ContractDetailsDialog.vue';
 import AddLeaveDialog from '../Dialog/AddLeaveDialog.vue';
 import ContractDialog from '../Dialog/ContractDialog.vue';
@@ -424,9 +425,11 @@ import {
   type StudentContractDetail ,
   type StudentContractAddendum
 } from '@/api/studentContract';
-import { CONTRACT_STATUS, STUDENT_CONTRACT_STATUS_MAP } from '@/constants/contract';
+import { CONTRACT_STATUS } from '@/constants/contract';
 import { triggerDownload, getFileNameFromResponse}  from '@/utils/download';
+import { formatStudentContractStatusLabel } from '@/utils/i18n-formatters';
 import { uploadContractFile } from '@/utils/upload';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps({
   contracts: {
@@ -450,6 +453,8 @@ const props = defineProps({
     required: true
   }
 })
+
+const { t } = useI18n();
 
 const contractForm = ref({
   contract_status: 'pending',
@@ -516,13 +521,12 @@ const handleAddendum = async ({data, addendumId}: {data: StudentContractAddendum
   if (!activeContract.value) return;
   try {
     const res = extendType.value === 'create' ? await createAddendum(activeContract.value.id, data) : await updateAddendum(activeContract.value.id, addendumId!, data)
-    if (res && res.success) {
-      ElMessage.success(`${extendType.value === 'create' ? '新增' : '更新'}合約附約成功`);
-      extendDialogVisible.value = false;
-      emit('updateContent', 'contract')
-    }
+    assertApiSuccess(res, `${extendType.value === 'create' ? '新增' : '更新'}合約附約失敗`);
+    ElMessage.success(res.message || `${extendType.value === 'create' ? '新增' : '更新'}合約附約成功`);
+    extendDialogVisible.value = false;
+    emit('updateContent', 'contract')
   } catch(err) {
-    ElMessage.error(`${extendType.value === 'create' ? '新增' : '更新'}合約附約失敗`);
+    ElMessage.error(getApiErrorMessage(err, `${extendType.value === 'create' ? '新增' : '更新'}合約附約失敗`));
   }
 }
 
@@ -568,12 +572,12 @@ const uploadStudentContract = async (uploadFile: UploadFile, type: 'contract' | 
     const activeAddendumId = type === 'addendum' ? activeAddendum.value!.id : null;
     await uploadContractFile('student', activeContract.value.id, activeAddendumId, uploadFile.raw!).then(res => {
       if (res && res.success) {
-        ElMessage.success(`${type === 'addendum' ? '合約附約' : '合約'}已上傳`);
+        ElMessage.success(res.message || `${type === 'addendum' ? '合約附約' : '合約'}已上傳`);
         emit('updateContent', 'contract')
       }
     }).catch(err => {
       console.log(err)
-      ElMessage.error(`${type === 'addendum' ? '合約附約' : '合約'}上傳失敗`);
+      ElMessage.error(getApiErrorMessage(err, `${type === 'addendum' ? '合約附約' : '合約'}上傳失敗`));
     }).finally(() => {
       if (type === 'addendum') {
         uploadAddendumRef.value?.clearFiles();
@@ -586,7 +590,7 @@ const uploadStudentContract = async (uploadFile: UploadFile, type: 'contract' | 
     })
   } catch(err) {
     console.log(err)
-    ElMessage.error(`${type === 'addendum' ? '合約附約' : '合約'}上傳失敗`);
+    ElMessage.error(getApiErrorMessage(err, `${type === 'addendum' ? '合約附約' : '合約'}上傳失敗`));
     if (type === 'addendum') {
       uploadAddendumRef.value?.clearFiles();
       addendumFileList.value = [];
@@ -610,14 +614,14 @@ const handleDeleteContractDetail = async (id: string) => {
         type: 'warning',
       }
     ).then(async () => {
-      await deleteContractDetail(activeContract.value!.id, id);
-      ElMessage.success('合約明細已刪除');
+      const res = assertApiSuccess(await deleteContractDetail(activeContract.value!.id, id), '刪除合約明細失敗');
+      ElMessage.success(res.message || '合約明細已刪除');
       // Re-fetch to update used leave counts
       // await loadContent('contracts');
       emit('updateContent', 'contracts')
     })
   } catch(err){
-      ElMessage.error('刪除合約明細失敗');
+      ElMessage.error(getApiErrorMessage(err, '刪除合約明細失敗'));
   }
 }
 
@@ -633,14 +637,14 @@ const deleteLeave = async (id: string) => {
         type: 'warning',
       }
     ).then(async () => {
-      await deleteContractLeaveRecord(activeContract.value!.id, id);
-      ElMessage.success('請假紀錄已刪除');
+      const res = assertApiSuccess(await deleteContractLeaveRecord(activeContract.value!.id, id), '刪除請假紀錄失敗');
+      ElMessage.success(res.message || '請假紀錄已刪除');
       // Re-fetch to update used leave counts
       // await loadContent('contracts');
       emit('updateContent', 'contracts')
     })
   } catch(err){
-      ElMessage.error('刪除請假紀錄失敗');
+      ElMessage.error(getApiErrorMessage(err, '刪除請假紀錄失敗'));
   }
 };
 
@@ -698,7 +702,7 @@ watch(activeContract, (newVal: StudentContract | null) => {
   max-width: 200px;
   .el-upload-list {
     width: 100%;
-    &__item-name {
+    .el-upload-list__item-name {
       font-size: 11px !important;
     }
   }

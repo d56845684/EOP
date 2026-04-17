@@ -1,6 +1,6 @@
 <template>
   <el-dialog v-model="show" title="邀請連結" width="480px">
-    <div>{{ ROLE_MAP[role] }}: {{ name }}({{ email }})</div>
+    <div>{{ roleLabel }}: {{ name }}({{ email }})</div>
     <el-form label-position="top" class="mt-4 mb-6">
       <el-form-item label="邀請連結" class="min-w-full mb-0">
         <el-row :gutter="10" class="min-w-full">
@@ -35,13 +35,7 @@
 <script setup lang="ts">
 import { ElMessage } from 'element-plus';
 import { computed, type PropType } from 'vue';
-
-const ROLE_MAP = {
-  'student': '學生',
-  'teacher': '教師',
-  'admin': '管理員',
-  'employee': '員工'
-} as const
+import { formatRoleLabel } from '@/utils/i18n-formatters';
 
 const props = defineProps({
   inviteVisible: {
@@ -49,7 +43,7 @@ const props = defineProps({
     required: true
   },
   role: {
-    type: String as PropType<keyof typeof ROLE_MAP>,
+    type: String as PropType<'student' | 'teacher' | 'admin' | 'employee'>,
     required: true
   },
   name: {
@@ -78,6 +72,8 @@ const show = computed({
 const url = computed(() => {
   return props.inviteUrl
 })
+
+const roleLabel = computed(() => formatRoleLabel(props.role, props.role))
 
 const copyInviteUrl = () => {
   navigator.clipboard.writeText(props.inviteUrl)

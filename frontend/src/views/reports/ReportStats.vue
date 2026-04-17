@@ -1,11 +1,21 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue';
 import { useMockStore, type Teacher, type Booking } from '../../stores/mockStore';
-import * as echarts from 'echarts';
 import { Download } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import dayjs from 'dayjs';
 import { useI18n } from 'vue-i18n';
+import { init, use, type ECharts } from 'echarts/core';
+import { BarChart, LineChart, PieChart } from 'echarts/charts';
+import {
+    GridComponent,
+    LegendComponent,
+    TitleComponent,
+    TooltipComponent,
+} from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+
+use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
 const store = useMockStore();
 const { t } = useI18n();
@@ -21,9 +31,9 @@ const financialChartRef = ref<HTMLElement | null>(null);
 const courseChartRef = ref<HTMLElement | null>(null);
 const studentChartRef = ref<HTMLElement | null>(null);
 
-let financialChart: echarts.ECharts | null = null;
-let courseChart: echarts.ECharts | null = null;
-let studentChart: echarts.ECharts | null = null;
+let financialChart: ECharts | null = null;
+let courseChart: ECharts | null = null;
+let studentChart: ECharts | null = null;
 
 // --- Helpers ---
 const isBetween = (dateStr: string) => {
@@ -223,15 +233,15 @@ const updateCharts = () => {
 const initCharts = () => {
     if (activeTab.value === 'financial') {
         if (financialChartRef.value) {
-            if (!financialChart) financialChart = echarts.init(financialChartRef.value);
+            if (!financialChart) financialChart = init(financialChartRef.value);
             updateCharts();
         }
     } else {
         if (courseChartRef.value) {
-            if (!courseChart) courseChart = echarts.init(courseChartRef.value);
+            if (!courseChart) courseChart = init(courseChartRef.value);
         }
         if (studentChartRef.value) {
-            if (!studentChart) studentChart = echarts.init(studentChartRef.value);
+            if (!studentChart) studentChart = init(studentChartRef.value);
         }
         updateCharts(); // Update both
     }

@@ -162,7 +162,7 @@
     <!-- Table -->
     <el-card shadow="never">
       <el-table :data="tableData" style="width: 100%" v-loading="loading" stripe size="small" @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="50" fixed="left" />
+        <el-table-column type="selection" width="40" align="center" fixed="left" />
         <el-table-column label="預約編號" prop="booking_no" width="150" />
         <el-table-column :label="$t('common.student')" min-width="100">
           <template #default="{ row }">{{ row.student_name || '-' }}</template>
@@ -177,7 +177,7 @@
           <template #default="{ row }">
             {{ row.booking_date }}<br>
             <span class="text-xs color-gray-500">
-              {{ row.start_time ? row.start_time.substring(0, 5) : '' }} - {{ row.end_time ? row.end_time.substring(0, 5) : '' }}
+              {{ row.start_time ? row.start_time.substring(0, 5) : '' }} ~ {{ row.end_time ? row.end_time.substring(0, 5) : '' }}
             </span>
           </template>
         </el-table-column>
@@ -204,9 +204,7 @@
           <template #default="{ row }">
             <template v-if="['pending', 'confirmed', 'completed'].includes(row.booking_status)">
               <div v-if="!zoomInfoMap[row.id]" class="flex justify-center items-center min-h-12">
-                <el-icon v-if="isZoomFetchingMap[row.id]" class="is-loading text-lg color-primary"><div class="i-hugeicons:loading-02" /></el-icon>
                 <el-button 
-                  v-else
                   type="primary" 
                   size="small" 
                   plain
@@ -218,22 +216,25 @@
                   建立會議
                 </el-button>
               </div>
-              <div v-else class="flex flex-col items-center gap-1 min-h-12 justify-center">
-                <el-button 
-                  v-if="zoomInfoMap[row.id]?.join_url"
-                  type="success" 
-                  size="small"
-                  round
-                  plain
-                  class="text-xs h-20px! px-1.5!"
-                  @click="openUrl(zoomInfoMap[row.id]?.join_url)">
-                  <template #icon><div class="i-hugeicons:video-01" /></template>加入會議
-                </el-button>
-                <span 
-                  v-if="zoomInfoMap[row.id]?.passcode" 
-                  class="text-11px color-gray-400">
-                  密碼: {{ zoomInfoMap[row.id]?.passcode }}
-                </span>
+              <div v-else class="flex flex-col items-center gap-2 min-h-12 justify-center">
+                <div class="flex flex-col justify-center items-center gap-1"> 
+                  <el-button 
+                    v-if="zoomInfoMap[row.id]?.join_url"
+                    type="success" 
+                    size="small"
+                    round
+                    plain
+                    class="text-xs h-20px! px-1.5!"
+                    @click="openUrl(zoomInfoMap[row.id]?.join_url)">
+                    <template #icon><div class="i-hugeicons:video-01" /></template>加入會議
+                  </el-button>
+                  <div 
+                    v-if="zoomInfoMap[row.id]?.passcode" 
+                    class="flex items-center gap-0.5 text-11px leading-12px color-gray-400 translate-x-10px">
+                    密碼: {{ zoomInfoMap[row.id]?.passcode }}
+                    <el-button size="small" round link class="text-xs h-20px! px-1! color-gray-400! hover:color-gray-500!" @click="copyToClipboard(zoomInfoMap[row.id]?.passcode)"><div class="i-hugeicons:copy-01" /></el-button>
+                </div>
+                </div>
                 <el-button 
                   v-if="zoomInfoMap[row.id]?.recording_url || zoomInfoMap[row.id]?.drive_view_link"
                   type="info" 
@@ -251,7 +252,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.actions')" width="120" fixed="right">
+        <el-table-column :label="$t('common.actions')" width="120" align="center" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openDialog('edit', row)">{{ $t('common.edit') }}</el-button>
             <el-button link type="danger" size="small" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
@@ -294,7 +295,11 @@
                     class="w-full" 
                     :disabled="!addForm.student_id" 
                     :loading="addDeps.isFetchingTeachers">
-                      <el-option v-for="c in addDeps.studentContractOptions" :key="c.id" :label="`${c.course_name} (${c.contract_no})`" :value="c.id" />
+                      <el-option 
+                        v-for="c in addDeps.studentContractOptions" 
+                        :key="c.id" 
+                        :label="`${c.contract_no}${c.course_name ? (' - ' + c.course_name) : ''}`" 
+                        :value="c.id" />
                   </el-select>
               </el-form-item>
             </el-col>
@@ -761,9 +766,11 @@ import {
   batchUpdateBookingsByIds, batchDeleteBookingsByIds,
   type BookingItem, type BookingListParams, type BookingStatus
 } from '@/api/booking';
-import { getZoomMeetingByBooking, createZoomMeeting, type ZoomMeetingLogResponse } from '@/api/zoom';
+import { getZoomMeetingByBooking, createZoomMeeting, batchGetZoomMeetings, type ZoomMeetingLogResponse } from '@/api/zoom';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { useBookingDependencies } from '@/composables/useBookingDependencies';
 import { BOOKING_STATUS_MAP, BOOKING_TYPE_MAP } from '@/constants/booking';
+import { copyToClipboardUtil } from '@/utils/clipboard';
 
 // --- Filters & Table List ---
 const filters = reactive({
@@ -796,12 +803,12 @@ const fetchData = async () => {
       params.date_from = dayjs(filters.dateRange[0]).format('YYYY-MM-DD');
       params.date_to = dayjs(filters.dateRange[1]).format('YYYY-MM-DD');
     }
-    const res = await getBookingList(params);
+    const res = assertApiSuccess(await getBookingList(params), '載入預約列表失敗');
     tableData.value = res.data;
     total.value = res.total;
     fetchZoomInfos();
   } catch (e: any) {
-    ElMessage.error(e.response?.data?.message || '載入預約列表失敗');
+    ElMessage.error(getApiErrorMessage(e, '載入預約列表失敗'));
   } finally {
     loading.value = false;
   }
@@ -831,42 +838,57 @@ const getStatusColor = (status: string) => {
 
 // Zoom logic
 const zoomInfoMap = ref<Record<string, ZoomMeetingLogResponse>>({});
-const isZoomFetchingMap = ref<Record<string, boolean>>({});
 const creatingZoomMap = ref<Record<string, boolean>>({});
 
-const fetchZoomInfos = async () => {
-  const activeBookings = tableData.value.filter(b => ['pending', 'confirmed', 'completed'].includes(b.booking_status));
-  if (activeBookings.length === 0) return;
-  
-  await Promise.allSettled(
-    activeBookings.map(async (b) => {
-      if (zoomInfoMap.value[b.id] || isZoomFetchingMap.value[b.id]) return;
-      isZoomFetchingMap.value[b.id] = true;
-      try {
-        const res = await getZoomMeetingByBooking(b.id);
-        if (res.data) zoomInfoMap.value[b.id] = res.data;
-      } catch (e) {
-        // Ignore silent fetch errors
-      } finally {
-        isZoomFetchingMap.value[b.id] = false;
-      }
-    })
+const fetchZoomInfos = async () => {                                                                                                                                
+  const activeBookings = tableData.value.filter(          
+    b => ['pending', 'confirmed', 'completed'].includes(b.booking_status)                                                                                           
   );
+  if (activeBookings.length === 0) return;                                                                                                                          
+                                                                                                                                                                    
+  const idsToFetch = activeBookings
+    .filter(b => !zoomInfoMap.value[b.id])                                                                                                                          
+    .map(b => b.id);                                      
+  if (idsToFetch.length === 0) return;                                                                                                                              
+ 
+  try {                                                                                                                                                             
+    const res = assertApiSuccess(await batchGetZoomMeetings(idsToFetch), '載入 Zoom 會議失敗');   
+    if (res.data) {
+      Object.entries(res.data).forEach(([bookingId, meeting]) => {                                                                                                  
+        zoomInfoMap.value[bookingId] = meeting;
+      });                                                                                                                                                           
+    }                                                     
+  } catch (e) {
+    // batch 失敗時 fallback 到逐筆查詢                                                                                                                             
+    await Promise.allSettled(
+      idsToFetch.map(async (id) => {                                                                                                                                
+        try {                                             
+          const res = assertApiSuccess(await getZoomMeetingByBooking(id), '載入 Zoom 會議失敗');                                                                                                            
+          if (res.data) zoomInfoMap.value[id] = res.data; 
+        } catch { /* ignore */ }                                                                                                                                    
+      })
+    );                                                                                                                                                              
+  }                                                       
 };
 
 const handleCreateZoom = async (row: BookingItem) => {
   creatingZoomMap.value[row.id] = true;
   try {
-    const res = await createZoomMeeting({ booking_id: row.id });
+    const res = assertApiSuccess(await createZoomMeeting({ booking_id: row.id }), '建立會議失敗');
     if (res.data) zoomInfoMap.value[row.id] = res.data;
-    ElMessage.success('建立會議成功');
+    ElMessage.success(res.message || '建立會議成功');
   } catch(e:any) {
-    ElMessage.error(e.response?.data?.message || '建立會議失敗');
+    ElMessage.error(getApiErrorMessage(e, '建立會議失敗'));
   } finally {
     creatingZoomMap.value[row.id] = false;
   }
 };
 
+const copyToClipboard = (text: string | undefined | null) => {
+  if (text) {
+    copyToClipboardUtil(text, '密碼已複製');
+  }
+};
 const openUrl = (url?: string | null) => {
   if (url) window.open(url, '_blank');
 };
@@ -958,11 +980,11 @@ const submitAdd = async () => {
         data.start_time = slot?.start_time.substring(0,5);
         data.end_time = slot?.end_time.substring(0,5);
       }
-      await createBooking(data);
-      ElMessage.success('新增成功');
+      const res = assertApiSuccess(await createBooking(data), '新增失敗');
+      ElMessage.success(res.message || '新增成功');
       dialogs.add.visible = false;
       fetchData();
-    } catch(e:any) { ElMessage.error(e.response?.data?.message || '新增失敗'); }
+    } catch(e:any) { ElMessage.error(getApiErrorMessage(e, '新增失敗')); }
     finally { dialogs.add.loading = false; }
   });
 };
@@ -987,15 +1009,15 @@ const submitEdit = async () => {
     if(!valid) return;
     dialogs.edit.loading = true;
     try {
-      await updateBooking(dialogs.edit.editId, {
+      const res = assertApiSuccess(await updateBooking(dialogs.edit.editId, {
         booking_status: editForm.booking_status,
         end_time: editForm.end_time.substring(0,5) || null,
         notes: editForm.notes || null
-      });
-      ElMessage.success('更新成功');
+      }), '更新失敗');
+      ElMessage.success(res.message || '更新成功');
       dialogs.edit.visible = false;
       fetchData();
-    } catch(e:any) { ElMessage.error(e.response?.data?.message || '更新失敗'); }
+    } catch(e:any) { ElMessage.error(getApiErrorMessage(e, '更新失敗')); }
     finally { dialogs.edit.loading = false; }
   });
 };
@@ -1006,26 +1028,35 @@ const batchUpdateByIdsForm = reactive({ booking_status: 'confirmed' as BookingSt
 const submitBatchUpdateByIds = async () => {
   dialogs.batchUpdateByIds.loading = true;
   try {
-    await batchUpdateBookingsByIds({ booking_ids: selectedIds.value, booking_status: batchUpdateByIdsForm.booking_status, notes: batchUpdateByIdsForm.notes || null });
-    ElMessage.success('批次更新成功');
+    const res = assertApiSuccess(await batchUpdateBookingsByIds({ booking_ids: selectedIds.value, booking_status: batchUpdateByIdsForm.booking_status, notes: batchUpdateByIdsForm.notes || null }), '操作失敗');
+    ElMessage.success(res.message || '批次更新成功');
     dialogs.batchUpdateByIds.visible = false;
     selectedIds.value = [];
     fetchData();
-  } catch(e:any) { ElMessage.error(e.response?.data?.message || '操作失敗'); }
+  } catch(e:any) { ElMessage.error(getApiErrorMessage(e, '操作失敗')); }
   finally { dialogs.batchUpdateByIds.loading = false; }
 };
 
 // Batch Delete By IDs
 const handleDelete = (row: BookingItem) => {
   ElMessageBox.confirm('確定要永久刪除此筆記錄？', '刪除', { type: 'error' }).then(async () => {
-    try { await batchDeleteBookingsByIds({ booking_ids: [row.id] }); ElMessage.success('已刪除'); fetchData(); }
-    catch(e:any) { ElMessage.error('刪除失敗'); }
+    try {
+      const res = assertApiSuccess(await batchDeleteBookingsByIds({ booking_ids: [row.id] }), '刪除失敗');
+      ElMessage.success(res.message || '已刪除');
+      fetchData();
+    }
+    catch(e:any) { ElMessage.error(getApiErrorMessage(e, '刪除失敗')); }
   });
 };
 const handleBatchDeleteByIds = () => {
   ElMessageBox.confirm(`確定要永久刪除選取的 ${selectedIds.value.length} 筆記錄？`, '批次刪除', { type: 'error' }).then(async () => {
-    try { await batchDeleteBookingsByIds({ booking_ids: selectedIds.value }); ElMessage.success('已刪除'); selectedIds.value = []; fetchData(); }
-    catch(e:any) { ElMessage.error('刪除失敗'); }
+    try {
+      const res = assertApiSuccess(await batchDeleteBookingsByIds({ booking_ids: selectedIds.value }), '刪除失敗');
+      ElMessage.success(res.message || '已刪除');
+      selectedIds.value = [];
+      fetchData();
+    }
+    catch(e:any) { ElMessage.error(getApiErrorMessage(e, '刪除失敗')); }
   });
 };
 
@@ -1042,15 +1073,15 @@ const submitBatchCreate = async () => {
     if(!v || !batchCreateForm.daterange || batchCreateForm.daterange.length !== 2) { if(!v) return; ElMessage.warning('需要日期範圍'); return; }
     dialogs.batchCreate.loading = true;
     try {
-      await batchCreateBookings({
+      const res = assertApiSuccess(await batchCreateBookings({
         student_id: batchCreateForm.student_id, teacher_id: batchCreateForm.teacher_id, course_id: batchCreateForm.course_id,
         student_contract_id: batchCreateForm.student_contract_id || null,
         start_date: batchCreateForm.daterange[0], end_date: batchCreateForm.daterange[1],
         weekdays: batchCreateForm.weekdays.length > 0 ? batchCreateForm.weekdays : null,
         start_time: batchCreateForm.start_time.substring(0,5) || null, end_time: batchCreateForm.end_time.substring(0,5) || null, notes: batchCreateForm.notes || null,
-      });
-      ElMessage.success('批次建立成功'); dialogs.batchCreate.visible = false; fetchData();
-    } catch(e:any) { ElMessage.error(e.response?.data?.message || '建立失敗'); }
+      }), '建立失敗');
+      ElMessage.success(res.message || '批次建立成功'); dialogs.batchCreate.visible = false; fetchData();
+    } catch(e:any) { ElMessage.error(getApiErrorMessage(e, '建立失敗')); }
     finally { dialogs.batchCreate.loading = false; }
   });
 };
@@ -1066,14 +1097,14 @@ const submitBatchUpdate = async () => {
     if(!v || !batchUpdateForm.daterange || batchUpdateForm.daterange.length !== 2) { if(!v) return; ElMessage.warning('需要日期範圍'); return; }
     dialogs.batchUpdate.loading = true;
     try {
-      await batchUpdateBookings({
+      const res = assertApiSuccess(await batchUpdateBookings({
         start_date: batchUpdateForm.daterange[0], end_date: batchUpdateForm.daterange[1],
         weekdays: batchUpdateForm.weekdays.length > 0 ? batchUpdateForm.weekdays : null,
         student_id: batchUpdateForm.student_id || null, teacher_id: batchUpdateForm.teacher_id || null, course_id: batchUpdateForm.course_id || null,
         filter_status: batchUpdateForm.filter_status || null, new_status: batchUpdateForm.new_status, notes: batchUpdateForm.notes || null
-      });
-      ElMessage.success('批次更新成功'); dialogs.batchUpdate.visible = false; fetchData();
-    } catch(e:any) { ElMessage.error(e.response?.data?.message || '更新失敗'); }
+      }), '更新失敗');
+      ElMessage.success(res.message || '批次更新成功'); dialogs.batchUpdate.visible = false; fetchData();
+    } catch(e:any) { ElMessage.error(getApiErrorMessage(e, '更新失敗')); }
     finally { dialogs.batchUpdate.loading = false; }
   });
 };
@@ -1089,14 +1120,14 @@ const submitBatchDelete = async () => {
     if(!v || !batchDeleteForm.daterange || batchDeleteForm.daterange.length !== 2) { if(!v) return; ElMessage.warning('需要日期範圍'); return; }
     dialogs.batchDelete.loading = true;
     try {
-      await batchDeleteBookings({
+      const res = assertApiSuccess(await batchDeleteBookings({
         start_date: batchDeleteForm.daterange[0], end_date: batchDeleteForm.daterange[1],
         weekdays: batchDeleteForm.weekdays.length > 0 ? batchDeleteForm.weekdays : null,
         student_id: batchDeleteForm.student_id || null, teacher_id: batchDeleteForm.teacher_id || null, course_id: batchDeleteForm.course_id || null,
         filter_status: batchDeleteForm.filter_status || null
-      });
-      ElMessage.success('批次刪除成功'); dialogs.batchDelete.visible = false; fetchData();
-    } catch(e:any) { ElMessage.error(e.response?.data?.message || '刪除失敗'); }
+      }), '刪除失敗');
+      ElMessage.success(res.message || '批次刪除成功'); dialogs.batchDelete.visible = false; fetchData();
+    } catch(e:any) { ElMessage.error(getApiErrorMessage(e, '刪除失敗')); }
     finally { dialogs.batchDelete.loading = false; }
   });
 };

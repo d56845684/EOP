@@ -1,10 +1,11 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse } from './response';
 
 export interface StudentTeacherPreferenceCreate {
   student_id: string;
   course_id?: string | null;
   min_teacher_level?: number | null;
-  primary_teacher_id?: string | null;
+  primary_teacher_ids?: string[] | null;
 }
 
 export interface StudentTeacherPreferenceUpdate {
@@ -36,33 +37,32 @@ export interface PreferenceCourseOption {
   id: string;
   course_name: string;
   course_code?: string;
-  duration?: number;
 }
 
 export const getStudentTeacherPreferences = (student_id: string) => {
-  return request.get<any, { data: StudentTeacherPreferenceResponse[] }>('/v1/student-teacher-preferences/', {
+  return request.get<any, DataResponse<StudentTeacherPreferenceResponse[]>>('/v1/student-teacher-preferences', {
     params: { student_id }
   });
 };
 
 export const createStudentTeacherPreference = (data: StudentTeacherPreferenceCreate) => {
-  return request.post<any, any>('/v1/student-teacher-preferences/', data);
+  return request.post<any, DataResponse<StudentTeacherPreferenceResponse>>('/v1/student-teacher-preferences', data);
 };
 
 export const updateStudentTeacherPreference = (id: string, data: StudentTeacherPreferenceUpdate) => {
-  return request.put<any, any>(`/v1/student-teacher-preferences/${id}`, data);
+  return request.put<any, DataResponse<StudentTeacherPreferenceResponse>>(`/v1/student-teacher-preferences/${id}`, data);
 };
 
 export const deleteStudentTeacherPreference = (id: string) => {
-  return request.delete<any, any>(`/v1/student-teacher-preferences/${id}`);
+  return request.delete<any, BaseResponse>(`/v1/student-teacher-preferences/${id}`);
 };
 
 export const getPreferenceTeacherOptions = () => {
-  return request.get<any, { data: PreferenceTeacherOption[] }>('/v1/student-teacher-preferences/options/teachers');
+  return request.get<any, DataResponse<PreferenceTeacherOption[]>>('/v1/student-teacher-preferences/options/teachers');
 };
 
-export const getPreferenceCourseOptions = (student_id: string) => {
-  return request.get<any, { data: PreferenceCourseOption[] }>('/v1/student-teacher-preferences/options/courses', {
+export const getPreferenceCourseOptions = (student_id?: string) => {
+  return request.get<any, DataResponse<PreferenceCourseOption[]>>('/v1/student-teacher-preferences/options/courses', {
     params: { student_id }
   });
 };

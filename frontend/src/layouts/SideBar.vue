@@ -89,7 +89,7 @@
     flex: 1;
     .el-menu {
         border-right: none;
-        &-item {
+        .el-menu-item {
             gap: 5px;
         }
     }

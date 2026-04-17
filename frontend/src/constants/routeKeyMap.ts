@@ -15,6 +15,7 @@ const ROUTE_KEY_MAP: Record<string, string> = {
     'ClassBooking': 'class_booking',
     'StudentProfile': 'student_profile',
     'Settings': 'settings_mgmt',
+    'EmployeeSettings': 'employee_settings',
 };
 
 export { ROUTE_KEY_MAP };

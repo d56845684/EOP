@@ -7,7 +7,7 @@
         type="primary"
         round
         size="small"
-        class="h-30px! px-2!"
+        class="h-30px! px-2"
         @click="openDrawer(null, 'add')"
       >
         <template #icon>
@@ -163,6 +163,7 @@ import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import dayjs from 'dayjs';
 import { getUsersApi, getRolesApi, updateUserApi, deleteUserApi, type AccountInfo, type RoleInfo } from '@/api/user';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import EditEmployeeDrawer from './components/EditEmployeeDrawer.vue';
 
 // State
@@ -214,16 +215,10 @@ const roleList = computed(() => {
 // API Calls
 const fetchRoles = async () => {
   try {
-    const res = await getRolesApi();
-    if (res.data && Array.isArray(res.data)) {
-      roles.value = res.data;
-    } else if (res.data && Array.isArray((res.data as any).data)) {
-      roles.value = (res.data as any).data;
-    } else if (Array.isArray(res)) {
-      roles.value = res as any;
-    }
+    const res = assertApiSuccess(await getRolesApi(), '載入角色失敗');
+    roles.value = res.data || [];
   } catch (error) {
-    ElMessage.error('Failed to load roles');
+    ElMessage.error(getApiErrorMessage(error, 'Failed to load roles'));
   }
 };
 
@@ -235,24 +230,11 @@ const fetchUsers = async () => {
     if (!dataToSend.role) delete dataToSend.role;
     if (dataToSend.is_active === 'all') delete dataToSend.is_active;
 
-    const res = await getUsersApi(dataToSend);
-    
-    // Adjust based on actual API wrapper
-    if (res.data && res.data.items !== undefined) {
-      users.value = res.data.items;
-      total.value = res.data.total;
-    } else if (res.data && res.data.data && res.data.data.items !== undefined) {
-      users.value = res.data.data.items;
-      total.value = res.data.data.total;
-    } else if (res.items !== undefined) {
-      users.value = (res as any).items;
-      total.value = (res as any).total;
-    } else {
-      users.value = res.data || res || [];
-      total.value = users.value.length;
-    }
+    const res = assertApiSuccess(await getUsersApi(dataToSend), '載入帳號失敗');
+    users.value = res.data.items || [];
+    total.value = res.data.total || 0;
   } catch (error) {
-    ElMessage.error('Failed to load users');
+    ElMessage.error(getApiErrorMessage(error, 'Failed to load users'));
   } finally {
     loading.value = false;
   }
@@ -301,17 +283,18 @@ const handleDeactivate = (row: AccountInfo): Promise<boolean> => {
     }).then(async () => {
       try {
         if (row.is_active) {
-          await deleteUserApi(row.id);
+          const res = assertApiSuccess(await deleteUserApi(row.id), '停用帳號失敗');
+          ElMessage.success(res.message || '更新成功');
         } else {
-          await updateUserApi(row.id, {
+          const res = assertApiSuccess(await updateUserApi(row.id, {
             is_active: true
-          });
+          }), '啟用帳號失敗');
+          ElMessage.success(res.message || '更新成功');
         }
-        ElMessage.success('更新成功');
         fetchUsers();
         resolve(true)
       } catch (error) {
-        ElMessage.error('更新失敗');
+        ElMessage.error(getApiErrorMessage(error, '更新失敗'));
         reject(false)
       }
     }).catch(() => {reject(false)});

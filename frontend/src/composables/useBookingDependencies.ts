@@ -1,6 +1,7 @@
 // src/composables/useBookingDependencies.ts
 import { ref, type Ref, nextTick } from 'vue';
 import type { FormInstance } from 'element-plus';
+import { assertApiSuccess } from '@/api/response';
 import {
   getBookingOptionStudents,
   getBookingOptionTeachers,
@@ -40,9 +41,9 @@ export function useBookingDependencies(formData: any, formRef?: Ref<FormInstance
         const [sRes, tRes, cRes] = await Promise.all([
           getBookingOptionStudents(), getBookingOptionTeachers(), getBookingCourseOptions()
         ]);
-        globalStudentOptions.value = sRes.data || [];
-        globalTeacherOptions.value = tRes.data || [];
-        globalCourseOptions.value = cRes.data || [];
+        globalStudentOptions.value = assertApiSuccess(sRes).data || [];
+        globalTeacherOptions.value = assertApiSuccess(tRes).data || [];
+        globalCourseOptions.value = assertApiSuccess(cRes).data || [];
         isGlobalLoaded = true;
       } catch (e) {
         console.error(e);
@@ -80,8 +81,8 @@ export function useBookingDependencies(formData: any, formRef?: Ref<FormInstance
         getBookingOptionTeachers({ student_id: formData.student_id }),
         getBookingOptionStudentContracts(formData.student_id)
       ]);
-      teacherOptions.value = tRes.data || [];
-      studentContractOptions.value = cRes.data || [];
+      teacherOptions.value = assertApiSuccess(tRes).data || [];
+      studentContractOptions.value = assertApiSuccess(cRes).data || [];
     } catch (e) {
       console.error(e);
     } finally {
@@ -112,9 +113,9 @@ export function useBookingDependencies(formData: any, formRef?: Ref<FormInstance
       if (needsSlot) tasks.push(getBookingOptionTeacherSlots(formData.teacher_id));
 
       const results = await Promise.all(tasks);
-      courseOptions.value = results[0].data || [];
+      courseOptions.value = assertApiSuccess(results[0]).data || [];
       if (needsSlot && results.length > 1) {
-        teacherSlotOptions.value = results[1].data || [];
+        teacherSlotOptions.value = assertApiSuccess(results[1]).data || [];
       }
     } catch (e) {
       console.error(e);

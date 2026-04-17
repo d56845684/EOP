@@ -7,7 +7,7 @@
         type="primary"
         size="small"
         round
-        class="h-30px! px-2!"
+        class="h-30px! px-2"
         @click="handleCreate"
       >
         <template #icon>
@@ -235,6 +235,7 @@ import { ref, reactive, onMounted, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import {
   getRolesApi, createRoleApi, updateRoleApi, deleteRoleApi,
   getPagesApi, getRolePagesApi, updateRolePagesApi
@@ -329,13 +330,11 @@ const needLock = (row: RoleInfo) => {
 const fetchRoles = async () => {
   loading.value = true;
   try {
-    const res = await getRolesApi();
-    if (res?.data) {
-      tableData.value = res?.data;
-    }
+    const res = assertApiSuccess(await getRolesApi(), '載入角色失敗');
+    tableData.value = res.data || [];
   } catch (error) {
     console.error('Failed to fetch roles:', error);
-    ElMessage.error('Failed to load roles');
+    ElMessage.error(getApiErrorMessage(error, 'Failed to load roles'));
   } finally {
     loading.value = false;
   }
@@ -357,11 +356,12 @@ const handleEdit = (row: RoleInfo) => {
 
 const handleDelete = async (row: RoleInfo) => {
   try {
-    await deleteRoleApi(row.id);
-    ElMessage.success(t('common.done'));
+    const res = assertApiSuccess(await deleteRoleApi(row.id), '刪除角色失敗');
+    ElMessage.success(res.message || t('common.done'));
     fetchRoles();
   } catch (error) {
     console.error('Failed to delete role:', error);
+    ElMessage.error(getApiErrorMessage(error, '刪除角色失敗'));
   }
 };
 
@@ -384,16 +384,17 @@ const submitForm = async () => {
             name: form.name,
             description: form.description,
           };
-          await updateRoleApi(form.id, updateData);
-          ElMessage.success(t('common.done'));
+          const res = assertApiSuccess(await updateRoleApi(form.id, updateData), '更新角色失敗');
+          ElMessage.success(res.message || t('common.done'));
         } else {
-          await createRoleApi(form);
-          ElMessage.success(t('common.done'));
+          const res = assertApiSuccess(await createRoleApi(form), '新增角色失敗');
+          ElMessage.success(res.message || t('common.done'));
         }
         dialogVisible.value = false;
         fetchRoles();
       } catch (error) {
         console.error('Failed to save role:', error);
+        ElMessage.error(getApiErrorMessage(error, '儲存角色失敗'));
       } finally {
         submitLoading.value = false;
       }
@@ -409,7 +410,7 @@ const handlePermission = async (row: RoleInfo) => {
   treeLoading.value = true;
   try {
     // 1. Fetch all pages and build tree
-    const pagesRes = await getPagesApi();
+    const pagesRes = assertApiSuccess(await getPagesApi(), '載入頁面權限失敗');
     let allPages: PageResponse[] = [];
     let forcedIds: string[] = [];
     if (pagesRes.data) {
@@ -422,7 +423,7 @@ const handlePermission = async (row: RoleInfo) => {
     }
 
     // 2. Fetch current role permissions
-    const rolePagesRes = await getRolePagesApi(row.id);
+    const rolePagesRes = assertApiSuccess(await getRolePagesApi(row.id), '載入角色權限失敗');
     const existingPages = rolePagesRes?.pages || [];
     
     // We only want to set checked keys for leaf nodes in element-plus tree,
@@ -446,7 +447,7 @@ const handlePermission = async (row: RoleInfo) => {
 
   } catch (error) {
     console.error('Failed to load permissions:', error);
-    ElMessage.error('Failed to load permissions');
+    ElMessage.error(getApiErrorMessage(error, 'Failed to load permissions'));
   } finally {
     treeLoading.value = false;
   }
@@ -462,16 +463,17 @@ const savePermissions = async () => {
     const halfCheckedKeys = treeRef.value.getHalfCheckedKeys();
     const allPageIds = [...checkedKeys, ...halfCheckedKeys];
 
-    await updateRolePagesApi({
+    const res = assertApiSuccess(await updateRolePagesApi({
       role_id: currentRole.value.id,
       page_ids: allPageIds,
-    });
+    }), '儲存權限失敗');
     
-    ElMessage.success(t('common.done'));
+    ElMessage.success(res.message || t('common.done'));
     drawerVisible.value = false;
     fetchRoles(); // Refresh table to update page_count
   } catch (error) {
     console.error('Failed to save permissions:', error);
+    ElMessage.error(getApiErrorMessage(error, '儲存權限失敗'));
   } finally {
     saveTreeLoading.value = false;
   }

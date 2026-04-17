@@ -66,6 +66,7 @@
 
 <script setup lang="ts">
 import { createContractDetail, type StudentContractDetailCreate, type CourseOption, getContractCourseOptions, updateContractDetail, type StudentContractDetail } from '@/api/studentContract';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { ref, computed, reactive, onMounted, watch, type PropType, nextTick } from 'vue'
 
@@ -122,16 +123,16 @@ const submitDetailForm = async () => {
            payload.course_id = null;
         }
         if (isEdit.value) {
-          await updateContractDetail(props.contractId, props.detailData?.id || '', payload);
-          ElMessage.success('更新合約明細成功');
+          const res = assertApiSuccess(await updateContractDetail(props.contractId, props.detailData?.id || '', payload), '更新合約明細失敗');
+          ElMessage.success(res.message || '更新合約明細成功');
         } else {
-          await createContractDetail(props.contractId, payload);
-          ElMessage.success('新增合約明細成功');
+          const res = assertApiSuccess(await createContractDetail(props.contractId, payload), '新增合約明細失敗');
+          ElMessage.success(res.message || '新增合約明細成功');
         }
         emit('addDetailFinish', props.contractId)
         show.value = false;
       } catch(err) {
-        ElMessage.error('新增合約明細失敗');
+        ElMessage.error(getApiErrorMessage(err, isEdit.value ? '更新合約明細失敗' : '新增合約明細失敗'));
       } finally {
         detailLoading.value = false;
         nextTick(() => {
@@ -161,10 +162,11 @@ watch(() => props.detailData, (newVal) => {
 onMounted(async () => {
   if (props.studentId) {
     try {
-      const cRes = await getContractCourseOptions(props.studentId);
-      detailCourseOptions.value = (cRes.data as any) || [];
+      const cRes = assertApiSuccess(await getContractCourseOptions(props.studentId), '載入課程選單失敗');
+      detailCourseOptions.value = cRes.data || [];
     } catch(err) {
       console.error(err);
+      ElMessage.error(getApiErrorMessage(err, '載入課程選單失敗'));
     }
   }
 })

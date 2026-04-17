@@ -106,6 +106,7 @@
 import { ref, reactive, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { getBookingList, type BookingListParams, type BookingItem } from '@/api/booking';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 
 const props = defineProps<{
   studentId: string;
@@ -154,21 +155,12 @@ const fetchBookings = async () => {
       delete params.booking_status;
     }
     
-    // axios request
-    const res: any = await getBookingList(params);
-    
-    if (res.success || res.data) {
-       // Support typical axios res wrapper or direct data return
-       const responseData = typeof res.data !== 'undefined' && Array.isArray(res.data) ? res : (res.data || res);
-       bookingList.value = responseData.data || [];
-       total.value = responseData.total || 0;
-    } else {
-       bookingList.value = [];
-       total.value = 0;
-    }
+    const res = assertApiSuccess(await getBookingList(params), '載入上課紀錄失敗');
+    bookingList.value = res.data || [];
+    total.value = res.total || 0;
   } catch (err: any) {
     console.error('Fetch bookings error:', err);
-    ElMessage.error(err?.response?.data?.message || '載入上課紀錄失敗');
+    ElMessage.error(getApiErrorMessage(err, '載入上課紀錄失敗'));
   } finally {
     loading.value = false;
   }

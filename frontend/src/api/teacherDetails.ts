@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse } from './response';
 
 export interface TeacherDetail {
     id: string;
@@ -27,13 +28,10 @@ export interface TeacherDetailUpdateParams {
     expiry_date: string | null;
 }
 
-interface ResData<T> {
-    data: T;
-    message: string;
-    success: boolean;
-}
-
 export interface UploadDetailUrlResponse {
+    success?: boolean;
+    message?: string;
+    error_code?: string | null;
     upload_url: string;
     storage_path: string;
     content_type: string;
@@ -41,19 +39,19 @@ export interface UploadDetailUrlResponse {
 }
 
 export function getTeacherDetails(teacherId: string) {
-    return request.get<any, Omit<ResData<TeacherDetail[]>, 'message'>>(`/v1/teacher-details`, { params: { teacher_id: teacherId } });
+    return request.get<any, DataResponse<TeacherDetail[]>>(`/v1/teacher-details`, { params: { teacher_id: teacherId } });
 }
 
 export function createTeacherDetail(data: TeacherDetailCreateParams) {
-    return request.post<any, ResData<TeacherDetail>>(`/v1/teacher-details`, data);
+    return request.post<any, DataResponse<TeacherDetail>>(`/v1/teacher-details`, data);
 }
 
 export function updateTeacherDetail(detailId: string, data: TeacherDetailUpdateParams) {
-    return request.put<any, ResData<TeacherDetail>>(`/v1/teacher-details/${detailId}`, data);
+    return request.put<any, DataResponse<TeacherDetail>>(`/v1/teacher-details/${detailId}`, data);
 }
 
 export function deleteTeacherDetail(detailId: string) {
-    return request.delete<any, Omit<ResData<null>, 'data'>>(`/v1/teacher-details/${detailId}`);
+    return request.delete<any, BaseResponse>(`/v1/teacher-details/${detailId}`);
 }
 
 export function getUploadDetailUrl(detailId: string, data: { file_name: string }) {
@@ -61,5 +59,5 @@ export function getUploadDetailUrl(detailId: string, data: { file_name: string }
 }
 
 export function confirmUploadDetail(detailId: string, data: { storage_path: string, file_name: string }) {
-    return request.post<any, ResData<TeacherDetail>>(`/v1/teacher-details/${detailId}/confirm-upload`, data);
+    return request.post<any, DataResponse<TeacherDetail>>(`/v1/teacher-details/${detailId}/confirm-upload`, data);
 }

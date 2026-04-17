@@ -18,6 +18,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
 import { createContractLeaveRecord, type StudentContractLeaveRecordCreate } from '@/api/studentContract';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { ElMessage } from 'element-plus';
 
 const props = defineProps({
@@ -54,18 +55,18 @@ const submitLeaveForm = async () => {
   }
   leaveLoading.value = true;
   try {
-     await createContractLeaveRecord(props.contractId, {
+     const res = assertApiSuccess(await createContractLeaveRecord(props.contractId, {
         leave_date: leaveForm.leave_date,
         reason: leaveForm.reason
-     });
-     ElMessage.success('請假紀錄已新增');
+     }), '新增請假紀錄失敗');
+     ElMessage.success(res.message || '請假紀錄已新增');
      
      // Re-fetch to update used leave counts
     //  await loadContent('contracts');
     emit('addLeaveFinish', props.contractId)
     show.value = false;
   } catch(err) {
-     ElMessage.error('新增請假紀錄失敗');
+     ElMessage.error(getApiErrorMessage(err, '新增請假紀錄失敗'));
   } finally {
      leaveLoading.value = false;
      leaveForm.leave_date = '';

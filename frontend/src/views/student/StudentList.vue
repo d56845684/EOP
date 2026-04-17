@@ -228,7 +228,9 @@ import CreateContractDialog from './components/Dialog/CreateContractDialog.vue';
 import VerifyInviteDialog from '@/components/Auth/VerifyInviteDialog.vue';
 import StudentListTable from './components/StudentListTable.vue';
 import { generateInviteLinkApi } from '@/api/auth';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { usePermissionStore } from '@/stores/permission';
+import { copyToClipboardUtil } from '@/utils/clipboard';
 
 const OPTION_MAP = {
  ALL: 'all' 
@@ -339,13 +341,12 @@ const fetchData = async () => {
     if (params.has_active_contract === OPTION_MAP.ALL) delete params.has_active_contract;
     if (params.role === OPTION_MAP.ALL) delete params.role;
     
-    const res: any = await getStudentOverviewList(params);
-    
-    studentList.value = res?.data?.items || res?.data || [];
-    total.value = res?.total || 0;
+    const res = assertApiSuccess(await getStudentOverviewList(params), '獲取學生列表失敗');
+    studentList.value = res.data || [];
+    total.value = res.total || 0;
   } catch (err) {
     console.error(err);
-    ElMessage.error('獲取學生列表失敗');
+    ElMessage.error(getApiErrorMessage(err, '獲取學生列表失敗'));
   } finally {
     loading.value = false;
   }
@@ -365,30 +366,38 @@ const resetQuery = () => {
 };
 
 const copyEmail = (email: string) => {
-  navigator.clipboard.writeText(email);
-  ElMessage.success('Email 已複製');
+  copyToClipboardUtil(email, 'Email 已複製');
 };
 
 const handleVerify = async (row: StudentOverviewListResponse) => {
   try {
     const res = await generateInviteLinkApi({ entity_type: 'student', entity_id: row.id });
+    if (res.success === false && res.error_code) {
+      ElMessage.error('此Email已有登入帳號');
+      return;
+    }
     inviteUrl.value = res.invite_url || '';
     currentStudent.value = row;
     verifyInviteVisible.value = true;
-  } catch (err) {
+  } catch (err:any) {
     console.error(err);
-    ElMessage.error('獲取邀請連結失敗');
+    if (err.success === false && err.error_code) {
+      ElMessage.error('此Email已有登入帳號');
+      return;
+    } else {
+      ElMessage.error('操作失敗');
+    }
   }
 }
 
 const handleStatusChange = async (row: StudentOverviewListResponse) => {
   const status = row.is_active ? '啟用' : '停用';
   try {
-    await updateStudent(row.id, { is_active: row.is_active });
-    ElMessage.success(`${status}學生狀態成功`);
+    const res = assertApiSuccess(await updateStudent(row.id, { is_active: row.is_active }), `${status}學生狀態失敗`);
+    ElMessage.success(res.message || `${status}學生狀態成功`);
   } catch (err) {
     console.error(err);
-    ElMessage.error(`${status}學生狀態失敗`);
+    ElMessage.error(getApiErrorMessage(err, `${status}學生狀態失敗`));
   } finally {
     fetchData();
   }
@@ -415,13 +424,13 @@ const openDrawer = async (row: StudentOverviewListResponse | null, type: string)
 const handleCreateStudent = async (data: StudentCreate) => {
   saving.value = true;
   try {
-    await createStudent(data);
-    ElMessage.success('新增學生操作成功');
+    const res = assertApiSuccess(await createStudent(data), '新增學生操作失敗');
+    ElMessage.success(res.message || '新增學生操作成功');
     drawerVisible.value = false;
     fetchData();
   } catch (err: any) {
     console.error(err);
-    ElMessage.error('新增學生操作失敗');
+    ElMessage.error(getApiErrorMessage(err, '新增學生操作失敗'));
   } finally {
     saving.value = false;
   }
@@ -431,12 +440,12 @@ const handleSaveBasicInfo = async () => {
   if (!currentStudent.value.id) return;
   saving.value = true;
   try {
-    await updateStudent(currentStudent.value.id!, form);
-    ElMessage.success('更新學生資料成功');
+    const res = assertApiSuccess(await updateStudent(currentStudent.value.id!, form), '更新學生資料失敗');
+    ElMessage.success(res.message || '更新學生資料成功');
     fetchData();
   } catch (err) {
     console.error(err);
-    ElMessage.error('更新學生資料失敗');
+    ElMessage.error(getApiErrorMessage(err, '更新學生資料失敗'));
   } finally {
     saving.value = false;
   }
@@ -456,12 +465,12 @@ const handleDelete = (row: StudentResponse) => {
     }
   ).then(async () => {
     try {
-      await deleteStudent(row.id);
-      ElMessage.success('刪除操作成功');
+      const res = assertApiSuccess(await deleteStudent(row.id), '刪除操作失敗');
+      ElMessage.success(res.message || '刪除操作成功');
       fetchData();
     } catch (err) {
       console.error(err);
-      ElMessage.error('刪除操作失敗');
+      ElMessage.error(getApiErrorMessage(err, '刪除操作失敗'));
     }
   }).catch(() => {});
 };
@@ -476,8 +485,8 @@ const openConvertToFormalDialog = async (row: StudentResponse) => {
       getBookingList({ student_id: row.id, booking_status: 'completed' }),
       getContractTeacherOptions()
     ]);
-    bookingOptions.value = (bookRes.data as any)?.data || [];
-    teacherOptions.value = (teacherRes.data as any) || [];
+    bookingOptions.value = assertApiSuccess(bookRes).data || [];
+    teacherOptions.value = assertApiSuccess(teacherRes).data || [];
   } catch (err) {
     console.error(err);
   }
@@ -505,7 +514,7 @@ const loadBasicInfo = async () => {
   if (!currentStudent.value?.id) return;
   basicLoading.value = true;
   try {
-    const res: any = await getStudentView(currentStudent.value.id);
+    const res = assertApiSuccess(await getStudentView(currentStudent.value.id), '載入基本資料失敗');
     studentView.value = res.data;
     Object.assign(form, {
       name: studentView.value?.student?.name,
@@ -517,7 +526,7 @@ const loadBasicInfo = async () => {
     });
   } catch (err) {
     console.error(err);
-    ElMessage.error('載入基本資料失敗');
+    ElMessage.error(getApiErrorMessage(err, '載入基本資料失敗'));
   } finally {
     basicLoading.value = false;
   }
@@ -527,7 +536,7 @@ const loadContract = async () => {
   if (!currentStudent.value?.id) return;
   contractLoading.value = true;
   try {
-    const res: any = await getStudentContracts({ student_id: currentStudent.value.id });
+    const res = assertApiSuccess(await getStudentContracts({ student_id: currentStudent.value.id }), '載入合約失敗');
     const fetchedContracts = res.data || [];
     if (fetchedContracts.length > 0) {
       contracts.value = fetchedContracts;
@@ -537,7 +546,7 @@ const loadContract = async () => {
     }
   } catch (err) {
     console.error(err);
-    ElMessage.error('載入合約失敗');
+    ElMessage.error(getApiErrorMessage(err, '載入合約失敗'));
   } finally {
     contractLoading.value = false;
   }
@@ -547,7 +556,7 @@ const loadBookingList = async () => {
   if (!currentStudent.value?.id) return;
   bookingLoading.value = true;
   try {
-    const res: any = await getBookingList({ student_id: currentStudent.value.id });
+    const res = assertApiSuccess(await getBookingList({ student_id: currentStudent.value.id }), '載入預約失敗');
     const bookings = res.data || [];
     if (bookings.length > 0) {
       booking.value = bookings[0];
@@ -557,7 +566,7 @@ const loadBookingList = async () => {
     }
   } catch (err) {
     console.error(err);
-    ElMessage.error('載入預約失敗');
+    ElMessage.error(getApiErrorMessage(err, '載入預約失敗'));
   } finally {
     bookingLoading.value = false;
   }
@@ -569,11 +578,11 @@ const fetchContractDependencies = async (contractId: string) => {
          getContractDetails(contractId),
          getContractLeaveRecords(contractId)
      ]);
-     contractDetails.value = (detailsRes.data as any) || [];
-     leaveRecords.value = (leavesRes.data as any) || [];
+     contractDetails.value = assertApiSuccess(detailsRes).data || [];
+     leaveRecords.value = assertApiSuccess(leavesRes).data || [];
   } catch(err) {
      console.error("載入合約失敗", err);
-     ElMessage.error('載入合約失敗');
+     ElMessage.error(getApiErrorMessage(err, '載入合約失敗'));
   }
 };
 
@@ -593,13 +602,13 @@ const saveContractData = async (data: StudentContractUpdate) => {
      };
      const contractId = contracts.value[0]?.id;
      if (!contractId) throw new Error('Contract ID string is undefined');
-     await updateStudentContract(contractId, payload);
-     ElMessage.success('更新合約成功');
+     const res = assertApiSuccess(await updateStudentContract(contractId, payload), '更新合約失敗');
+     ElMessage.success(res.message || '更新合約成功');
      
      // Refresh exactly the loaded tab state to see updated leave limits, etc
      await loadContent('contracts');
    } catch(err) {
-     ElMessage.error('更新合約失敗');
+     ElMessage.error(getApiErrorMessage(err, '更新合約失敗'));
    } finally {
      savingContract.value = false;
    }

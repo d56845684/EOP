@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse } from './response';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,8 @@ export interface StudentCourseResponse {
 
 export interface StudentCourseListResponse {
   success: boolean;
+  message?: string;
+  error_code?: string | null;
   data: StudentCourseResponse[];
   total: number;
   page: number;
@@ -42,17 +45,22 @@ export const getStudentCourses = (student_id: string) => {
   });
 };
 
+/** 取得某學生的已選課程（供合約明細 course 下拉用） */
+export const getStudentCoursesByStudentId = (student_id: string) => {
+  return request.get<any, StudentCourseListResponse>(`/v1/student-courses/by-student/${student_id}`);
+};
+
 /** 刪除已選課程 */
 export const deleteStudentCourse = (enrollment_id: string) => {
-  return request.delete<any, any>(`/v1/student-courses/${enrollment_id}`);
+  return request.delete<any, BaseResponse>(`/v1/student-courses/${enrollment_id}`);
 };
 
 /** 取得可選課程清單 (下拉選單用) */
 export const getCourseOptions = () => {
-  return request.get<any, { data: CourseOption[] }>('/v1/student-courses/options/courses');
+  return request.get<any, DataResponse<CourseOption[]>>('/v1/student-courses/options/courses');
 };
 
 /** 新增學生選課 */
 export const createStudentCourse = (data: StudentCourseCreate) => {
-  return request.post<any, any>('/v1/student-courses', data);
+  return request.post<any, DataResponse<StudentCourseResponse>>('/v1/student-courses', data);
 };

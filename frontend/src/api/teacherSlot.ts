@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse, ListResponse } from './response';
 
 export interface TeacherSlotParams {
     page?: number;
@@ -27,18 +28,33 @@ export interface TeacherSlotBatchCreate {
     end_time: string; // HH:mm:ss
 }
 
+export interface TeacherSlotResponse {
+    id: string;
+    teacher_id: string;
+    teacher_contract_id?: string | null;
+    slot_date: string;
+    start_time: string;
+    end_time: string;
+    is_available: boolean;
+    is_booked: boolean;
+    notes?: string | null;
+    teacher_name?: string | null;
+    teacher_no?: string | null;
+    teacher_contract_no?: string | null;
+}
+
 export function getTeacherSlots(params: TeacherSlotParams) {
-    return request.get('/v1/teacher-slots', { params });
+    return request.get<any, ListResponse<TeacherSlotResponse>>('/v1/teacher-slots', { params });
 }
 
 export function createTeacherSlot(data: TeacherSlotCreate) {
-    return request.post('/v1/teacher-slots', data);
+    return request.post<any, DataResponse<TeacherSlotResponse>>('/v1/teacher-slots', data);
 }
 
 export function batchCreateTeacherSlots(data: TeacherSlotBatchCreate) {
-    return request.post('/v1/teacher-slots/batch', data);
+    return request.post<any, BaseResponse>('/v1/teacher-slots/batch', data);
 }
 
 export function deleteTeacherSlot(slotId: string) {
-    return request.delete(`/v1/teacher-slots/${slotId}`);
+    return request.delete<any, BaseResponse>(`/v1/teacher-slots/${slotId}`);
 }

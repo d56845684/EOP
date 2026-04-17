@@ -10,6 +10,16 @@ const router = createRouter({
             component: () => import('../views/auth/LoginView.vue'),
         },
         {
+            path: '/auth/success',
+            name: 'AuthSuccess',
+            component: () => import('../views/auth/AuthSuccess.vue'),
+        },
+        {
+            path: '/auth/error',
+            name: 'AuthError',
+            component: () => import('../views/auth/AuthError.vue'),
+        },
+        {
             path: '/',
             name: 'Layout',
             component: () => import('../layouts/MainLayout.vue'),

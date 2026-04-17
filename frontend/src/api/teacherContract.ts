@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { BaseResponse, DataResponse } from './response';
 
 // Base Interfaces
 export type EmploymentType = 'hourly' | 'full_time';
@@ -57,6 +58,8 @@ export interface TeacherContractResponse {
 
 export interface TeacherContractListResponse {
   success: boolean;
+  message?: string;
+  error_code?: string | null;
   data: TeacherContractResponse[];
   total: number;
 }
@@ -82,6 +85,8 @@ export interface TeacherWorkScheduleBatchSet {
 
 export interface TeacherWorkScheduleListResponse {
   success: boolean;
+  message?: string;
+  error_code?: string | null;
   data: TeacherWorkScheduleResponse[];
   total: number;
 }
@@ -110,6 +115,8 @@ export interface TeacherContractDetailResponse {
 
 export interface TeacherContractDetailListResponse {
   success: boolean;
+  message?: string;
+  error_code?: string | null;
   data: TeacherContractDetailResponse[];
   total: number;
 }
@@ -122,10 +129,16 @@ export interface CourseOption {
   course_name?: string;
 }
 export interface OptionsResponse {
+  success?: boolean;
+  message?: string;
+  error_code?: string | null;
   data: CourseOption[];
 }
 
 export interface ConfirmUploadResponse {
+  success?: boolean;
+  message?: string;
+  error_code?: string | null;
   upload_url: string;
   storage_path: string;
   content_type: string;
@@ -136,6 +149,7 @@ export interface ResData<T> {
   data: T;
   message: string;
   success: boolean;
+  error_code?: string | null;
 }
 
 // API Methods
@@ -170,6 +184,8 @@ export interface TeacherContractAddendumResponse {
 
 export interface TeacherContractAddendumListResponse {
   success: boolean;
+  message?: string;
+  error_code?: string | null;
   data: TeacherContractAddendumResponse[];
 }
 
@@ -179,11 +195,11 @@ export function getTeacherContracts(teacherId: string) {
 }
 
 export function createTeacherContract(data: TeacherContractCreate) {
-  return request.post<any, any>('/v1/teacher-contracts', data); // wrapped in base response usually
+  return request.post<any, DataResponse<TeacherContractResponse>>('/v1/teacher-contracts', data);
 }
 
 export function updateTeacherContract(contractId: string, data: TeacherContractUpdate) {
-  return request.put<any, any>(`/v1/teacher-contracts/${contractId}`, data);
+  return request.put<any, DataResponse<TeacherContractResponse>>(`/v1/teacher-contracts/${contractId}`, data);
 }
 
 // Work Schedules
@@ -192,7 +208,7 @@ export function getTeacherWorkSchedules(contractId: string) {
 }
 
 export function batchSetTeacherWorkSchedules(contractId: string, data: TeacherWorkScheduleBatchSet) {
-  return request.put<any, any>(`/v1/teacher-contracts/${contractId}/work-schedules`, data);
+  return request.put<any, BaseResponse>(`/v1/teacher-contracts/${contractId}/work-schedules`, data);
 }
 
 // Contract Details
@@ -201,11 +217,11 @@ export function getTeacherContractDetails(contractId: string) {
 }
 
 export function createTeacherContractDetail(contractId: string, data: TeacherContractDetailCreate) {
-  return request.post<any, any>(`/v1/teacher-contracts/${contractId}/details`, data);
+  return request.post<any, DataResponse<TeacherContractDetailResponse>>(`/v1/teacher-contracts/${contractId}/details`, data);
 }
 
 export function deleteTeacherContractDetail(contractId: string, detailId: string) {
-  return request.delete<any, any>(`/v1/teacher-contracts/${contractId}/details/${detailId}`);
+  return request.delete<any, BaseResponse>(`/v1/teacher-contracts/${contractId}/details/${detailId}`);
 }
 
 // Generate PDF (returns binary blob)
@@ -227,7 +243,7 @@ export function updateTeacherContractAddendum(contractId: string, addendumId: st
 }
 
 export function deleteTeacherContractAddendum(contractId: string, addendumId: string) {
-  return request.delete<any, any>(`/v1/teacher-contracts/${contractId}/addendums/${addendumId}`);
+  return request.delete<any, BaseResponse>(`/v1/teacher-contracts/${contractId}/addendums/${addendumId}`);
 }
 
 export function uploadTeacherContract(contractId: string) {
