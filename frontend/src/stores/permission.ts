@@ -45,6 +45,7 @@ export const usePermissionStore = defineStore('permission', () => {
       pageKeys.value = [];
       const authStore = useAuthStore();
       authStore.clearLocalState();
+      throw error;
     }
 
     let accessedRoutes: RouteRecordRaw[] = [];
@@ -99,4 +100,3 @@ export const usePermissionStore = defineStore('permission', () => {
 
   return { routes, addRoutes, isRoutesGenerated, generateRoutes, generateRoutesUnfiltered, resetState, setDynamicRouteRemovers, menuModules: SYSTEM_MODULES, pageKeys, hasPermission };
 });
-

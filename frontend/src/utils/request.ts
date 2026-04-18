@@ -2,10 +2,44 @@ import axios from 'axios';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { refreshToken } from '@/api/auth';
+import { getAccessToken, setAuthTokens } from '@/utils/auth-token';
+
+const AUTH_SESSION_EXPIRED = 'AUTH_SESSION_EXPIRED';
+
+const getApiBaseURL = () => {
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
+
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && baseURL.startsWith('http://')) {
+    const apiURL = new URL(baseURL);
+    if (apiURL.hostname === window.location.hostname) {
+      apiURL.protocol = 'https:';
+      return apiURL.toString();
+    }
+  }
+
+  return baseURL;
+};
+
+let isHandlingSessionExpired = false;
+
+const redirectToLoginForExpiredSession = (message = '登入狀態已過期，請重新登入') => {
+  if (isHandlingSessionExpired) return;
+
+  isHandlingSessionExpired = true;
+  ElMessage.closeAll();
+  ElMessage.error(message);
+
+  const authStore = useAuthStore();
+  authStore.clearLocalState();
+
+  window.setTimeout(() => {
+    isHandlingSessionExpired = false;
+  }, 1000);
+};
 
 // 1. Axios Instance Setup
 const service = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: getApiBaseURL(),
   timeout: 10000, // 10s
   withCredentials: true, // Mandatory for cross-origin cookie transmission
 });
@@ -28,8 +62,10 @@ const processQueue = (error: any) => {
 // 2. Request Interceptor
 service.interceptors.request.use(
   (config) => {
-    // Bearer Token logic removed. 
-    // We rely entirely on the browser's cookie management with withCredentials: true.
+    const accessToken = getAccessToken();
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
+    }
     return config;
   },
   (error) => {
@@ -57,8 +93,17 @@ service.interceptors.response.use(
       // 將 Blob 轉回 JSON 文字，這樣才能顯示正確的錯誤訊息
       const text = await response.data.text();
       const errorData = JSON.parse(text);
+      if (errorData.error_code === AUTH_SESSION_EXPIRED) {
+        redirectToLoginForExpiredSession(errorData.message);
+        return Promise.reject(errorData);
+      }
       ElMessage.error(errorData.message || '操作失敗');
       return Promise.reject(errorData);
+    }
+
+    if (response?.data?.error_code === AUTH_SESSION_EXPIRED) {
+      redirectToLoginForExpiredSession(response.data.message);
+      return Promise.reject(response.data);
     }
 
     if (response?.status === 401 && !originalRequest._retry) {
@@ -86,7 +131,8 @@ service.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        await refreshToken();
+        const refreshResponse = await refreshToken();
+        setAuthTokens(refreshResponse.tokens || refreshResponse.data);
         processQueue(null); // Resolve queued requests
         return service(originalRequest); // Retry the original request
       } catch (refreshError) {
