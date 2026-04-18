@@ -54,5 +54,20 @@ class StudentTeacherPreferenceResponse(BaseModel):
     course_name: Optional[str] = None
     primary_teacher_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "student_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "course_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                "min_teacher_level": 3,
+                "primary_teacher_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+                "created_at": "2026-03-15T10:00:00",
+                "updated_at": "2026-03-15T10:00:00",
+                "student_name": "王小明",
+                "course_name": "英語初級會話",
+                "primary_teacher_name": "陳老師",
+            }]
+        }
+    }

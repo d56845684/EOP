@@ -5,7 +5,7 @@ from app.schemas.student_course import (
     StudentCourseCreate, StudentCourseResponse, StudentCourseListResponse
 )
 from app.schemas.response import BaseResponse, DataResponse
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 import math
 
@@ -162,7 +162,7 @@ async def list_student_courses(
         raise HTTPException(status_code=500, detail=f"取得學生選課列表失敗: {str(e)}")
 
 
-@router.get("/by-student/{student_id}")
+@router.get("/by-student/{student_id}", response_model=DataResponse[List[StudentCourseResponse]])
 async def get_courses_by_student(
     student_id: str,
     current_user: CurrentUser = Depends(require_page_permission("students.courses"))

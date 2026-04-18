@@ -77,8 +77,23 @@ class StudentContractDetailResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "student_contract_id": "660e8400-e29b-41d4-a716-446655440000",
+                "detail_type": "lesson_price",
+                "course_id": "770e8400-e29b-41d4-a716-446655440000",
+                "course_name": "英語日常會話",
+                "description": "英語會話課程單價",
+                "amount": 1500.0,
+                "notes": None,
+                "created_at": "2026-03-01T10:00:00",
+                "updated_at": "2026-03-01T10:00:00",
+            }]
+        }
+    }
 
 
 # ========== Leave Record Schemas ==========
@@ -106,8 +121,18 @@ class StudentContractLeaveRecordResponse(BaseModel):
     reason: Optional[str] = None
     created_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "student_contract_id": "660e8400-e29b-41d4-a716-446655440000",
+                "leave_date": "2026-04-20",
+                "reason": "家庭旅遊",
+                "created_at": "2026-04-15T14:00:00",
+            }]
+        }
+    }
 
 
 # ========== Contract Schemas ==========
@@ -201,8 +226,56 @@ class StudentContractResponse(BaseModel):
     # 附約
     addendums: list[dict] = []
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "contract_no": "SC-2026-001",
+                "student_id": "660e8400-e29b-41d4-a716-446655440000",
+                "contract_status": "active",
+                "start_date": "2026-03-01",
+                "end_date": "2026-08-31",
+                "total_lessons": 48,
+                "remaining_lessons": 40,
+                "total_amount": 72000.0,
+                "total_leave_allowed": 10,
+                "used_leave_count": 1,
+                "used_emergency_leave_count": 0,
+                "emergency_leave_quota": 10,
+                "is_recurring": True,
+                "notes": None,
+                "created_at": "2026-03-01T10:00:00",
+                "updated_at": "2026-03-15T14:00:00",
+                "contract_file_path": None,
+                "contract_file_name": None,
+                "contract_file_uploaded_at": None,
+                "student_name": "王小明",
+                "student_phone": "0912345678",
+                "student_id_number": None,
+                "details": [{
+                    "id": "770e8400-e29b-41d4-a716-446655440000",
+                    "student_contract_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "detail_type": "lesson_price",
+                    "course_id": "880e8400-e29b-41d4-a716-446655440000",
+                    "course_name": "英語日常會話",
+                    "description": "英語會話課程單價",
+                    "amount": 1500.0,
+                    "notes": None,
+                    "created_at": "2026-03-01T10:00:00",
+                    "updated_at": "2026-03-01T10:00:00",
+                }],
+                "leave_records": [{
+                    "id": "990e8400-e29b-41d4-a716-446655440000",
+                    "student_contract_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "leave_date": "2026-04-20",
+                    "reason": "家庭旅遊",
+                    "created_at": "2026-04-15T14:00:00",
+                }],
+                "addendums": [],
+            }]
+        }
+    }
 
 
 class StudentContractListResponse(BaseModel):

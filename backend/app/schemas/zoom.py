@@ -71,8 +71,26 @@ class ZoomAccountResponse(BaseModel):
     created_by: Optional[str] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "account_name": "EOP 教學帳號 A",
+                "zoom_account_id": "AbC1dEf2GhI3jKl4",
+                "zoom_client_id": "xYz5AbC6dEf7GhI8",
+                "zoom_user_email": "zoom-a@eop-education.com",
+                "account_tier": "pro",
+                "is_active": True,
+                "daily_meeting_count": 5,
+                "daily_count_reset_at": "2026-04-14",
+                "notes": "主要教學用帳號",
+                "created_at": "2026-01-15T09:00:00",
+                "created_by": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "updated_at": "2026-04-14T08:00:00",
+            }]
+        }
+    }
 
 
 class ZoomAccountListResponse(BaseModel):
@@ -121,8 +139,40 @@ class ZoomMeetingLogResponse(BaseModel):
     account_name: Optional[str] = None
     teacher_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "booking_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "zoom_account_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                "teacher_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+                "zoom_meeting_id": "98765432100",
+                "zoom_meeting_uuid": "AbCdEfGhIjKlMnOp==",
+                "join_url": "https://zoom.us/j/98765432100?pwd=abc123",
+                "start_url": "https://zoom.us/s/98765432100?zak=xyz789",
+                "passcode": "123456",
+                "meeting_date": "2026-04-15",
+                "start_time": "14:00:00",
+                "end_time": "15:00:00",
+                "meeting_status": "completed",
+                "recording_url": "https://zoom.us/rec/share/abc123",
+                "recording_download_url": "https://zoom.us/rec/download/abc123",
+                "recording_file_type": "MP4",
+                "recording_file_size_bytes": 524288000,
+                "recording_duration_seconds": 3600,
+                "recording_completed_at": "2026-04-15T15:05:00",
+                "recording_transfer_status": "completed",
+                "drive_file_id": "1AbCdEfGhIjKlMnOpQrStUvWxYz",
+                "drive_view_link": "https://drive.google.com/file/d/1AbCdEfGh/view",
+                "transferred_at": "2026-04-15T15:10:00",
+                "created_at": "2026-04-15T13:55:00",
+                "updated_at": "2026-04-15T15:10:00",
+                "account_name": "EOP 教學帳號 A",
+                "teacher_name": "陳老師",
+            }]
+        }
+    }
 
 
 class ZoomMeetingLogListResponse(BaseModel):
@@ -169,6 +219,20 @@ class DownloadTokenResponse(BaseModel):
     drive_folder_id: Optional[str] = None           # DB 設定的預設資料夾
     student_drive_folder_id: Optional[str] = None   # 學生專屬資料夾（正式學生）
     student_type: Optional[str] = None              # trial / formal（決定放哪個資料夾）
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "download_url": "https://zoom.us/rec/download/abc123def456",
+                "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJ...",
+                "meeting_topic": "[BK20260415001] 英語初級會話 王小明 / 陳老師 2026-04-15 14:00",
+                "drive_mode": "sa",
+                "drive_folder_id": "1AbCdEfGhIjKlMnOpQrStUv",
+                "student_drive_folder_id": "1WxYzAbCdEfGhIjKlMnOpQ",
+                "student_type": "formal",
+            }]
+        }
+    }
 
 
 # ============================================

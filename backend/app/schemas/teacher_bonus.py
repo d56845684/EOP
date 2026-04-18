@@ -86,8 +86,27 @@ class TeacherBonusResponse(BaseModel):
     teacher_name: Optional[str] = None
     student_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "teacher_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "bonus_type": "trial_to_formal",
+                "amount": 500.0,
+                "bonus_date": "2026-04-10",
+                "description": "學生王小明試上轉正獎金",
+                "related_student_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                "related_booking_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+                "notes": "已確認轉正",
+                "created_at": "2026-04-10T09:00:00",
+                "created_by": "e5f6a7b8-c9d0-1234-efab-345678901234",
+                "updated_at": "2026-04-10T09:00:00",
+                "teacher_name": "陳老師",
+                "student_name": "王小明",
+            }]
+        }
+    }
 
 
 class TeacherBonusListResponse(BaseModel):

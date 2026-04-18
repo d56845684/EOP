@@ -74,8 +74,29 @@ class StudentResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "student_no": "EOPS001",
+                "name": "王小明",
+                "eng_name": "Ming",
+                "email": "xiaoming.wang@example.com",
+                "phone": "0912345678",
+                "address": "台北市大安區忠孝東路100號",
+                "birth_date": "2015-03-15",
+                "id_number": None,
+                "student_type": "formal",
+                "student_status": "formal",
+                "is_active": True,
+                "google_drive_folder_id": None,
+                "email_verified_at": "2026-03-01T09:00:00",
+                "created_at": "2026-03-01T09:00:00",
+                "updated_at": "2026-03-01T09:00:00",
+            }]
+        }
+    }
 
 
 class StudentListResponse(BaseModel):
@@ -127,8 +148,23 @@ class ConvertToFormalContractInfo(BaseModel):
     notes: Optional[str] = None
     created_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "660e8400-e29b-41d4-a716-446655440000",
+                "contract_no": "SC-2026-001",
+                "student_id": "550e8400-e29b-41d4-a716-446655440000",
+                "contract_status": "active",
+                "start_date": "2026-02-01",
+                "end_date": "2026-07-31",
+                "total_lessons": 24,
+                "remaining_lessons": 24,
+                "notes": None,
+                "created_at": "2026-02-01T10:00:00",
+            }]
+        }
+    }
 
 
 class ConvertToFormalResponse(BaseModel):
@@ -139,3 +175,38 @@ class ConvertToFormalResponse(BaseModel):
     contract: ConvertToFormalContractInfo
     bonus_recorded: bool = False
     bonus_amount: Optional[float] = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "success": True,
+                "message": "轉正成功",
+                "student": {
+                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "student_no": "EOPS001",
+                    "name": "王小明",
+                    "eng_name": "Ming",
+                    "email": "xiaoming.wang@example.com",
+                    "phone": "0912345678",
+                    "student_type": "formal",
+                    "student_status": "formal",
+                    "is_active": True,
+                    "created_at": "2026-03-01T09:00:00",
+                    "updated_at": "2026-03-01T09:00:00",
+                },
+                "contract": {
+                    "id": "660e8400-e29b-41d4-a716-446655440000",
+                    "contract_no": "SC-2026-001",
+                    "student_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "contract_status": "active",
+                    "start_date": "2026-02-01",
+                    "end_date": "2026-07-31",
+                    "total_lessons": 24,
+                    "remaining_lessons": 24,
+                    "created_at": "2026-02-01T10:00:00",
+                },
+                "bonus_recorded": True,
+                "bonus_amount": 500.0,
+            }]
+        }
+    }

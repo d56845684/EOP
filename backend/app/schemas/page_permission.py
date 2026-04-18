@@ -101,8 +101,22 @@ class PageResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "key": "booking_management",
+                "name": "預約管理",
+                "description": "學生預約課程管理頁面",
+                "parent_key": "dashboard",
+                "sort_order": 3,
+                "is_active": True,
+                "created_at": "2026-01-01T00:00:00",
+                "updated_at": "2026-03-15T10:00:00",
+            }]
+        }
+    }
 
 
 class PageListResponse(BaseModel):
@@ -122,6 +136,26 @@ class RolePagesResponse(BaseModel):
     success: bool = True
     role_id: str
     pages: List[PageResponse] = []
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "success": True,
+                "role_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "pages": [{
+                    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                    "key": "booking_management",
+                    "name": "預約管理",
+                    "description": "學生預約課程管理頁面",
+                    "parent_key": "dashboard",
+                    "sort_order": 3,
+                    "is_active": True,
+                    "created_at": "2026-01-01T00:00:00",
+                    "updated_at": "2026-03-15T10:00:00",
+                }],
+            }]
+        }
+    }
 
 
 class RolePagesBatchSet(BaseModel):
@@ -153,12 +187,42 @@ class UserPageOverrideItem(BaseModel):
     access_type: str
     created_at: Optional[datetime] = None
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "page_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "page_key": "booking_management",
+                "page_name": "預約管理",
+                "access_type": "grant",
+                "created_at": "2026-03-15T10:00:00",
+            }]
+        }
+    }
+
 
 class UserPageOverridesResponse(BaseModel):
     """用戶覆寫回應"""
     success: bool = True
     user_id: str
     overrides: List[UserPageOverrideItem] = []
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "success": True,
+                "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "overrides": [{
+                    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                    "page_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                    "page_key": "booking_management",
+                    "page_name": "預約管理",
+                    "access_type": "grant",
+                    "created_at": "2026-03-15T10:00:00",
+                }],
+            }]
+        }
+    }
 
 
 class UserPageOverrideEntry(BaseModel):
@@ -194,6 +258,19 @@ class RoleInfo(BaseModel):
     is_system: bool = False
     page_count: int = 0
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "key": "senior_teacher",
+                "name": "資深教師",
+                "description": "具備進階排課與學生管理權限的教師角色",
+                "is_system": False,
+                "page_count": 8,
+            }]
+        }
+    }
+
 
 class RoleListResponse(BaseModel):
     """角色列表回應"""
@@ -209,3 +286,24 @@ class MyPermissionsResponse(BaseModel):
     role: str
     page_keys: List[str] = []
     pages: List[PageResponse] = []
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "success": True,
+                "role": "employee",
+                "page_keys": ["dashboard", "booking_management", "student_management", "teacher_management"],
+                "pages": [{
+                    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "key": "dashboard",
+                    "name": "儀表板",
+                    "description": "系統總覽",
+                    "parent_key": None,
+                    "sort_order": 1,
+                    "is_active": True,
+                    "created_at": "2026-01-01T00:00:00",
+                    "updated_at": "2026-01-01T00:00:00",
+                }],
+            }]
+        }
+    }

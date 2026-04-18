@@ -77,6 +77,25 @@ class UserInfo(BaseModel):
     student_id: Optional[str] = Field(None, description="學生 ID")
     employee_id: Optional[str] = Field(None, description="員工 ID")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "email": "employee@eop-education.com",
+                "role": "employee",
+                "role_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "email_confirmed": True,
+                "created_at": "2026-01-10T08:00:00",
+                "employee_type": "full_time",
+                "permission_level": 5,
+                "must_change_password": False,
+                "teacher_id": None,
+                "student_id": None,
+                "employee_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+            }]
+        }
+    }
+
 class LoginResponse(BaseModel):
     success: bool = True
     message: str = "登入成功"

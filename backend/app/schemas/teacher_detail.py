@@ -61,8 +61,23 @@ class TeacherDetailResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "teacher_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "detail_type": "certificate",
+                "content": "TESOL 國際英語教學證照",
+                "issue_date": "2024-06-15",
+                "expiry_date": "2027-06-15",
+                "file_path": "teachers/b2c3d4e5/certificates/tesol.pdf",
+                "file_name": "tesol.pdf",
+                "created_at": "2026-03-15T10:00:00",
+                "updated_at": "2026-03-15T10:00:00",
+            }]
+        }
+    }
 
 
 class TeacherDetailListResponse(BaseModel):

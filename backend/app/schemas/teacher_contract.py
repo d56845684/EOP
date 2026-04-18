@@ -59,8 +59,21 @@ class TeacherWorkScheduleResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "teacher_contract_id": "660e8400-e29b-41d4-a716-446655440000",
+                "weekday": 1,
+                "start_time": "09:00:00",
+                "end_time": "12:00:00",
+                "notes": "週二上午時段",
+                "created_at": "2026-03-01T10:00:00",
+                "updated_at": "2026-03-01T10:00:00",
+            }]
+        }
+    }
 
 
 class ContractStatus(str, Enum):
@@ -142,8 +155,23 @@ class TeacherContractDetailResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "teacher_contract_id": "660e8400-e29b-41d4-a716-446655440000",
+                "detail_type": "course_rate",
+                "course_id": "770e8400-e29b-41d4-a716-446655440000",
+                "course_name": "英語日常會話",
+                "description": "英語會話課時薪",
+                "amount": 800.0,
+                "notes": None,
+                "created_at": "2026-03-01T10:00:00",
+                "updated_at": "2026-03-01T10:00:00",
+            }]
+        }
+    }
 
 
 # ========== Contract Schemas ==========
@@ -235,8 +263,55 @@ class TeacherContractResponse(BaseModel):
     # 附約
     addendums: list[dict] = []
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "contract_no": "TC-2026-001",
+                "teacher_id": "660e8400-e29b-41d4-a716-446655440000",
+                "contract_status": "active",
+                "start_date": "2026-03-01",
+                "end_date": "2026-08-31",
+                "employment_type": "hourly",
+                "trial_completed_bonus": 200.0,
+                "trial_to_formal_bonus": 500.0,
+                "work_start_time": None,
+                "work_end_time": None,
+                "notes": None,
+                "created_at": "2026-03-01T10:00:00",
+                "updated_at": "2026-03-01T10:00:00",
+                "contract_file_path": None,
+                "contract_file_name": None,
+                "contract_file_uploaded_at": None,
+                "teacher_name": "陳美玲",
+                "details": [{
+                    "id": "770e8400-e29b-41d4-a716-446655440000",
+                    "teacher_contract_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "detail_type": "course_rate",
+                    "course_id": "880e8400-e29b-41d4-a716-446655440000",
+                    "course_name": "英語日常會話",
+                    "description": "英語會話課時薪",
+                    "amount": 800.0,
+                    "notes": None,
+                    "created_at": "2026-03-01T10:00:00",
+                    "updated_at": "2026-03-01T10:00:00",
+                }],
+                "total_amount": 800.0,
+                "work_schedules": [{
+                    "id": "990e8400-e29b-41d4-a716-446655440000",
+                    "teacher_contract_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "weekday": 1,
+                    "start_time": "09:00:00",
+                    "end_time": "12:00:00",
+                    "notes": "週二上午時段",
+                    "created_at": "2026-03-01T10:00:00",
+                    "updated_at": "2026-03-01T10:00:00",
+                }],
+                "addendums": [],
+            }]
+        }
+    }
 
 
 class TeacherContractListResponse(BaseModel):

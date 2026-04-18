@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # ── OAuth 端點 ──
 
-@router.get("/oauth/authorize")
+@router.get("/oauth/authorize", response_model=DataResponse)
 async def get_oauth_authorize_url(
     current_user: CurrentUser = Depends(require_staff),
 ):
@@ -101,7 +101,7 @@ async def oauth_callback(
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/zoom-accounts?google_drive=error")
 
 
-@router.get("/oauth/status")
+@router.get("/oauth/status", response_model=DataResponse)
 async def get_drive_status(
     current_user: CurrentUser = Depends(get_current_user),
 ):

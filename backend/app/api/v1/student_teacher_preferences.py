@@ -6,7 +6,7 @@ from app.schemas.student_teacher_preference import (
     StudentTeacherPreferenceCreate,
     StudentTeacherPreferenceUpdate, StudentTeacherPreferenceResponse
 )
-from app.schemas.response import BaseResponse, DataResponse
+from app.schemas.response import BaseResponse, DataResponse, TeacherOption, CourseOption
 from typing import Optional, List
 
 router = APIRouter(prefix="/student-teacher-preferences", tags=["學生教師偏好"])
@@ -47,7 +47,7 @@ async def enrich_preference(pref: dict) -> dict:
     return pref
 
 
-@router.get("/options/teachers", tags=["學生教師偏好"])
+@router.get("/options/teachers", tags=["學生教師偏好"], response_model=DataResponse[List[TeacherOption]])
 async def get_teacher_options(
     current_user: CurrentUser = Depends(require_page_permission("students.edit"))
 ):
@@ -63,7 +63,7 @@ async def get_teacher_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/courses", tags=["學生教師偏好"])
+@router.get("/options/courses", tags=["學生教師偏好"], response_model=DataResponse[List[CourseOption]])
 async def get_course_options(
     student_id: str = Query(..., description="學生 ID"),
     current_user: CurrentUser = Depends(require_page_permission("students.edit"))
@@ -94,7 +94,7 @@ async def get_course_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/allowed-teachers", tags=["學生教師偏好"])
+@router.get("/allowed-teachers", tags=["學生教師偏好"], response_model=DataResponse[List[TeacherOption]])
 async def get_allowed_teachers(
     student_id: str = Query(..., description="學生 ID"),
     current_user: CurrentUser = Depends(require_page_permission("students.edit"))
@@ -119,7 +119,7 @@ async def get_allowed_teachers(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("", tags=["學生教師偏好"])
+@router.get("", tags=["學生教師偏好"], response_model=DataResponse[List[StudentTeacherPreferenceResponse]])
 async def list_preferences(
     student_id: str = Query(..., description="學生 ID"),
     current_user: CurrentUser = Depends(require_page_permission("students.edit"))
@@ -164,7 +164,7 @@ async def list_preferences(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("")
+@router.post("", response_model=DataResponse)
 async def create_preference(
     data: StudentTeacherPreferenceCreate,
     current_user: CurrentUser = Depends(require_page_permission("students.edit"))

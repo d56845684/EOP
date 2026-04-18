@@ -81,8 +81,26 @@ class TeacherResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "teacher_no": "EOPT001",
+                "name": "陳美玲",
+                "email": "meiling.chen@example.com",
+                "phone": "0933456789",
+                "address": "台北市信義區松仁路50號",
+                "bio": "英語教學經驗十年，擅長兒童美語與會話教學",
+                "avatar_url": None,
+                "teacher_level": 2,
+                "is_active": True,
+                "email_verified_at": "2026-02-15T08:30:00",
+                "created_at": "2026-02-15T08:30:00",
+                "updated_at": "2026-02-15T08:30:00",
+            }]
+        }
+    }
 
 
 class TeacherListResponse(BaseModel):

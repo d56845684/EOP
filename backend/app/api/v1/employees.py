@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser, require_page_permission, get_user_employee_id
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeListResponse
-from app.schemas.response import BaseResponse, DataResponse
-from typing import Optional
+from app.schemas.response import BaseResponse, DataResponse, RoleOption
+from typing import Optional, List
 from datetime import datetime
 import math
 import logging
@@ -42,7 +42,7 @@ async def enrich_employee(emp: dict) -> dict:
     return emp
 
 
-@router.get("/roles", tags=["員工管理"])
+@router.get("/roles", tags=["員工管理"], response_model=DataResponse[List[RoleOption]])
 async def list_roles_for_employees(
     current_user: CurrentUser = Depends(require_page_permission("employees.list"))
 ):

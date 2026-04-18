@@ -8,7 +8,7 @@ from app.schemas.teacher_detail import (
     TeacherDetailCreate, TeacherDetailUpdate,
     TeacherDetailResponse, TeacherDetailListResponse,
 )
-from app.schemas.response import BaseResponse, DataResponse
+from app.schemas.response import BaseResponse, DataResponse, UploadUrlResponse, DownloadUrlResponse
 from datetime import datetime
 import uuid
 
@@ -184,7 +184,7 @@ class ConfirmUploadRequest(BaseModel):
     file_name: str
 
 
-@router.post("/{detail_id}/upload-url")
+@router.post("/{detail_id}/upload-url", response_model=UploadUrlResponse)
 async def get_teacher_detail_upload_url(
     detail_id: str,
     body: UploadUrlRequest,
@@ -288,7 +288,7 @@ async def confirm_teacher_detail_upload(
         raise HTTPException(status_code=500, detail=f"確認上傳失敗: {str(e)}")
 
 
-@router.get("/{detail_id}/download-url")
+@router.get("/{detail_id}/download-url", response_model=DownloadUrlResponse)
 async def get_teacher_detail_download_url(
     detail_id: str,
     current_user: CurrentUser = Depends(require_page_permission("teachers.details"))

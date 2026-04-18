@@ -24,8 +24,8 @@ from app.schemas.contract_addendum import (
     ContractAddendumCreate, ContractAddendumUpdate,
     ContractAddendumResponse, ContractAddendumListResponse,
 )
-from app.schemas.response import BaseResponse, DataResponse
-from typing import Optional
+from app.schemas.response import BaseResponse, DataResponse, UploadUrlResponse, DownloadUrlResponse, StudentOption, CourseOption, TeacherOption
+from typing import Optional, List
 from datetime import datetime
 import math
 import uuid
@@ -160,7 +160,7 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
 
 # ========== Options ==========
 
-@router.get("/options/students", tags=["學生合約管理"])
+@router.get("/options/students", tags=["學生合約管理"], response_model=DataResponse[List[StudentOption]])
 async def get_student_options(
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
@@ -176,7 +176,7 @@ async def get_student_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/courses", tags=["學生合約管理"])
+@router.get("/options/courses", tags=["學生合約管理"], response_model=DataResponse[List[CourseOption]])
 async def get_course_options(
     student_id: Optional[str] = Query(None, description="若提供，只回傳該學生已選修的課程"),
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
@@ -225,7 +225,7 @@ async def get_course_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/teachers", tags=["學生合約管理"])
+@router.get("/options/teachers", tags=["學生合約管理"], response_model=DataResponse[List[TeacherOption]])
 async def get_teacher_options(
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
@@ -724,7 +724,7 @@ async def delete_student_contract(
 
 # ========== Contract Details CRUD ==========
 
-@router.get("/{contract_id}/details")
+@router.get("/{contract_id}/details", response_model=DataResponse[List[StudentContractDetailResponse]])
 async def list_contract_details(
     contract_id: str,
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
@@ -779,7 +779,7 @@ async def list_contract_details(
         raise HTTPException(status_code=500, detail=f"取得合約明細失敗: {str(e)}")
 
 
-@router.post("/{contract_id}/details")
+@router.post("/{contract_id}/details", response_model=DataResponse[StudentContractDetailResponse])
 async def create_contract_detail(
     contract_id: str,
     data: StudentContractDetailCreate,
@@ -877,7 +877,7 @@ async def create_contract_detail(
         raise HTTPException(status_code=500, detail=f"新增合約明細失敗: {str(e)}")
 
 
-@router.put("/{contract_id}/details/{detail_id}")
+@router.put("/{contract_id}/details/{detail_id}", response_model=DataResponse[StudentContractDetailResponse])
 async def update_contract_detail(
     contract_id: str,
     detail_id: str,
@@ -1024,7 +1024,7 @@ async def delete_contract_detail(
 
 # ========== Leave Records CRUD ==========
 
-@router.get("/{contract_id}/leave-records")
+@router.get("/{contract_id}/leave-records", response_model=DataResponse[List[StudentContractLeaveRecordResponse]])
 async def list_leave_records(
     contract_id: str,
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
@@ -1066,7 +1066,7 @@ async def list_leave_records(
         raise HTTPException(status_code=500, detail=f"取得請假紀錄失敗: {str(e)}")
 
 
-@router.post("/{contract_id}/leave-records")
+@router.post("/{contract_id}/leave-records", response_model=DataResponse[StudentContractLeaveRecordResponse])
 async def create_leave_record(
     contract_id: str,
     data: StudentContractLeaveRecordCreate,
@@ -1249,7 +1249,7 @@ class ConfirmUploadRequest(BaseModel):
     file_name: str
 
 
-@router.post("/{contract_id}/upload-url")
+@router.post("/{contract_id}/upload-url", response_model=UploadUrlResponse)
 async def get_student_contract_upload_url(
     contract_id: str,
     file_ext: str = Query("pdf", description="檔案格式 (pdf/docx/doc)"),
@@ -1370,7 +1370,7 @@ async def confirm_student_contract_upload(
         raise HTTPException(status_code=500, detail=f"確認上傳失敗: {str(e)}")
 
 
-@router.get("/{contract_id}/download-url")
+@router.get("/{contract_id}/download-url", response_model=DownloadUrlResponse)
 async def get_student_contract_download_url(
     contract_id: str,
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
@@ -1749,7 +1749,7 @@ class AddendumConfirmUploadRequest(BaseModel):
     file_name: str
 
 
-@router.post("/{contract_id}/addendums/{addendum_id}/upload-url")
+@router.post("/{contract_id}/addendums/{addendum_id}/upload-url", response_model=UploadUrlResponse)
 async def get_student_addendum_upload_url(
     contract_id: str,
     addendum_id: str,
@@ -1877,7 +1877,7 @@ async def confirm_student_addendum_upload(
         raise HTTPException(status_code=500, detail=f"確認上傳失敗: {str(e)}")
 
 
-@router.get("/{contract_id}/addendums/{addendum_id}/download-url")
+@router.get("/{contract_id}/addendums/{addendum_id}/download-url", response_model=DownloadUrlResponse)
 async def get_student_addendum_download_url(
     contract_id: str,
     addendum_id: str,

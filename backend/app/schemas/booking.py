@@ -125,8 +125,46 @@ class BookingResponse(BaseModel):
     has_pending_leave: bool = False
     pending_leave_initiator_type: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "booking_no": "BK-20260415-001",
+                "student_id": "660e8400-e29b-41d4-a716-446655440000",
+                "teacher_id": "770e8400-e29b-41d4-a716-446655440000",
+                "course_id": "880e8400-e29b-41d4-a716-446655440000",
+                "student_contract_id": "990e8400-e29b-41d4-a716-446655440000",
+                "teacher_contract_id": "aa0e8400-e29b-41d4-a716-446655440000",
+                "teacher_slot_id": "bb0e8400-e29b-41d4-a716-446655440000",
+                "substitute_detail_id": None,
+                "teacher_hourly_rate": 800.0,
+                "teacher_rate_percentage": None,
+                "booking_status": "confirmed",
+                "booking_date": "2026-04-15",
+                "start_time": "14:00:00",
+                "end_time": "15:00:00",
+                "booking_type": "regular",
+                "is_trial_to_formal": False,
+                "is_overtime": False,
+                "regular_lessons": 2,
+                "overtime_lessons": 0,
+                "overtime_pay": 0.0,
+                "lessons_used": 1,
+                "notes": "學生表現良好",
+                "created_at": "2026-04-10T08:00:00",
+                "updated_at": "2026-04-10T08:00:00",
+                "student_name": "王小明",
+                "teacher_name": "陳美玲",
+                "course_name": "英語日常會話",
+                "student_contract_no": "SC-2026-001",
+                "teacher_contract_no": "TC-2026-001",
+                "substitute_teacher_name": None,
+                "has_pending_leave": False,
+                "pending_leave_initiator_type": None,
+            }]
+        }
+    }
 
 
 class BookingListResponse(BaseModel):
@@ -288,3 +326,22 @@ class SlotAvailabilityResponse(BaseModel):
     slot_start_time: time
     slot_end_time: time
     blocks: List[TimeBlock] = []
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "slot_id": "550e8400-e29b-41d4-a716-446655440000",
+                "slot_date": "2026-04-15",
+                "slot_start_time": "09:00:00",
+                "slot_end_time": "12:00:00",
+                "blocks": [
+                    {"start_time": "09:00:00", "end_time": "09:30:00", "is_available": True, "booking_id": None},
+                    {"start_time": "09:30:00", "end_time": "10:00:00", "is_available": False, "booking_id": "660e8400-e29b-41d4-a716-446655440000"},
+                    {"start_time": "10:00:00", "end_time": "10:30:00", "is_available": False, "booking_id": "660e8400-e29b-41d4-a716-446655440000"},
+                    {"start_time": "10:30:00", "end_time": "11:00:00", "is_available": True, "booking_id": None},
+                    {"start_time": "11:00:00", "end_time": "11:30:00", "is_available": True, "booking_id": None},
+                    {"start_time": "11:30:00", "end_time": "12:00:00", "is_available": True, "booking_id": None},
+                ],
+            }]
+        }
+    }

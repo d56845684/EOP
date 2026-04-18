@@ -6,7 +6,7 @@ from app.config import settings
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_teacher, require_page_permission, get_user_employee_id
 from app.schemas.teacher import TeacherCreate, TeacherUpdate, TeacherSelfUpdate, TeacherResponse, TeacherListResponse
 from app.schemas.teacher_view import TeacherViewResponse
-from app.schemas.response import BaseResponse, DataResponse
+from app.schemas.response import BaseResponse, DataResponse, PaginatedResponse, UploadUrlResponse
 from typing import Optional
 from datetime import datetime
 import logging
@@ -115,7 +115,7 @@ async def update_teacher_self(
 # （必須在 /{teacher_id} 之前註冊）
 # ============================================
 
-@router.get("/overview/list")
+@router.get("/overview/list", response_model=PaginatedResponse)
 async def list_teachers_overview(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
@@ -466,7 +466,7 @@ class AvatarConfirmRequest(BaseModel):
     file_name: str
 
 
-@router.post("/{teacher_id}/avatar/upload-url")
+@router.post("/{teacher_id}/avatar/upload-url", response_model=UploadUrlResponse)
 async def get_teacher_avatar_upload_url(
     teacher_id: str,
     body: AvatarUploadUrlRequest,

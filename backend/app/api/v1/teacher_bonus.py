@@ -5,8 +5,8 @@ from app.schemas.teacher_bonus import (
     TeacherBonusCreate, TeacherBonusUpdate,
     TeacherBonusResponse, TeacherBonusListResponse,
 )
-from app.schemas.response import BaseResponse, DataResponse
-from typing import Optional
+from app.schemas.response import BaseResponse, DataResponse, TeacherOption
+from typing import Optional, List
 from datetime import datetime, date
 import math
 
@@ -298,7 +298,7 @@ async def delete_teacher_bonus(
 
 # ========== Options ==========
 
-@router.get("/options/teachers")
+@router.get("/options/teachers", response_model=DataResponse[List[TeacherOption]])
 async def get_teacher_options(
     current_user: CurrentUser = Depends(require_page_permission("teachers.bonus"))
 ):

@@ -6,7 +6,7 @@ from app.schemas.student import (
     ConvertToFormalRequest, ConvertToFormalResponse, ConvertToFormalContractInfo,
 )
 from app.schemas.student_view import StudentViewResponse
-from app.schemas.response import BaseResponse, DataResponse
+from app.schemas.response import BaseResponse, DataResponse, PaginatedResponse
 from typing import Optional
 from datetime import datetime, date
 import math
@@ -371,7 +371,7 @@ async def convert_to_formal(
 # Student Overview — 學生總覽列表 API
 # ============================================
 
-@router.get("/overview/list")
+@router.get("/overview/list", response_model=PaginatedResponse)
 async def list_students_overview(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
