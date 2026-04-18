@@ -50,8 +50,21 @@ class CourseResponse(CourseBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "course_code": "ENG-CONV-01",
+                "course_name": "英語日常會話",
+                "description": "適合初學者的日常英語會話課程",
+                "duration_minutes": 60,
+                "is_active": True,
+                "created_at": "2026-03-15T10:00:00",
+                "updated_at": "2026-03-15T10:00:00",
+            }]
+        }
+    }
 
 
 class CourseListResponse(BaseModel):

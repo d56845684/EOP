@@ -22,8 +22,8 @@ from app.schemas.contract_addendum import (
     ContractAddendumCreate, ContractAddendumUpdate,
     ContractAddendumResponse, ContractAddendumListResponse,
 )
-from app.schemas.response import BaseResponse, DataResponse, UploadUrlResponse, DownloadUrlResponse
-from typing import Optional
+from app.schemas.response import BaseResponse, DataResponse, UploadUrlResponse, DownloadUrlResponse, TeacherOption, CourseOption
+from typing import Optional, List
 from datetime import datetime
 import math
 import uuid
@@ -151,7 +151,7 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
 CONTRACT_SELECT = "id,contract_no,teacher_id,contract_status,start_date,end_date,employment_type,trial_completed_bonus,trial_to_formal_bonus,work_start_time,work_end_time,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
 
 
-@router.get("/options/teachers", tags=["教師合約管理"], response_model=DataResponse)
+@router.get("/options/teachers", tags=["教師合約管理"], response_model=DataResponse[List[TeacherOption]])
 async def get_teacher_options(
     current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
@@ -167,7 +167,7 @@ async def get_teacher_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/courses", tags=["教師合約管理"], response_model=DataResponse)
+@router.get("/options/courses", tags=["教師合約管理"], response_model=DataResponse[List[CourseOption]])
 async def get_course_options(
     current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
 ):
@@ -646,7 +646,7 @@ async def delete_teacher_contract(
 
 # ========== Contract Details CRUD ==========
 
-@router.get("/{contract_id}/details", response_model=DataResponse)
+@router.get("/{contract_id}/details", response_model=DataResponse[List[TeacherContractDetailResponse]])
 async def list_contract_details(
     contract_id: str,
     current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
@@ -895,7 +895,7 @@ async def delete_contract_detail(
 
 # ========== Work Schedules CRUD ==========
 
-@router.get("/{contract_id}/work-schedules", response_model=DataResponse)
+@router.get("/{contract_id}/work-schedules", response_model=DataResponse[List[TeacherWorkScheduleResponse]])
 async def list_work_schedules(
     contract_id: str,
     current_user: CurrentUser = Depends(require_page_permission("teachers.contracts"))
@@ -934,7 +934,7 @@ async def list_work_schedules(
         raise HTTPException(status_code=500, detail=f"取得工作時段失敗: {str(e)}")
 
 
-@router.put("/{contract_id}/work-schedules", response_model=DataResponse)
+@router.put("/{contract_id}/work-schedules", response_model=DataResponse[List[TeacherWorkScheduleResponse]])
 async def set_work_schedules(
     contract_id: str,
     data: TeacherWorkScheduleBatchSet,

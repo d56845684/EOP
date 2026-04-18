@@ -207,8 +207,27 @@ class TeacherSlotResponse(BaseModel):
     teacher_no: Optional[str] = None
     teacher_contract_no: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "teacher_id": "660e8400-e29b-41d4-a716-446655440000",
+                "teacher_contract_id": "770e8400-e29b-41d4-a716-446655440000",
+                "slot_date": "2026-04-15",
+                "start_time": "09:00:00",
+                "end_time": "12:00:00",
+                "is_available": True,
+                "is_booked": False,
+                "notes": None,
+                "created_at": "2026-04-01T08:00:00",
+                "updated_at": "2026-04-01T08:00:00",
+                "teacher_name": "陳美玲",
+                "teacher_no": "EOPT001",
+                "teacher_contract_no": "TC-2026-001",
+            }]
+        }
+    }
 
 
 class TeacherSlotListResponse(BaseModel):

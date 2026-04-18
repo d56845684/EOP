@@ -72,8 +72,29 @@ class EmployeeResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "employee_no": "E001",
+                "employee_type": "full_time",
+                "name": "林雅婷",
+                "email": "yating.lin@example.com",
+                "phone": "0955123456",
+                "address": "台北市中山區南京東路200號",
+                "hire_date": "2026-01-15",
+                "termination_date": None,
+                "is_active": True,
+                "has_account": True,
+                "role_id": "770e8400-e29b-41d4-a716-446655440000",
+                "role_name": "管理員",
+                "email_verified_at": "2026-01-15T09:00:00",
+                "created_at": "2026-01-15T09:00:00",
+                "updated_at": "2026-01-15T09:00:00",
+            }]
+        }
+    }
 
 
 class EmployeeListResponse(BaseModel):

@@ -65,8 +65,28 @@ class ContractAddendumResponse(BaseModel):
     parent_contract_no: Optional[str] = None
     person_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "addendum_no": "AD20260401001",
+                "contract_type": "student",
+                "parent_contract_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "original_end_date": "2026-06-30",
+                "new_end_date": "2027-03-31",
+                "addendum_status": "active",
+                "file_path": "contracts/addendums/AD20260401001.pdf",
+                "file_name": "AD20260401001.pdf",
+                "file_uploaded_at": "2026-04-01T14:00:00",
+                "notes": "合約展延至下學期結束",
+                "created_at": "2026-04-01T10:00:00",
+                "updated_at": "2026-04-01T14:00:00",
+                "parent_contract_no": "SC20260101001",
+                "person_name": "王小明",
+            }]
+        }
+    }
 
 
 class ContractAddendumListResponse(BaseModel):

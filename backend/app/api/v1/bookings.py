@@ -7,8 +7,8 @@ from app.schemas.booking import (
     BookingBatchUpdateByIds, BookingBatchDeleteByIds, BookingBatchUpdate, BookingBatchDelete,
     BookingBatchCreate, TimeBlock, SlotAvailabilityResponse
 )
-from app.schemas.response import BaseResponse, DataResponse
-from typing import Optional
+from app.schemas.response import BaseResponse, DataResponse, StudentOption, TeacherOption, CourseOption, ContractOption, SlotOption
+from typing import Optional, List
 from datetime import date, datetime, time
 import asyncio
 import logging
@@ -924,7 +924,7 @@ async def get_slot_availability(
         raise HTTPException(status_code=500, detail=f"取得時段可用狀態失敗: {str(e)}")
 
 
-@router.get("/my-student-info", tags=["預約管理"], response_model=DataResponse)
+@router.get("/my-student-info", tags=["預約管理"], response_model=DataResponse[Optional[StudentOption]])
 async def get_my_student_info(
     current_user: CurrentUser = Depends(get_current_user)
 ):
@@ -949,7 +949,7 @@ async def get_my_student_info(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/my-contracts", tags=["預約管理"], response_model=DataResponse)
+@router.get("/my-contracts", tags=["預約管理"], response_model=DataResponse[List[ContractOption]])
 async def get_my_contracts(
     current_user: CurrentUser = Depends(get_current_user)
 ):
@@ -2490,7 +2490,7 @@ async def batch_delete_bookings_by_ids(
 # 輔助 API：取得下拉選單資料
 # ============================================
 
-@router.get("/options/students", tags=["預約管理"], response_model=DataResponse)
+@router.get("/options/students", tags=["預約管理"], response_model=DataResponse[List[StudentOption]])
 async def get_student_options(
     current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
@@ -2506,7 +2506,7 @@ async def get_student_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/teachers", tags=["預約管理"], response_model=DataResponse)
+@router.get("/options/teachers", tags=["預約管理"], response_model=DataResponse[List[TeacherOption]])
 async def get_teacher_options(
     student_id: Optional[str] = Query(None, description="學生 ID（用於偏好過濾）"),
     current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
@@ -2537,7 +2537,7 @@ async def get_teacher_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/overlapping-courses", tags=["預約管理"], response_model=DataResponse)
+@router.get("/options/overlapping-courses", tags=["預約管理"], response_model=DataResponse[List[CourseOption]])
 async def get_overlapping_course_options(
     student_id: str = Query(..., description="學生 ID"),
     teacher_id: str = Query(..., description="教師 ID"),
@@ -2627,7 +2627,7 @@ async def get_overlapping_course_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/courses", tags=["預約管理"], response_model=DataResponse)
+@router.get("/options/courses", tags=["預約管理"], response_model=DataResponse[List[CourseOption]])
 async def get_course_options(
     current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
 ):
@@ -2643,7 +2643,7 @@ async def get_course_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/student-contracts/{student_id}", tags=["預約管理"], response_model=DataResponse)
+@router.get("/options/student-contracts/{student_id}", tags=["預約管理"], response_model=DataResponse[List[ContractOption]])
 async def get_student_contract_options(
     student_id: str,
     current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
@@ -2696,7 +2696,7 @@ async def get_student_contract_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/substitute-teachers", tags=["預約管理"], response_model=DataResponse)
+@router.get("/options/substitute-teachers", tags=["預約管理"], response_model=DataResponse[List[TeacherOption]])
 async def get_substitute_teacher_options(
     booking_id: str = Query(..., description="預約 ID"),
     current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
@@ -2855,7 +2855,7 @@ async def get_substitute_teacher_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/teacher-contracts/{teacher_id}", tags=["預約管理"], response_model=DataResponse)
+@router.get("/options/teacher-contracts/{teacher_id}", tags=["預約管理"], response_model=DataResponse[List[ContractOption]])
 async def get_teacher_contract_options(
     teacher_id: str,
     current_user: CurrentUser = Depends(require_page_permission("bookings.list"))
@@ -2876,7 +2876,7 @@ async def get_teacher_contract_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/teacher-slots/{teacher_id}", tags=["預約管理"], response_model=DataResponse)
+@router.get("/options/teacher-slots/{teacher_id}", tags=["預約管理"], response_model=DataResponse[List[SlotOption]])
 async def get_teacher_slot_options(
     teacher_id: str,
     date_from: Optional[date] = Query(None, description="開始日期"),

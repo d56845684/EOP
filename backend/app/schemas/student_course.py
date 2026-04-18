@@ -29,8 +29,21 @@ class StudentCourseResponse(BaseModel):
     enrolled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "student_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "course_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                "course_code": "ENG-A1",
+                "course_name": "英語初級會話",
+                "student_name": "王小明",
+                "enrolled_at": "2026-03-01T10:00:00",
+                "created_at": "2026-03-01T10:00:00",
+            }]
+        }
+    }
 
 
 class StudentCourseListResponse(BaseModel):

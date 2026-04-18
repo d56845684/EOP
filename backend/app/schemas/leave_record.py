@@ -61,8 +61,36 @@ class LeaveRecordResponse(BaseModel):
     booking_no: Optional[str] = None
     approver_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "leave_no": "LV20260410001",
+                "initiator_type": "student",
+                "initiator_student_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "initiator_teacher_id": None,
+                "booking_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                "leave_date": "2026-04-15",
+                "start_time": "14:00:00",
+                "end_time": "15:00:00",
+                "reason": "身體不適，需要請假一次",
+                "leave_status": "approved",
+                "approver_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+                "approved_at": "2026-04-14T10:30:00",
+                "rejection_reason": None,
+                "created_at": "2026-04-14T09:00:00",
+                "updated_at": "2026-04-14T10:30:00",
+                "leave_type": "normal",
+                "deduct_lesson": False,
+                "emergency_quota": 3,
+                "used_emergency_count": 0,
+                "initiator_name": "王小明",
+                "booking_no": "BK20260415001",
+                "approver_name": "張主任",
+            }]
+        }
+    }
 
 
 class LeaveRecordListResponse(BaseModel):

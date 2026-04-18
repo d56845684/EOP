@@ -24,8 +24,8 @@ from app.schemas.contract_addendum import (
     ContractAddendumCreate, ContractAddendumUpdate,
     ContractAddendumResponse, ContractAddendumListResponse,
 )
-from app.schemas.response import BaseResponse, DataResponse, UploadUrlResponse, DownloadUrlResponse
-from typing import Optional
+from app.schemas.response import BaseResponse, DataResponse, UploadUrlResponse, DownloadUrlResponse, StudentOption, CourseOption, TeacherOption
+from typing import Optional, List
 from datetime import datetime
 import math
 import uuid
@@ -160,7 +160,7 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
 
 # ========== Options ==========
 
-@router.get("/options/students", tags=["學生合約管理"], response_model=DataResponse)
+@router.get("/options/students", tags=["學生合約管理"], response_model=DataResponse[List[StudentOption]])
 async def get_student_options(
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
@@ -176,7 +176,7 @@ async def get_student_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/courses", tags=["學生合約管理"], response_model=DataResponse)
+@router.get("/options/courses", tags=["學生合約管理"], response_model=DataResponse[List[CourseOption]])
 async def get_course_options(
     student_id: Optional[str] = Query(None, description="若提供，只回傳該學生已選修的課程"),
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
@@ -225,7 +225,7 @@ async def get_course_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/teachers", tags=["學生合約管理"], response_model=DataResponse)
+@router.get("/options/teachers", tags=["學生合約管理"], response_model=DataResponse[List[TeacherOption]])
 async def get_teacher_options(
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
 ):
@@ -724,7 +724,7 @@ async def delete_student_contract(
 
 # ========== Contract Details CRUD ==========
 
-@router.get("/{contract_id}/details", response_model=DataResponse)
+@router.get("/{contract_id}/details", response_model=DataResponse[List[StudentContractDetailResponse]])
 async def list_contract_details(
     contract_id: str,
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))
@@ -1024,7 +1024,7 @@ async def delete_contract_detail(
 
 # ========== Leave Records CRUD ==========
 
-@router.get("/{contract_id}/leave-records", response_model=DataResponse)
+@router.get("/{contract_id}/leave-records", response_model=DataResponse[List[StudentContractLeaveRecordResponse]])
 async def list_leave_records(
     contract_id: str,
     current_user: CurrentUser = Depends(require_page_permission("students.contracts"))

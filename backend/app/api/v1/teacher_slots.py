@@ -6,8 +6,8 @@ from app.schemas.teacher_slot import (
     TeacherSlotBatchDeleteByIds, TeacherSlotBatchUpdateByIds,
     TeacherSlotUpdate, TeacherSlotResponse, TeacherSlotListResponse
 )
-from app.schemas.response import BaseResponse, DataResponse
-from typing import Optional
+from app.schemas.response import BaseResponse, DataResponse, TeacherOption, ContractOption
+from typing import Optional, List
 from datetime import date, datetime, timedelta
 import math
 
@@ -160,7 +160,7 @@ async def list_teacher_slots(
         raise HTTPException(status_code=500, detail=f"取得教師時段列表失敗: {str(e)}")
 
 
-@router.get("/options/teachers", tags=["教師時段管理"], response_model=DataResponse)
+@router.get("/options/teachers", tags=["教師時段管理"], response_model=DataResponse[List[TeacherOption]])
 async def get_teacher_options(
     current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
@@ -176,7 +176,7 @@ async def get_teacher_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/my-contracts", tags=["教師時段管理"], response_model=DataResponse)
+@router.get("/my-contracts", tags=["教師時段管理"], response_model=DataResponse[List[ContractOption]])
 async def get_my_contracts(
     current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
