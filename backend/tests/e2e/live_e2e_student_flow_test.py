@@ -76,7 +76,7 @@ class StudentFlowTester:
             # 先建立一個教師（教師偏好需要）
             resp = await self._post("/api/v1/teachers", {
                 "teacher_no": f"{TEST_PREFIX}T01", "name": f"{TEST_PREFIX}教師",
-                "email": f"{TEST_PREFIX}t@test.local", "teacher_level": 1,
+                "email": f"{TEST_PREFIX}t@example.com", "teacher_level": 1,
             })
             if resp.status_code == 200:
                 self.teacher_id = resp.json()["data"]["id"]
@@ -144,7 +144,7 @@ class StudentFlowTester:
         resp = await self._post("/api/v1/students", {
             "student_no": f"{TEST_PREFIX}S01", "name": f"{TEST_PREFIX}王小明",
             "eng_name": "Wang Xiaoming",
-            "email": f"{TEST_PREFIX}s@test.local", "student_type": "formal",
+            "email": f"{TEST_PREFIX}s@example.com", "student_type": "formal",
         })
         if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
         self.student_id = resp.json()["data"]["id"]

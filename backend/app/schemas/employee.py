@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime, date
 
@@ -8,25 +8,48 @@ class EmployeeCreate(BaseModel):
     employee_no: str = Field(..., min_length=1, max_length=50, description="員工編號")
     employee_type: str = Field(..., description="員工類型 (admin/full_time/part_time/intern)")
     name: str = Field(..., min_length=1, max_length=100, description="姓名")
-    email: str = Field(..., max_length=255, description="Email")
+    email: EmailStr = Field(..., description="Email")
     phone: Optional[str] = Field(None, max_length=20, description="電話")
     address: Optional[str] = Field(None, description="地址")
     hire_date: date = Field(..., description="到職日")
     termination_date: Optional[date] = Field(None, description="離職日")
     is_active: bool = Field(True, description="是否啟用")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "employee_no": "E003",
+                "employee_type": "full_time",
+                "name": "林雅婷",
+                "email": "yating.lin@example.com",
+                "phone": "0955123456",
+                "hire_date": "2026-01-15",
+            }]
+        }
+    }
+
 
 class EmployeeUpdate(BaseModel):
     """更新員工"""
     employee_type: Optional[str] = Field(None, description="員工類型 (admin/full_time/part_time/intern)")
     name: Optional[str] = Field(None, min_length=1, max_length=100)
-    email: Optional[str] = Field(None, max_length=255)
+    email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
     hire_date: Optional[date] = None
     termination_date: Optional[date] = None
     role_id: Optional[str] = Field(None, description="系統角色 ID（僅限已有帳號的員工）")
     is_active: Optional[bool] = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "name": "林雅婷",
+                "phone": "0955123456",
+                "employee_type": "full_time",
+            }]
+        }
+    }
 
 
 class EmployeeResponse(BaseModel):

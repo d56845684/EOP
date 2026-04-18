@@ -56,7 +56,20 @@ class BookingCreate(BookingBase):
     - 如果提供：驗證預約時間是否落在該時段區間內
     - 如果不提供：自動尋找包含預約時間的可用時段
     """
-    pass
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "student_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "teacher_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "course_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                "booking_date": "2026-04-15",
+                "start_time": "14:00:00",
+                "end_time": "15:00:00",
+                "notes": "第一堂試上課",
+            }]
+        }
+    }
 
 
 class BookingUpdate(BaseModel):
@@ -64,6 +77,15 @@ class BookingUpdate(BaseModel):
     booking_status: Optional[BookingStatus] = Field(None, description="預約狀態")
     end_time: Optional[time] = Field(None, description="結束時間（僅允許縮短預約）")
     notes: Optional[str] = Field(None, description="備註")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "booking_status": "completed",
+                "notes": "學生表現良好",
+            }]
+        }
+    }
 
 
 class BookingResponse(BaseModel):
@@ -123,10 +145,34 @@ class BookingBatchUpdateByIds(BaseModel):
     booking_status: BookingStatus = Field(..., description="新狀態")
     notes: Optional[str] = Field(None, description="備註")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "booking_ids": [
+                    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                ],
+                "booking_status": "confirmed",
+                "notes": "批次確認本週預約",
+            }]
+        }
+    }
+
 
 class BookingBatchDeleteByIds(BaseModel):
     """根據 ID 批次刪除預約"""
     booking_ids: List[str] = Field(..., description="預約 ID 列表")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "booking_ids": [
+                    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                ],
+            }]
+        }
+    }
 
 
 class BookingBatchUpdate(BaseModel):
@@ -143,6 +189,18 @@ class BookingBatchUpdate(BaseModel):
     new_status: BookingStatus = Field(..., description="新狀態")
     notes: Optional[str] = Field(None, description="備註")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "start_date": "2026-04-01",
+                "end_date": "2026-04-30",
+                "weekdays": [0, 2, 4],
+                "new_status": "confirmed",
+                "notes": "確認四月份週一三五預約",
+            }]
+        }
+    }
+
 
 class BookingBatchDelete(BaseModel):
     """批次刪除預約（週期性篩選）"""
@@ -153,6 +211,16 @@ class BookingBatchDelete(BaseModel):
     teacher_id: Optional[str] = Field(None, description="篩選教師")
     course_id: Optional[str] = Field(None, description="篩選課程")
     filter_status: Optional[BookingStatus] = Field(None, description="篩選狀態")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "start_date": "2026-04-01",
+                "end_date": "2026-04-30",
+                "weekdays": [0, 2, 4],
+            }]
+        }
+    }
 
 
 class BookingBatchCreate(BaseModel):
@@ -188,6 +256,21 @@ class BookingBatchCreate(BaseModel):
             raise ValueError("批次預約日期範圍不得超過三個月")
 
         return self
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "student_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "teacher_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "start_date": "2026-04-01",
+                "end_date": "2026-06-30",
+                "weekdays": [1, 3],
+                "start_time": "10:00:00",
+                "end_time": "11:00:00",
+                "notes": "每週二四固定上課",
+            }]
+        }
+    }
 
 
 class TimeBlock(BaseModel):

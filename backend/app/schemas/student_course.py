@@ -8,6 +8,15 @@ class StudentCourseCreate(BaseModel):
     student_id: str = Field(..., description="學生 ID")
     course_id: str = Field(..., description="課程 ID")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "student_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "course_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+            }]
+        }
+    }
+
 
 class StudentCourseResponse(BaseModel):
     """學生選課回應"""

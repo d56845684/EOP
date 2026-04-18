@@ -18,6 +18,19 @@ class ZoomAccountCreate(BaseModel):
     is_active: bool = Field(True, description="是否啟用")
     notes: Optional[str] = Field(None, description="備註")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "account_name": "EOP 教學帳號 A",
+                "zoom_account_id": "AbC1dEf2GhI3jKl4",
+                "zoom_client_id": "xYz5AbC6dEf7GhI8",
+                "zoom_client_secret": "sEcReTkEy1234567890abcdef",
+                "zoom_user_email": "zoom-a@eop-education.com",
+                "account_tier": "pro",
+            }]
+        }
+    }
+
 
 class ZoomAccountUpdate(BaseModel):
     """更新 Zoom 帳號"""
@@ -29,6 +42,17 @@ class ZoomAccountUpdate(BaseModel):
     account_tier: Optional[str] = Field(None, description="帳號等級 (basic/pro/business)")
     is_active: Optional[bool] = Field(None, description="是否啟用")
     notes: Optional[str] = Field(None, description="備註")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "account_name": "EOP 教學帳號 A（已更新）",
+                "account_tier": "business",
+                "is_active": True,
+                "notes": "升級為商業方案",
+            }]
+        }
+    }
 
 
 class ZoomAccountResponse(BaseModel):
@@ -114,6 +138,14 @@ class ZoomMeetingLogListResponse(BaseModel):
 class ZoomMeetingCreateRequest(BaseModel):
     """手動建立 Zoom 會議"""
     booking_id: str = Field(..., description="預約 ID")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "booking_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            }]
+        }
+    }
 
 
 # ============================================

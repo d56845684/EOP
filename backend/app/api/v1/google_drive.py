@@ -5,7 +5,7 @@ Google Drive OAuth — 管理員綁定個人 Drive 帳號
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import RedirectResponse
 from app.services.supabase_service import supabase_service
-from app.services.google_drive_service import google_drive_service
+from app.services.google_service import google_drive_service
 from app.core.dependencies import CurrentUser, require_staff, get_current_user
 from app.schemas.response import BaseResponse, DataResponse
 from app.config import settings

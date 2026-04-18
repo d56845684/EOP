@@ -164,7 +164,22 @@ async def create_employee(
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if existing_email:
-            raise HTTPException(status_code=400, detail="Email 已存在")
+            raise HTTPException(status_code=400, detail="此 Email 已被其他員工使用")
+
+        # 跨表檢查：員工 email 不可與學生或教師重複
+        dup_student = await supabase_service.table_select(
+            table="students", select="id",
+            filters={"email": data.email, "is_deleted": "eq.false"}
+        )
+        if dup_student:
+            raise HTTPException(status_code=400, detail="此 Email 已被學生使用")
+
+        dup_teacher = await supabase_service.table_select(
+            table="teachers", select="id",
+            filters={"email": data.email, "is_deleted": "eq.false"}
+        )
+        if dup_teacher:
+            raise HTTPException(status_code=400, detail="此 Email 已被教師使用")
 
         employee_data = data.model_dump()
         if employee_data.get("hire_date"):
@@ -213,7 +228,21 @@ async def update_employee(
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup:
-                raise HTTPException(status_code=400, detail="Email 已存在")
+                raise HTTPException(status_code=400, detail="此 Email 已被其他員工使用")
+
+            dup_student = await supabase_service.table_select(
+                table="students", select="id",
+                filters={"email": data.email, "is_deleted": "eq.false"}
+            )
+            if dup_student:
+                raise HTTPException(status_code=400, detail="此 Email 已被學生使用")
+
+            dup_teacher = await supabase_service.table_select(
+                table="teachers", select="id",
+                filters={"email": data.email, "is_deleted": "eq.false"}
+            )
+            if dup_teacher:
+                raise HTTPException(status_code=400, detail="此 Email 已被教師使用")
 
         # role_id 不寫 employees 表，單獨處理
         requested_role_id = data.role_id

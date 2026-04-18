@@ -19,12 +19,33 @@ class TeacherDetailCreate(BaseModel):
     issue_date: Optional[date] = Field(None, description="發證日期")
     expiry_date: Optional[date] = Field(None, description="到期日期")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "teacher_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "detail_type": "certificate",
+                "content": "TESOL 國際英語教學證照",
+                "issue_date": "2024-06-15",
+                "expiry_date": "2027-06-15",
+            }]
+        }
+    }
+
 
 class TeacherDetailUpdate(BaseModel):
     """更新教師明細"""
     content: Optional[str] = Field(None, description="內容")
     issue_date: Optional[date] = Field(None, description="發證日期")
     expiry_date: Optional[date] = Field(None, description="到期日期")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "content": "TESOL 國際英語教學證照（進階）",
+                "expiry_date": "2028-06-15",
+            }]
+        }
+    }
 
 
 class TeacherDetailResponse(BaseModel):

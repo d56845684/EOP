@@ -96,3 +96,12 @@ class PasswordResetRequest(BaseModel):
 class PasswordUpdateRequest(BaseModel):
     current_password: str
     new_password: str
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "current_password": "OldPassword123!",
+                "new_password": "NewPassword456!",
+            }]
+        }
+    }

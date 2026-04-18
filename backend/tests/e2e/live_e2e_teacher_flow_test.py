@@ -165,7 +165,7 @@ class TeacherFlowTester:
     async def _create_teacher(self):
         resp = await self._post("/api/v1/teachers", {
             "teacher_no": f"{TEST_PREFIX}T01", "name": f"{TEST_PREFIX}李老師",
-            "email": f"{TEST_PREFIX}t@test.local", "teacher_level": 2,
+            "email": f"{TEST_PREFIX}t@example.com", "teacher_level": 2,
             "bio": "E2E 測試教師",
         })
         if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"

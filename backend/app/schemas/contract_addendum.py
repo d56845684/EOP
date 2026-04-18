@@ -21,11 +21,29 @@ class ContractAddendumCreate(BaseModel):
     new_end_date: date = Field(..., description="展延後結束日期")
     notes: Optional[str] = Field(None, description="備註")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "new_end_date": "2027-03-31",
+                "notes": "合約展延至下學期結束",
+            }]
+        }
+    }
+
 
 class ContractAddendumUpdate(BaseModel):
     """更新附約"""
     new_end_date: Optional[date] = Field(None, description="展延後結束日期")
     notes: Optional[str] = Field(None, description="備註")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "new_end_date": "2027-06-30",
+                "notes": "調整展延結束日期至暑假",
+            }]
+        }
+    }
 
 
 class ContractAddendumResponse(BaseModel):

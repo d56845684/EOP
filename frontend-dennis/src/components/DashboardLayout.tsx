@@ -87,6 +87,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     '/line-testing': 'LINE 測試',
     '/accounts': '帳號管理',
     '/role-permissions': '角色權限',
+    '/system-alerts': '系統告警',
   }
 
   const currentPageLabel = pageLabels[pathname] || ''

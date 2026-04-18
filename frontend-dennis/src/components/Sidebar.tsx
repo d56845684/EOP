@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { User, BookOpen, Settings, LogOut, Calendar, FileText, Users, Clock, GraduationCap, DollarSign, Video, Shield, MessageSquare } from 'lucide-react'
+import { User, BookOpen, Settings, LogOut, Calendar, FileText, Users, Clock, GraduationCap, DollarSign, Video, Shield, MessageSquare, Bell } from 'lucide-react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 
@@ -37,6 +37,7 @@ const navItems: NavItem[] = [
   { href: '/line-testing', label: 'LINE 測試', icon: <MessageSquare className="w-[18px] h-[18px]" />, pageKey: 'employees.list' },
   { href: '/accounts', label: '帳號管理', icon: <Shield className="w-[18px] h-[18px]" />, pageKey: 'permissions.users' },
   { href: '/role-permissions', label: '角色權限', icon: <Settings className="w-[18px] h-[18px]" />, pageKey: 'permissions.roles' },
+  { href: '/system-alerts', label: '系統告警', icon: <Bell className="w-[18px] h-[18px]" />, pageKey: 'dashboard.alerts' },
 ]
 
 export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {

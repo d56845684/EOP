@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, health, line_auth, line_notifications, courses, bookings, student_contracts, teacher_contracts, teacher_slots, student_courses, student_teacher_preferences, students, teachers, teacher_details, invites, teacher_bonus, zoom, page_permissions, employees, leave_records, substitute_details, google_drive, notifications
+from app.api.v1 import auth, users, health, line_auth, line_notifications, courses, bookings, student_contracts, teacher_contracts, teacher_slots, student_courses, student_teacher_preferences, students, teachers, teacher_details, invites, teacher_bonus, zoom, page_permissions, employees, leave_records, substitute_details, google_drive, notifications, alerts
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -27,3 +27,4 @@ api_router.include_router(leave_records.router)
 api_router.include_router(substitute_details.router)
 api_router.include_router(google_drive.router)
 api_router.include_router(notifications.router)
+api_router.include_router(alerts.router)
