@@ -99,7 +99,7 @@ export const teacherRoutes: RouteRecordRaw[] = [
         path: '/teacher-portal/schedule',
         name: 'TeacherSchedule',
         component: () => import('../views/teacher-portal/ScheduleSettings.vue'),
-        meta: { title: '班表設定', icon: 'i-hugeicons:calendar-setting-01', pageKey: 'teachers.slots' }
+        meta: { title: '預約時間設定', icon: 'i-hugeicons:calendar-setting-01', pageKey: 'teachers.slots' }
     },
     {
         path: '/teacher-portal/history',
