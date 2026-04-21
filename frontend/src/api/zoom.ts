@@ -1,5 +1,51 @@
 import request from '@/utils/request';
-import type { BaseResponse, DataResponse } from './response';
+import type { BaseResponse, DataResponse, ListResponse } from './response';
+
+export type ZoomAccountTier = 'basic' | 'pro' | 'business';
+
+export interface ZoomAccount {
+  id: string;
+  account_name: string;
+  zoom_account_id: string;
+  zoom_client_id: string;
+  zoom_user_email?: string | null;
+  account_tier: ZoomAccountTier;
+  is_active: boolean;
+  daily_meeting_count: number;
+  daily_count_reset_at?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+  created_by?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ZoomAccountListParams {
+  page?: number;
+  per_page?: number;
+  is_active?: boolean | null;
+}
+
+export interface CreateZoomAccountData {
+  account_name: string;
+  zoom_account_id: string;
+  zoom_client_id: string;
+  zoom_client_secret: string;
+  zoom_user_email?: string | null;
+  account_tier?: ZoomAccountTier;
+  is_active?: boolean;
+  notes?: string | null;
+}
+
+export interface UpdateZoomAccountData {
+  account_name?: string;
+  zoom_account_id?: string;
+  zoom_client_id?: string;
+  zoom_client_secret?: string;
+  zoom_user_email?: string | null;
+  account_tier?: ZoomAccountTier;
+  is_active?: boolean;
+  notes?: string | null;
+}
 
 export interface ZoomMeetingLogResponse {
   id: string;
@@ -29,6 +75,31 @@ export interface ZoomMeetingLogResponse {
   updated_at?: string | null;
   account_name?: string | null;
   teacher_name?: string | null;
+}
+
+/** 取得 Zoom 帳號池列表 */
+export function getZoomAccountList(params: ZoomAccountListParams) {
+  return request.get<any, ListResponse<ZoomAccount>>('/v1/zoom/accounts', { params });
+}
+
+/** 新增 Zoom 帳號 */
+export function createZoomAccount(data: CreateZoomAccountData) {
+  return request.post<any, DataResponse<ZoomAccount>>('/v1/zoom/accounts', data);
+}
+
+/** 更新 Zoom 帳號 */
+export function updateZoomAccount(accountId: string, data: UpdateZoomAccountData) {
+  return request.put<any, DataResponse<ZoomAccount>>(`/v1/zoom/accounts/${accountId}`, data);
+}
+
+/** 刪除 Zoom 帳號 */
+export function deleteZoomAccount(accountId: string) {
+  return request.delete<any, BaseResponse>(`/v1/zoom/accounts/${accountId}`);
+}
+
+/** 測試 Zoom S2S 帳號連線 */
+export function testZoomAccount(accountId: string) {
+  return request.post<any, BaseResponse>(`/v1/zoom/accounts/${accountId}/test`);
 }
 
 /** 查詢預約的 Zoom 會議資訊（join_url、passcode 等） */

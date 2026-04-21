@@ -77,6 +77,7 @@ export default {
     employee_settings: '員工管理',
     account_settings: '帳號管理',
     role_settings: '角色權限',
+    zoom_account_settings: 'Zoom 帳號設定',
     teacher_portal: '老師管理中心',
     teacher_schedule: '時段設定',
     teacher_history: '預約記錄',

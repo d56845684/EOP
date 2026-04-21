@@ -76,6 +76,12 @@ export const adminRoutes: RouteRecordRaw[] = [
                 name: 'RoleSettings',
                 component: () => import('../views/settings/RoleList.vue'),
                 meta: { title: '角色權限', icon: 'i-hugeicons:shield-user', pageKey: 'settings.role' }
+            },
+            {
+                path: 'zoom-accounts',
+                name: 'ZoomAccountSettings',
+                component: () => import('../views/settings/ZoomAccountSettings.vue'),
+                meta: { title: 'Zoom 帳號設定', icon: 'i-hugeicons:video-01', pageKey: 'employees.list' }
             }
         ]
     }

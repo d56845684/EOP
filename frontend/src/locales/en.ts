@@ -74,6 +74,7 @@ export default {
     employee_settings: 'Employee Management',
     account_settings: 'Account Management',
     role_settings: 'Role Settings',
+    zoom_account_settings: 'Zoom Account Settings',
     teacher_portal: 'Teacher Portal',
     teacher_schedule: 'Schedule Settings',
     teacher_history: 'Booking History',
