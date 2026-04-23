@@ -13,7 +13,9 @@ const ROLE_LABEL_KEY_MAP: Record<AppRole, string> = {
   student: 'roleLabel.student',
 };
 
-const defaultT: TranslateFn = (key, named) => i18n.global.t(key, named) as string;
+const defaultT: TranslateFn = (key, named) => (
+  named ? i18n.global.t(key, named) : i18n.global.t(key)
+) as string;
 
 const translateByMap = (
   value: string | null | undefined,

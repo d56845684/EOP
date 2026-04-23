@@ -11,7 +11,7 @@ export const constantRoutes: RouteRecordRaw[] = [
     {
         path: '/profile',
         name: 'Profile',
-        component: () => import('../views/Profile.vue'),
+        component: () => import('../views/profile/Profile.vue'),
         meta: { title: '個人設定', icon: 'i-hugeicons:user-settings-01' }
     }
 ];
@@ -41,6 +41,18 @@ export const adminRoutes: RouteRecordRaw[] = [
         name: 'Bookings',
         component: () => import('../views/booking/BookingList.vue'),
         meta: { title: '預約管理', icon: 'i-hugeicons:calendar-02', pageKey: 'bookings.list' }
+    },
+    {
+        path: '/booking-overview',
+        name: 'BookingOverview',
+        component: () => import('../views/booking/BookingOverview.vue'),
+        meta: { title: '預約總覽', icon: 'i-hugeicons:calendar-03', pageKey: 'bookings.list' }
+    },
+    {
+        path: '/leave-management',
+        name: 'LeaveManagement',
+        component: () => import('../views/leave/LeaveManagement.vue'),
+        meta: { title: '請假管理', icon: 'i-hugeicons:calendar-remove-02', pageKey: 'bookings.list' }
     },
     {
         path: '/course',
@@ -98,7 +110,7 @@ export const teacherRoutes: RouteRecordRaw[] = [
     {
         path: '/teacher-portal/profile',
         name: 'TeacherProfile',
-        component: () => import('../views/Profile.vue'),
+        component: () => import('../views/profile/Profile.vue'),
         meta: { title: '個人設定', icon: 'i-hugeicons:user-settings-01' }
     },
     {
@@ -126,7 +138,7 @@ export const studentRoutes: RouteRecordRaw[] = [
     {
         path: '/student-portal/profile',
         name: 'StudentProfile',
-        component: () => import('../views/Profile.vue'),
+        component: () => import('../views/profile/Profile.vue'),
         meta: { title: '個人設定', icon: 'i-hugeicons:user-settings-01' }
     },
     {

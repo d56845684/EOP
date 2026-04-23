@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { ElMessage } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { refreshToken } from '@/api/auth';
 import { getAccessToken, setAuthTokens } from '@/utils/auth-token';
@@ -22,12 +21,42 @@ const getApiBaseURL = () => {
 
 let isHandlingSessionExpired = false;
 
-const redirectToLoginForExpiredSession = (message = '登入狀態已過期，請重新登入') => {
+interface ApiErrorPayload {
+  success: false;
+  status: number;
+  message: string;
+  detail?: unknown;
+  error_code?: string | null;
+  response?: {
+    status: number;
+    data: unknown;
+  };
+}
+
+const normalizeApiError = (
+  status: number,
+  data?: Record<string, any>,
+  fallbackMessage = '系統異常',
+): ApiErrorPayload => {
+  const message = data?.message || (typeof data?.detail === 'string' ? data.detail : '') || fallbackMessage;
+
+  return {
+    success: false,
+    status,
+    message,
+    detail: data?.detail,
+    error_code: data?.error_code ?? null,
+    response: {
+      status,
+      data,
+    },
+  };
+};
+
+const redirectToLoginForExpiredSession = () => {
   if (isHandlingSessionExpired) return;
 
   isHandlingSessionExpired = true;
-  ElMessage.closeAll();
-  ElMessage.error(message);
 
   const authStore = useAuthStore();
   authStore.clearLocalState();
@@ -90,20 +119,23 @@ service.interceptors.response.use(
 
     // --- 新增：處理 Blob 類型的錯誤訊息 ---
     if (response?.data instanceof Blob && response.data.type === 'application/json') {
-      // 將 Blob 轉回 JSON 文字，這樣才能顯示正確的錯誤訊息
-      const text = await response.data.text();
-      const errorData = JSON.parse(text);
-      if (errorData.error_code === AUTH_SESSION_EXPIRED) {
-        redirectToLoginForExpiredSession(errorData.message);
-        return Promise.reject(errorData);
+      try {
+        // 將 Blob 轉回 JSON 文字，這樣才能顯示正確的錯誤訊息
+        const text = await response.data.text();
+        const errorData = JSON.parse(text);
+        const normalizedBlobError = normalizeApiError(response.status || 500, errorData, '操作失敗');
+        if (errorData.error_code === AUTH_SESSION_EXPIRED) {
+          redirectToLoginForExpiredSession();
+        }
+        return Promise.reject(normalizedBlobError);
+      } catch {
+        return Promise.reject(normalizeApiError(response.status || 500, undefined, '操作失敗'));
       }
-      ElMessage.error(errorData.message || '操作失敗');
-      return Promise.reject(errorData);
     }
 
     if (response?.data?.error_code === AUTH_SESSION_EXPIRED) {
-      redirectToLoginForExpiredSession(response.data.message);
-      return Promise.reject(response.data);
+      redirectToLoginForExpiredSession();
+      return Promise.reject(normalizeApiError(response.status || 401, response.data, '登入狀態已過期，請重新登入'));
     }
 
     if (response?.status === 401 && !originalRequest._retry) {
@@ -111,7 +143,7 @@ service.interceptors.response.use(
       if (originalRequest.url?.includes('/v1/auth/refresh')) {
         const authStore = useAuthStore();
         authStore.clearLocalState();
-        return Promise.reject(error);
+        return Promise.reject(normalizeApiError(response.status || 401, response.data, '登入狀態已過期，請重新登入'));
       }
 
       if (isRefreshing) {
@@ -139,37 +171,31 @@ service.interceptors.response.use(
         processQueue(refreshError);
         const authStore = useAuthStore();
         authStore.clearLocalState(); // Force logout
-        return Promise.reject(refreshError);
+        if (axios.isAxiosError(refreshError)) {
+          return Promise.reject(
+            normalizeApiError(
+              refreshError.response?.status || 401,
+              refreshError.response?.data,
+              '登入狀態已過期，請重新登入',
+            ),
+          );
+        }
+        return Promise.reject(normalizeApiError(401, undefined, '登入狀態已過期，請重新登入'));
       } finally {
         isRefreshing = false;
       }
     }
 
     if (!error.response) {
-      ElMessage.error('網路連線異常，請稍後再試');
+      return Promise.reject(normalizeApiError(0, undefined, '網路連線異常，請稍後再試'));
     }
 
-    // 處理 400 或其他一般錯誤
+    // 處理 400 / 403 / 404 / 409 / 422 / 500 等一般錯誤
     if (response) {
-      // 這裡提取後端回傳的錯誤內容
-      // 假設後端格式為 { message: "手機號碼格式錯誤", code: 40001 }
-      const errorMessage = response.data?.message || '系統異常';
-      
-      // 根據需求決定是否要過濾 401（因為 401 可能由上面的重刷邏輯處理）
-      if (response.status !== 401) {
-        if (originalRequest?.showError !== false) {
-          ElMessage.closeAll();
-          ElMessage.error(errorMessage);
-        }
-      }
-      
-      // 即將後端的錯誤資料傳回，讓組件知道發生什麼事，但不一定要再彈窗
-      return Promise.reject(response.data); 
-    } else {
-      // 網路中斷或 Timeout
-      ElMessage.error('網路連線異常，請稍後再試');
-      return Promise.reject(error);
+      return Promise.reject(normalizeApiError(response.status, response.data, '系統異常'));
     }
+
+    return Promise.reject(normalizeApiError(0, undefined, '網路連線異常，請稍後再試'));
   }
 );
 

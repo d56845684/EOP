@@ -35,9 +35,9 @@
         <el-descriptions-item :label="$t('profile.summary.systemRole')">
           {{ roleLabel }}
         </el-descriptions-item>
-        <el-descriptions-item :label="$t('profile.summary.entityId')">
+        <!-- <el-descriptions-item :label="$t('profile.summary.entityId')">
           <span class="font-mono text-xs break-all">{{ entityId || userInfo?.id || '-' }}</span>
-        </el-descriptions-item>
+        </el-descriptions-item> -->
         <el-descriptions-item :label="$t('profile.summary.accountId')">
           <span class="font-mono text-xs break-all">{{ userInfo?.id || '-' }}</span>
         </el-descriptions-item>

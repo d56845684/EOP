@@ -327,7 +327,6 @@
               <el-option label="底薪" value="base_salary" />
               <el-option label="津貼" value="allowance" />
               <el-option label="課程時薪" value="course_rate" />
-              <el-option label="加班時薪" value="overtime_rate" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -427,7 +426,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, nextTick, h } from 'vue';
+import { ref, reactive, computed, watch, nextTick } from 'vue';
 import { dayjs, ElDivider, ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { 
   getTeacherContracts, 
@@ -521,7 +520,7 @@ const groupedSchedules = ref<Record<number, ScheduleSlot[]>>({
 });
 
 // Detail type options
-type DetailType = 'base_salary' | 'allowance' | 'course_rate' | 'overtime_rate';
+type DetailType = 'base_salary' | 'allowance' | 'course_rate';
 const DETAIL_TYPE_MAP: Record<string, string> = {
   base_salary: '底薪',
   allowance: '津貼',

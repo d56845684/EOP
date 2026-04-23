@@ -18,7 +18,7 @@
     </div>
 
     <el-card shadow="never" class="mb-14px">
-      <el-form :inline="true" :model="queryParams" size="small" label-position="top" class="flex items-end">
+      <el-form :inline="true" :model="queryParams" size="small" label-position="top" class="filter-form flex items-end">
         <el-form-item label="關鍵字" class="mb-0">
           <el-input 
             v-model="queryParams.search" 
@@ -424,6 +424,14 @@ const handleVerify = async (teacher: TeacherResponse) => {
 </script>
 
 <style scoped>
+:deep(.filter-form) {
+  gap: 20px;
+   .el-form-item {
+     margin-right: 0;
+     margin-bottom: 5px;
+   }
+}
+
 .card-bg {
   background-color: #fff;
 }

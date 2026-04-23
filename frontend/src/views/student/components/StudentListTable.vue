@@ -144,7 +144,6 @@
 
 <script setup lang="ts">
 import type { StudentResponse } from '@/api/student'
-import { STUDENT_STATUS } from '@/constants/student'
 import { STUDENT_STATUS_TAG_MAP } from '@/constants/display';
 import { usePermissionStore } from '@/stores/permission';
 import { formatStudentStatusLabel } from '@/utils/i18n-formatters';

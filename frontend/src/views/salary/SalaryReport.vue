@@ -110,114 +110,98 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useMockStore, type Teacher } from '../../stores/mockStore';
+import { ref, computed, onMounted, watch } from 'vue';
 import dayjs from 'dayjs';
+import { getBookingList, type BookingItem } from '@/api/booking';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
+import { ElMessage } from 'element-plus';
 
-const store = useMockStore();
 const selectedMonth = ref(dayjs().toDate());
 const loading = ref(false);
 const drawerVisible = ref(false);
 const selectedTeacher = ref<any>(null);
+const bookings = ref<BookingItem[]>([]);
 
 const formatMonth = (d: Date) => dayjs(d).format('YYYY-MM');
 const formatDateTime = (t: string) => dayjs(t).format('YYYY-MM-DD HH:mm');
-
-// Helper to get names (since we are inside map, we can access store direct)
-const getStudent = (id: string) => store.students.find(s => s.id === id);
-const getCourseName = (id: string) => store.courses.find(c => c.id === id)?.name || id;
+const getBookingStart = (booking: BookingItem) => `${booking.booking_date} ${booking.start_time}`;
+const formatBookingType = (type: string) => (type === 'trial' ? 'Trial' : 'Regular');
 
 // --- Core Logic ---
-
-// Helper: Get Teacher Rate for a Course
-const getTeacherRate = (teacher: Teacher, courseId: string): number => {
-    // If Part-time, check courseRates
-    if (teacher.contractType === 'Part-time') {
-        const rateObj = teacher.salaryConfig.courseRates?.find(r => r.courseId === courseId);
-        if (rateObj) return rateObj.price;
-        // Fallback to hourly if no specific course rate? Or 0?
-        // Prompt says "Input Hourly Rate + Dynamic List".
-        // Let's assume hourly rate is default if course not found.
-        return teacher.salaryConfig.hourlyRate || 0;
+const fetchSalaryBookings = async () => {
+    loading.value = true;
+    try {
+        const start = dayjs(selectedMonth.value).startOf('month').format('YYYY-MM-DD');
+        const end = dayjs(selectedMonth.value).endOf('month').format('YYYY-MM-DD');
+        const res = assertApiSuccess(await getBookingList({
+            page: 1,
+            per_page: 100,
+            booking_status: 'completed',
+            date_from: start,
+            date_to: end,
+        }), '載入薪資資料失敗');
+        bookings.value = res.data || [];
+    } catch (error) {
+        ElMessage.error(getApiErrorMessage(error, '載入薪資資料失敗'));
+    } finally {
+        loading.value = false;
     }
-    // If Full-time, per-class pay is 0 (covered by base), UNLESS explicit logic.
-    // Prompt: "Full-time: 0 (Covered by Base Salary) OR specific logic".
-    return 0;
 };
 
 const salaryData = computed(() => {
-    const monthStart = dayjs(selectedMonth.value).startOf('month');
-    const monthEnd = dayjs(selectedMonth.value).endOf('month');
+    const reportMap = new Map<string, any>();
 
-    // 1. Filter Bookings
-    const activeBookings = store.bookings.filter(b => {
-        const t = dayjs(b.time);
-        return b.status === 'Completed' && t.isAfter(monthStart) && t.isBefore(monthEnd);
-    });
-
-    // 2. Group by Teacher
-    const report = store.teachers.map(teacher => {
-        const tBookings = activeBookings.filter(b => b.teacherId === teacher.id);
-        
-        let regularCount = 0;
-        let regularPay = 0;
-        let trialCount = 0;
-        let trialConvertedCount = 0;
-        let trialPay = 0;
-        
-        const details: any[] = [];
-
-        tBookings.forEach(b => {
-            const baseRate = getTeacherRate(teacher, b.courseId);
-            let finalPay = 0;
-            let multiplier = 1;
-
-            if (b.type === 'Regular') {
-                regularCount++;
-                finalPay = baseRate; // Regular class pay
-                regularPay += finalPay;
-            } else if (b.type === 'Trial') {
-                trialCount++;
-                if (b.isConverted) {
-                    trialConvertedCount++;
-                    multiplier = teacher.bonusMultiplier;
-                    finalPay = baseRate * multiplier;
-                } else {
-                    finalPay = baseRate; // * 1
-                }
-                trialPay += finalPay;
-            }
-
-            details.push({
-                ...b,
-                courseName: getCourseName(b.courseId),
-                studentName: getStudent(b.studentId)?.name || b.studentId,
-                studentType: getStudent(b.studentId)?.type || 'Regular',
-                rate: baseRate,
-                multiplier,
-                finalPay
+    bookings.value.forEach((booking) => {
+        const teacherId = booking.teacher_id;
+        if (!reportMap.has(teacherId)) {
+            reportMap.set(teacherId, {
+                teacherId,
+                teacherName: booking.teacher_name || teacherId,
+                contractType: '-',
+                baseSalary: 0,
+                regularCount: 0,
+                regularPay: 0,
+                trialCount: 0,
+                trialConvertedCount: 0,
+                trialPay: 0,
+                totalPay: 0,
+                details: [],
             });
-        });
-        
-        const baseSalary = teacher.contractType === 'Full-time' ? (teacher.salaryConfig.baseSalary || 0) : 0;
-        const totalPay = baseSalary + regularPay + trialPay;
+        }
 
-        return {
-            teacherId: teacher.id,
-            teacherName: teacher.name,
-            contractType: teacher.contractType,
-            baseSalary,
-            regularCount,
-            regularPay,
-            trialCount,
-            trialConvertedCount,
-            trialPay,
-            totalPay,
-            details // Store for drawer
-        };
+        const row = reportMap.get(teacherId);
+        const baseRate = Number(booking.teacher_hourly_rate || 0);
+        const multiplier = 1;
+        const finalPay = baseRate;
+        const bookingType = formatBookingType(booking.booking_type);
+
+        if (booking.booking_type === 'trial') {
+            row.trialCount += 1;
+            if (booking.is_trial_to_formal) {
+                row.trialConvertedCount += 1;
+            }
+            row.trialPay += finalPay;
+        } else {
+            row.regularCount += 1;
+            row.regularPay += finalPay;
+        }
+
+        row.totalPay += finalPay;
+        row.details.push({
+            ...booking,
+            time: getBookingStart(booking),
+            courseName: booking.course_name || booking.course_id,
+            studentName: booking.student_name || booking.student_id,
+            studentType: bookingType,
+            type: bookingType,
+            rate: baseRate,
+            multiplier,
+            finalPay,
+            status: booking.booking_status,
+        });
     });
 
-    return report;
+    return Array.from(reportMap.values());
 });
 
 const totalPayout = computed(() => salaryData.value.reduce((sum, r) => sum + r.totalPay, 0));
@@ -244,6 +228,14 @@ const openDetails = (row: any) => {
 };
 
 const selectedDetails = computed(() => selectedTeacher.value ? selectedTeacher.value.details : []);
+
+onMounted(() => {
+    fetchSalaryBookings();
+});
+
+watch(selectedMonth, () => {
+    fetchSalaryBookings();
+});
 
 </script>
 

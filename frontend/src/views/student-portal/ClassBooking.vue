@@ -450,8 +450,6 @@ const { t } = useI18n();
 const authStore = useAuthStore();
 
 const currentStudentId = computed(() => authStore.userInfo?.student_id || '');
-const currentStudentName = computed(() => authStore.profile?.name || authStore.userInfo?.name || '-');
-const currentStudentEmail = computed(() => authStore.profile?.email || authStore.userInfo?.email || '-');
 
 const teacherOptions = ref<BookingTeacherOption[]>([]);
 const courseOptions = ref<BookingCourseOption[]>([]);
@@ -847,6 +845,14 @@ watch(
 </script>
 
 <style scoped>
+:deep(.filter-form) {
+  gap: 20px;
+   .el-form-item {
+     margin-right: 0;
+     margin-bottom: 5px;
+   }
+}
+
 .student-info-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

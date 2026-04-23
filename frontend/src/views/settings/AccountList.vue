@@ -1,14 +1,10 @@
 <template>
   <div class="account-list pl-2 pr-4">
-    <div class="flex justify-between items-center px-1 mb-2">
-      <div>
-        <h3 class="my-0">{{ $t('account.title') }}</h3>
-        <div class="text-12px text-[var(--el-text-color-secondary)] mt-1">
-        </div>
-      </div>
-    </div>
+    <section class="flex justify-between items-center px-1 mb-2">
+      <h3 class="text-lg my-0">{{ $t('account.title') }}</h3>
+    </section>
 
-    <el-card class="filter-card mb-14px">
+    <el-card shadow="never" class="filter-card mb-14px">
       <el-form
         :inline="true"
         :model="queryParams"
@@ -76,7 +72,7 @@
       </el-form>
     </el-card>
 
-    <el-card>
+    <el-card shadow="never">
       <el-table :data="accounts" size="small" class="w-full" v-loading="loading">
         <el-table-column prop="email" min-width="240" :label="$t('account.account')" show-overflow-tooltip>
           <template #default="{ row }">
@@ -97,7 +93,7 @@
 
         <el-table-column prop="role" width="100" align="center" :label="$t('account.role')">
           <template #default="{ row }">
-            <el-tag size="small" effect="plain" :type="getRoleTagType(row.role)">
+            <el-tag size="small" effect="light" :type="getRoleTagType(row.role)">
               {{ getRoleLabel(row.role) }}
             </el-tag>
           </template>
@@ -105,14 +101,15 @@
 
         <el-table-column prop="employee_subtype" width="100" align="center" :label="$t('account.employeeSubtype')">
           <template #default="{ row }">
-            <el-tag
+            <!-- <el-tag
               v-if="row.employee_subtype"
               size="small"
               effect="plain"
               :type="EMPLOYEE_TYPE_TAG_MAP[row.employee_subtype as EmployeeType] || 'info'"
             >
               {{ formatEmployeeTypeLabel(row.employee_subtype as EmployeeType, row.employee_subtype, t) }}
-            </el-tag>
+            </el-tag> -->
+            <span v-if="row.employee_subtype" :class="`color-${EMPLOYEE_TYPE_TAG_MAP[row.employee_subtype as EmployeeType] || 'info'}`">{{ formatEmployeeTypeLabel(row.employee_subtype as EmployeeType, row.employee_subtype, t) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -143,8 +140,10 @@
               <el-button
                 v-if="canManageUserPages"
                 type="success"
-                link
+                plain
+                round
                 size="small"
+                class="px-2! h-22px!"
                 @click="openPermissionDrawer(row)"
               >
                 <div class="flex items-center gap-0.5">
@@ -627,6 +626,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
+:deep(.filter-form) {
+  gap: 20px;
+  .el-form-item {
+    margin-right: 0;
+    margin-bottom: 5px;
+  }
+}
+
 .pagination-footer {
   display: flex;
   justify-content: flex-end;

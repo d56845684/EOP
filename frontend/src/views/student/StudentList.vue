@@ -559,7 +559,7 @@ const loadBookingList = async () => {
     const res = assertApiSuccess(await getBookingList({ student_id: currentStudent.value.id }), '載入預約失敗');
     const bookings = res.data || [];
     if (bookings.length > 0) {
-      booking.value = bookings[0];
+      booking.value = bookings[0]!;
       Object.assign(bookingForm, booking.value);
     } else {
       booking.value = null;

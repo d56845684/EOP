@@ -17,10 +17,6 @@
           <template #icon><div class="i-hugeicons:layers-01" /></template>
           批次新增
         </el-button>
-        <el-button :loading="loading" size="small" round class="h-30px px-2" @click="fetchSlots">
-          <template #icon><div class="i-hugeicons:refresh" /></template>
-          重新整理
-        </el-button>
         <el-button type="primary" size="small" round class="h-30px px-2" @click="openCreateDialog()">
           <template #icon><div class="i-hugeicons:plus-sign-square" /></template>
           {{ $t('teacherSchedule.addTimeBtn') }}
@@ -28,8 +24,13 @@
       </div>
     </section>
 
-    <el-card shadow="never" class="filter-panel">
-      <el-form :inline="true" :model="filters" label-position="top" size="small" class="flex items-end">
+    <el-card shadow="never">
+      <el-form
+        :inline="true"
+        :model="filters"
+        label-position="top"
+        size="small"
+        class="filter-form flex items-end">
         <el-form-item label="日期範圍">
           <el-date-picker
             v-model="filters.dateRange"
@@ -70,21 +71,6 @@
       </el-form>
     </el-card>
 
-    <section class="summary-strip">
-      <div class="summary-item">
-        <span>可預約</span>
-        <strong>{{ summary.available }}</strong>
-      </div>
-      <div class="summary-item">
-        <span>已有預約</span>
-        <strong>{{ summary.booked }}</strong>
-      </div>
-      <div class="summary-item">
-        <span>已關閉</span>
-        <strong>{{ summary.closed }}</strong>
-      </div>
-    </section>
-
     <el-card shadow="never" class="calendar-panel">
       <template #header>
         <div class="calendar-toolbar">
@@ -103,6 +89,10 @@
                 <template #icon><div class="i-hugeicons:arrow-right-01" /></template>
               </el-button>
             </el-button-group>
+            <el-button :loading="loading" size="small" round class="h-30px px-2" @click="fetchSlots">
+              <template #icon><div class="i-hugeicons:refresh" /></template>
+              重新整理
+            </el-button>
           </div>
         </div>
       </template>
@@ -121,6 +111,9 @@
           :day-min-height="132"
           @click-day="handleQCalendarDayClick"
         >
+          <template #head-day-label="{ scope }">
+            {{ Number(scope.timestamp.day) }}
+          </template>
           <template #day="{ scope }">
             <div class="qcal-day-events">
               <button
@@ -201,7 +194,10 @@
                 type="button"
                 @click.stop="openCreateDialog(scope.timestamp.date)"
               >
-                新增此日時段
+                <div class="inline-flex items-center gap-1.5">
+                  <div class="i-hugeicons:calendar-add-01" />
+                  <span>新增時段</span>
+                </div>
               </button>
             </div>
           </template>
@@ -375,7 +371,7 @@
     >
       <el-alert
         v-if="batchMode === 'delete'"
-        title="只會刪除未被預約的時段；已有預約的時段會由後端自動跳過。"
+        title="只會刪除未被預約的時段；已有預約的時段會自動跳過。"
         type="warning"
         :closable="false"
         show-icon
@@ -383,7 +379,7 @@
       />
       <el-alert
         v-else
-        title="若修改時間，已有預約的時段會由後端自動跳過；狀態與備註會套用到符合條件的時段。"
+        title="若修改時間，已有預約的時段會自動跳過；狀態與備註會套用到符合條件的時段。"
         type="info"
         :closable="false"
         show-icon
@@ -556,8 +552,8 @@ const isDateRangeSyncedToCalendar = ref(true);
 const calendarView = ref<CalendarView>('agenda');
 const qCalendarWeekdays = [1, 2, 3, 4, 5, 6, 0];
 const calendarViewOptions = [
-  { label: 'Agenda', value: 'agenda' },
-  { label: '月檢視', value: 'month' },
+  { label: '週', value: 'agenda' },
+  { label: '月', value: 'month' },
 ];
 
 const filters = reactive({
@@ -644,7 +640,6 @@ const visibleRange = computed(() => {
   ]);
 });
 
-const visibleSlots = computed(() => slots.value.filter(isSlotInVisibleRange));
 const visibleFilteredSlots = computed(() => filteredSlots.value.filter(isSlotInVisibleRange));
 
 const calendarTitle = computed(() => {
@@ -677,16 +672,6 @@ const dailySlots = computed(() => {
   return filteredSlots.value
     .filter((slot) => slot.slot_date === selectedDate.value)
     .sort((a, b) => `${a.slot_date} ${a.start_time}`.localeCompare(`${b.slot_date} ${b.start_time}`));
-});
-
-const summary = computed(() => {
-  return visibleSlots.value.reduce(
-    (acc, slot) => {
-      acc[getSlotStatus(slot)] += 1;
-      return acc;
-    },
-    { available: 0, booked: 0, closed: 0 } as Record<SlotStatus, number>,
-  );
 });
 
 const formattedSelectedDate = computed(() => dayjs(selectedDate.value).format('YYYY/MM/DD dddd'));
@@ -1291,6 +1276,14 @@ function disabledBatchEndDate(time: Date) {
 </script>
 
 <style scoped lang="scss">
+:deep(.filter-form) {
+  gap: 20px;
+   .el-form-item {
+     margin-right: 0;
+     margin-bottom: 5px;
+   }
+}
+
 .schedule-settings {
   display: flex;
   flex-direction: column;
@@ -1356,12 +1349,6 @@ function disabledBatchEndDate(time: Date) {
 
 }
 
-.filter-panel {
-  :deep(.el-card__body) {
-    padding-bottom: 2px;
-  }
-}
-
 .calendar-panel {
   overflow: hidden;
 
@@ -1392,9 +1379,18 @@ function disabledBatchEndDate(time: Date) {
 .calendar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 20px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  .el-segmented {
+    --el-segmented-item-selected-color: var(--el-color-primary);
+    --el-segmented-item-selected-bg-color: var(--el-color-primary-light-9);
+    --el-border-radius-base: 6px;
+    &__item {
+      padding: 0 10px;
+      font-weight: 500;
+    }
+  }
 }
 
 .qcalendar-shell {
@@ -1428,8 +1424,8 @@ function disabledBatchEndDate(time: Date) {
 }
 
 :deep(.q-calendar__button) {
-  min-width: 28px;
-  min-height: 28px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   color: inherit;
   font-size: 12px;
@@ -1483,6 +1479,28 @@ function disabledBatchEndDate(time: Date) {
 :deep(.q-calendar-month__day--label__wrapper) {
   min-height: 34px;
   padding: 4px 6px 0;
+}
+
+:deep(.q-calendar-month__head--weekday) {
+  min-height: 46px;
+  font-size: 14px;
+}
+
+:deep(.q-calendar-month__head--weekday .q-calendar__button) {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  line-height: 1;
+  color: var(--el-text-color-regular);
+  font-size: 14px;
+}
+
+:deep(.q-calendar-month__day.q-current-day .q-calendar__button) {
+  color: var(--el-color-white);
+  background: var(--el-color-primary);
+  border: none;
+  box-shadow: none;
 }
 
 :deep(.q-calendar-agenda__body) {
@@ -1547,7 +1565,10 @@ function disabledBatchEndDate(time: Date) {
 }
 
 .qcal-day-events {
-  padding: 2px 7px 10px;
+  gap: 4px;
+  height: 84px;
+  overflow: hidden;
+  padding: 0 6px 6px;
 }
 
 .qcal-event,
@@ -1586,46 +1607,92 @@ function disabledBatchEndDate(time: Date) {
 }
 
 .qcal-event {
-  min-height: 28px;
+  min-height: 24px;
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
-  padding: 4px 7px;
+  background: var(--el-bg-color);
+  color: var(--el-text-color-regular);
+  box-shadow: none;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  overflow: hidden;
+}
+
+.qcal-event:hover {
+  transform: translateY(-1px);
+  border-color: var(--el-color-info-light-7);
+  box-shadow: none;
+}
+
+.qcal-event.available {
+  border-left: 3px solid var(--el-color-success);
+  background: #f0f9eb;
+}
+
+.qcal-event.booked {
+  border: 1px solid var(--el-border-color-lighter);
+  border-left: 3px solid var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+}
+
+.qcal-event.closed {
+  border: 1px solid var(--el-border-color-lighter);
+  border-left: 3px solid var(--el-color-info);
+  background: var(--el-fill-color-light);
+  opacity: 0.72;
+}
+
+.qcal-event-dot {
+  width: 4px;
+  height: 4px;
+  background: var(--el-color-success);
+}
+
+.qcal-event.closed .qcal-event-dot {
+  background: var(--el-color-info);
+}
+
+.qcal-event.booked .qcal-event-dot {
+  background: var(--el-color-danger);
+}
+
+.qcal-event-time {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--el-text-color-secondary);
+}
+
+.qcal-event-status {
+  min-width: 0;
+  width: 100%;
+  border-radius: 6px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   overflow: hidden;
 }
 
 .qcal-event-dot,
 .agenda-event-marker {
-  width: 7px;
-  height: 7px;
   flex-shrink: 0;
   border-radius: 999px;
+}
+
+.agenda-event-marker {
+  width: 7px;
+  height: 7px;
   background: var(--el-color-success);
 }
 
-.qcal-event.closed .qcal-event-dot,
 .agenda-event.closed .agenda-event-marker {
   background: var(--el-color-info);
 }
 
-.qcal-event.booked .qcal-event-dot,
 .agenda-event.booked .agenda-event-marker {
   background: var(--el-color-danger);
-}
-
-.qcal-event-time {
-  flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--el-text-color-primary);
-}
-
-.qcal-event-status {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
 }
 
 .qcal-event-title {
@@ -1637,16 +1704,18 @@ function disabledBatchEndDate(time: Date) {
 }
 
 .qcal-more {
-  height: 26px;
+  min-height: 24px;
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
-  padding: 0 8px;
+  padding: 3px 6px;
   color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  background: var(--el-bg-color);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 
   &:hover {
-    background: var(--el-color-primary-light-8);
+    border-color: var(--el-color-primary-light-5);
+    background: var(--el-fill-color-extra-light);
   }
 }
 
@@ -1657,9 +1726,9 @@ function disabledBatchEndDate(time: Date) {
 }
 
 .agenda-event {
-  min-height: 76px;
+  min-height: 60px;
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1670,6 +1739,7 @@ function disabledBatchEndDate(time: Date) {
   width: 100%;
   font-weight: 700;
   color: var(--el-text-color-primary);
+  font-size: 12px;
   line-height: 1.3;
 }
 
@@ -1683,7 +1753,7 @@ function disabledBatchEndDate(time: Date) {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 13px;
+    font-size: 12px;
     line-height: 1.5;
   }
 
@@ -1696,12 +1766,13 @@ function disabledBatchEndDate(time: Date) {
 }
 
 .agenda-empty {
-  min-height: 54px;
+  min-height: 60px;
   border-radius: 8px;
   border: 1px dashed var(--el-border-color);
   background: transparent;
   color: var(--el-text-color-secondary);
   text-align: center;
+  font-size: 13px;
   font-weight: 600;
 
   &:hover {

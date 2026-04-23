@@ -1,12 +1,7 @@
 <template>
   <div class="zoom-account-settings pl-2 pr-4">
     <div class="flex justify-between items-center px-1 mb-2">
-      <div>
-        <h3 class="my-0">Zoom 帳號設定</h3>
-        <div class="text-12px text-[var(--el-text-color-secondary)] mt-1">
-          管理建立線上教室使用的 Zoom Server-to-Server OAuth 帳號池
-        </div>
-      </div>
+      <h3 class="my-0 text-lg">Zoom 帳號設定</h3>
       <el-button type="primary" round size="small" class="h-30px!" @click="openCreateDrawer">
         <template #icon>
           <div class="i-hugeicons:plus-sign" />
@@ -15,7 +10,7 @@
       </el-button>
     </div>
 
-    <el-card class="filter-card mb-14px">
+    <el-card shadow="never" class="filter-card mb-14px">
       <el-form
         :inline="true"
         :model="queryParams"
@@ -55,16 +50,18 @@
       </el-form>
     </el-card>
 
-    <el-card>
+    <el-card shadow="never">
       <el-table v-loading="loading" :data="accounts" size="small" class="w-full" empty-text="尚無 Zoom 帳號">
-        <el-table-column label="帳號名稱" min-width="210" fixed="left" show-overflow-tooltip>
+        <el-table-column label="帳號名稱" min-width="260" fixed="left" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="font-600 color-[var(--el-text-color-primary)]">{{ row.account_name }}</div>
-            <div class="text-12px text-[var(--el-text-color-secondary)]">{{ row.zoom_account_id }}</div>
+            <div class="text-10px text-[var(--el-text-color-secondary)]">
+              Account ID: {{ row.zoom_account_id }}
+            </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="Zoom Email" min-width="210" show-overflow-tooltip>
+        <el-table-column label="Zoom Email" min-width="260" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.zoom_user_email || '-' }}
           </template>
@@ -86,9 +83,13 @@
 
         <el-table-column label="狀態" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'info'" size="small" effect="plain">
-              {{ row.is_active ? '啟用' : '停用' }}
-            </el-tag>
+            <div
+              class="flex justify-center items-center gap-1.5"
+              :class="row.is_active ? 'color-[var(--el-color-success)]' : 'color-[var(--el-color-gray)]'"
+            >
+              <span class="text-lg">•</span>
+              {{ row.is_active ? '啟用中' : '停用中' }}
+            </div>
           </template>
         </el-table-column>
 
@@ -104,26 +105,33 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="連線測試" width="130" fixed="right" align="center">
+        <el-table-column label="連線測試" width="100" fixed="right" align="center">
           <template #default="{ row }">
             <el-button
-              link
+              plain
+              round
               type="success"
               size="small"
               :loading="testingId === row.id"
               @click="handleTestConnection(row)"
             >
+              <template #icon>
+                <div class="i-hugeicons:connect" />
+              </template>
               測試
             </el-button>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="140" fixed="right" align="center">
+        <el-table-column label="操作" width="120" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openEditDrawer(row)">
               編輯
             </el-button>
             <el-button link type="danger" size="small" @click="handleDelete(row)">
+              <template #icon>
+                <div class="i-hugeicons:delete-02" />
+              </template>
               刪除
             </el-button>
           </template>
@@ -463,6 +471,14 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .zoom-account-settings {
+  :deep(.filter-form) {
+    gap: 20px;
+    .el-form-item {
+      margin-right: 0;
+      margin-bottom: 5px;
+    }
+  }
+
   .pagination-footer {
     display: flex;
     justify-content: flex-end;

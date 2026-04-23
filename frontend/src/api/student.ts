@@ -1,5 +1,5 @@
 import request from '@/utils/request';
-import type { BaseResponse, DataResponse, ListResponse } from './response';
+import type { BaseResponse, DataResponse } from './response';
 
 export interface StudentListParams {
   page?: number;
@@ -204,11 +204,11 @@ export interface StudentStatsSummary {
 
 
 export function getStudentList(params: StudentListParams) {
-  return request.get<StudentListResponse<StudentResponse>>('/v1/students', { params });
+  return request.get<any, StudentListResponse<StudentResponse>>('/v1/students', { params });
 }
 
 export function getStudentOverviewList(params: StudentOverviewListParams) {
-  return request.get<StudentListResponse<StudentOverviewListResponse>>('/v1/students/overview/list', { params });
+  return request.get<any, StudentListResponse<StudentOverviewListResponse>>('/v1/students/overview/list', { params });
 }
 
 export function createStudent(data: StudentCreate) {

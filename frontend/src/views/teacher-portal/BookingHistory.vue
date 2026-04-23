@@ -619,10 +619,12 @@ watch(
   }
 }
 
-.filter-form {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
+:deep(.filter-form) {
+  gap: 20px;
+   .el-form-item {
+     margin-right: 0;
+     margin-bottom: 5px;
+   }
 }
 
 .muted-text {

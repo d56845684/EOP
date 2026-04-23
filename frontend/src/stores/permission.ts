@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { RouteRecordRaw } from 'vue-router';
-import { SYSTEM_MODULES } from './mockStore';
+import { SYSTEM_MODULES } from '@/constants/systemModules';
 import { getMyPermissions } from '../api/permission';
 import { adminRoutes, teacherRoutes, studentRoutes, constantRoutes } from '../router/routes';
 import { useAuthStore } from './auth';

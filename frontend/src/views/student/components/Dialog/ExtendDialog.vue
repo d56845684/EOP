@@ -95,7 +95,7 @@ watch(() => props.addendum, (newVal) => {
     if (props.type === 'update') {
       contractForm.value = {
         new_end_date: newVal.new_end_date,
-        notes: newVal.notes
+        notes: newVal.notes || ''
       }
     }
   }
