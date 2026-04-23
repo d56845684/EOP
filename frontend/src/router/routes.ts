@@ -18,12 +18,12 @@ export const constantRoutes: RouteRecordRaw[] = [
 
 // Admin routes that need permission filtering if employee
 export const adminRoutes: RouteRecordRaw[] = [
-    {
-        path: '/reports',
-        name: 'Reports',
-        component: () => import('../views/reports/ReportStats.vue'),
-        meta: { title: '報表分析', icon: 'i-hugeicons:analytics-01', pageKey: 'reports.view' }
-    },
+    // {
+    //     path: '/reports',
+    //     name: 'Reports',
+    //     component: () => import('../views/reports/ReportStats.vue'),
+    //     meta: { title: '報表分析', icon: 'i-hugeicons:analytics-01', pageKey: 'reports.view' }
+    // },
     {
         path: '/teacher',
         name: 'Teachers',
@@ -60,12 +60,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('../views/course/CourseList.vue'),
         meta: { title: '課程管理', icon: 'i-hugeicons:books-01', pageKey: 'courses.list' }
     },
-    {
-        path: '/salary',
-        name: 'Salary',
-        component: () => import('../views/salary/SalaryReport.vue'),
-        meta: { title: '薪資計算', icon: 'i-hugeicons:money-bag-02', pageKey: 'salary.view' }
-    },
+    // {
+    //     path: '/salary',
+    //     name: 'Salary',
+    //     component: () => import('../views/salary/SalaryReport.vue'),
+    //     meta: { title: '薪資計算', icon: 'i-hugeicons:money-bag-02', pageKey: 'salary.view' }
+    // },
     {
         path: '/settings',
         name: 'Settings',
