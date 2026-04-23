@@ -89,7 +89,7 @@ async def get_course_options(
             "SELECT id, course_name FROM courses WHERE id = ANY($1) AND is_deleted = FALSE",
             course_ids,
         )
-        return {"success": True, "message": "操作成功", "data": [dict(c) for c in courses]}
+        return {"success": True, "message": "操作成功", "data": [{"id": str(c["id"]), "course_name": c["course_name"]} for c in courses]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
