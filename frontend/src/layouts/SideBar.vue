@@ -56,13 +56,16 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, ref } from 'vue';
+  import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
   import { usePermissionStore } from '@/stores/permission';
   import { getBreadcrumbLabel } from '@/utils/route';
   import logo from '@/assets/EOP-logo.png';
 
   const permissionStore = usePermissionStore();
   const isCollapse = ref(false);
+  const userCollapsePreference = ref(false);
+  const isAutoCollapsed = ref(false);
+  const AUTO_COLLAPSE_SCREEN_RATIO = 0.7;
 
   const emit = defineEmits(['collapse']);
 
@@ -72,9 +75,42 @@
   });
 
   const handleCollapse = () => {
-    isCollapse.value = !isCollapse.value;
+    const nextCollapseStatus = !isCollapse.value;
+    isCollapse.value = nextCollapseStatus;
+    userCollapsePreference.value = nextCollapseStatus;
+    isAutoCollapsed.value = false;
     emit('collapse', isCollapse.value);
   };
+
+  const updateCollapse = (status: boolean) => {
+    if (isCollapse.value === status) return;
+    isCollapse.value = status;
+    emit('collapse', isCollapse.value);
+  };
+
+  const handleResize = () => {
+    const shouldAutoCollapse = window.innerWidth < window.screen.width * AUTO_COLLAPSE_SCREEN_RATIO;
+
+    if (shouldAutoCollapse) {
+      isAutoCollapsed.value = true;
+      updateCollapse(true);
+      return;
+    }
+
+    if (isAutoCollapsed.value) {
+      isAutoCollapsed.value = false;
+      updateCollapse(userCollapsePreference.value);
+    }
+  };
+
+  onMounted(() => {
+    handleResize();
+    window.addEventListener('resize', handleResize);
+  });
+
+  onBeforeUnmount(() => {
+    window.removeEventListener('resize', handleResize);
+  });
 
 </script>
 

@@ -1,7 +1,7 @@
 <template>
   <div class="role-list pl-2 pr-4">
     <div class="flex justify-between items-center px-1 mb-2">
-      <h3 class="my-0">{{ $t('menu.role_settings') }}</h3>
+      <h3 class="my-0 text-lg">{{ $t('menu.role_settings') }}</h3>
       <el-button
         v-permission="'roles.create'"
         type="primary"
@@ -16,7 +16,7 @@
         {{ $t('role.add') }}
       </el-button>
     </div>
-    <el-card>
+    <el-card shadow="never">
       <el-table 
         :data="tableData" 
         size="small" 
@@ -71,9 +71,9 @@
             <el-space 
               v-if="!needLock(row)" 
               :size="10" 
-              style="width: 100%; justify-content: flex-end;"
+              style="width: 100%; justify-content: center;"
             >
-              <div class="flex justify-end">
+              <div class="flex justify-center gap-1">
                 <el-button
                   v-permission="'permissions.pages'"
                   round
@@ -87,10 +87,9 @@
                 </el-button>
                 <el-button
                   v-permission="'permissions.roles'"
-                  round
                   size="small"
                   type="primary"
-                  plain
+                  link
                   @click="handleEdit(row)"
                 >
                   {{ $t('common.edit') }}
@@ -103,11 +102,9 @@
                 <template #reference>
                   <el-button 
                     v-permission="'permissions.roles'" 
-                    round 
                     link 
                     size="small" 
                     type="danger" 
-                    plain
                   >
                     <div class="i-hugeicons:delete-02 mr-2px" />
                     {{ $t('common.delete') }}

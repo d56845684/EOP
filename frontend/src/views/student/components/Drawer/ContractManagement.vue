@@ -423,7 +423,8 @@ import {
   updateAddendum,
   type StudentContract,
   type StudentContractDetail ,
-  type StudentContractAddendum
+  type StudentContractAddendum,
+  type StudentContractAddendumUpdate
 } from '@/api/studentContract';
 import { CONTRACT_STATUS } from '@/constants/contract';
 import { triggerDownload, getFileNameFromResponse}  from '@/utils/download';
@@ -516,7 +517,7 @@ const handleUpdateContractDetails = () => {
   emit('updateContractDetails', activeContract.value?.id)
 }
 
-const handleAddendum = async ({data, addendumId}: {data: StudentContractAddendum, addendumId?: string}) => {
+const handleAddendum = async ({data, addendumId}: {data: StudentContractAddendumUpdate, addendumId?: string}) => {
   // TODO: Update addendum
   if (!activeContract.value) return;
   try {

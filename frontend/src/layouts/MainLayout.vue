@@ -51,6 +51,7 @@ const handleLogout = async () => {
 <style scoped lang="scss">
 .layout-container {
   height: 100vh;
+  overflow-x: hidden;
 }
 
 .header {
@@ -64,6 +65,8 @@ const handleLogout = async () => {
 .main-content {
   background-color: #f3f5fa;
   padding: 20px 20px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .footer {

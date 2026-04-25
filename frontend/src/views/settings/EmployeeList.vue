@@ -1,7 +1,7 @@
 <template>
   <div class="employee-list-page pl-2 pr-4">
     <div class="flex justify-between items-center px-1 mb-2">
-      <h3 class="my-0">{{ $t('menu.employee_settings') }}</h3>
+      <h3 class="my-0 text-lg">{{ $t('menu.employee_settings') }}</h3>
       <el-button
         v-if="hasPermission('employees.create')"
         type="primary"
@@ -756,6 +756,14 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+:deep(.filter-form) {
+  gap: 20px;
+   .el-form-item {
+     margin-right: 0;
+     margin-bottom: 5px;
+   }
+}
+
 .pagination-footer {
   display: flex;
   justify-content: flex-end;

@@ -41,7 +41,8 @@ const errorMessageMap: Record<string, string> = {
 
 const errorMessage = computed(() => {
   const error = String(route.query.error || 'unknown_error');
-  return t(errorMessageMap[error] || errorMessageMap.unknown_error);
+  const messageKey = errorMessageMap[error] ?? 'authError.messages.unknown_error';
+  return t(messageKey);
 });
 
 const description = computed(() => {

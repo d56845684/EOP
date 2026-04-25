@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue';
-import { useMockStore, type Teacher, type Booking } from '../../stores/mockStore';
 import { Download } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import dayjs from 'dayjs';
 import { useI18n } from 'vue-i18n';
+import { getBookingList, type BookingItem } from '@/api/booking';
+import { getCourseList, type CourseResponseData } from '@/api/course';
+import { getStudentOverviewList, type StudentOverviewListResponse } from '@/api/student';
+import { getStudentContracts, type StudentContract } from '@/api/studentContract';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { init, use, type ECharts } from 'echarts/core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import {
@@ -17,7 +21,6 @@ import { CanvasRenderer } from 'echarts/renderers';
 
 use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
-const store = useMockStore();
 const { t } = useI18n();
 
 // --- State ---
@@ -27,6 +30,11 @@ const dateRange = ref<[Date, Date]>([
 ]);
 
 const activeTab = ref('financial');
+const loading = ref(false);
+const bookings = ref<BookingItem[]>([]);
+const courses = ref<CourseResponseData[]>([]);
+const students = ref<StudentOverviewListResponse[]>([]);
+const contracts = ref<StudentContract[]>([]);
 const financialChartRef = ref<HTMLElement | null>(null);
 const courseChartRef = ref<HTMLElement | null>(null);
 const studentChartRef = ref<HTMLElement | null>(null);
@@ -36,6 +44,9 @@ let courseChart: ECharts | null = null;
 let studentChart: ECharts | null = null;
 
 // --- Helpers ---
+const dateFrom = computed(() => dayjs(dateRange.value[0]).startOf('month').format('YYYY-MM-DD'));
+const dateTo = computed(() => dayjs(dateRange.value[1]).endOf('month').format('YYYY-MM-DD'));
+
 const isBetween = (dateStr: string) => {
     if (!dateRange.value || !dateStr) return false;
     const d = dayjs(dateStr);
@@ -43,9 +54,52 @@ const isBetween = (dateStr: string) => {
            d.isBefore(dayjs(dateRange.value[1]).add(1, 'day'));
 };
 
-const getCoursePrice = (courseId: string) => {
-    const c = store.courses.find(x => x.id === courseId);
-    return c ? c.price : 0;
+const getBookingMinutes = (booking: BookingItem) => {
+    const start = dayjs(`${booking.booking_date} ${booking.start_time}`);
+    const end = dayjs(`${booking.booking_date} ${booking.end_time}`);
+    const diff = end.diff(start, 'minute');
+    if (diff > 0) return diff;
+
+    return courses.value.find((course) => course.id === booking.course_id)?.duration_minutes || 60;
+};
+
+const fetchReportData = async () => {
+    loading.value = true;
+    try {
+        const [bookingRes, contractRes, studentRes, courseRes] = await Promise.all([
+            getBookingList({
+                page: 1,
+                per_page: 100,
+                booking_status: 'completed',
+                date_from: dateFrom.value,
+                date_to: dateTo.value,
+            }),
+            getStudentContracts({
+                page: 1,
+                per_page: 100,
+            }),
+            getStudentOverviewList({
+                page: 1,
+                per_page: 100,
+            }),
+            getCourseList({
+                page: 1,
+                per_page: 100,
+            }),
+        ]);
+
+        bookings.value = assertApiSuccess(bookingRes, '載入預約統計失敗').data || [];
+        contracts.value = assertApiSuccess(contractRes, '載入合約統計失敗').data || [];
+        students.value = assertApiSuccess(studentRes, '載入學生統計失敗').data || [];
+        courses.value = assertApiSuccess(courseRes, '載入課程統計失敗').data || [];
+
+        await nextTick();
+        initCharts();
+    } catch (error) {
+        ElMessage.error(getApiErrorMessage(error, '載入報表資料失敗'));
+    } finally {
+        loading.value = false;
+    }
 };
 
 // --- Aggregation Logic ---
@@ -55,68 +109,55 @@ const revenueData = computed(() => {
     let total = 0;
     const monthlyData: Record<string, number> = {};
     
-    store.students.forEach(s => {
-        (s.purchasedCourses || []).forEach(p => {
-            if (isBetween(p.date)) {
-                const price = getCoursePrice(p.courseId);
-                total += price;
-                const m = dayjs(p.date).format('YYYY-MM');
-                monthlyData[m] = (monthlyData[m] || 0) + price;
-            }
-        });
+    contracts.value.forEach((contract) => {
+        const revenueDate = contract.start_date || contract.created_at;
+        if (!revenueDate || !isBetween(revenueDate)) return;
+
+        const amount = Number(contract.total_amount || 0);
+        total += amount;
+        const month = dayjs(revenueDate).format('YYYY-MM');
+        monthlyData[month] = (monthlyData[month] || 0) + amount;
     });
+
     return { total, monthlyData };
 });
 
 // 2. Salary
-const calculateBookingCost = (b: Booking, t: Teacher) => {
-    if (b.status !== 'Completed') return 0;
-    let rate = 0;
-    if (t.contractType === 'Full-time') return 0; 
-    const courseRate = t.salaryConfig.courseRates?.find(r => r.courseId === b.courseId)?.price;
-    rate = courseRate || t.salaryConfig.hourlyRate || 0;
-    if (b.type === 'Trial' && b.isConverted) {
-        rate = rate * (t.bonusMultiplier || 1);
-    }
-    return rate;
-};
-
 const salaryData = computed(() => {
     let total = 0;
     const monthlyData: Record<string, number> = {};
-    store.bookings.forEach(b => {
-        if (isBetween(b.time) && b.status === 'Completed') {
-            const t = store.teachers.find(x => x.id === b.teacherId);
-            if (t) {
-                const cost = calculateBookingCost(b, t);
-                total += cost;
-                const m = dayjs(b.time).format('YYYY-MM');
-                monthlyData[m] = (monthlyData[m] || 0) + cost;
-            }
-        }
+
+    bookings.value.forEach((booking) => {
+        const date = booking.booking_date;
+        if (!isBetween(date)) return;
+
+        const cost = Number(booking.teacher_hourly_rate || 0);
+        total += cost;
+        const month = dayjs(date).format('YYYY-MM');
+        monthlyData[month] = (monthlyData[month] || 0) + cost;
     });
+
     return { total, monthlyData };
 });
 
 // 3. Operation Metrics
 const hoursData = computed(() => {
     let totalMins = 0;
-    store.bookings.forEach(b => {
-        if (isBetween(b.time) && b.status === 'Completed') {
-            const dur = b.duration || store.courses.find(c => c.id === b.courseId)?.duration || 60;
-            totalMins += dur;
-        }
+    bookings.value.forEach((booking) => {
+        if (!isBetween(booking.booking_date)) return;
+        totalMins += getBookingMinutes(booking);
     });
     return (totalMins / 60).toFixed(1);
 });
 
 const coursePopularity = computed(() => {
     const counts: Record<string, number> = {};
-    store.bookings.forEach(b => {
-        if (isBetween(b.time) && b.status === 'Completed') {
-           const cName = store.courses.find(c => c.id === b.courseId)?.name || 'Unknown';
-           counts[cName] = (counts[cName] || 0) + 1;
-        }
+    bookings.value.forEach((booking) => {
+        if (!isBetween(booking.booking_date)) return;
+        const courseName = booking.course_name
+            || courses.value.find((course) => course.id === booking.course_id)?.course_name
+            || 'Unknown';
+        counts[courseName] = (counts[courseName] || 0) + 1;
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
 });
@@ -125,17 +166,15 @@ const studentGrowth = computed(() => {
     const newPerMonth: Record<string, number> = {};
     let newCount = 0;
     
-    store.students.forEach(s => {
-        if (isBetween(s.createdAt)) {
-            const m = dayjs(s.createdAt).format('YYYY-MM');
+    students.value.forEach((student) => {
+        const createdAt = student.created_at;
+        if (createdAt && isBetween(createdAt)) {
+            const m = dayjs(createdAt).format('YYYY-MM');
             newPerMonth[m] = (newPerMonth[m] || 0) + 1;
             newCount++;
         }
     });
-    // Active estimate: All students matching filter (simplification)
-    // Or just all students "active" right now? 
-    // Requirement says "Active Students". Let's use total filtered students count as proxy for now.
-    const active = store.students.filter(s => s.status && isBetween(s.updatedAt || s.createdAt)).length;
+    const active = students.value.filter((student) => student.is_active).length;
     
     return { newPerMonth, newCount, active };
 });
@@ -210,7 +249,7 @@ const updateCharts = () => {
         
         if (studentChart) {
             studentChart.resize();
-            let activeCount = 50; // Mock base
+            let activeCount = Math.max(studentGrowth.value.active - studentGrowth.value.newCount, 0);
             const activeSeries = months.map(m => {
                 activeCount += (studentGrowth.value.newPerMonth[m] || 0);
                 return activeCount;
@@ -248,10 +287,8 @@ const initCharts = () => {
 };
 
 onMounted(() => {
-    nextTick(() => {
-        initCharts();
-        window.addEventListener('resize', handleResize);
-    });
+    fetchReportData();
+    window.addEventListener('resize', handleResize);
 });
 
 onUnmounted(() => {
@@ -267,10 +304,14 @@ const handleResize = () => {
     studentChart?.resize();
 };
 
-watch([dateRange, activeTab], () => {
+watch(activeTab, () => {
     nextTick(() => {
-        initCharts(); // Re-init or update based on tab visibility
+        initCharts();
     });
+});
+
+watch(dateRange, () => {
+    fetchReportData();
 });
 
 const handleExport = () => {

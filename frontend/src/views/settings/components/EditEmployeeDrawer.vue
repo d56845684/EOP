@@ -59,7 +59,6 @@
   import { ref, reactive, computed, watch, type PropType } from 'vue';
   import { ElMessage, type FormRules, type FormInstance } from 'element-plus';
   import { updateUserApi, type RoleInfo, type AccountInfo } from '@/api/user';
-  import { createEmployeeApi, type Employee } from '@/api/employee';
   import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 
   const submitting = ref(false);

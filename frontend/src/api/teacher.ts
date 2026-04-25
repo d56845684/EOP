@@ -1,5 +1,5 @@
 import request from '@/utils/request';
-import type { BaseResponse, DataResponse, ListResponse } from './response';
+import type { BaseResponse } from './response';
 
 export interface TeacherListParams {
   page?: number;

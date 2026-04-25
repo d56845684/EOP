@@ -311,9 +311,6 @@ const pendingCourses = ref<{ id: string; course_name: string }[]>([]);
 const dialogEnrolledCourses = ref<StudentCourseResponse[]>([]);
 const deletingCourseIds = ref<Set<string>>(new Set());
 
-// Set of enrolled course IDs for quick look-up (main list)
-const enrolledCourseIds = computed(() => new Set(studentCourses.value.map((e) => e.course_id)));
-
 /** Returns true if courseId is already enrolled or pending to be added */
 const isInDialogList = (courseId: string): boolean => {
   return (

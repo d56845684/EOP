@@ -176,6 +176,11 @@ export interface BookingTeacherOption {
     teacher_no?: string;
 }
 
+export interface BookingSubstituteTeacherOption extends BookingTeacherOption {
+    teacher_level?: string | null;
+    is_preferred?: boolean;
+}
+
 export interface BookingCourseOption {
     id: string;
     course_name: string;
@@ -202,12 +207,23 @@ export interface BookingTeacherSlotOption {
     teacher_contract_id: string;
 }
 
+export interface BookingTeacherContractOption {
+    id: string;
+    contract_no: string;
+}
+
 export function getBookingOptionStudents() {
     return request.get<any, DataResponse<BookingStudentOption[]>>('/v1/bookings/options/students');
 }
 
 export function getBookingOptionTeachers(params?: { student_id?: string }) {
     return request.get<any, DataResponse<BookingTeacherOption[]>>('/v1/bookings/options/teachers', { params });
+}
+
+export function getBookingOptionSubstituteTeachers(bookingId: string) {
+    return request.get<any, DataResponse<BookingSubstituteTeacherOption[]>>('/v1/bookings/options/substitute-teachers', {
+        params: { booking_id: bookingId },
+    });
 }
 
 export function getBookingOptionOverlappingCourses(params: { student_id: string; teacher_id: string }) {
@@ -224,4 +240,8 @@ export function getBookingOptionStudentContracts(studentId: string) {
 
 export function getBookingOptionTeacherSlots(teacherId: string, params?: { date_from?: string; date_to?: string }) {
     return request.get<any, DataResponse<BookingTeacherSlotOption[]>>(`/v1/bookings/options/teacher-slots/${teacherId}`, { params });
+}
+
+export function getBookingOptionTeacherContracts(teacherId: string) {
+    return request.get<any, DataResponse<BookingTeacherContractOption[]>>(`/v1/bookings/options/teacher-contracts/${teacherId}`);
 }

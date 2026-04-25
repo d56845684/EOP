@@ -94,9 +94,9 @@ import {
   type NotificationPreferences,
 } from '@/api/notification';
 import { formatRoleLabel } from '@/utils/i18n-formatters';
-import ProfileSummaryCard from './profile/components/ProfileSummaryCard.vue';
-import LineBindingCard from './profile/components/LineBindingCard.vue';
-import NotificationSettingsCard from './profile/components/NotificationSettingsCard.vue';
+import ProfileSummaryCard from './components/ProfileSummaryCard.vue';
+import LineBindingCard from './components/LineBindingCard.vue';
+import NotificationSettingsCard from './components/NotificationSettingsCard.vue';
 
 const authStore = useAuthStore();
 const { t } = useI18n();

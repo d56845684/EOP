@@ -60,7 +60,7 @@
         :model="filters" 
         size="small" 
         label-position="top" 
-        class="flex flex-wrap items-end">
+        class="filter-form flex flex-wrap items-end">
         <el-form-item label="關鍵字">
           <el-input 
             v-model="filters.search" 
@@ -163,12 +163,30 @@
     <el-card shadow="never">
       <el-table :data="tableData" style="width: 100%" v-loading="loading" stripe size="small" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="40" align="center" fixed="left" />
-        <el-table-column label="預約編號" prop="booking_no" width="150" />
+        <el-table-column label="預約編號" prop="booking_no" width="200">
+          <template #default="{ row }">
+            <div class="flex justify-between items-center gap-2 pr-3">
+              <div class="font-bold">{{ row.booking_no }}</div>
+              <el-tag 
+                :type="row.booking_type === 'trial' ? 'warning' : ''" 
+                effect="plain" 
+                size="small"
+                class="h-20px! text-10px! px-1!">
+                {{ BOOKING_TYPE_MAP[row.booking_type] || row.booking_type }}
+              </el-tag>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column :label="$t('common.student')" min-width="100">
           <template #default="{ row }">{{ row.student_name || '-' }}</template>
         </el-table-column>
         <el-table-column :label="$t('common.teacher')" min-width="100">
-          <template #default="{ row }">{{ row.teacher_name || '-' }}</template>
+          <template #default="{ row }">
+            <div>{{ row.teacher_name || '-' }}</div>
+            <div v-if="row.substitute_teacher_name" class="text-xs color-gray-500 mt-1">
+              {{ row.substitute_teacher_name }}（代課）
+            </div>
+          </template>
         </el-table-column>
         <el-table-column :label="$t('common.course')" min-width="120">
           <template #default="{ row }">{{ row.course_name || '-' }}</template>
@@ -181,22 +199,16 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.status')" width="100" align="center">
+        <el-table-column :label="$t('common.status')" width="80" align="center">
           <template #default="{ row }">
             <el-tag 
               :type="getStatusColor(row.booking_status)" 
-              size="small">
-              {{ BOOKING_STATUS_MAP[row.booking_status] }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('common.type')" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag 
-              :type="row.booking_type === 'trial' ? 'warning' : ''" 
-              effect="plain" 
-              size="small">
-              {{ BOOKING_TYPE_MAP[row.booking_type] || row.booking_type }}
+              size="small"
+              class="text-11px! bg-transparent!">
+              <div class="flex items-center gap-1">
+                <span :class="`text-sm color-${getStatusColor(row.booking_status)}`">•</span>
+                <span>{{ BOOKING_STATUS_MAP[row.booking_status] }}</span>
+              </div>
             </el-tag>
           </template>
         </el-table-column>
@@ -252,12 +264,96 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.actions')" width="120" align="center" fixed="right">
+        <el-table-column :label="$t('common.actions')" width="200" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="openDialog('edit', row)">{{ $t('common.edit') }}</el-button>
-            <el-button link type="danger" size="small" @click="handleDelete(row)">
-              <div class="i-hugeicons:delete-02 mr-2px" />{{ $t('common.delete') }}
-            </el-button>
+            <div class="flex flex-col justify-between gap-2 items-start px-1">
+              <div>
+                <el-button link type="primary" size="small" @click="openDialog('edit', row)">{{ $t('common.edit') }}</el-button>
+                <el-button link type="danger" size="small" @click="handleDelete(row)">
+                  <template #icon><div class="i-hugeicons:delete-02" /></template>
+                  {{ $t('common.delete') }}
+                </el-button>
+              </div>
+              <template v-if="row.booking_status === 'confirmed'">
+                <div class="flex justify-center gap-2 mt-2">
+                  <div>
+                    <el-button
+                      plain
+                      type="warning"
+                      size="small"
+                      round
+                      :disabled="Boolean(row.has_pending_leave)"
+                      @click="openLeaveDialog(row)">
+                      請假
+                    </el-button>
+                  </div>
+                  <div>
+                    <el-button
+                    v-if="!row.substitute_detail_id"
+                    plain
+                    type="success"
+                    size="small"
+                    round
+                    @click="openSubstituteDialog(row)">
+                    代課
+                  </el-button>
+                  <el-button
+                    v-else
+                    plain
+                    type="danger"
+                    size="small"
+                    round
+                    @click="handleCancelSubstitute(row)">
+                    取消代課
+                  </el-button>
+                  </div>
+                  <div>
+                    <el-button plain type="danger" size="small" round @click="handleCancelBooking(row)">
+                      取消
+                    </el-button>
+                  </div>
+              </div>
+            </template>
+            </div>
+                <!-- <div class="flex flex-wrap justify-center gap-x-2 gap-y-1">
+              <template v-if="row.booking_status === 'confirmed'">
+                <el-button
+                  plain
+                  type="warning"
+                  size="small"
+                  round
+                  :disabled="Boolean(row.has_pending_leave)"
+                  @click="openLeaveDialog(row)">
+                  請假
+                </el-button>
+                <el-button
+                  v-if="!row.substitute_detail_id"
+                  plain
+                  type="success"
+                  size="small"
+                  round
+                  @click="openSubstituteDialog(row)">
+                  代課
+                </el-button>
+                <el-button
+                  v-else
+                  plain
+                  type="danger"
+                  size="small"
+                  round
+                  @click="handleCancelSubstitute(row)">
+                  取消代課
+                </el-button>
+                <el-button plain type="danger" round size="small" @click="handleCancelBooking(row)">
+                  取消
+                </el-button>
+              </template>
+              <el-button link type="primary" size="small" @click="openDialog('edit', row)">{{ $t('common.edit') }}</el-button>
+              <el-button link type="danger" size="small" @click="handleDelete(row)">
+                <template #icon><div class="i-hugeicons:delete-02" /></template>
+                {{ $t('common.delete') }}
+              </el-button>
+            </div> -->
           </template>
         </el-table-column>
       </el-table>
@@ -386,7 +482,7 @@
                     placeholder="請選擇時段" 
                     class="w-full" 
                     :loading="addDeps.isFetchingCourses">
-                    <template #label="{ label, value }">
+                    <template #label="{ label }">
                       <div class="flex gap-2">
                         <span class="font-500 w-85px">{{ label.split(' ')[0] }}</span>
                         <span class="font-500">{{ label.split(' ')[1] }}</span>
@@ -755,21 +851,117 @@
             :loading="dialogs.batchDelete.loading">刪除</el-button>
         </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="leaveDialogVisible"
+      title="建立請假申請"
+      width="460px"
+      destroy-on-close
+      @closed="resetLeaveForm">
+      <div v-if="leaveBooking" class="mb-4 rounded-md bg-gray-50 p-4 text-sm">
+        <div class="mb-1 font-500">{{ leaveBooking.booking_no }}</div>
+        <div class="text-xs color-gray-500">
+          {{ leaveBooking.booking_date }} {{ leaveBooking.start_time?.substring(0, 5) }}~{{ leaveBooking.end_time?.substring(0, 5) }}
+        </div>
+        <div class="mt-1 text-xs color-gray-500">
+          {{ leaveBooking.student_name || '-' }} / {{ leaveBooking.teacher_name || '-' }} / {{ leaveBooking.course_name || '-' }}
+        </div>
+      </div>
+
+      <el-form ref="leaveFormRef" :model="leaveForm" :rules="leaveRules" label-position="top">
+        <el-form-item label="請假原因" prop="reason">
+          <el-input
+            v-model="leaveForm.reason"
+            type="textarea"
+            :rows="4"
+            maxlength="200"
+            show-word-limit
+            placeholder="請輸入請假原因" />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="leaveDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="leaveSubmitting" @click="submitLeave">送出請假</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="substituteDialogVisible"
+      title="指派代課"
+      width="500px"
+      destroy-on-close
+      @closed="resetSubstituteForm">
+      <div v-if="substituteBooking" class="mb-4 rounded-md bg-gray-50 p-4 text-sm">
+        <div class="mb-1 font-500">{{ substituteBooking.booking_no }}</div>
+        <div class="text-xs color-gray-500">
+          {{ substituteBooking.booking_date }} {{ substituteBooking.start_time?.substring(0, 5) }}~{{ substituteBooking.end_time?.substring(0, 5) }}
+        </div>
+        <div class="mt-1 text-xs color-gray-500">
+          {{ substituteBooking.student_name || '-' }} / {{ substituteBooking.teacher_name || '-' }} / {{ substituteBooking.course_name || '-' }}
+        </div>
+      </div>
+
+      <el-form ref="substituteFormRef" :model="substituteForm" :rules="substituteRules" label-position="top">
+        <el-form-item label="代課教師" prop="substitute_teacher_id">
+          <el-select
+            v-model="substituteForm.substitute_teacher_id"
+            filterable
+            class="w-full"
+            placeholder="請選擇代課教師"
+            :loading="substituteTeachersLoading">
+            <el-option
+              v-for="teacher in substituteTeacherOptions"
+              :key="teacher.id"
+              :label="`${teacher.teacher_no || ''}${teacher.teacher_no ? ' - ' : ''}${teacher.name}${teacher.is_preferred ? ' ★' : ''}`"
+              :value="teacher.id" />
+          </el-select>
+        </el-form-item>
+
+        <div v-if="substituteForm.substitute_teacher_id && substituteContractsLoading" class="mb-4 text-sm color-gray-500">
+          正在確認代課教師合約...
+        </div>
+        <div
+          v-else-if="substituteForm.substitute_teacher_id && !substituteForm.substitute_contract_id"
+          class="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm color-red-600">
+          此代課教師目前沒有可用合約，無法指派代課。
+        </div>
+
+        <el-form-item label="代課原因" prop="reason">
+          <el-input
+            v-model="substituteForm.reason"
+            type="textarea"
+            :rows="3"
+            maxlength="200"
+            show-word-limit
+            placeholder="請輸入代課原因（可選）" />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="substituteDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="substituteSubmitting" @click="submitSubstitute">確認指派</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import dayjs from 'dayjs';
 import {
   getBookingList, createBooking, updateBooking,
   batchCreateBookings, batchUpdateBookings, batchDeleteBookings,
   batchUpdateBookingsByIds, batchDeleteBookingsByIds,
-  type BookingItem, type BookingListParams, type BookingStatus
+  getBookingOptionSubstituteTeachers, getBookingOptionTeacherContracts,
+  type BookingItem, type BookingListParams, type BookingStatus,
+  type BookingSubstituteTeacherOption
 } from '@/api/booking';
 import { getZoomMeetingByBooking, createZoomMeeting, batchGetZoomMeetings, type ZoomMeetingLogResponse } from '@/api/zoom';
+import { createLeaveRecord } from '@/api/leaveRecord';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
+import { createSubstituteDetail, deleteSubstituteDetail } from '@/api/substituteDetail';
 import { useBookingDependencies } from '@/composables/useBookingDependencies';
 import { BOOKING_STATUS_MAP, BOOKING_TYPE_MAP } from '@/constants/booking';
 import { copyToClipboardUtil } from '@/utils/clipboard';
@@ -895,6 +1087,249 @@ const openUrl = (url?: string | null) => {
   if (url) window.open(url, '_blank');
 };
 
+const leaveDialogVisible = ref(false);
+const leaveSubmitting = ref(false);
+const leaveBooking = ref<BookingItem | null>(null);
+const leaveFormRef = ref<FormInstance>();
+const leaveForm = reactive({
+  reason: '',
+});
+const leaveRules: FormRules = {
+  reason: [{ required: true, message: '請輸入請假原因', trigger: 'blur' }],
+};
+
+const substituteDialogVisible = ref(false);
+const substituteSubmitting = ref(false);
+const substituteTeachersLoading = ref(false);
+const substituteContractsLoading = ref(false);
+const substituteBooking = ref<BookingItem | null>(null);
+const substituteFormRef = ref<FormInstance>();
+const substituteTeacherOptions = ref<BookingSubstituteTeacherOption[]>([]);
+const substituteForm = reactive({
+  substitute_teacher_id: '',
+  substitute_contract_id: '',
+  reason: '',
+});
+const substituteRules: FormRules = {
+  substitute_teacher_id: [{ required: true, message: '請選擇代課教師', trigger: 'change' }],
+};
+
+const openLeaveDialog = (row: BookingItem) => {
+  if (row.booking_status !== 'confirmed') {
+    ElMessage.warning('只有已確認的預約可以請假');
+    return;
+  }
+  if (row.has_pending_leave) {
+    ElMessage.warning('此預約已有待審核的請假申請');
+    return;
+  }
+
+  leaveBooking.value = row;
+  leaveForm.reason = '';
+  leaveDialogVisible.value = true;
+};
+
+const resetLeaveForm = () => {
+  leaveBooking.value = null;
+  leaveForm.reason = '';
+  leaveFormRef.value?.clearValidate();
+};
+
+const submitLeave = async () => {
+  if (!leaveFormRef.value || !leaveBooking.value) return;
+
+  await leaveFormRef.value.validate(async (valid) => {
+    if (!valid || !leaveBooking.value) return;
+
+    try {
+      await ElMessageBox.confirm('送出後將建立請假申請，確定繼續嗎？', '確認請假', {
+        confirmButtonText: '送出請假',
+        cancelButtonText: '取消',
+        type: 'warning',
+      });
+    } catch {
+      return;
+    }
+
+    leaveSubmitting.value = true;
+    try {
+      const res = assertApiSuccess(await createLeaveRecord({
+        booking_id: leaveBooking.value.id,
+        reason: leaveForm.reason.trim(),
+      }), '送出請假失敗');
+
+      ElMessage.success(res.message || '請假申請已送出');
+      leaveDialogVisible.value = false;
+      fetchData();
+    } catch (error) {
+      ElMessage.error(getApiErrorMessage(error, '送出請假失敗'));
+    } finally {
+      leaveSubmitting.value = false;
+    }
+  });
+};
+
+const loadSubstituteTeacherOptions = async (bookingId: string) => {
+  substituteTeachersLoading.value = true;
+  try {
+    const res = assertApiSuccess(await getBookingOptionSubstituteTeachers(bookingId), '載入代課教師失敗');
+    substituteTeacherOptions.value = res.data || [];
+  } catch (error) {
+    substituteTeacherOptions.value = [];
+    ElMessage.error(getApiErrorMessage(error, '載入代課教師失敗'));
+  } finally {
+    substituteTeachersLoading.value = false;
+  }
+};
+
+const openSubstituteDialog = async (row: BookingItem) => {
+  if (row.booking_status !== 'confirmed') {
+    ElMessage.warning('只有已確認的預約可以指派代課');
+    return;
+  }
+  if (row.substitute_detail_id) {
+    ElMessage.warning('此預約已有代課安排');
+    return;
+  }
+
+  substituteBooking.value = row;
+  substituteForm.substitute_teacher_id = '';
+  substituteForm.substitute_contract_id = '';
+  substituteForm.reason = '';
+  substituteTeacherOptions.value = [];
+  substituteDialogVisible.value = true;
+  await loadSubstituteTeacherOptions(row.id);
+};
+
+const resetSubstituteForm = () => {
+  substituteBooking.value = null;
+  substituteTeacherOptions.value = [];
+  substituteForm.substitute_teacher_id = '';
+  substituteForm.substitute_contract_id = '';
+  substituteForm.reason = '';
+  substituteFormRef.value?.clearValidate();
+};
+
+watch(
+  () => substituteForm.substitute_teacher_id,
+  async (teacherId) => {
+    substituteForm.substitute_contract_id = '';
+
+    if (!teacherId) {
+      substituteContractsLoading.value = false;
+      return;
+    }
+
+    substituteContractsLoading.value = true;
+    try {
+      const res = assertApiSuccess(await getBookingOptionTeacherContracts(teacherId), '載入教師合約失敗');
+      const [firstContract] = res.data || [];
+      if (firstContract) {
+        substituteForm.substitute_contract_id = firstContract.id;
+      } else {
+        ElMessage.warning('此代課教師目前沒有可用合約');
+      }
+    } catch (error) {
+      substituteForm.substitute_contract_id = '';
+      ElMessage.error(getApiErrorMessage(error, '載入教師合約失敗'));
+    } finally {
+      substituteContractsLoading.value = false;
+    }
+  }
+);
+
+const submitSubstitute = async () => {
+  if (!substituteFormRef.value || !substituteBooking.value) return;
+
+  await substituteFormRef.value.validate(async (valid) => {
+    if (!valid || !substituteBooking.value) return;
+    if (!substituteForm.substitute_contract_id) {
+      ElMessage.warning('此代課教師目前沒有可用合約');
+      return;
+    }
+
+    substituteSubmitting.value = true;
+    try {
+      const res = assertApiSuccess(await createSubstituteDetail({
+        booking_id: substituteBooking.value.id,
+        substitute_teacher_id: substituteForm.substitute_teacher_id,
+        substitute_contract_id: substituteForm.substitute_contract_id,
+        reason: substituteForm.reason.trim() || null,
+      }), '指派代課失敗');
+
+      ElMessage.success(res.message || '代課已指派');
+      substituteDialogVisible.value = false;
+      fetchData();
+    } catch (error) {
+      ElMessage.error(getApiErrorMessage(error, '指派代課失敗'));
+    } finally {
+      substituteSubmitting.value = false;
+    }
+  });
+};
+
+const handleCancelSubstitute = async (row: BookingItem) => {
+  if (!row.substitute_detail_id) {
+    ElMessage.warning('此預約目前沒有代課安排');
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `確定要取消「${row.booking_no}」的代課安排嗎？取消後預約狀態將改回待確認。`,
+      '取消代課',
+      {
+        confirmButtonText: '確認取消',
+        cancelButtonText: '返回',
+        type: 'warning',
+      },
+    );
+  } catch {
+    return;
+  }
+
+  try {
+    const res = assertApiSuccess(await deleteSubstituteDetail(row.substitute_detail_id), '取消代課失敗');
+    ElMessage.success(res.message || '代課已取消');
+    fetchData();
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '取消代課失敗'));
+  }
+};
+
+const handleCancelBooking = async (row: BookingItem) => {
+  try {
+    await ElMessageBox.confirm(`確定要取消「${row.booking_no}」嗎？`, '取消預約', {
+      confirmButtonText: '下一步',
+      cancelButtonText: '返回',
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm('取消後將同步取消相關會議與行事曆資料，是否再次確認？', '再次確認', {
+      confirmButtonText: '確認取消',
+      cancelButtonText: '保留預約',
+      type: 'error',
+    });
+  } catch {
+    return;
+  }
+
+  try {
+    const res = assertApiSuccess(await updateBooking(row.id, {
+      booking_status: 'cancelled',
+    }), '取消預約失敗');
+
+    ElMessage.success(res.message || '預約已取消');
+    fetchData();
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '取消預約失敗'));
+  }
+};
+
 // --- Dialog state management ---
 const dialogs = reactive({
   add: { visible: false, loading: false },
@@ -939,7 +1374,7 @@ const addForm = reactive({
 });
 const addDeps = reactive(useBookingDependencies(addForm, addFormRef));
 
-const validateBookingDate = (rule: any, value: any, callback: any) => {
+const validateBookingDate = (_rule: any, value: any, callback: any) => {
   if (addForm.timeMode === 'manual' && !value) callback(new Error('必填'));
   else callback();
 };
@@ -1136,4 +1571,11 @@ const submitBatchDelete = async () => {
 </script>
 
 <style scoped>
+:deep(.filter-form) {
+  gap: 20px;
+   .el-form-item {
+     margin-right: 0;
+     margin-bottom: 5px;
+   }
+}
 </style>

@@ -11,19 +11,19 @@ export const constantRoutes: RouteRecordRaw[] = [
     {
         path: '/profile',
         name: 'Profile',
-        component: () => import('../views/Profile.vue'),
+        component: () => import('../views/profile/Profile.vue'),
         meta: { title: '個人設定', icon: 'i-hugeicons:user-settings-01' }
     }
 ];
 
 // Admin routes that need permission filtering if employee
 export const adminRoutes: RouteRecordRaw[] = [
-    {
-        path: '/reports',
-        name: 'Reports',
-        component: () => import('../views/reports/ReportStats.vue'),
-        meta: { title: '報表分析', icon: 'i-hugeicons:analytics-01', pageKey: 'reports.view' }
-    },
+    // {
+    //     path: '/reports',
+    //     name: 'Reports',
+    //     component: () => import('../views/reports/ReportStats.vue'),
+    //     meta: { title: '報表分析', icon: 'i-hugeicons:analytics-01', pageKey: 'reports.view' }
+    // },
     {
         path: '/teacher',
         name: 'Teachers',
@@ -43,17 +43,29 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { title: '預約管理', icon: 'i-hugeicons:calendar-02', pageKey: 'bookings.list' }
     },
     {
+        path: '/booking-overview',
+        name: 'BookingOverview',
+        component: () => import('../views/booking/BookingOverview.vue'),
+        meta: { title: '預約總覽', icon: 'i-hugeicons:calendar-03', pageKey: 'bookings.list' }
+    },
+    {
+        path: '/leave-management',
+        name: 'LeaveManagement',
+        component: () => import('../views/leave/LeaveManagement.vue'),
+        meta: { title: '請假管理', icon: 'i-hugeicons:calendar-remove-02', pageKey: 'bookings.list' }
+    },
+    {
         path: '/course',
         name: 'Courses',
         component: () => import('../views/course/CourseList.vue'),
         meta: { title: '課程管理', icon: 'i-hugeicons:books-01', pageKey: 'courses.list' }
     },
-    {
-        path: '/salary',
-        name: 'Salary',
-        component: () => import('../views/salary/SalaryReport.vue'),
-        meta: { title: '薪資計算', icon: 'i-hugeicons:money-bag-02', pageKey: 'salary.view' }
-    },
+    // {
+    //     path: '/salary',
+    //     name: 'Salary',
+    //     component: () => import('../views/salary/SalaryReport.vue'),
+    //     meta: { title: '薪資計算', icon: 'i-hugeicons:money-bag-02', pageKey: 'salary.view' }
+    // },
     {
         path: '/settings',
         name: 'Settings',
@@ -76,6 +88,12 @@ export const adminRoutes: RouteRecordRaw[] = [
                 name: 'RoleSettings',
                 component: () => import('../views/settings/RoleList.vue'),
                 meta: { title: '角色權限', icon: 'i-hugeicons:shield-user', pageKey: 'settings.role' }
+            },
+            {
+                path: 'zoom-accounts',
+                name: 'ZoomAccountSettings',
+                component: () => import('../views/settings/ZoomAccountSettings.vue'),
+                meta: { title: 'Zoom 帳號設定', icon: 'i-hugeicons:video-01', pageKey: 'employees.list' }
             }
         ]
     }
@@ -92,14 +110,14 @@ export const teacherRoutes: RouteRecordRaw[] = [
     {
         path: '/teacher-portal/profile',
         name: 'TeacherProfile',
-        component: () => import('../views/Profile.vue'),
+        component: () => import('../views/profile/Profile.vue'),
         meta: { title: '個人設定', icon: 'i-hugeicons:user-settings-01' }
     },
     {
         path: '/teacher-portal/schedule',
         name: 'TeacherSchedule',
         component: () => import('../views/teacher-portal/ScheduleSettings.vue'),
-        meta: { title: '班表設定', icon: 'i-hugeicons:calendar-setting-01', pageKey: 'teachers.slots' }
+        meta: { title: '預約時間設定', icon: 'i-hugeicons:calendar-setting-01', pageKey: 'teachers.slots' }
     },
     {
         path: '/teacher-portal/history',
@@ -120,7 +138,7 @@ export const studentRoutes: RouteRecordRaw[] = [
     {
         path: '/student-portal/profile',
         name: 'StudentProfile',
-        component: () => import('../views/Profile.vue'),
+        component: () => import('../views/profile/Profile.vue'),
         meta: { title: '個人設定', icon: 'i-hugeicons:user-settings-01' }
     },
     {

@@ -1,337 +1,702 @@
 <template>
   <div class="booking-history">
-    <el-card>
-      <template #header>
-        <div class="header">
-          <span class="title">{{ $t('teacherRecords.title') }}</span>
-          <el-checkbox v-model="filterIncomplete" :label="$t('teacherRecords.filterIncompleteNotes')" />
-        </div>
-      </template>
+    <section class="page-header">
+      <div>
+        <h2>{{ $t('teacherRecords.title') }}</h2>
+      </div>
+      <el-button :loading="loading" size="small" round class="h-30px px-3" @click="fetchBookings">
+        <template #icon><div class="i-hugeicons:refresh" /></template>
+        重新整理
+      </el-button>
+    </section>
 
-      <el-table :data="pagedData" style="width: 100%" stripe>
-        <el-table-column :label="$t('teacherRecords.colDate')" width="120">
+    <el-card shadow="never" class="filter-panel">
+      <el-form :inline="true" :model="filters" label-position="top" size="small" class="filter-form">
+        <el-form-item label="關鍵字">
+          <el-input
+            v-model="filters.search"
+            clearable
+            placeholder="預約編號、學生、課程"
+            class="h-30px! w-220px!"
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item label="日期範圍">
+          <el-date-picker
+            v-model="filters.dateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="~"
+            start-placeholder="開始日期"
+            end-placeholder="結束日期"
+            class="h-30px! w-220px!"
+            clearable
+            @change="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item label="狀態">
+          <el-select 
+            v-model="filters.status" 
+            clearable 
+            placeholder="全部" 
+            class="h-30px! w-132px!" 
+            @change="handleSearch"
+          >
+            <el-option label="待確認" value="pending" />
+            <el-option label="已確認" value="confirmed" />
+            <el-option label="已完成" value="completed" />
+            <el-option label="已取消" value="cancelled" />
+          </el-select>
+        </el-form-item>
+        <el-form-item class="mr-4!">
+          <el-checkbox v-model="filters.incompleteNotesOnly" class="h-30px!" @change="handleSearch">
+            未上傳課後筆記
+          </el-checkbox>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" round class="h-30px! px-4!" @click="handleSearch">
+            <template #icon><div class="i-hugeicons:search-01" /></template>
+            查詢
+          </el-button>
+          <el-button round class="h-30px! px-4!" @click="resetFilters">
+            <template #icon><div class="i-hugeicons:arrow-reload-horizontal" /></template>
+            重置
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card shadow="never">
+      <el-table
+        v-loading="loading"
+        :data="displayBookings"
+        stripe
+        size="small"
+        class="w-full"
+        empty-text="尚無預約紀錄"
+      >
+        <el-table-column prop="booking_no" label="預約編號" width="145" fixed="left" />
+
+        <el-table-column label="日期 / 時間" width="150" align="center">
           <template #default="{ row }">
-            {{ formatDate(row.time) }}
+            <div>{{ row.booking_date || '-' }}</div>
+            <div class="muted-text">{{ formatTime(row.start_time) }} ~ {{ formatTime(row.end_time) }}</div>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('teacherRecords.colTime')" width="100">
+
+        <el-table-column label="學生" min-width="120">
           <template #default="{ row }">
-            {{ formatTime(row.time) }}
+            {{ row.student_name || '-' }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('teacherRecords.colCourse')" prop="courseName">
-             <template #default="{ row }">
-                {{ getCourseName(row.courseId) }}
-             </template>
-        </el-table-column>
-        <el-table-column :label="$t('teacherRecords.colStudent')" prop="studentName">
-             <template #default="{ row }">
-                {{ getStudentName(row.studentId) }}
-             </template>
-        </el-table-column>
-        
-        <!-- After-Class Notes -->
-        <el-table-column :label="$t('teacherRecords.colNotes')" min-width="200">
+
+        <el-table-column label="課程" min-width="150">
           <template #default="{ row }">
-            <!-- Condition B: Note Exists -->
-            <div v-if="row.noteUrl" class="note-link-container">
-               <a :href="row.noteUrl" target="_blank" class="note-link">{{ row.noteUrl }}</a>
-               <el-button link type="primary" @click="copyLink(row.noteUrl)">
-                  <el-icon><CopyDocument /></el-icon>
-               </el-button>
-               <!-- Allow edit even if exists? User flow says "Condition A: Empty -> Button", "Condition B: Exists -> Link". 
-                    Usually users might want to edit. I'll stick to strict requirements but maybe add a small edit icon if strictly not forbidden. 
-                    User Requirement: "Condition A ... Condition B". 
-                    I'll strictly follow Condition A vs B. -->
+            {{ row.course_name || '-' }}
+          </template>
+        </el-table-column>
+
+        <el-table-column label="狀態" width="110" align="center">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row.booking_status)" size="small" effect="plain">
+              {{ BOOKING_STATUS_MAP[row.booking_status] || row.booking_status }}
+            </el-tag>
+            <el-tag v-if="row.has_pending_leave" class="mt-1" type="warning" size="small" effect="plain">
+              請假審核中
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="類型" width="95" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.booking_type === 'trial' ? 'warning' : ''" size="small" effect="plain">
+              {{ BOOKING_TYPE_MAP[row.booking_type] || row.booking_type || '-' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="Zoom" width="140" align="center">
+          <template #default="{ row }">
+            <div v-if="isUpcoming(row) && zoomInfoMap[row.id]?.join_url" class="zoom-cell">
+              <el-button
+                type="success"
+                size="small"
+                round
+                plain
+                class="h-24px! px-2!"
+                @click="openUrl(zoomInfoMap[row.id]?.join_url)"
+              >
+                <template #icon><div class="i-hugeicons:video-01" /></template>
+                進入教室
+              </el-button>
+              <div v-if="zoomInfoMap[row.id]?.passcode" class="zoom-passcode">
+                密碼 {{ zoomInfoMap[row.id]?.passcode }}
+                <el-button link size="small" class="copy-btn" @click="copyText(zoomInfoMap[row.id]?.passcode)">
+                  <div class="i-hugeicons:copy-01" />
+                </el-button>
+              </div>
             </div>
-            <!-- Condition A: Note Empty -->
-            <el-button v-else type="primary" link @click="openNoteDialog(row)">
-              {{ $t('teacherRecords.btnUpdateNote') }}
-            </el-button>
+            <span v-else class="muted-text">-</span>
           </template>
         </el-table-column>
 
-        <!-- Actions -->
-        <el-table-column :label="$t('teacherRecords.colActions')" width="120">
+        <el-table-column label="課後筆記" width="220" fixed="right">
           <template #default="{ row }">
-             <el-button 
-                v-if="row.status === 'Scheduled'" 
-                type="danger" 
-                link 
+            <template v-if="row.booking_status === 'completed'">
+              <div v-if="row.notes" class="note-preview">
+                {{ row.notes }}
+              </div>
+              <el-button link type="primary" size="small" @click="openNoteDialog(row)">
+                {{ row.notes ? '編輯課後筆記' : '上傳課後筆記' }}
+              </el-button>
+            </template>
+            <span v-else class="muted-text">課後可填寫</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="操作" width="160" fixed="right" align="center">
+          <template #default="{ row }">
+            <div class="action-cell">
+              <el-button
+                v-if="canEditBooking(row)"
+                link
+                type="primary"
+                size="small"
+                @click="openEditDialog(row)"
+              >
+                編輯
+              </el-button>
+              <el-button
+                v-if="canRequestLeave(row)"
+                link
+                type="danger"
+                size="small"
                 @click="openLeaveDialog(row)"
-             >
-                {{ $t('teacherRecords.btnLeave') }}
-             </el-button>
+              >
+                請假
+              </el-button>
+              <span v-if="!canEditBooking(row) && !canRequestLeave(row)" class="muted-text">
+                -
+              </span>
+            </div>
           </template>
         </el-table-column>
       </el-table>
 
-      <div class="pagination-container">
+      <div class="pagination-footer">
         <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :total="tableData.length"
-          layout="total, prev, pager, next"
+          v-model:current-page="queryParams.page"
+          v-model:page-size="queryParams.per_page"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="paginationTotal"
+          @size-change="fetchBookings"
+          @current-change="fetchBookings"
         />
       </div>
     </el-card>
 
-    <!-- Dialog A: Update Notes -->
-    <el-dialog v-model="noteDialogVisible" :title="$t('teacherRecords.dialogNoteTitle')" width="500px">
-        <el-form>
-            <el-form-item label="URL">
-                <el-input v-model="noteForm.url" placeholder="https://..." />
-            </el-form-item>
-        </el-form>
-        <template #footer>
-            <el-button @click="noteDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-            <el-button type="primary" @click="saveNote">{{ $t('common.confirm') }}</el-button>
-        </template>
+    <el-dialog v-model="editDialogVisible" title="編輯預約" width="500px" destroy-on-close @closed="resetEditForm">
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="96px">
+        <el-form-item label="預約編號">
+          <span>{{ editingBooking?.booking_no || '-' }}</span>
+        </el-form-item>
+        <el-form-item label="上課時間">
+          <span>
+            {{ editingBooking?.booking_date || '-' }}
+            {{ formatTime(editingBooking?.start_time) }} ~ {{ formatTime(editingBooking?.end_time) }}
+          </span>
+        </el-form-item>
+        <el-form-item label="狀態" prop="booking_status">
+          <el-select v-model="editForm.booking_status" class="w-full">
+            <el-option label="已確認" value="confirmed" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="備註">
+          <el-input v-model="editForm.notes" type="textarea" :rows="4" maxlength="500" show-word-limit />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button round @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" round :loading="editing" @click="submitEdit">儲存</el-button>
+      </template>
     </el-dialog>
 
-    <!-- Dialog B: Leave Request -->
-    <el-dialog v-model="leaveDialogVisible" :title="$t('teacherRecords.dialogLeaveTitle')" width="500px">
-        <el-form layout="top">
-            <el-form-item :label="$t('teacherRecords.labelLeaveReason')">
-                <el-input v-model="leaveReason" type="textarea" />
-            </el-form-item>
-        </el-form>
-        <template #footer>
-            <el-button @click="leaveDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-            <el-button type="primary" @click="submitLeave">{{ $t('common.confirm') }}</el-button>
-        </template>
+    <el-dialog v-model="leaveDialogVisible" title="老師請假" width="500px" destroy-on-close @closed="resetLeaveForm">
+      <el-alert
+        v-if="leaveBooking"
+        :title="`${leaveBooking.booking_date} ${formatTime(leaveBooking.start_time)} ~ ${formatTime(leaveBooking.end_time)}`"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="mb-4"
+      />
+      <el-form ref="leaveFormRef" :model="leaveForm" :rules="leaveRules" label-position="top">
+        <el-form-item label="請假原因" prop="reason">
+          <el-input
+            v-model="leaveForm.reason"
+            type="textarea"
+            :rows="4"
+            maxlength="300"
+            show-word-limit
+            placeholder="請輸入請假原因"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button round @click="leaveDialogVisible = false">取消</el-button>
+        <el-button type="primary" round :loading="leaving" @click="submitLeave">送出請假</el-button>
+      </template>
     </el-dialog>
 
+    <el-dialog v-model="noteDialogVisible" title="課後筆記" width="560px" destroy-on-close @closed="resetNoteForm">
+      <el-alert
+        v-if="noteBooking"
+        :title="`${noteBooking.booking_date} ${formatTime(noteBooking.start_time)} ~ ${formatTime(noteBooking.end_time)}`"
+        type="info"
+        :closable="false"
+        show-icon
+        class="mb-4"
+      />
+      <el-form ref="noteFormRef" :model="noteForm" :rules="noteRules" label-position="top">
+        <el-form-item label="課後筆記" prop="notes">
+          <el-input
+            v-model="noteForm.notes"
+            type="textarea"
+            :rows="7"
+            maxlength="1200"
+            show-word-limit
+            placeholder="請輸入課後筆記、學生狀況或作業提醒"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button round @click="noteDialogVisible = false">取消</el-button>
+        <el-button type="primary" round :loading="savingNote" @click="submitNote">儲存筆記</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { useMockStore, type Booking } from '../../stores/mockStore';
-import dayjs from 'dayjs';
+import { computed, reactive, ref, watch } from 'vue';
+import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { CopyDocument } from '@element-plus/icons-vue';
+import dayjs from 'dayjs';
+import { useAuthStore } from '@/stores/auth';
+import {
+  getBookingList,
+  updateBooking,
+  type BookingItem,
+  type BookingListParams,
+  type BookingStatus,
+} from '@/api/booking';
+import { createLeaveRecord } from '@/api/leaveRecord';
+import { batchGetZoomMeetings, type ZoomMeetingLogResponse } from '@/api/zoom';
+import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
+import { BOOKING_STATUS_MAP, BOOKING_TYPE_MAP } from '@/constants/booking';
 import { copyToClipboardUtil } from '@/utils/clipboard';
 
-const { t } = useI18n();
-const store = useMockStore();
+const authStore = useAuthStore();
 
-// --- State ---
-const filterIncomplete = ref(false);
-const currentPage = ref(1);
-const pageSize = ref(10);
-const allBookings = ref<Booking[]>([]);
+const currentTeacherId = computed(() => authStore.userInfo?.teacher_id || '');
+
+const loading = ref(false);
+const bookings = ref<BookingItem[]>([]);
+const total = ref(0);
+const zoomInfoMap = ref<Record<string, ZoomMeetingLogResponse>>({});
+
+const queryParams = reactive({
+  page: 1,
+  per_page: 10,
+});
+
+const filters = reactive({
+  search: '',
+  dateRange: [] as string[],
+  status: '' as BookingStatus | '',
+  incompleteNotesOnly: false,
+});
+
+const editDialogVisible = ref(false);
+const editing = ref(false);
+const editingBooking = ref<BookingItem | null>(null);
+const editFormRef = ref<FormInstance>();
+const editForm = reactive({
+  booking_status: 'confirmed' as BookingStatus,
+  notes: '',
+});
+const editRules: FormRules = {
+  booking_status: [{ required: true, message: '請選擇狀態', trigger: 'change' }],
+};
+
+const leaveDialogVisible = ref(false);
+const leaving = ref(false);
+const leaveBooking = ref<BookingItem | null>(null);
+const leaveFormRef = ref<FormInstance>();
+const leaveForm = reactive({ reason: '' });
+const leaveRules: FormRules = {
+  reason: [{ required: true, message: '請輸入請假原因', trigger: 'blur' }],
+};
 
 const noteDialogVisible = ref(false);
-const leaveDialogVisible = ref(false);
-const currentBooking = ref<Booking | null>(null);
+const savingNote = ref(false);
+const noteBooking = ref<BookingItem | null>(null);
+const noteFormRef = ref<FormInstance>();
+const noteForm = reactive({ notes: '' });
+const noteRules: FormRules = {
+  notes: [{ required: true, message: '請輸入課後筆記', trigger: 'blur' }],
+};
 
-const noteForm = reactive({
-    url: ''
+const displayBookings = computed(() => {
+  if (!filters.incompleteNotesOnly) return bookings.value;
+  return bookings.value.filter((booking) => booking.booking_status === 'completed' && !booking.notes);
 });
-const leaveReason = ref('');
+const paginationTotal = computed(() => (filters.incompleteNotesOnly ? displayBookings.value.length : total.value));
 
-// --- Helpers ---
-const currentUser = computed(() => store.currentUser);
+function formatTime(value?: string | null) {
+  return value ? value.slice(0, 5) : '-';
+}
 
-const formatDate = (iso: string) => dayjs(iso).format('YYYY-MM-DD');
-const formatTime = (iso: string) => dayjs(iso).format('HH:mm');
+function getStatusType(status: BookingStatus) {
+  if (status === 'completed') return 'success';
+  if (status === 'cancelled') return 'info';
+  if (status === 'confirmed') return 'primary';
+  if (status === 'pending') return 'warning';
+  return '';
+}
 
-const getCourseName = (id: string) => {
-    const c = store.courses.find(x => x.id === id);
-    return c ? c.name : id;
-};
+function getBookingStart(booking: BookingItem) {
+  return dayjs(`${booking.booking_date} ${formatTime(booking.start_time)}`);
+}
 
-const getStudentName = (id: string) => {
-    const s = store.students.find(x => x.id === id);
-    return s ? s.name : id;
-};
+function isUpcoming(booking: BookingItem) {
+  return getBookingStart(booking).isAfter(dayjs());
+}
 
-// --- Data Fetching ---
-const fetchData = async () => {
-    if (!currentUser.value) return;
-    
-    // --- Dynamic Mock Data Generation for Testing ---
-    // User requested 7 specific records relative to today.
-    
-    const today = dayjs();
-    const mockRecords: Booking[] = [
-        // 1. Past Records (3 items)
-        {
-            id: 'mock-p1',
-            time: today.subtract(1, 'day').hour(10).minute(0).toISOString(),
-            status: 'Completed',
-            noteUrl: 'https://notes.example.com/class1',
-            studentId: 's1', teacherId: currentUser.value.id, courseId: 'c1', type: 'Regular', isConverted: false, createdAt: ''
-        },
-        {
-            id: 'mock-p2',
-            time: today.subtract(2, 'day').hour(14).minute(0).toISOString(),
-            status: 'Completed',
-            noteUrl: '', // Empty to test filter
-            studentId: 's2', teacherId: currentUser.value.id, courseId: 'c1', type: 'Regular', isConverted: false, createdAt: ''
-        },
-        {
-            id: 'mock-p3',
-            time: today.subtract(3, 'day').hour(16).minute(0).toISOString(),
-            status: 'Completed',
-            noteUrl: '', // Empty
-            studentId: 's1', teacherId: currentUser.value.id, courseId: 'c2', type: 'Trial', isConverted: false, createdAt: ''
-        },
-        
-        // 2. Future Records (3 items)
-        {
-            id: 'mock-f1',
-            time: today.add(1, 'day').hour(9).minute(0).toISOString(), // Tomorrow
-            status: 'Scheduled',
-            noteUrl: '',
-            studentId: 's2', teacherId: currentUser.value.id, courseId: 'c2', type: 'Regular', isConverted: false, createdAt: ''
-        },
-        {
-            id: 'mock-f2',
-            time: today.add(3, 'day').hour(11).minute(0).toISOString(),
-            status: 'Scheduled',
-            noteUrl: '',
-            studentId: 's1', teacherId: currentUser.value.id, courseId: 'c1', type: 'Regular', isConverted: false, createdAt: ''
-        },
-        {
-            id: 'mock-f3',
-            time: today.add(1, 'week').hour(15).minute(0).toISOString(),
-            status: 'Scheduled',
-            noteUrl: '',
-            studentId: 's2', teacherId: currentUser.value.id, courseId: 'c1', type: 'Regular', isConverted: false, createdAt: ''
-        },
-        
-        // 3. Today's Record (1 item)
-        {
-            id: 'mock-t1',
-            time: today.hour(13).minute(0).toISOString(),
-            status: 'Scheduled',
-            noteUrl: '',
-            studentId: 's1', teacherId: currentUser.value.id, courseId: 'c1', type: 'Trial', isConverted: false, createdAt: ''
-        }
-    ];
+function canRequestLeave(booking: BookingItem) {
+  return ['pending', 'confirmed'].includes(booking.booking_status)
+    && isUpcoming(booking)
+    && !booking.has_pending_leave
+    && getBookingStart(booking).diff(dayjs(), 'minute') >= 30;
+}
 
-    allBookings.value = mockRecords;
-    
-    // Sort desc by time
-    allBookings.value.sort((a, b) => dayjs(b.time).diff(dayjs(a.time)));
-};
+function canEditBooking(booking: BookingItem) {
+  return booking.booking_status === 'pending' && !booking.has_pending_leave;
+}
 
-onMounted(() => {
-    fetchData();
-});
+function buildListParams(): BookingListParams {
+  const params: BookingListParams = {
+    page: queryParams.page,
+    per_page: queryParams.per_page,
+    teacher_id: currentTeacherId.value,
+    search: filters.search.trim() || undefined,
+    booking_status: filters.status || undefined,
+  };
 
-// --- Computed Data ---
-const tableData = computed(() => {
-    let data = allBookings.value;
-    
-    if (filterIncomplete.value) {
-        data = data.filter(b => !b.noteUrl);
+  if (filters.dateRange.length === 2) {
+    params.date_from = filters.dateRange[0];
+    params.date_to = filters.dateRange[1];
+  }
+
+  return params;
+}
+
+async function fetchBookings() {
+  if (!currentTeacherId.value) {
+    bookings.value = [];
+    total.value = 0;
+    ElMessage.warning('目前登入帳號沒有教師資料，無法載入預約紀錄');
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const res = assertApiSuccess(await getBookingList(buildListParams()), '載入預約紀錄失敗');
+    bookings.value = res.data || [];
+    total.value = res.total || 0;
+    await fetchZoomInfos();
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '載入預約紀錄失敗'));
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function fetchZoomInfos() {
+  const ids = bookings.value
+    .filter((booking) => ['pending', 'confirmed'].includes(booking.booking_status))
+    .filter((booking) => isUpcoming(booking))
+    .filter((booking) => !zoomInfoMap.value[booking.id])
+    .map((booking) => booking.id);
+
+  if (ids.length === 0) return;
+
+  try {
+    const res = assertApiSuccess(await batchGetZoomMeetings(ids), '載入 Zoom 會議失敗');
+    if (res.data) {
+      zoomInfoMap.value = { ...zoomInfoMap.value, ...res.data };
     }
-    
-    return data;
-});
+  } catch {
+    // Zoom meeting may not exist yet; keep the booking list usable.
+  }
+}
 
-const pagedData = computed(() => {
-    const start = (currentPage.value - 1) * pageSize.value;
-    return tableData.value.slice(start, start + pageSize.value);
-});
+function handleSearch() {
+  queryParams.page = 1;
+  fetchBookings();
+}
 
-// --- Actions ---
-const openNoteDialog = (row: Booking) => {
-    currentBooking.value = row;
-    noteForm.url = '';
-    noteDialogVisible.value = true;
-};
+function resetFilters() {
+  filters.search = '';
+  filters.dateRange = [];
+  filters.status = '';
+  filters.incompleteNotesOnly = false;
+  handleSearch();
+}
 
-const saveNote = async () => {
-    if (currentBooking.value && noteForm.url) {
-        // Update in store
-        // Update in store or local mock
-        // Since we are using local component mock data for this view's testing, we update local first.
-        // In real app, we'd call store action. Here we update "allBookings" to reflect change in UI immediately.
-        const localTarget = allBookings.value.find(b => b.id === currentBooking.value?.id);
-        if (localTarget) {
-            localTarget.noteUrl = noteForm.url;
-            ElMessage.success(t('common.save') + ' ' + t('common.done'));
-        }
-        
-        // Also try to update store if it exists there (it won't because these are local mocks, but failsafe)
-        const target = store.bookings.find(b => b.id === currentBooking.value?.id);
-        if (target) {
-            target.noteUrl = noteForm.url;
-        }
-        noteDialogVisible.value = false;
-        fetchData(); // Refresh local list
+function openEditDialog(booking: BookingItem) {
+  editingBooking.value = booking;
+  editForm.booking_status = 'confirmed';
+  editForm.notes = booking.notes || '';
+  editDialogVisible.value = true;
+}
+
+function resetEditForm() {
+  editingBooking.value = null;
+  editForm.booking_status = 'confirmed';
+  editForm.notes = '';
+  editFormRef.value?.clearValidate();
+}
+
+async function submitEdit() {
+  if (!editFormRef.value || !editingBooking.value) return;
+
+  await editFormRef.value.validate(async (valid) => {
+    if (!valid || !editingBooking.value) return;
+
+    editing.value = true;
+    try {
+      const res = assertApiSuccess(await updateBooking(editingBooking.value.id, {
+        booking_status: editForm.booking_status,
+        notes: editForm.notes || null,
+      }), '更新預約失敗');
+
+      ElMessage.success(res.message || '預約已更新');
+      editDialogVisible.value = false;
+      fetchBookings();
+    } catch (error) {
+      ElMessage.error(getApiErrorMessage(error, '更新預約失敗'));
+    } finally {
+      editing.value = false;
     }
-};
+  });
+}
 
-const openLeaveDialog = (row: Booking) => {
-    currentBooking.value = row;
-    leaveReason.value = '';
-    leaveDialogVisible.value = true;
-};
+function openLeaveDialog(booking: BookingItem) {
+  if (!canRequestLeave(booking)) {
+    ElMessage.warning('此預約目前無法請假');
+    return;
+  }
 
-const submitLeave = async () => {
-    if (currentBooking.value) {
-        // Update local mock
-        const localTarget = allBookings.value.find(b => b.id === currentBooking.value?.id);
-        if (localTarget) {
-             localTarget.status = 'Cancelled';
-             if (leaveReason.value) localTarget.note = (localTarget.note || '') + ` [Leave: ${leaveReason.value}]`;
-             ElMessage.success(t('teacherRecords.btnLeave') + ' ' + t('common.done'));
-        }
+  leaveBooking.value = booking;
+  leaveForm.reason = '';
+  leaveDialogVisible.value = true;
+}
 
-        const target = store.bookings.find(b => b.id === currentBooking.value?.id);
-        if (target) {
-            target.status = 'Cancelled'; // Or Leave? Interface says Cancelled/Completed/Scheduled. 
-            // MockStore has bookings status type: 'Scheduled' | 'Completed' | 'Cancelled'
-            // I'll set it to Cancelled + add a note maybe?
-            if (leaveReason.value) target.note = (target.note || '') + ` [Leave: ${leaveReason.value}]`;
-        }
-        leaveDialogVisible.value = false;
-        fetchData();
+function resetLeaveForm() {
+  leaveBooking.value = null;
+  leaveForm.reason = '';
+  leaveFormRef.value?.clearValidate();
+}
+
+async function submitLeave() {
+  if (!leaveFormRef.value || !leaveBooking.value) return;
+
+  await leaveFormRef.value.validate(async (valid) => {
+    if (!valid || !leaveBooking.value) return;
+
+    try {
+      await ElMessageBox.confirm('送出後將建立老師請假申請，確定繼續嗎？', '確認請假', {
+        confirmButtonText: '送出請假',
+        cancelButtonText: '取消',
+        type: 'warning',
+      });
+    } catch {
+      return;
     }
-};
 
-const copyLink = (url: string) => {
-    copyToClipboardUtil(url, t('teacherRecords.msgCopySuccess'));
-};
+    leaving.value = true;
+    try {
+      const res = assertApiSuccess(await createLeaveRecord({
+        booking_id: leaveBooking.value.id,
+        reason: leaveForm.reason,
+      }), '送出請假失敗');
 
+      ElMessage.success(res.message || '請假申請已送出');
+      leaveDialogVisible.value = false;
+      fetchBookings();
+    } catch (error) {
+      ElMessage.error(getApiErrorMessage(error, '送出請假失敗'));
+    } finally {
+      leaving.value = false;
+    }
+  });
+}
+
+function openNoteDialog(booking: BookingItem) {
+  noteBooking.value = booking;
+  noteForm.notes = booking.notes || '';
+  noteDialogVisible.value = true;
+}
+
+function resetNoteForm() {
+  noteBooking.value = null;
+  noteForm.notes = '';
+  noteFormRef.value?.clearValidate();
+}
+
+async function submitNote() {
+  if (!noteFormRef.value || !noteBooking.value) return;
+
+  await noteFormRef.value.validate(async (valid) => {
+    if (!valid || !noteBooking.value) return;
+
+    savingNote.value = true;
+    try {
+      const res = assertApiSuccess(await updateBooking(noteBooking.value.id, {
+        notes: noteForm.notes,
+      }), '儲存課後筆記失敗');
+
+      ElMessage.success(res.message || '課後筆記已儲存');
+      noteDialogVisible.value = false;
+      fetchBookings();
+    } catch (error) {
+      ElMessage.error(getApiErrorMessage(error, '儲存課後筆記失敗'));
+    } finally {
+      savingNote.value = false;
+    }
+  });
+}
+
+function openUrl(url?: string | null) {
+  if (url) window.open(url, '_blank');
+}
+
+function copyText(text?: string | null) {
+  if (text) copyToClipboardUtil(text, '已複製');
+}
+
+watch(
+  currentTeacherId,
+  (teacherId) => {
+    if (!teacherId) return;
+    fetchBookings();
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped lang="scss">
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    .title {
-        font-size: 18px;
-        font-weight: bold;
-    }
+.booking-history {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 16px 20px 8px;
 }
 
-.note-link-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    
-    .note-link {
-        color: var(--el-color-primary);
-        text-decoration: underline;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        max-width: 150px;
-        display: inline-block;
-    }
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--el-text-color-primary);
+  }
 }
 
-.pagination-container {
-    margin-top: 20px;
-    display: flex;
-    justify-content: flex-end;
+:deep(.filter-form) {
+  gap: 20px;
+   .el-form-item {
+     margin-right: 0;
+     margin-bottom: 5px;
+   }
+}
+
+.muted-text {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.zoom-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.zoom-passcode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+
+.copy-btn {
+  height: 18px !important;
+  padding: 0 2px !important;
+}
+
+.note-preview {
+  max-width: 260px;
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+}
+
+.action-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pagination-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.w-full {
+  width: 100%;
+}
+
+@media (max-width: 760px) {
+  .booking-history {
+    padding-right: 8px;
+  }
+
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .search-input,
+  .date-range,
+  .status-select {
+    width: 100%;
+  }
 }
 </style>

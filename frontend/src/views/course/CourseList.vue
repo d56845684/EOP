@@ -16,15 +16,15 @@
         {{ $t('course.add') }}
       </el-button>
     </div>
-    <el-card shadow="never">
+    <el-card shadow="never" class="mb-4">
       <!-- Filter Section -->
-      <div class="filter-container" style="margin-bottom: 20px;">
+      <div class="filter-container">
         <el-form 
           :inline="true" 
           :model="queryParams" 
           label-position="top" 
           size="small"
-          class="flex items-end"
+          class="filter-form flex flex-wrap items-end"
           @submit.prevent
         >
           <el-form-item label="關鍵字搜尋">
@@ -63,7 +63,9 @@
           </el-form-item>
         </el-form>
       </div>
+    </el-card>
 
+    <el-card shadow="never">
       <el-table v-loading="loading" :data="tableData" size="small" class="w-full">
         <el-table-column prop="course_code" :label="$t('course.courseCode')" width="160px">
           <template #default="{ row }">
@@ -150,7 +152,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { getCourseList, createCourse, updateCourse, deleteCourse, type CourseResponse, type CourseResponseData } from '@/api/course';
+import { getCourseList, createCourse, updateCourse, deleteCourse, type CourseResponseData } from '@/api/course';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
@@ -281,7 +283,17 @@ const handleDelete = (c: CourseResponseData) => {
 };
 </script>
 
-<style scoped>
-.header { display: flex; justify-content: space-between; align-items: center; }
-.pagination-footer { display: flex; justify-content: flex-end; margin-top: 20px; }
+<style scoped lang="scss">
+.course-list {
+  :deep(.filter-form) {
+    gap: 20px;
+    .el-form-item {
+      margin-right: 0;
+      margin-bottom: 5px;
+    }
+  }
+
+  .header { display: flex; justify-content: space-between; align-items: center; }
+  .pagination-footer { display: flex; justify-content: flex-end; margin-top: 20px; }
+}
 </style>
