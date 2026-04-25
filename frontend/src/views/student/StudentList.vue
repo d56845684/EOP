@@ -256,7 +256,7 @@ const DRAWER_TYPE_MAP = {
 const drawerTypeMap = DRAWER_TYPE_MAP;
 
 const permissionStore = usePermissionStore();
-  const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
+const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
 
 const { t } = useI18n();
 

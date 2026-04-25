@@ -50,32 +50,25 @@
         </el-row>
         <el-row>
           <el-col :span="10">
-            <el-form-item :label="$t('teacher.teacherNo')" prop="teacher_no">
-              <el-input :readonly="isEdit" v-model="basicForm.teacher_no" class="h-30px!" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="10" :push="2">
             <el-form-item :label="$t('common.name')" prop="name">
               <el-input v-model="basicForm.name" class="h-30px!" />
             </el-form-item>
           </el-col>
-        </el-row>
-        <el-row>
-          <el-col :span="10">
+          <el-col :span="10" :push="2">
             <el-form-item :label="$t('common.phone')" prop="phone">
               <el-input v-model="basicForm.phone" class="h-30px!" />
             </el-form-item>
           </el-col>
-          <el-col :span="10" :push="2">
-            <el-form-item label="教師等級" prop="teacher_level">
-              <el-input-number v-model="basicForm.teacher_level" :min="1" class="h-30px!" />
-            </el-form-item>
-          </el-col>
         </el-row>
         <el-row>
-          <el-col :span="18">
+          <el-col :span="14">
             <el-form-item :label="$t('common.email')" prop="email">
               <el-input v-model="basicForm.email" class="h-30px!" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8" :push="2">
+            <el-form-item label="教師等級" prop="teacher_level">
+              <el-input-number v-model="basicForm.teacher_level" :min="1" class="h-30px! w-128px!" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -301,7 +294,9 @@ const uploadingAvatar = ref(false);
 const avatarUrl = ref<string | null>(null);
 
 const drawerTitle = computed(() => {
-  return isEdit.value ? (basicForm.name ? basicForm.name : 'Teacher Details') + ' 詳情' : '新增教師';
+  if (!isEdit.value) return '新增教師';
+  if (basicForm.teacher_no && basicForm.name) return `${basicForm.teacher_no} - ${basicForm.name}`;
+  return basicForm.name || '教師詳情';
 });
 
 // --- Basic Info Form ---
@@ -526,7 +521,8 @@ const saveBasicInfo = async () => {
         } else {
           try {
             let teacherId: string;
-            const res = assertApiSuccess(await createTeacher(basicForm as TeacherCreate), '新增失敗');
+            const { teacher_no: _teacherNo, ...createPayload } = basicForm;
+            const res = assertApiSuccess(await createTeacher(createPayload as TeacherCreate), '新增失敗');
             ElMessage.success(res.message || '基本資料已新增');
             teacherId = res.data.id;
             if (uploadAvatar.value.file) {

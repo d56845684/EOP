@@ -117,13 +117,13 @@ export const teacherRoutes: RouteRecordRaw[] = [
         path: '/teacher-portal/schedule',
         name: 'TeacherSchedule',
         component: () => import('../views/teacher-portal/ScheduleSettings.vue'),
-        meta: { title: '預約時間設定', icon: 'i-hugeicons:calendar-setting-01', pageKey: 'teachers.slots' }
+        meta: { title: '預約時間設定', icon: 'i-hugeicons:calendar-setting-01' }
     },
     {
         path: '/teacher-portal/history',
         name: 'TeacherHistory',
         component: () => import('../views/teacher-portal/BookingHistory.vue'),
-        meta: { title: '預約紀錄', icon: 'i-hugeicons:calendar-02', pageKey: 'bookings.list' }
+        meta: { title: '預約紀錄', icon: 'i-hugeicons:calendar-02' }
     }
 ];
 
@@ -145,12 +145,12 @@ export const studentRoutes: RouteRecordRaw[] = [
         path: '/student-portal/booking',
         name: 'ClassBooking',
         component: () => import('../views/student-portal/ClassBooking.vue'),
-        meta: { title: '課堂預約', icon: 'i-hugeicons:calendar-02', pageKey: 'student_portal' }
+        meta: { title: '課堂預約', icon: 'i-hugeicons:calendar-02' }
     },
     {
         path: '/student-portal/contracts',
         name: 'StudentContracts',
         component: () => import('../views/student-portal/StudentContracts.vue'),
-        meta: { title: '我的合約', icon: 'i-hugeicons:file-02', pageKey: 'student_portal' }
+        meta: { title: '我的合約', icon: 'i-hugeicons:file-02' }
     }
 ];

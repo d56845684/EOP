@@ -77,8 +77,8 @@
         <el-table-column prop="duration_minutes" :label="$t('course.duration')" width="110px" align="center" />
         <el-table-column :label="$t('common.actions')" fixed="right" width="120px" align="center">
           <template #default="{ row }">
-             <el-button type="primary" link size="small" @click="openDrawer(row, 'edit')">{{ $t('common.edit') }}</el-button>
-             <el-button type="danger" link size="small" @click="handleDelete(row)">
+             <el-button v-if="hasPermission('courses.edit')" type="primary" link size="small" @click="openDrawer(row, 'edit')">{{ $t('common.edit') }}</el-button>
+             <el-button v-if="hasPermission('courses.delete')" type="danger" link size="small" @click="handleDelete(row)">
               <div class="i-hugeicons:delete-02 mr-2px" />
               {{ $t('common.delete') }}
             </el-button>
