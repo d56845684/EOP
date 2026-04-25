@@ -216,9 +216,6 @@
     <!-- Add Teacher Dialog -->
     <el-dialog v-model="addDialogVisible" :title="$t('teacher.add')" width="500px" @closed="resetAddForm">
       <el-form ref="addFormRef" :model="addForm" :rules="addRules" label-width="120px">
-        <el-form-item :label="$t('teacher.teacherNo')" prop="teacher_no">
-          <el-input v-model="addForm.teacher_no" />
-        </el-form-item>
         <el-form-item :label="$t('common.name')" prop="name">
           <el-input v-model="addForm.name" />
         </el-form-item>

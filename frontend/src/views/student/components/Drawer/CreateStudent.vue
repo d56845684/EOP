@@ -2,11 +2,6 @@
   <el-form :model="addForm" :rules="addRules" ref="addFormRef" label-width="120px" label-position="top">
     <el-row :gutter="20">
       <el-col :span="12">
-        <el-form-item :label="$t('student.studentNo')" prop="student_no">
-            <el-input v-model="addForm.student_no" />
-        </el-form-item>
-      </el-col>
-      <el-col :span="12">
         <el-form-item :label="$t('common.status')" prop="is_active">
             <el-switch v-model="addForm.is_active" active-text="啟用" inactive-text="停用" inline-prompt />
         </el-form-item>
@@ -96,7 +91,6 @@
   })
   const addFormRef = ref<FormInstance>();
   const addForm = reactive<StudentCreate>({
-    student_no: '',
     name: '',
     email: '',
     phone: '',
@@ -109,7 +103,6 @@
   });
 
   const addRules = reactive<FormRules>({
-    student_no: [{ required: true, message: 'Student No is required' }],
     name: [{ required: true, message: 'Name is required' }],
     email: [{ required: true, message: 'Email is required', type: 'email' }],
     birth_date: [{ required: true, message: 'Birth Date is required' }],

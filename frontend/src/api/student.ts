@@ -16,7 +16,7 @@ export interface StudentOverviewListParams extends StudentListParams {
 }
 
 export interface StudentCreate {
-  student_no: string;
+  student_no?: string | null;
   name: string;
   eng_name?: string | null;
   email: string;

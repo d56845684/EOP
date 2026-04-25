@@ -3,7 +3,7 @@
     <div class="flex justify-between items-center px-1 mb-2">
       <h3 class="my-0 text-lg">{{ $t('menu.role_settings') }}</h3>
       <el-button
-        v-permission="'roles.create'"
+        v-if="hasPermission('permissions.roles')"
         type="primary"
         size="small"
         round
@@ -75,7 +75,7 @@
             >
               <div class="flex justify-center gap-1">
                 <el-button
-                  v-permission="'permissions.pages'"
+                  v-if="hasPermission('permissions.roles')"
                   round
                   size="small"
                   type="success"
@@ -86,7 +86,7 @@
                   {{ $t('role.settings') }}
                 </el-button>
                 <el-button
-                  v-permission="'permissions.roles'"
+                  v-if="hasPermission('permissions.roles')"
                   size="small"
                   type="primary"
                   link
@@ -101,7 +101,7 @@
               >
                 <template #reference>
                   <el-button 
-                    v-permission="'permissions.roles'" 
+                    v-if="hasPermission('permissions.roles')" 
                     link 
                     size="small" 
                     type="danger" 
@@ -215,8 +215,12 @@ import {
 } from '@/api/role';
 import type { RoleInfo, RoleCreate, RoleUpdate, PageResponse } from '@/api/role';
 import PermissionTreeEditor from './components/PermissionTreeEditor.vue';
+import { usePermissionStore } from '@/stores/permission';
 
 const { t } = useI18n();
+
+const permissionStore = usePermissionStore();
+const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
 
 // --- Role List State ---
 const loading = ref(false);

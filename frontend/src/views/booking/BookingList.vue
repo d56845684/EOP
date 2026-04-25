@@ -4,8 +4,8 @@
     <div class="flex justify-between items-center px-1 mb-2">
       <h3 class="text-lg my-0">{{ $t('menu.booking_mgmt') }}</h3>
       <div class="flex gap-1">
-        <el-button 
-          v-permission="'bookings.batch_create'" 
+        <el-button
+          v-if="hasPermission('bookings.create')"
           type="success" 
           size="small" 
           round 
@@ -15,8 +15,8 @@
             <template #icon><div class="i-hugeicons:add-circle" /></template>
             批次建立預約
         </el-button>
-        <el-button 
-          v-permission="'bookings.batch_update'" 
+        <el-button
+          v-if="hasPermission('bookings.edit')"
           type="warning" 
           size="small" 
           round 
@@ -26,8 +26,8 @@
             <template #icon><div class="i-hugeicons:edit-02" /></template>
             批次更新預約
         </el-button>
-        <el-button 
-          v-permission="'bookings.batch_delete'" 
+        <el-button
+          v-if="hasPermission('bookings.edit')"
           type="danger" 
           size="small" 
           round 
@@ -38,7 +38,7 @@
             批次刪除預約
         </el-button>
         <el-button
-          v-permission="'bookings.create'"
+          v-if="hasPermission('bookings.create')"
           type="primary"
           round
           size="small"
@@ -135,7 +135,8 @@
 
     <!-- Table Toolbar -->
     <div class="mb-2">
-      <el-button 
+      <el-button
+        v-if="hasPermission('bookings.edit')"
         type="warning"
         round
         size="small"
@@ -146,7 +147,8 @@
         <template #icon><div class="i-hugeicons:edit-02" /></template>
         批次更新狀態
       </el-button>
-      <el-button 
+      <el-button
+        v-if="hasPermission('bookings.edit')"
         type="danger" 
         plain 
         round
@@ -217,6 +219,7 @@
             <template v-if="['pending', 'confirmed', 'completed'].includes(row.booking_status)">
               <div v-if="!zoomInfoMap[row.id]" class="flex justify-center items-center min-h-12">
                 <el-button 
+                  v-if="hasPermission('bookings.edit')"
                   type="primary" 
                   size="small" 
                   plain
@@ -266,17 +269,17 @@
         </el-table-column>
         <el-table-column :label="$t('common.actions')" width="200" align="center" fixed="right">
           <template #default="{ row }">
-            <div class="flex flex-col justify-between gap-2 items-start px-1">
+              <div class="flex flex-col justify-between gap-2 items-start px-1">
               <div>
-                <el-button link type="primary" size="small" @click="openDialog('edit', row)">{{ $t('common.edit') }}</el-button>
-                <el-button link type="danger" size="small" @click="handleDelete(row)">
+                <el-button v-if="hasPermission('bookings.edit')" link type="primary" size="small" @click="openDialog('edit', row)">{{ $t('common.edit') }}</el-button>
+                <el-button v-if="hasPermission('bookings.edit')" link type="danger" size="small" @click="handleDelete(row)">
                   <template #icon><div class="i-hugeicons:delete-02" /></template>
                   {{ $t('common.delete') }}
                 </el-button>
               </div>
               <template v-if="row.booking_status === 'confirmed'">
                 <div class="flex justify-center gap-2 mt-2">
-                  <div>
+                  <div v-if="hasPermission('bookings.list')">
                     <el-button
                       plain
                       type="warning"
@@ -287,7 +290,7 @@
                       請假
                     </el-button>
                   </div>
-                  <div>
+                  <div v-if="hasPermission('bookings.edit')">
                     <el-button
                     v-if="!row.substitute_detail_id"
                     plain
@@ -307,7 +310,7 @@
                     取消代課
                   </el-button>
                   </div>
-                  <div>
+                  <div v-if="hasPermission('bookings.edit')">
                     <el-button plain type="danger" size="small" round @click="handleCancelBooking(row)">
                       取消
                     </el-button>
@@ -964,7 +967,11 @@ import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { createSubstituteDetail, deleteSubstituteDetail } from '@/api/substituteDetail';
 import { useBookingDependencies } from '@/composables/useBookingDependencies';
 import { BOOKING_STATUS_MAP, BOOKING_TYPE_MAP } from '@/constants/booking';
+import { usePermissionStore } from '@/stores/permission';
 import { copyToClipboardUtil } from '@/utils/clipboard';
+
+const permissionStore = usePermissionStore();
+const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
 
 // --- Filters & Table List ---
 const filters = reactive({

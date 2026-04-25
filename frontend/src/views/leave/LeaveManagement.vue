@@ -133,6 +133,7 @@
           <template #default="{ row }">
             <div v-if="row.leave_status === 'pending'" class="action-cell">
               <el-button
+                v-if="hasPermission('bookings.edit')"
                 link
                 type="success"
                 size="small"
@@ -142,6 +143,7 @@
                 核准
               </el-button>
               <el-button
+                v-if="hasPermission('bookings.edit')"
                 link
                 type="danger"
                 size="small"
@@ -151,6 +153,7 @@
                 駁回
               </el-button>
               <el-button
+                v-if="hasPermission('bookings.list')"
                 link
                 type="info"
                 size="small"
@@ -222,6 +225,10 @@ import {
   type LeaveStatus,
 } from '@/api/leaveRecord';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
+import { usePermissionStore } from '@/stores/permission';
+
+const permissionStore = usePermissionStore();
+const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
 
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | '';
 type OperatingAction = 'approve' | 'reject' | 'cancel' | '';
