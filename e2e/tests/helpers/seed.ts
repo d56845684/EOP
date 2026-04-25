@@ -44,7 +44,7 @@ export async function createEmployee(
   const suffix = uniqueSuffix();
   const employee_no = input.employee_no ?? `E2E-${suffix.toUpperCase().slice(0, 8)}`;
   const email = input.email ?? `e2e-emp-${suffix}@example.com`;
-  const name = input.name ?? `e2e Employee ${suffix.slice(0, 4)}`;
+  const name = input.name ?? `e2e Employee ${suffix}`;
 
   const res = await api.post('/api/v1/employees', {
     data: {
@@ -93,7 +93,7 @@ export async function createRole(
   const suffix = uniqueSuffix().replace(/-/g, '');
   // role key pattern: ^[a-z][a-z0-9_]*$
   const key = (input.key ?? `e2e_role_${suffix}`).toLowerCase().replace(/[^a-z0-9_]/g, '_');
-  const name = input.name ?? `e2e Role ${suffix.slice(0, 4)}`;
+  const name = input.name ?? `e2e Role ${suffix}`;
 
   const res = await api.post('/api/v1/roles', {
     data: { key, name, description: input.description ?? 'created by e2e' },
@@ -127,7 +127,7 @@ export async function createTeacher(
 ): Promise<SeededTeacher> {
   const suffix = uniqueSuffix();
   const email = input.email ?? `e2e-teacher-${suffix}@example.com`;
-  const name = input.name ?? `e2e Teacher ${suffix.slice(0, 4)}`;
+  const name = input.name ?? `e2e Teacher ${suffix}`;
 
   const res = await api.post('/api/v1/teachers', {
     data: {
@@ -164,7 +164,7 @@ export async function createStudent(
 ): Promise<SeededStudent> {
   const suffix = uniqueSuffix();
   const email = input.email ?? `e2e-student-${suffix}@example.com`;
-  const name = input.name ?? `e2e Student ${suffix.slice(0, 4)}`;
+  const name = input.name ?? `e2e Student ${suffix}`;
   const student_type = input.student_type ?? 'formal';
 
   const res = await api.post('/api/v1/students', {
@@ -196,7 +196,7 @@ export async function createCourse(
 ): Promise<SeededCourse> {
   const suffix = uniqueSuffix();
   const course_code = input.course_code ?? `E2E-${suffix.toUpperCase().slice(0, 8)}`;
-  const course_name = input.course_name ?? `e2e Course ${suffix.slice(0, 4)}`;
+  const course_name = input.course_name ?? `e2e Course ${suffix}`;
 
   const res = await api.post('/api/v1/courses', {
     data: {
@@ -278,7 +278,7 @@ export async function createZoomAccount(
   input: { account_name?: string } = {}
 ): Promise<SeededZoomAccount> {
   const suffix = uniqueSuffix();
-  const account_name = input.account_name ?? `e2e Zoom ${suffix.slice(0, 4)}`;
+  const account_name = input.account_name ?? `e2e Zoom ${suffix}`;
 
   const res = await api.post('/api/v1/zoom/accounts', {
     data: {
