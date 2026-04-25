@@ -111,8 +111,13 @@ class SupabaseService:
         """Coerce string values to native Python types for asyncpg.
 
         asyncpg is strict about types — PostgreSQL boolean columns need
-        real bools, integer columns need ints, UUID columns need UUIDs,
-        date/time columns need native date/time objects, etc.
+        real bools, UUID columns need UUIDs, date/time columns need native
+        date/time objects.
+
+        注意：不在此處把純數字字串 coerce 成 int。整數欄位的 filter 值由呼叫端
+        直接傳 int（非 str），會在 _parse_filter 早期分支處理；若這裡硬把字串
+        "123" 當 int，會讓 VARCHAR 欄位（如 student_no、teacher_no、course_code）
+        在 user 填純數字時被 asyncpg reject 成「expected str, got int」。
         """
         low = val.lower()
         if low == "true":
@@ -121,11 +126,6 @@ class SupabaseService:
             return False
         if low == "null":
             return None
-        # Try integer
-        try:
-            return int(val)
-        except ValueError:
-            pass
         # Try UUID
         try:
             return uuid.UUID(val)
