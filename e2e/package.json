@@ -1,0 +1,26 @@
+{
+  "name": "eop-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright E2E tests for EOP Vue frontend",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "PWDEBUG=1 playwright test",
+    "test:auth": "playwright test tests/auth",
+    "test:admin": "playwright test tests/admin",
+    "test:employee": "playwright test tests/employee",
+    "test:teacher": "playwright test tests/teacher-portal",
+    "test:student": "playwright test tests/student-portal",
+    "test:cross": "playwright test tests/cross-role",
+    "test:perm": "playwright test tests/permissions",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  }
+}

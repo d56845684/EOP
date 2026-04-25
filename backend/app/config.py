@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     IDLE_TIMEOUT_MINUTES: int = 10  # 閒置超時自動登出
 
+    # Rate limit (每 IP 每分鐘最大請求數；e2e 高密度測試可在 .env 提高)
+    RATE_LIMIT_PER_MINUTE: int = 300
+
     # ============================================
     # Line Login（登入認證）- 所有角色共用同一個 Channel
     # ============================================

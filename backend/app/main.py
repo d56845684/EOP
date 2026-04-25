@@ -201,7 +201,7 @@ _extra_origins = [o.strip() for o in settings.FRONTEND_URL.split(",") if o.strip
 _all_origins = list(dict.fromkeys(_default_origins + _extra_origins))  # 去重保序
 
 # 速率限制（最內層）
-app.add_middleware(RateLimitMiddleware, requests_per_minute=300)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.RATE_LIMIT_PER_MINUTE)
 
 # 認證中間件
 app.add_middleware(AuthMiddleware)
