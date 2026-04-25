@@ -4,6 +4,12 @@ import { ACCOUNTS, Role } from '../accounts';
 
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost';
 
+// ngrok free tunnel 對非瀏覽器流量會擋一個 HTML 警告頁，加這個 header 直接跳過。
+// 對非 ngrok 環境是 no-op，所以不分環境一律帶。
+export const REMOTE_HEADERS: Record<string, string> = {
+  'ngrok-skip-browser-warning': '1',
+};
+
 /**
  * 取得已登入的 APIRequestContext。
  *
@@ -22,6 +28,7 @@ export async function getApiContext(role: Role): Promise<APIRequestContext> {
   return request.newContext({
     baseURL: BASE_URL,
     storageState: storageStatePath,
+    extraHTTPHeaders: REMOTE_HEADERS,
   });
 }
 

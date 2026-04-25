@@ -21,6 +21,7 @@ export default defineConfig({
   ],
 
   globalSetup: require.resolve('./global-setup.ts'),
+  globalTeardown: require.resolve('./global-teardown.ts'),
 
   use: {
     baseURL: BASE_URL,
@@ -31,6 +32,8 @@ export default defineConfig({
     navigationTimeout: 15_000,
     extraHTTPHeaders: {
       Accept: 'application/json',
+      // ngrok free tunnel: 跳過 HTML 警告頁；對非 ngrok 是 no-op
+      'ngrok-skip-browser-warning': '1',
     },
   },
 
