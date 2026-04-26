@@ -504,7 +504,9 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
                     select="start_time,end_time",
                     filters={
                         "teacher_contract_id": f"eq.{booking['teacher_contract_id']}",
-                        "weekday": f"eq.{weekday}",
+                        # weekday 是 INTEGER 欄位，直接傳 int 走 _parse_filter 早期分支；
+                        # 不能用 f"eq.{weekday}"，因為 _coerce_value 不再 coerce 純數字字串為 int
+                        "weekday": weekday,
                         "is_deleted": "eq.false"
                     },
                 )
