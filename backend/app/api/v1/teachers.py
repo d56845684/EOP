@@ -165,6 +165,7 @@ async def list_teachers_overview(
                 -- 合約摘要
                 COALESCE(ct.total_contracts, 0) AS total_contracts,
                 COALESCE(ct.active_contracts, 0) AS active_contracts,
+                lac.employment_type AS latest_active_employment_type,
                 -- 預約摘要
                 COALESCE(bk.total_bookings, 0) AS total_bookings,
                 COALESCE(bk.completed_bookings, 0) AS completed_bookings,
@@ -188,6 +189,15 @@ async def list_teachers_overview(
                 FROM teacher_contracts
                 WHERE teacher_id = t.id AND is_deleted = FALSE
             ) ct ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT employment_type
+                FROM teacher_contracts
+                WHERE teacher_id = t.id
+                  AND is_deleted = FALSE
+                  AND contract_status = 'active'
+                ORDER BY start_date DESC, created_at DESC
+                LIMIT 1
+            ) lac ON TRUE
             LEFT JOIN LATERAL (
                 SELECT
                     COUNT(*) AS total_bookings,
@@ -259,6 +269,7 @@ async def list_teachers_overview(
                 "line_display_name": row["line_display_name"],
                 "total_contracts": row["total_contracts"],
                 "active_contracts": row["active_contracts"],
+                "latest_active_employment_type": row["latest_active_employment_type"],
                 "total_bookings": row["total_bookings"],
                 "completed_bookings": row["completed_bookings"],
                 "upcoming_bookings": row["upcoming_bookings"],
