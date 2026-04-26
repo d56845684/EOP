@@ -160,15 +160,17 @@ export interface SeededStudent {
 
 export async function createStudent(
   api: APIRequestContext,
-  input: { name?: string; email?: string; student_type?: 'formal' | 'trial' } = {}
+  input: { name?: string; email?: string; eng_name?: string; phone?: string; student_type?: 'formal' | 'trial' } = {}
 ): Promise<SeededStudent> {
   const suffix = uniqueSuffix();
   const email = input.email ?? `e2e-student-${suffix}@example.com`;
   const name = input.name ?? `e2e Student ${suffix}`;
+  const eng_name = input.eng_name ?? `e2e-eng-${suffix}`;
+  const phone = input.phone ?? '0900000000';
   const student_type = input.student_type ?? 'formal';
 
   const res = await api.post('/api/v1/students', {
-    data: { name, email, student_type, is_active: true },
+    data: { name, email, eng_name, phone, student_type, is_active: true },
   });
   if (!res.ok()) throw new Error(`createStudent failed: ${res.status()} ${await res.text()}`);
   const body = await res.json();

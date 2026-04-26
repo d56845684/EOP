@@ -7,9 +7,9 @@ class StudentCreate(BaseModel):
     """建立學生"""
     student_no: Optional[str] = Field(None, max_length=50, description="學生編號（留空自動產生 EOPS 格式）")
     name: str = Field(..., min_length=1, max_length=100, description="姓名")
-    eng_name: Optional[str] = Field(None, max_length=100, description="英文名")
+    eng_name: str = Field(..., min_length=1, max_length=100, description="英文名（必填）")
     email: EmailStr = Field(..., description="Email")
-    phone: Optional[str] = Field(None, max_length=20, description="電話")
+    phone: str = Field(..., min_length=1, max_length=20, description="電話（必填）")
     address: Optional[str] = Field(None, description="地址")
     birth_date: Optional[date] = Field(None, description="生日")
     id_number: Optional[str] = Field(None, max_length=20, description="身分證字號")
