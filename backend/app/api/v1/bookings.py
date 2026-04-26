@@ -2906,6 +2906,9 @@ async def get_teacher_slot_options(
         if date_to:
             slots = [s for s in slots if s.get("slot_date") <= date_to.isoformat()]
 
+        # 按日期 + 開始時間升冪排序（由近到遠）
+        slots.sort(key=lambda s: (s.get("slot_date") or "", s.get("start_time") or ""))
+
         return {"success": True, "message": "操作成功", "data": slots}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
