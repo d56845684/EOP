@@ -253,10 +253,12 @@ import {
   type ZoomAccount,
   type ZoomAccountTier,
 } from '@/api/zoom';
-import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
+import { assertApiSuccess } from '@/api/response';
+import { useApiError } from '@/composables/useApiError';
 
 type DrawerMode = 'create' | 'edit';
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | '';
+const { showApiError } = useApiError();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -328,7 +330,7 @@ async function fetchAccounts() {
     accounts.value = res.data || [];
     total.value = res.total || 0;
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '取得 Zoom 帳號列表失敗'));
+    showApiError(error, '取得 Zoom 帳號列表失敗');
   } finally {
     loading.value = false;
   }
@@ -425,7 +427,7 @@ async function handleSave() {
       drawerVisible.value = false;
       fetchAccounts();
     } catch (error) {
-      ElMessage.error(getApiErrorMessage(error, '儲存 Zoom 帳號失敗'));
+      showApiError(error, '儲存 Zoom 帳號失敗');
     } finally {
       saving.value = false;
     }
@@ -448,7 +450,7 @@ async function handleDelete(account: ZoomAccount) {
     ElMessage.success(res.message || 'Zoom 帳號已刪除');
     fetchAccounts();
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '刪除 Zoom 帳號失敗'));
+    showApiError(error, '刪除 Zoom 帳號失敗');
   }
 }
 
@@ -458,7 +460,7 @@ async function handleTestConnection(account: ZoomAccount) {
     const res = assertApiSuccess(await testZoomAccount(account.id), 'Zoom S2S 連線測試失敗');
     ElMessage.success(res.message || 'Zoom S2S 連線測試成功');
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, 'Zoom S2S 連線測試失敗'));
+    showApiError(error, 'Zoom S2S 連線測試失敗');
   } finally {
     testingId.value = '';
   }

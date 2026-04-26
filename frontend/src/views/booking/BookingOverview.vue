@@ -125,49 +125,25 @@
           no-default-header-btn
           short-weekday-label
           :weekdays="qCalendarWeekdays"
-          :day-min-height="132"
+          :day-min-height="152"
         >
           <template #head-day-label="{ scope }">
             {{ Number(scope.timestamp.day) }}
           </template>
           <template #day="{ scope }">
             <div class="qcal-day-events">
-              <el-popover
+              <BookingOverviewEventPopover
                 v-for="event in getEventsByDate(scope.timestamp.date).slice(0, 3)"
                 :key="event.id"
-                trigger="click"
-                placement="right-start"
-                width="300"
+                :event="event"
               >
-                <template #reference>
-                  <button class="booking-event" :class="event.booking.booking_status" type="button">
-                    <span class="event-time">{{ event.timeLabel }}</span>
-                    <span class="event-main">
-                      <span class="event-title">{{ event.title }}</span>
-                    </span>
-                  </button>
-                </template>
-
-                <div class="booking-popover">
-                  <div class="popover-title">
-                    {{ event.booking.booking_no }}
-                    <el-tag :type="getStatusTagType(event.booking.booking_status)" size="small" effect="plain">
-                      {{ BOOKING_STATUS_MAP[event.booking.booking_status] || event.booking.booking_status }}
-                    </el-tag>
-                  </div>
-                  <ul class="detail-list">
-                    <li><span>日期</span><strong>{{ event.booking.booking_date }}</strong></li>
-                    <li><span>時間</span><strong>{{ event.timeLabel }}</strong></li>
-                    <li><span>老師</span><strong>{{ event.booking.teacher_name || '-' }}</strong></li>
-                    <li><span>學生</span><strong>{{ event.booking.student_name || '-' }}</strong></li>
-                    <li><span>課程</span><strong>{{ event.booking.course_name || '-' }}</strong></li>
-                    <li><span>類型</span><strong>{{ BOOKING_TYPE_MAP[event.booking.booking_type] || event.booking.booking_type || '-' }}</strong></li>
-                    <li v-if="event.booking.notes" class="is-note">
-                      <span>備註</span><strong>{{ event.booking.notes }}</strong>
-                    </li>
-                  </ul>
-                </div>
-              </el-popover>
+                <button class="booking-event" :class="event.booking.booking_status" type="button">
+                  <span class="event-time">{{ event.timeLabel }}</span>
+                  <span class="event-main">
+                    <span class="event-title">{{ event.title }}</span>
+                  </span>
+                </button>
+              </BookingOverviewEventPopover>
 
               <el-popover
                 v-if="getEventsByDate(scope.timestamp.date).length > 3"
@@ -182,14 +158,16 @@
                 </template>
                 <div class="more-list">
                   <div class="popover-title">{{ formatDate(scope.timestamp.date) }}</div>
-                  <div
+                  <BookingOverviewEventPopover
                     v-for="event in getEventsByDate(scope.timestamp.date)"
                     :key="event.id"
-                    class="more-item"
+                    :event="event"
                   >
-                    <span>{{ event.timeLabel }}</span>
-                    <strong>{{ event.title }}</strong>
-                  </div>
+                    <button class="more-item" :class="event.booking.booking_status" type="button">
+                      <span>{{ event.timeLabel }}</span>
+                      <strong>{{ event.title }}</strong>
+                    </button>
+                  </BookingOverviewEventPopover>
                 </div>
               </el-popover>
             </div>
@@ -203,9 +181,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import dayjs from 'dayjs';
-import { ElMessage } from 'element-plus';
 import { QCalendarMonth } from '@quasar/quasar-ui-qcalendar';
 import '@quasar/quasar-ui-qcalendar/index.css';
+import BookingOverviewEventPopover from './components/BookingOverviewEventPopover.vue';
 import {
   getBookingList,
   getBookingOptionStudents,
@@ -215,10 +193,8 @@ import {
   type BookingStudentOption,
   type BookingTeacherOption,
 } from '@/api/booking';
-import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
-import { BOOKING_STATUS_MAP, BOOKING_TYPE_MAP } from '@/constants/booking';
-
-type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | '';
+import { assertApiSuccess } from '@/api/response';
+import { useApiError } from '@/composables/useApiError';
 
 interface CalendarBookingEvent {
   id: string;
@@ -229,6 +205,7 @@ interface CalendarBookingEvent {
 }
 
 const loading = ref(false);
+const { showApiError } = useApiError();
 const calendarDate = ref(dayjs().format('YYYY-MM-DD'));
 const bookings = ref<BookingItem[]>([]);
 const studentOptions = ref<BookingStudentOption[]>([]);
@@ -267,14 +244,6 @@ function formatDate(value: string) {
   return dayjs(value).format('YYYY/MM/DD');
 }
 
-function getStatusTagType(status: BookingStatus): TagType {
-  if (status === 'completed') return 'success';
-  if (status === 'cancelled') return 'info';
-  if (status === 'confirmed') return 'primary';
-  if (status === 'pending') return 'warning';
-  return '';
-}
-
 function getEventsByDate(date: string) {
   return calendarEvents.value.filter((event) => event.date === date);
 }
@@ -288,7 +257,7 @@ async function fetchOptions() {
     studentOptions.value = assertApiSuccess(studentRes, '載入學生選項失敗').data || [];
     teacherOptions.value = assertApiSuccess(teacherRes, '載入老師選項失敗').data || [];
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '載入篩選選項失敗'));
+    showApiError(error, '載入篩選選項失敗');
   }
 }
 
@@ -307,7 +276,7 @@ async function fetchBookings() {
 
     bookings.value = res.data || [];
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '載入預約總覽失敗'));
+    showApiError(error, '載入預約總覽失敗');
   } finally {
     loading.value = false;
   }
@@ -450,7 +419,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  height: 84px;
+  min-height: calc(100% - 34px);
   overflow: hidden;
   padding: 0 6px 6px;
 }
@@ -537,55 +506,9 @@ onMounted(async () => {
 
 .more-event {
   padding: 3px 6px;
-  color: var(--el-color-primary);
-  font-size: 12px;
-}
-
-.booking-popover {
-  .popover-title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 8px;
-    font-weight: 700;
-    color: var(--el-text-color-primary);
-  }
-}
-
-.detail-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-
-  li {
-    display: grid;
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 10px;
-    padding: 5px 0;
-    border-bottom: 1px dashed var(--el-border-color-lighter);
-
-    &:last-child {
-      border-bottom: none;
-    }
-
-    span {
-      color: var(--el-text-color-secondary);
-      font-size: 12px;
-    }
-
-    strong {
-      min-width: 0;
-      color: var(--el-text-color-primary);
-      font-size: 12px;
-      font-weight: 600;
-      overflow-wrap: anywhere;
-    }
-
-    &.is-note {
-      align-items: flex-start;
-    }
-  }
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .more-list {
@@ -599,11 +522,20 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 70px minmax(0, 1fr);
   gap: 8px;
+  width: 100%;
   padding: 6px 0;
+  border: none;
   border-bottom: 1px dashed var(--el-border-color-lighter);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
 
   &:last-child {
     border-bottom: none;
+  }
+
+  &:hover strong {
+    color: var(--el-color-primary);
   }
 
   span {

@@ -153,15 +153,17 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { getCourseList, createCourse, updateCourse, deleteCourse, type CourseResponseData } from '@/api/course';
-import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
+import { assertApiSuccess } from '@/api/response';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 import { usePermissionStore } from '@/stores/permission';
+import { useApiError } from '@/composables/useApiError';
 
 const { t } = useI18n();
 
 const permissionStore = usePermissionStore();
 const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
+const { showApiError } = useApiError();
 
 const loading = ref(false);
 const tableData = ref<CourseResponseData[]>([]);
@@ -192,7 +194,7 @@ const fetchData = async () => {
         total.value = dataList.total || 0;
     } catch (error: any) {
         console.error(error);
-        ElMessage.error(getApiErrorMessage(error, '載入課程列表失敗'));
+        showApiError(error, '載入課程列表失敗');
     } finally {
         loading.value = false;
     }
@@ -245,7 +247,7 @@ const handleSave = async () => {
         fetchData();
     } catch (error: any) {
         console.error(error);
-        ElMessage.error(getApiErrorMessage(error, '儲存課程失敗'));
+        showApiError(error, '儲存課程失敗');
     } finally {
         saving.value = false;
     }
@@ -260,7 +262,7 @@ const handleStatusChange = async (row: CourseResponseData) => {
     // Revert on failure
     row.is_active = !row.is_active;
     console.error(error);
-    ElMessage.error(getApiErrorMessage(error, '狀態更新失敗'));
+    showApiError(error, '狀態更新失敗');
   } finally {
     const next = new Set(statusChangingIds.value);
     next.delete(row.id);
@@ -277,7 +279,7 @@ const handleDelete = (c: CourseResponseData) => {
             fetchData();
         } catch (error: any) {
             console.error(error);
-            ElMessage.error(getApiErrorMessage(error, '刪除課程失敗'));
+            showApiError(error, '刪除課程失敗');
         }
     }).catch(() => {});
 };

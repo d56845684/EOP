@@ -224,11 +224,13 @@ import {
   type LeaveRecordResponse,
   type LeaveStatus,
 } from '@/api/leaveRecord';
-import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
+import { assertApiSuccess } from '@/api/response';
 import { usePermissionStore } from '@/stores/permission';
+import { useApiError } from '@/composables/useApiError';
 
 const permissionStore = usePermissionStore();
 const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
+const { showApiError } = useApiError();
 
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | '';
 type OperatingAction = 'approve' | 'reject' | 'cancel' | '';
@@ -303,7 +305,7 @@ async function fetchLeaveRecords() {
     leaveRecords.value = res.data || [];
     total.value = res.total || 0;
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '載入請假紀錄失敗'));
+    showApiError(error, '載入請假紀錄失敗');
   } finally {
     loading.value = false;
   }
@@ -338,7 +340,7 @@ async function handleApprove(row: LeaveRecordResponse) {
     ElMessage.success(res.message || '請假已核准');
     fetchLeaveRecords();
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '核准請假失敗'));
+    showApiError(error, '核准請假失敗');
   } finally {
     operatingId.value = '';
     operatingAction.value = '';
@@ -375,7 +377,7 @@ async function submitReject() {
       rejectDialogVisible.value = false;
       fetchLeaveRecords();
     } catch (error) {
-      ElMessage.error(getApiErrorMessage(error, '駁回請假失敗'));
+      showApiError(error, '駁回請假失敗');
     } finally {
       rejecting.value = false;
       operatingId.value = '';
@@ -402,7 +404,7 @@ async function handleCancel(row: LeaveRecordResponse) {
     ElMessage.success(res.message || '請假已撤回');
     fetchLeaveRecords();
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '撤回請假失敗'));
+    showApiError(error, '撤回請假失敗');
   } finally {
     operatingId.value = '';
     operatingAction.value = '';
