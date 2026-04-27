@@ -88,15 +88,15 @@ const fetchReportData = async () => {
             }),
         ]);
 
-        bookings.value = assertApiSuccess(bookingRes, '載入預約統計失敗').data || [];
-        contracts.value = assertApiSuccess(contractRes, '載入合約統計失敗').data || [];
-        students.value = assertApiSuccess(studentRes, '載入學生統計失敗').data || [];
-        courses.value = assertApiSuccess(courseRes, '載入課程統計失敗').data || [];
+        bookings.value = assertApiSuccess(bookingRes, t('report.loadBookingsFailed')).data || [];
+        contracts.value = assertApiSuccess(contractRes, t('report.loadContractsFailed')).data || [];
+        students.value = assertApiSuccess(studentRes, t('report.loadStudentsFailed')).data || [];
+        courses.value = assertApiSuccess(courseRes, t('report.loadCoursesFailed')).data || [];
 
         await nextTick();
         initCharts();
     } catch (error) {
-        ElMessage.error(getApiErrorMessage(error, '載入報表資料失敗'));
+        ElMessage.error(getApiErrorMessage(error, t('report.loadFailed')));
     } finally {
         loading.value = false;
     }
@@ -156,7 +156,7 @@ const coursePopularity = computed(() => {
         if (!isBetween(booking.booking_date)) return;
         const courseName = booking.course_name
             || courses.value.find((course) => course.id === booking.course_id)?.course_name
-            || 'Unknown';
+            || t('report.unknownCourse');
         counts[courseName] = (counts[courseName] || 0) + 1;
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));

@@ -1,7 +1,7 @@
 <template>
   <div class="booking-overview pl-2 pr-4">
     <section class="flex justify-between items-center px-1 mb-2">
-      <h3 class="text-lg my-0">預約總覽</h3>
+      <h3 class="text-lg my-0">{{ t('menu.booking_overview') }}</h3>
     </section>
 
     <el-card shadow="never" class="filter-card mb-14px">
@@ -13,28 +13,28 @@
         class="filter-form flex items-end"
         @submit.prevent="handleSearch"
       >
-        <el-form-item label="狀態">
+        <el-form-item :label="t('bookingOverview.filterStatus')">
           <el-select
             v-model="filters.status"
             clearable
-            placeholder="全部"
+            :placeholder="t('common.all')"
             class="w-140px"
             @clear="handleSearch"
             @change="handleSearch"
           >
-            <el-option label="待確認" value="pending" />
-            <el-option label="已確認" value="confirmed" />
-            <el-option label="已完成" value="completed" />
-            <el-option label="已取消" value="cancelled" />
+            <el-option :label="t('bookingOverview.status.pending')" value="pending" />
+            <el-option :label="t('bookingOverview.status.confirmed')" value="confirmed" />
+            <el-option :label="t('bookingOverview.status.completed')" value="completed" />
+            <el-option :label="t('bookingOverview.status.cancelled')" value="cancelled" />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="老師">
+        <el-form-item :label="t('common.teacher')">
           <el-select
             v-model="filters.teacher_id"
             clearable
             filterable
-            placeholder="全部"
+            :placeholder="t('common.all')"
             class="w-180px"
             @clear="handleSearch"
             @change="handleSearch"
@@ -48,12 +48,12 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="學生">
+        <el-form-item :label="t('common.student')">
           <el-select
             v-model="filters.student_id"
             clearable
             filterable
-            placeholder="全部"
+            :placeholder="t('common.all')"
             class="w-180px"
             @clear="handleSearch"
             @change="handleSearch"
@@ -72,13 +72,13 @@
             <template #icon>
               <div class="i-hugeicons:search-01" />
             </template>
-            查詢
+            {{ t('common.search') }}
           </el-button>
           <el-button round class="h-30px!" @click="resetFilters">
             <template #icon>
               <div class="i-hugeicons:arrow-reload-horizontal" />
             </template>
-            重置
+            {{ t('common.btnReset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -89,7 +89,7 @@
         <div class="calendar-toolbar">
           <div>
             <span class="calendar-title">{{ calendarTitle }}</span>
-            <span class="calendar-subtitle">共 {{ bookings.length }} 筆預約</span>
+            <span class="calendar-subtitle">{{ t('bookingOverview.total', { total: bookings.length }) }}</span>
           </div>
           <div class="flex items-center gap-5">
             <el-button-group>
@@ -98,7 +98,7 @@
                   <div class="i-hugeicons:arrow-left-01" />
                 </template>
               </el-button>
-              <el-button size="small" @click="goToday">今天</el-button>
+              <el-button size="small" @click="goToday">{{ t('common.today') }}</el-button>
               <el-button size="small" @click="moveCalendar(1)">
                 <template #icon>
                   <div class="i-hugeicons:arrow-right-01" />
@@ -109,7 +109,7 @@
               <template #icon>
                 <div class="i-hugeicons:refresh" />
               </template>
-              重新整理
+              {{ t('common.refresh') }}
             </el-button>
           </div>
         </div>
@@ -118,7 +118,7 @@
       <div v-loading="loading" class="qcalendar-shell">
         <QCalendarMonth
           v-model="calendarDate"
-          locale="zh-TW"
+          :locale="calendarLocale"
           animated
           bordered
           hoverable
@@ -153,7 +153,7 @@
               >
                 <template #reference>
                   <button class="more-event" type="button">
-                    +{{ getEventsByDate(scope.timestamp.date).length - 3 }} 更多
+                    +{{ getEventsByDate(scope.timestamp.date).length - 3 }} {{ t('common.more') }}
                   </button>
                 </template>
                 <div class="more-list">
@@ -181,8 +181,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import dayjs from 'dayjs';
+import 'dayjs/locale/zh-tw';
 import { QCalendarMonth } from '@quasar/quasar-ui-qcalendar';
 import '@quasar/quasar-ui-qcalendar/index.css';
+import { useI18n } from 'vue-i18n';
 import BookingOverviewEventPopover from './components/BookingOverviewEventPopover.vue';
 import {
   getBookingList,
@@ -206,6 +208,7 @@ interface CalendarBookingEvent {
 
 const loading = ref(false);
 const { showApiError } = useApiError();
+const { t, locale } = useI18n();
 const calendarDate = ref(dayjs().format('YYYY-MM-DD'));
 const bookings = ref<BookingItem[]>([]);
 const studentOptions = ref<BookingStudentOption[]>([]);
@@ -220,7 +223,13 @@ const filters = reactive({
 
 const rangeStart = computed(() => dayjs(calendarDate.value).startOf('month'));
 const rangeEnd = computed(() => dayjs(calendarDate.value).endOf('month'));
-const calendarTitle = computed(() => dayjs(calendarDate.value).format('YYYY 年 MM 月'));
+const calendarLocale = computed(() => (locale.value === 'zh-TW' ? 'zh-TW' : 'en-US'));
+const calendarTitle = computed(() => {
+  return new Intl.DateTimeFormat(calendarLocale.value, {
+    year: 'numeric',
+    month: 'long',
+  }).format(dayjs(calendarDate.value).toDate());
+});
 
 const calendarEvents = computed<CalendarBookingEvent[]>(() => bookings.value
   .map((booking) => ({
@@ -228,9 +237,9 @@ const calendarEvents = computed<CalendarBookingEvent[]>(() => bookings.value
     date: booking.booking_date,
     timeLabel: `${formatTime(booking.start_time)}-${formatTime(booking.end_time)}`,
     title: [
-      booking.teacher_name || '未指定老師',
-      booking.student_name || '未指定學生',
-      booking.course_name || '未指定課程',
+      booking.teacher_name || t('bookingOverview.unspecifiedTeacher'),
+      booking.student_name || t('bookingOverview.unspecifiedStudent'),
+      booking.course_name || t('bookingOverview.unspecifiedCourse'),
     ].join(' / '),
     booking,
   }))
@@ -254,10 +263,10 @@ async function fetchOptions() {
       getBookingOptionStudents(),
       getBookingOptionTeachers(),
     ]);
-    studentOptions.value = assertApiSuccess(studentRes, '載入學生選項失敗').data || [];
-    teacherOptions.value = assertApiSuccess(teacherRes, '載入老師選項失敗').data || [];
+    studentOptions.value = assertApiSuccess(studentRes, t('bookingOverview.loadOptionsFailed')).data || [];
+    teacherOptions.value = assertApiSuccess(teacherRes, t('bookingOverview.loadOptionsFailed')).data || [];
   } catch (error) {
-    showApiError(error, '載入篩選選項失敗');
+    showApiError(error, t('bookingOverview.loadOptionsFailed'));
   }
 }
 
@@ -272,11 +281,11 @@ async function fetchBookings() {
       student_id: filters.student_id || undefined,
       date_from: rangeStart.value.format('YYYY-MM-DD'),
       date_to: rangeEnd.value.format('YYYY-MM-DD'),
-    }), '載入預約總覽失敗');
+    }), t('bookingOverview.loadFailed'));
 
     bookings.value = res.data || [];
   } catch (error) {
-    showApiError(error, '載入預約總覽失敗');
+    showApiError(error, t('bookingOverview.loadFailed'));
   } finally {
     loading.value = false;
   }

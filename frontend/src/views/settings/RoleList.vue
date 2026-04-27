@@ -63,7 +63,7 @@
         </el-table-column> -->
         <el-table-column 
           :label="$t('common.actions')" 
-          width="240" 
+          min-width="200" 
           fixed="right" 
           align="center"
         >
@@ -114,7 +114,7 @@
             </el-space>
             <div v-else class="flex items-center justify-center gap-1">
               <div class="i-hugeicons:square-lock-01 text-md text-gray-400" />
-              <span class="text-12px text-[var(--el-text-color-secondary)]">受保護</span>
+              <span class="text-12px text-[var(--el-text-color-secondary)]">{{ $t('role.protected') }}</span>
             </div>
           </template>
         </el-table-column>
@@ -139,14 +139,14 @@
           <el-input 
             v-model="form.key" 
             :disabled="isEdit" 
-            :placeholder="$t('role.roleKeyPlaceholder')" 
+            :placeholder="$t('role.placeholder.roleKey')"
             class="h-30px!" 
           />
         </el-form-item>
         <el-form-item :label="$t('role.roleName')" prop="name">
           <el-input 
             v-model="form.name" 
-            :placeholder="$t('role.roleNamePlaceholder')" 
+            :placeholder="$t('role.placeholder.roleName')"
             class="h-30px!" 
           />
         </el-form-item>
@@ -155,7 +155,7 @@
             v-model="form.description" 
             type="textarea" 
             :rows="3" 
-            :placeholder="$t('role.descriptionPlaceholder')" 
+            :placeholder="$t('role.placeholder.description')"
           />
         </el-form-item>
       </el-form>
@@ -244,8 +244,8 @@ const form = reactive<RoleCreate & { id?: string }>({
 });
 
 const rules = reactive<FormRules>({
-  key: [{ required: true, message: 'Required', trigger: 'blur' }],
-  name: [{ required: true, message: 'Required', trigger: 'blur' }],
+  key: [{ required: true, message: t('role.required'), trigger: 'blur' }],
+  name: [{ required: true, message: t('role.required'), trigger: 'blur' }],
 });
 
 // --- Permission Tree State ---
@@ -267,11 +267,11 @@ const needLock = (row: RoleInfo) => {
 const fetchRoles = async () => {
   loading.value = true;
   try {
-    const res = assertApiSuccess(await getRolesApi(), '載入角色失敗');
+    const res = assertApiSuccess(await getRolesApi(), t('role.loadFailed'));
     tableData.value = res.data || [];
   } catch (error) {
     console.error('Failed to fetch roles:', error);
-    ElMessage.error(getApiErrorMessage(error, 'Failed to load roles'));
+    ElMessage.error(getApiErrorMessage(error, t('role.loadFailed')));
   } finally {
     loading.value = false;
   }
@@ -293,12 +293,12 @@ const handleEdit = (row: RoleInfo) => {
 
 const handleDelete = async (row: RoleInfo) => {
   try {
-    const res = assertApiSuccess(await deleteRoleApi(row.id), '刪除角色失敗');
+    const res = assertApiSuccess(await deleteRoleApi(row.id), t('role.deleteFailed'));
     ElMessage.success(res.message || t('common.done'));
     fetchRoles();
   } catch (error) {
     console.error('Failed to delete role:', error);
-    ElMessage.error(getApiErrorMessage(error, '刪除角色失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('role.deleteFailed')));
   }
 };
 
@@ -321,17 +321,17 @@ const submitForm = async () => {
             name: form.name,
             description: form.description,
           };
-          const res = assertApiSuccess(await updateRoleApi(form.id, updateData), '更新角色失敗');
+          const res = assertApiSuccess(await updateRoleApi(form.id, updateData), t('role.updateFailed'));
           ElMessage.success(res.message || t('common.done'));
         } else {
-          const res = assertApiSuccess(await createRoleApi(form), '新增角色失敗');
+          const res = assertApiSuccess(await createRoleApi(form), t('role.createFailed'));
           ElMessage.success(res.message || t('common.done'));
         }
         dialogVisible.value = false;
         fetchRoles();
       } catch (error) {
         console.error('Failed to save role:', error);
-        ElMessage.error(getApiErrorMessage(error, '儲存角色失敗'));
+        ElMessage.error(getApiErrorMessage(error, t('role.saveFailed')));
       } finally {
         submitLoading.value = false;
       }
@@ -346,16 +346,16 @@ const handlePermission = async (row: RoleInfo) => {
   drawerVisible.value = true;
   treeLoading.value = true;
   try {
-    const pagesRes = assertApiSuccess(await getPagesApi(), '載入頁面權限失敗');
+    const pagesRes = assertApiSuccess(await getPagesApi(), t('role.loadPagePermissionsFailed'));
     permissionPages.value = pagesRes.data || [];
 
-    const rolePagesRes = assertApiSuccess(await getRolePagesApi(row.id), '載入角色權限失敗');
+    const rolePagesRes = assertApiSuccess(await getRolePagesApi(row.id), t('role.loadRolePermissionsFailed'));
     const existingPages = rolePagesRes?.pages || [];
     checkedPageIds.value = existingPages.map((page) => page.id);
 
   } catch (error) {
     console.error('Failed to load permissions:', error);
-    ElMessage.error(getApiErrorMessage(error, 'Failed to load permissions'));
+    ElMessage.error(getApiErrorMessage(error, t('role.loadPagePermissionsFailed')));
   } finally {
     treeLoading.value = false;
   }
@@ -369,14 +369,14 @@ const savePermissions = async (pageIds: string[]) => {
     const res = assertApiSuccess(await updateRolePagesApi({
       role_id: currentRole.value.id,
       page_ids: pageIds,
-    }), '儲存權限失敗');
+    }), t('role.savePermissionsFailed'));
     
     ElMessage.success(res.message || t('common.done'));
     drawerVisible.value = false;
     fetchRoles(); // Refresh table to update page_count
   } catch (error) {
     console.error('Failed to save permissions:', error);
-    ElMessage.error(getApiErrorMessage(error, '儲存權限失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('role.savePermissionsFailed')));
   } finally {
     saveTreeLoading.value = false;
   }

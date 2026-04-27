@@ -36,14 +36,14 @@
                     <div v-if="uploadingAvatar" class="i-hugeicons:loading-03 animate-spin text-white text-xl" />
                     <template v-else>
                       <div class="i-hugeicons:camera-02 text-white text-xl" />
-                      <span class="text-white text-10px mt-1">編輯頭像</span>
+                      <span class="text-white text-10px mt-1">{{ $t('teacherDetailDrawer.editAvatar') }}</span>
                     </template>
                   </div>
                 </el-upload>
               </div>
               <div class="flex flex-col gap-1 text-xs color-[#7e8299]">
-                <span>支援格式：JPG、PNG、WebP</span>
-                <span>限制２MB</span>
+                <span>{{ $t('teacherDetailDrawer.supportedFormats') }}</span>
+                <span>{{ $t('teacherDetailDrawer.sizeLimit') }}</span>
               </div>
             </div>
           </el-col>
@@ -67,7 +67,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8" :push="2">
-            <el-form-item label="教師等級" prop="teacher_level">
+            <el-form-item :label="$t('teacherDetailDrawer.teacherLevel')" prop="teacher_level">
               <el-input-number v-model="basicForm.teacher_level" :min="1" class="h-30px! w-128px!" />
             </el-form-item>
           </el-col>
@@ -87,12 +87,12 @@
 
       <!-- Teacher Details ---------------------------------------------- -->
       <el-divider content-position="left" class="mt-8 mb-2">
-        <span class="text-13px color-[#1d2d44]">教師相關資訊</span>
+        <span class="text-13px color-[#1d2d44]">{{ $t('teacherDetailDrawer.relatedInfo') }}</span>
       </el-divider>
       <div class="flex justify-end">
         <el-button type="primary" round text size="small" class="mb-2" @click="openDetailDialog()">
           <template #icon><div class="i-hugeicons:add-square" /></template>
-          新增教師資訊
+          {{ $t('teacherDetailDrawer.addInfo') }}
         </el-button>
       </div>
 
@@ -112,8 +112,8 @@
             </div>
             <span class="text-13px text-[#3f4254cc]">{{ item.content || '-' }}</span>
             <div class="flex gap-3 mt-0.5">
-              <span v-if="item.issue_date" class="text-11px color-gray-400">發證：{{ item.issue_date }}</span>
-              <span v-if="item.expiry_date" class="text-11px color-gray-400">到期：{{ item.expiry_date }}</span>
+              <span v-if="item.issue_date" class="text-11px color-gray-400">{{ $t('teacherDetailDrawer.issuedAt') }}：{{ item.issue_date }}</span>
+              <span v-if="item.expiry_date" class="text-11px color-gray-400">{{ $t('teacherDetailDrawer.expiresAt') }}：{{ item.expiry_date }}</span>
             </div>
             <div v-if="item.file_name" class="text-11px color-[#626aef] mt-0.5 flex items-center gap-1">
               <div class="i-hugeicons:file-02" />{{ item.file_name }}
@@ -121,19 +121,19 @@
           </div>
           <!-- Right -->
           <div class="flex items-center gap-1 flex-shrink-0">
-            <el-tooltip content="編輯" effect="dark">
+            <el-tooltip :content="$t('common.edit')" effect="dark">
               <el-button link type="primary" @click="openDetailDialog(item)">
                 <div class="i-hugeicons:edit-02" />
               </el-button>
             </el-tooltip>
-            <el-tooltip content="刪除" effect="dark">
+            <el-tooltip :content="$t('common.delete')" effect="dark">
               <el-button link type="danger" @click="handleDeleteDetail(item.id)">
                 <div class="i-hugeicons:delete-02" />
               </el-button>
             </el-tooltip>
           </div>
         </div>
-        <div v-if="!teacherDetails.length" class="text-center text-12px color-gray-400 py-4">尚無教師明細</div>
+        <div v-if="!teacherDetails.length" class="text-center text-12px color-gray-400 py-4">{{ $t('teacherDetailDrawer.noDetails') }}</div>
       </div>
     </div>
   </el-drawer>
@@ -141,7 +141,7 @@
   <!-- Detail Dialog ---------------------------------------------------- -->
   <el-dialog
     v-model="showDetailDialog"
-    :title="editingDetailId ? '編輯教師相關資訊' : '新增教師相關資訊'"
+    :title="editingDetailId ? $t('teacherDetailDrawer.editInfoTitle') : $t('teacherDetailDrawer.addInfoTitle')"
     width="440px"
     top="12vh"
     append-to-body
@@ -152,12 +152,12 @@
       <!-- 類型 -->
       <el-row>
         <el-col :span="10">
-          <el-form-item label="類型" prop="detail_type">
-            <el-select v-model="detailForm.detail_type" placeholder="請選擇類型" class="w-full">
-              <el-option label="學歷" value="qualification" />
-              <el-option label="證照" value="certificate" />
-              <el-option label="教學影片" value="video" />
-              <el-option label="經歷" value="experience" />
+          <el-form-item :label="$t('teacherDetailDrawer.detailType')" prop="detail_type">
+            <el-select v-model="detailForm.detail_type" :placeholder="$t('teacherDetailDrawer.selectDetailType')" class="w-full">
+              <el-option :label="$t('teacherDetailDrawer.types.qualification')" value="qualification" />
+              <el-option :label="$t('teacherDetailDrawer.types.certificate')" value="certificate" />
+              <el-option :label="$t('teacherDetailDrawer.types.video')" value="video" />
+              <el-option :label="$t('teacherDetailDrawer.types.experience')" value="experience" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -165,11 +165,11 @@
       <el-row>
         <el-col :span="24">
           <!-- 內容 -->
-          <el-form-item :label="detailForm.detail_type === 'video' ? '影片連結或嵌入影片' : '內容'" prop="content">
+          <el-form-item :label="detailForm.detail_type === 'video' ? $t('teacherDetailDrawer.videoLabel') : $t('teacherDetailDrawer.contentLabel')" prop="content">
             <el-input 
               v-model="detailForm.content"
               type="textarea" :rows="4" 
-              :placeholder="detailForm.detail_type === 'video' ? '請貼上影片連結或嵌入影片原始碼' : '請輸入內容'" 
+              :placeholder="detailForm.detail_type === 'video' ? $t('teacherDetailDrawer.videoPlaceholder') : $t('teacherDetailDrawer.contentPlaceholder')"
             />
           </el-form-item>
         </el-col>
@@ -177,24 +177,24 @@
       <el-row>
         <el-col :span="11">
           <!-- 發證日期：僅 certificate -->
-          <el-form-item v-if="detailForm.detail_type === 'certificate'" label="發證日期" prop="issue_date">
+          <el-form-item v-if="detailForm.detail_type === 'certificate'" :label="$t('teacherDetailDrawer.issueDate')" prop="issue_date">
             <el-date-picker
               v-model="detailForm.issue_date"
               type="date"
               value-format="YYYY-MM-DD"
-              placeholder="請選擇發證日期"
+              :placeholder="$t('teacherDetailDrawer.selectIssueDate')"
               class="w-full! h-30px!"
             />
           </el-form-item>
         </el-col>
         <el-col :span="11" :push="2">
           <!-- 到期日期：僅 certificate -->
-          <el-form-item v-if="detailForm.detail_type === 'certificate'" label="到期日期" prop="expiry_date">
+          <el-form-item v-if="detailForm.detail_type === 'certificate'" :label="$t('teacherDetailDrawer.expiryDate')" prop="expiry_date">
             <el-date-picker
               v-model="detailForm.expiry_date"
               type="date"
               value-format="YYYY-MM-DD"
-              placeholder="請選擇到期日期"
+              :placeholder="$t('teacherDetailDrawer.selectExpiryDate')"
               class="w-full! h-30px!"
             />
           </el-form-item>
@@ -205,7 +205,7 @@
           <!-- 上傳檔案：certificate 或 video -->
           <el-form-item
             v-if="detailForm.detail_type === 'certificate'"
-            label="上傳檔案"
+            :label="$t('teacherDetailDrawer.uploadFile')"
             class="w-full upload-field"
           >
             <el-upload
@@ -220,7 +220,7 @@
             >
               <el-button size="small" round plain>
                 <template #icon><div class="i-hugeicons:upload-01" /></template>
-                選擇檔案
+                {{ $t('teacherDetailDrawer.chooseFile') }}
               </el-button>
             </el-upload>
             <div v-if="existingFileName && !detailPendingFile" class="text-11px color-[#626aef] mt-1 flex items-center gap-1">
@@ -235,7 +235,7 @@
       <div class="flex justify-end gap-2">
         <el-button round size="small" class="py-3!" @click="showDetailDialog = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" round size="small" class="py-3!" :loading="savingDetail" @click="saveDetail">
-          {{ editingDetailId ? $t('common.save') : '新增' }}
+          {{ editingDetailId ? $t('common.save') : $t('teacherDetailDrawer.addAction') }}
         </el-button>
       </div>
     </template>
@@ -244,6 +244,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { getTeacherById, createTeacher, updateTeacher, type TeacherCreate, type TeacherUpdate } from '@/api/teacher';
 import {
@@ -257,13 +258,14 @@ import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { uploadTeacherAvatar, uploadDetailFile } from '@/utils/upload';
 
 type DetailType = 'qualification' | 'certificate' | 'video' | 'experience';
+const { t } = useI18n();
 
-const DETAIL_TYPE_MAP: Record<string, string> = {
-  qualification: '學歷',
-  certificate: '證照',
-  video: '教學影片',
-  experience: '經歷',
-};
+const DETAIL_TYPE_MAP = computed<Record<string, string>>(() => ({
+  qualification: t('teacherDetailDrawer.types.qualification'),
+  certificate: t('teacherDetailDrawer.types.certificate'),
+  video: t('teacherDetailDrawer.types.video'),
+  experience: t('teacherDetailDrawer.types.experience'),
+}));
 
 const detailTagType = (type: string) => {
   if (type === 'qualification') return 'primary';
@@ -294,9 +296,9 @@ const uploadingAvatar = ref(false);
 const avatarUrl = ref<string | null>(null);
 
 const drawerTitle = computed(() => {
-  if (!isEdit.value) return '新增教師';
+  if (!isEdit.value) return t('teacherDetailDrawer.createTitle');
   if (basicForm.teacher_no && basicForm.name) return `${basicForm.teacher_no} - ${basicForm.name}`;
-  return basicForm.name || '教師詳情';
+  return basicForm.name || t('teacherDetailDrawer.fallbackTitle');
 });
 
 // --- Basic Info Form ---
@@ -333,7 +335,7 @@ const detailForm = reactive({
 });
 
 const detailRules = reactive<FormRules>({
-  detail_type: [{ required: true, message: '請選擇類型', trigger: 'change' }],
+  detail_type: [{ required: true, message: t('teacherDetailDrawer.typeRequired'), trigger: 'change' }],
 });
 
 const openDetailDialog = (item?: TeacherDetail) => {
@@ -382,8 +384,8 @@ const saveDetail = async () => {
           issue_date: detailForm.detail_type === 'certificate' ? detailForm.issue_date : null,
           expiry_date: detailForm.detail_type === 'certificate' ? detailForm.expiry_date : null,
         });
-        savedId = assertApiSuccess(res, '更新教師明細失敗').data.id;
-        ElMessage.success(res.message || '教師明細已更新');
+        savedId = assertApiSuccess(res, t('teacherDetailDrawer.updateDetailFailed')).data.id;
+        ElMessage.success(res.message || t('teacherDetailDrawer.detailUpdated'));
       } else {
         // Create
         const res = await createTeacherDetail({
@@ -393,8 +395,8 @@ const saveDetail = async () => {
           issue_date: detailForm.detail_type === 'certificate' ? detailForm.issue_date : null,
           expiry_date: detailForm.detail_type === 'certificate' ? detailForm.expiry_date : null,
         });
-        savedId = assertApiSuccess(res, '新增教師明細失敗').data.id;
-        ElMessage.success(res.message || '教師明細已新增');
+        savedId = assertApiSuccess(res, t('teacherDetailDrawer.createDetailFailed')).data.id;
+        ElMessage.success(res.message || t('teacherDetailDrawer.detailCreated'));
       }
 
       // Upload file if pending
@@ -402,7 +404,7 @@ const saveDetail = async () => {
         try {
           await uploadDetailFile(savedId, detailPendingFile.value);
         } catch (e) {
-          ElMessage.warning('明細已儲存，但檔案上傳失敗，請重新上傳');
+          ElMessage.warning(t('teacherDetailDrawer.detailUploadWarning'));
         }
       }
 
@@ -410,7 +412,7 @@ const saveDetail = async () => {
       await loadDetails();
     } catch (e) {
       console.error(e);
-      ElMessage.error(getApiErrorMessage(e, editingDetailId.value ? '更新教師明細失敗' : '新增教師明細失敗'));
+      ElMessage.error(getApiErrorMessage(e, editingDetailId.value ? t('teacherDetailDrawer.updateDetailFailed') : t('teacherDetailDrawer.createDetailFailed')));
     } finally {
       savingDetail.value = false;
     }
@@ -419,16 +421,16 @@ const saveDetail = async () => {
 
 const handleDeleteDetail = async (detailId: string) => {
   try {
-    await ElMessageBox.confirm('確定要刪除此明細嗎？', '刪除確認', {
+    await ElMessageBox.confirm(t('teacherDetailDrawer.deleteDetailConfirm'), t('teacherDetailDrawer.deleteDetailTitle'), {
       type: 'warning',
-      confirmButtonText: '確定',
-      cancelButtonText: '取消',
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
     });
-    const res = assertApiSuccess(await deleteTeacherDetail(detailId), '刪除教師明細失敗');
-    ElMessage.success(res.message || '明細已刪除');
+    const res = assertApiSuccess(await deleteTeacherDetail(detailId), t('teacherDetailDrawer.deleteDetailFailed'));
+    ElMessage.success(res.message || t('teacherDetailDrawer.detailDeleted'));
     await loadDetails();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, '刪除失敗'));
+    if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, t('teacherDetailDrawer.deleteFailed')));
   }
 };
 
@@ -437,10 +439,10 @@ const loadDetails = async () => {
   const tId = props.teacherId;
   if (!tId) return;
   try {
-    const res = assertApiSuccess(await getTeacherDetails(tId), '載入教師明細失敗');
+    const res = assertApiSuccess(await getTeacherDetails(tId), t('teacherDetailDrawer.loadDetailFailed'));
     teacherDetails.value = res.data || [];
   } catch (e) {
-    ElMessage.error(getApiErrorMessage(e, '載入教師明細失敗'));
+    ElMessage.error(getApiErrorMessage(e, t('teacherDetailDrawer.loadDetailFailed')));
   }
 };
 
@@ -452,7 +454,7 @@ const fetchData = async () => {
       getTeacherById(props.teacherId),
       loadDetails(),
     ]);
-    const target = assertApiSuccess(teacherRes, '載入教師資料失敗').data;
+    const target = assertApiSuccess(teacherRes, t('teacherDetailDrawer.loadTeacherFailed')).data;
     if (target) {
       basicForm.teacher_no = target.teacher_no;
       basicForm.name = target.name;
@@ -464,7 +466,7 @@ const fetchData = async () => {
       avatarUrl.value = target.avatar_url || null;
     }
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '載入教師資料失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('teacherDetailDrawer.loadTeacherFailed')));
   } finally {
     loading.value = false;
   }
@@ -478,7 +480,7 @@ const uploadAvatar = ref({
 const handleUploadAvatar = (uploadFile: any) => {
   const MAX_SIZE_MB = 2;
   if (uploadFile.raw.size > MAX_SIZE_MB * 1024 * 1024) {
-    ElMessage.warning(`檔案大小不可超過 ${MAX_SIZE_MB}MB，請重新選擇`);
+    ElMessage.warning(t('teacherDetailDrawer.avatarSizeWarning', { size: MAX_SIZE_MB }));
     return;
   }
   uploadAvatar.value.file = uploadFile;
@@ -494,15 +496,15 @@ const handleAvatarChange = async (uploadFile: any, teacherId?: string) => {
   uploadingAvatar.value = true;
   try {
     await uploadTeacherAvatar(tId, uploadFile.raw);
-    const res = assertApiSuccess(await getTeacherById(tId), '載入教師資料失敗');
+    const res = assertApiSuccess(await getTeacherById(tId), t('teacherDetailDrawer.loadTeacherFailed'));
     avatarUrl.value = res.data.avatar_url || null;
-    ElMessage.success('頭像已更新');
+    ElMessage.success(t('teacherDetailDrawer.avatarUpdated'));
     if (isEdit.value) {
       emit('saved');
     }
   } catch (e) {
     console.error(e);
-    ElMessage.error(getApiErrorMessage(e, '頭像上傳失敗'));
+    ElMessage.error(getApiErrorMessage(e, t('teacherDetailDrawer.avatarUploadFailed')));
   } finally {
     uploadingAvatar.value = false;
   }
@@ -516,25 +518,25 @@ const saveBasicInfo = async () => {
       saving.value = true;
       try {
         if (isEdit.value && tId) {
-          const res = assertApiSuccess(await updateTeacher(tId, basicForm), '儲存失敗');
-          ElMessage.success(res.message || '基本資料已儲存');
+          const res = assertApiSuccess(await updateTeacher(tId, basicForm), t('teacherDetailDrawer.saveFailed'));
+          ElMessage.success(res.message || t('teacherDetailDrawer.basicSaved'));
         } else {
           try {
             let teacherId: string;
             const { teacher_no: _teacherNo, ...createPayload } = basicForm;
-            const res = assertApiSuccess(await createTeacher(createPayload as TeacherCreate), '新增失敗');
-            ElMessage.success(res.message || '基本資料已新增');
+            const res = assertApiSuccess(await createTeacher(createPayload as TeacherCreate), t('teacherDetailDrawer.createdFailed'));
+            ElMessage.success(res.message || t('teacherDetailDrawer.basicCreated'));
             teacherId = res.data.id;
             if (uploadAvatar.value.file) {
               handleAvatarChange(uploadAvatar.value.file, teacherId);
             }
           } catch (error) {
-            ElMessage.error(getApiErrorMessage(error, '新增失敗'));
+            ElMessage.error(getApiErrorMessage(error, t('teacherDetailDrawer.createdFailed')));
           }
         }
         emit('saved');
       } catch (e) {
-        ElMessage.error(getApiErrorMessage(e, '儲存失敗'));
+        ElMessage.error(getApiErrorMessage(e, t('teacherDetailDrawer.saveFailed')));
       } finally {
         saving.value = false;
       }

@@ -87,26 +87,35 @@
 
     <el-card shadow="never">
       <el-table v-loading="loading" :data="employees" size="small" class="w-full">
-        <el-table-column prop="employee_no" :label="$t('employee.employeeNo')" min-width="120" />
-        <el-table-column prop="name" :label="$t('common.name')" min-width="140" />
-        <el-table-column prop="email" :label="$t('common.email')" min-width="220">
+        <el-table-column prop="employee_no" :label="$t('employee.employeeNo')" min-width="150" />
+        <el-table-column prop="name" :label="$t('common.name')" min-width="160" />
+        <el-table-column prop="email" :label="$t('common.email')" min-width="260">
           <template #default="{ row }">
-            <div class="break-all">{{ row.email }}</div>
+            <div class="flex items-center gap-6px">
+              <div class="i-hugeicons:mail-01 w-12px h-12px color-gray-500 flex-shrink-0" />
+              <el-text class="text-xs" truncated>{{ row.email }}</el-text>
+              <el-button type="text" size="small" round class="!px-1" @click="copyEmail(row.email)">
+                <template #icon>
+                  <div class="i-hugeicons:copy-01" />
+                </template>
+              </el-button>
+            </div>
+
           </template>
         </el-table-column>
-        <el-table-column :label="$t('employee.employeeType')" min-width="120" align="center">
+        <el-table-column :label="$t('employee.employeeType')" min-width="140" align="center">
           <template #default="{ row }">
             <el-tag :type="EMPLOYEE_TYPE_TAG_MAP[row.employee_type as EmployeeType] || 'info'" size="small" effect="light">
               {{ getEmployeeTypeLabel(row.employee_type) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('employee.role')" min-width="120" align="center">
+        <el-table-column :label="$t('employee.role')" min-width="140" align="center">
           <template #default="{ row }">
             {{ row.role_name || '-' }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.verify')" min-width="120" align="center">
+        <el-table-column :label="$t('common.verify')" min-width="140" align="center">
           <template #default="{ row }">
             <template v-if="row.email_verified_at">
               <div class="flex items-center justify-center gap-2px color-[var(--el-color-success)]">
@@ -129,12 +138,12 @@
             </template>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('employee.hireDate')" min-width="120" align="center">
+        <el-table-column :label="$t('employee.hireDate')" min-width="140" align="center">
           <template #default="{ row }">
             {{ formatDate(row.hire_date) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.actions')" width="120" fixed="right" align="center">
+        <el-table-column :label="$t('common.actions')" width="160" fixed="right" align="center">
           <template #default="{ row }">
             <el-button
               v-if="hasPermission('employees.edit')"
@@ -463,14 +472,14 @@ const form = reactive<EmployeeForm>({
 });
 
 const rules = reactive<FormRules<EmployeeForm>>({
-  employee_no: [{ required: true, message: '請輸入員工編號', trigger: 'blur' }],
-  employee_type: [{ required: true, message: '請選擇員工類型', trigger: 'change' }],
-  name: [{ required: true, message: '請輸入姓名', trigger: 'blur' }],
+  employee_no: [{ required: true, message: t('employee.employeeNoRequired'), trigger: 'blur' }],
+  employee_type: [{ required: true, message: t('employee.employeeTypeRequired'), trigger: 'change' }],
+  name: [{ required: true, message: t('employee.nameRequired'), trigger: 'blur' }],
   email: [
-    { required: true, message: '請輸入 Email', trigger: 'blur' },
-    { type: 'email', message: '請輸入正確的 Email', trigger: ['blur', 'change'] },
+    { required: true, message: t('employee.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('employee.emailInvalid'), trigger: ['blur', 'change'] },
   ],
-  hire_date: [{ required: true, message: '請選擇到職日期', trigger: 'change' }],
+  hire_date: [{ required: true, message: t('employee.hireDateRequired'), trigger: 'change' }],
 });
 
 const employeeTypeOptions = computed(() => [
@@ -519,10 +528,10 @@ const fillForm = (employee: Employee) => {
 
 const fetchRoles = async () => {
   try {
-    const res = assertApiSuccess(await getEmployeeRolesApi(), '載入員工角色失敗');
+    const res = assertApiSuccess(await getEmployeeRolesApi(), t('employee.loadRolesFailed'));
     roles.value = res.data || [];
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '載入員工角色失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('employee.loadRolesFailed')));
   }
 };
 
@@ -537,11 +546,11 @@ const fetchEmployees = async () => {
       employee_type: queryParams.employee_type || undefined,
     };
 
-    const res = assertApiSuccess(await getEmployeesApi(params), '載入員工列表失敗');
+    const res = assertApiSuccess(await getEmployeesApi(params), t('employee.loadListFailed'));
     employees.value = res.data || [];
     total.value = res.total || 0;
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '載入員工列表失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('employee.loadListFailed')));
   } finally {
     loading.value = false;
   }
@@ -575,11 +584,11 @@ const openEditDrawer = async (employee: Employee) => {
   resetForm();
 
   try {
-    const res = assertApiSuccess(await getEmployeeApi(employee.id), '載入員工資料失敗');
+    const res = assertApiSuccess(await getEmployeeApi(employee.id), t('employee.loadDetailFailed'));
     currentEmployee.value = res.data;
     fillForm(res.data);
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '載入員工資料失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('employee.loadDetailFailed')));
     drawerVisible.value = false;
   } finally {
     drawerLoading.value = false;
@@ -635,7 +644,7 @@ const handleSave = async () => {
   saving.value = true;
   try {
     if (drawerMode.value === 'create') {
-      const res = assertApiSuccess(await createEmployeeApi(buildCreatePayload()), '新增員工失敗');
+      const res = assertApiSuccess(await createEmployeeApi(buildCreatePayload()), t('employee.createFailed'));
       ElMessage.success(res.message || t('common.addSuccess'));
     } else if (currentEmployee.value) {
       const payload = buildUpdatePayload();
@@ -643,14 +652,14 @@ const handleSave = async () => {
         ElMessage.info(t('employee.noChanges'));
         return;
       }
-      const res = assertApiSuccess(await updateEmployeeApi(currentEmployee.value.id, payload), '更新員工失敗');
+      const res = assertApiSuccess(await updateEmployeeApi(currentEmployee.value.id, payload), t('employee.updateFailed'));
       ElMessage.success(res.message || t('common.updateSuccess'));
     }
 
     drawerVisible.value = false;
     fetchEmployees();
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, drawerMode.value === 'create' ? '新增員工失敗' : '更新員工失敗'));
+    ElMessage.error(getApiErrorMessage(error, drawerMode.value === 'create' ? t('employee.createFailed') : t('employee.updateFailed')));
   } finally {
     saving.value = false;
   }
@@ -662,13 +671,13 @@ const handleToggleStatus = async (employee: Employee) => {
     const nextStatus = !employee.is_active;
     const res = assertApiSuccess(
       await updateEmployeeApi(employee.id, { is_active: nextStatus }),
-      '更新員工狀態失敗',
+      t('employee.updateStatusFailed'),
     );
     employee.is_active = res.data?.is_active ?? nextStatus;
     ElMessage.success(res.message || t('common.updateSuccess'));
     return true;
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '更新員工狀態失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('employee.updateStatusFailed')));
     return false;
   } finally {
     statusChangingIds.value.delete(employee.id);
@@ -683,7 +692,7 @@ const handleDelete = async (employee: Employee) => {
       { type: 'warning' },
     );
 
-    const res = assertApiSuccess(await deleteEmployeeApi(employee.id), '刪除員工失敗');
+    const res = assertApiSuccess(await deleteEmployeeApi(employee.id), t('employee.deleteFailed'));
     ElMessage.success(res.message || t('common.deleteSuccess'));
 
     if (employees.value.length === 1 && queryParams.page > 1) {
@@ -692,9 +701,13 @@ const handleDelete = async (employee: Employee) => {
     fetchEmployees();
   } catch (error) {
     if (error === 'cancel' || error === 'close') return;
-    ElMessage.error(getApiErrorMessage(error, '刪除員工失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('employee.deleteFailed')));
   }
 };
+
+const copyEmail = (email: string) => {
+  copyToClipboardUtil(email, 'Email 已複製');
+}
 
 const handleDrawerClosed = () => {
   drawerLoading.value = false;

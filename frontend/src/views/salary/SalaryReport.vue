@@ -112,10 +112,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import dayjs from 'dayjs';
+import { useI18n } from 'vue-i18n';
 import { getBookingList, type BookingItem } from '@/api/booking';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { ElMessage } from 'element-plus';
 
+const { t } = useI18n();
 const selectedMonth = ref(dayjs().toDate());
 const loading = ref(false);
 const drawerVisible = ref(false);
@@ -125,7 +127,7 @@ const bookings = ref<BookingItem[]>([]);
 const formatMonth = (d: Date) => dayjs(d).format('YYYY-MM');
 const formatDateTime = (t: string) => dayjs(t).format('YYYY-MM-DD HH:mm');
 const getBookingStart = (booking: BookingItem) => `${booking.booking_date} ${booking.start_time}`;
-const formatBookingType = (type: string) => (type === 'trial' ? 'Trial' : 'Regular');
+const formatBookingType = (type: string) => (type === 'trial' ? t('salary.trialType') : t('salary.regularType'));
 
 // --- Core Logic ---
 const fetchSalaryBookings = async () => {
@@ -139,10 +141,10 @@ const fetchSalaryBookings = async () => {
             booking_status: 'completed',
             date_from: start,
             date_to: end,
-        }), '載入薪資資料失敗');
+        }), t('salary.loadFailed'));
         bookings.value = res.data || [];
     } catch (error) {
-        ElMessage.error(getApiErrorMessage(error, '載入薪資資料失敗'));
+        ElMessage.error(getApiErrorMessage(error, t('salary.loadFailed')));
     } finally {
         loading.value = false;
     }
@@ -211,7 +213,7 @@ const getSummaries = (param: any) => {
     const { columns, data } = param;
     const sums: string[] = [];
     columns.forEach((col: any, index: number) => {
-        if (index === 0) { sums[index] = 'Total'; return; }
+        if (index === 0) { sums[index] = t('salary.totalRow'); return; }
         if (col.property === 'totalPay') {
             const val = data.reduce((prev: number, curr: any) => prev + curr.totalPay, 0);
             sums[index] = '$' + val.toLocaleString();

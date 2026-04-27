@@ -121,13 +121,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('studentBooking.colCourse')" min-width="150">
+        <el-table-column :label="$t('studentBooking.colCourse')" min-width="180">
           <template #default="{ row }">
             {{ row.course_name || '-' }}
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('studentBooking.colTeacher')" min-width="130">
+        <el-table-column :label="$t('studentBooking.colTeacher')" min-width="160">
           <template #default="{ row }">
             {{ row.substitute_teacher_name || row.teacher_name || '-' }}
             <el-tag v-if="row.substitute_teacher_name" class="ml-1" size="small" type="warning" effect="plain">
@@ -136,7 +136,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('studentBooking.colContract')" min-width="130">
+        <el-table-column :label="$t('studentBooking.colContract')" min-width="140">
           <template #default="{ row }">
             {{ row.student_contract_no || '-' }}
           </template>
@@ -150,7 +150,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('common.type')" width="100" align="center">
+        <el-table-column :label="$t('common.type')" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="row.booking_type === 'trial' ? 'warning' : ''" size="small" effect="plain">
               {{ BOOKING_TYPE_MAP[row.booking_type] || row.booking_type || '-' }}
@@ -158,7 +158,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('studentBooking.colZoom')" width="110" align="center">
+        <el-table-column :label="$t('studentBooking.colZoom')" width="120" align="center">
           <template #default="{ row }">
             <el-link
               v-if="zoomInfoMap[row.id]?.join_url"
@@ -172,7 +172,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('teacherRecords.colActions')" width="130" fixed="right" align="center">
+        <el-table-column :label="$t('teacherRecords.colActions')" width="150" fixed="right" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.has_pending_leave" size="small" type="warning" effect="plain">
               {{ $t('studentBooking.leavePending') }}

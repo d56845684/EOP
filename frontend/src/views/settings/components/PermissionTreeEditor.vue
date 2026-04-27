@@ -12,7 +12,7 @@
         default-expand-all
         :expand-on-click-node="false"
       />
-      <el-empty v-else-if="!loading" description="尚無可設定頁面" />
+      <el-empty v-else-if="!loading" :description="$t('permissionEditor.empty')" />
     </div>
 
     <div class="mt-4 pt-2 border-t flex justify-end gap-2">

@@ -8,18 +8,18 @@
       <div class="popover-title">
         {{ event.booking.booking_no }}
         <el-tag :type="statusTagType" size="small" effect="plain">
-          {{ BOOKING_STATUS_MAP[event.booking.booking_status] || event.booking.booking_status }}
+          {{ bookingStatusLabel }}
         </el-tag>
       </div>
       <ul class="detail-list">
-        <li><span>日期</span><strong>{{ event.booking.booking_date }}</strong></li>
-        <li><span>時間</span><strong>{{ event.timeLabel }}</strong></li>
-        <li><span>老師</span><strong>{{ event.booking.teacher_name || '-' }}</strong></li>
-        <li><span>學生</span><strong>{{ event.booking.student_name || '-' }}</strong></li>
-        <li><span>課程</span><strong>{{ event.booking.course_name || '-' }}</strong></li>
-        <li><span>類型</span><strong>{{ BOOKING_TYPE_MAP[event.booking.booking_type] || event.booking.booking_type || '-' }}</strong></li>
+        <li><span>{{ t('common.date') }}</span><strong>{{ event.booking.booking_date }}</strong></li>
+        <li><span>{{ t('common.time') }}</span><strong>{{ event.timeLabel }}</strong></li>
+        <li><span>{{ t('common.teacher') }}</span><strong>{{ event.booking.teacher_name || '-' }}</strong></li>
+        <li><span>{{ t('common.student') }}</span><strong>{{ event.booking.student_name || '-' }}</strong></li>
+        <li><span>{{ t('common.course') }}</span><strong>{{ event.booking.course_name || '-' }}</strong></li>
+        <li><span>{{ t('common.type') }}</span><strong>{{ bookingTypeLabel }}</strong></li>
         <li v-if="event.booking.notes" class="is-note">
-          <span>備註</span><strong>{{ event.booking.notes }}</strong>
+          <span>{{ t('common.note') }}</span><strong>{{ event.booking.notes }}</strong>
         </li>
       </ul>
     </div>
@@ -28,8 +28,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { BookingItem, BookingStatus } from '@/api/booking';
-import { BOOKING_STATUS_MAP, BOOKING_TYPE_MAP } from '@/constants/booking';
 
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | '';
 
@@ -41,6 +41,7 @@ interface BookingOverviewEvent {
 const props = defineProps<{
   event: BookingOverviewEvent;
 }>();
+const { t } = useI18n();
 
 const statusTagType = computed<TagType>(() => {
   const status = props.event.booking.booking_status as BookingStatus;
@@ -50,6 +51,18 @@ const statusTagType = computed<TagType>(() => {
   if (status === 'confirmed') return 'primary';
   if (status === 'pending') return 'warning';
   return '';
+});
+
+const bookingStatusLabel = computed(() => t(`bookingOverview.status.${props.event.booking.booking_status}`));
+
+const bookingTypeLabel = computed(() => {
+  const bookingType = props.event.booking.booking_type;
+
+  if (bookingType === 'regular' || bookingType === 'trial') {
+    return t(`bookingOverview.type.${bookingType}`);
+  }
+
+  return bookingType || '-';
 });
 </script>
 

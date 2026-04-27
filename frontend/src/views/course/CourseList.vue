@@ -27,7 +27,7 @@
           class="filter-form flex flex-wrap items-end"
           @submit.prevent
         >
-          <el-form-item label="關鍵字搜尋">
+          <el-form-item :label="$t('common.searchKeyword')">
             <el-input
               v-model="queryParams.search"
               :placeholder="$t('course.searchPlaceholder')"
@@ -75,7 +75,7 @@
         <el-table-column prop="course_name" :label="$t('course.courseName')" width="200px" />
         <el-table-column prop="description" :label="$t('course.description')" min-width="200px" />
         <el-table-column prop="duration_minutes" :label="$t('course.duration')" width="110px" align="center" />
-        <el-table-column :label="$t('common.actions')" fixed="right" width="120px" align="center">
+        <el-table-column :label="$t('common.actions')" fixed="right" min-width="140px" align="center">
           <template #default="{ row }">
              <el-button v-if="hasPermission('courses.edit')" type="primary" link size="small" @click="openDrawer(row, 'edit')">{{ $t('common.edit') }}</el-button>
              <el-button v-if="hasPermission('courses.delete')" type="danger" link size="small" @click="handleDelete(row)">
@@ -93,7 +93,7 @@
               :loading="statusChangingIds.has(row.id)"
               @change="handleStatusChange(row)"
             />
-            <el-tag v-else :type="row.is_active ? 'success' : 'info'" size="small" effect="light" class="w-36px! text-10px text-center">{{ row.is_active ? '啟用' : '停用' }}</el-tag>
+            <el-tag v-else :type="row.is_active ? 'success' : 'info'" size="small" effect="light" class="w-36px! text-10px text-center">{{ row.is_active ? $t('common.active') : $t('common.inactive') }}</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -189,12 +189,12 @@ const fetchData = async () => {
             apiParams.is_active = undefined;
         }
         
-        const dataList = assertApiSuccess(await getCourseList(apiParams), '載入課程列表失敗');
+        const dataList = assertApiSuccess(await getCourseList(apiParams), t('course.loadFailed'));
         tableData.value = dataList.data || [];
         total.value = dataList.total || 0;
     } catch (error: any) {
         console.error(error);
-        showApiError(error, '載入課程列表失敗');
+        showApiError(error, t('course.loadFailed'));
     } finally {
         loading.value = false;
     }
@@ -237,17 +237,17 @@ const handleSave = async () => {
     saving.value = true;
     try {
         if (form.value.id) {
-            const res = assertApiSuccess(await updateCourse(form.value.id, form.value), '更新課程失敗');
+            const res = assertApiSuccess(await updateCourse(form.value.id, form.value), t('course.updateFailed'));
             ElMessage.success(res.message || t('common.done') || 'Saved');
         } else {
-            const res = assertApiSuccess(await createCourse(form.value), '新增課程失敗');
+            const res = assertApiSuccess(await createCourse(form.value), t('course.createFailed'));
             ElMessage.success(res.message || t('common.done') || 'Saved');
         }
         drawerVisible.value = false;
         fetchData();
     } catch (error: any) {
         console.error(error);
-        showApiError(error, '儲存課程失敗');
+        showApiError(error, t('course.saveFailed'));
     } finally {
         saving.value = false;
     }
@@ -256,13 +256,13 @@ const handleSave = async () => {
 const handleStatusChange = async (row: CourseResponseData) => {
   statusChangingIds.value = new Set([...statusChangingIds.value, row.id]);
   try {
-    const res = assertApiSuccess(await updateCourse(row.id, { is_active: row.is_active }), '狀態更新失敗');
+    const res = assertApiSuccess(await updateCourse(row.id, { is_active: row.is_active }), t('course.statusUpdateFailed'));
     ElMessage.success(res.message || t('common.updateSuccess'));
   } catch (error: any) {
     // Revert on failure
     row.is_active = !row.is_active;
     console.error(error);
-    showApiError(error, '狀態更新失敗');
+    showApiError(error, t('course.statusUpdateFailed'));
   } finally {
     const next = new Set(statusChangingIds.value);
     next.delete(row.id);
@@ -274,12 +274,12 @@ const handleDelete = (c: CourseResponseData) => {
     ElMessageBox.confirm(t('common.deleteConfirm') || 'Delete this course?', 'Warning', { type: 'warning' })
     .then(async () => {
         try {
-            const res = assertApiSuccess(await deleteCourse(c.id), '刪除課程失敗');
+            const res = assertApiSuccess(await deleteCourse(c.id), t('course.deleteFailed'));
             ElMessage.success(res.message || t('common.done') || 'Deleted');
             fetchData();
         } catch (error: any) {
             console.error(error);
-            showApiError(error, '刪除課程失敗');
+            showApiError(error, t('course.deleteFailed'));
         }
     }).catch(() => {});
 };

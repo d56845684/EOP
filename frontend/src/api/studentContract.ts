@@ -1,5 +1,5 @@
 import request from '@/utils/request';
-import type { BaseResponse, DataResponse, ListResponse } from './response';
+import type { BaseResponse, DataResponse, DownloadResponse, ListResponse } from './response';
 
 // ========================
 // Type Definitions
@@ -183,7 +183,7 @@ export function deleteContractLeaveRecord(contractId: string, recordId: string) 
 }
 
 export function getContractDownloadUrl(contractId: string) {
-  return request.get<any, DataResponse<string>>(`/v1/student-contracts/${contractId}/download-url`);
+  return request.get<any, DownloadResponse>(`/v1/student-contracts/${contractId}/download-url`);
 }
 
 export function generateContract(contractId: string) {

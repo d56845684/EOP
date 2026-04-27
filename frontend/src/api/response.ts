@@ -16,6 +16,11 @@ export interface DataResponse<T> extends BaseResponse {
   data: T;
 }
 
+export interface DownloadResponse extends BaseResponse {
+  file_name: string;
+  download_url: string;
+}
+
 export interface ListResponse<T> extends BaseResponse {
   data: T[];
   total: number;

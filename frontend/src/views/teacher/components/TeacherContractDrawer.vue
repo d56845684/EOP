@@ -3,23 +3,23 @@
     <div v-loading="loading" class="min-h-full">
       <!-- BLOCK A: Main Contract Form -->
       <el-divider content-position="left" class="mt-1 mb-8">
-        <span class="text-13px color-[#1d2d44]">當前合約</span>
+        <span class="text-13px color-[#1d2d44]">{{ $t('teacherContractDrawer.currentContract') }}</span>
       </el-divider>
       <el-row class="mb-4">
         <el-col :span="8">
           <div class="flex flex-col items-start mb-4">
-            <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">合約編號</label>
+            <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">{{ $t('teacherContractDrawer.contractNo') }}</label>
             <div class="w-full text-xs mt-1">{{ contract?.contract_no }}</div>
           </div>
         </el-col>
         <el-col :span="12" :push="3">
           <div class="flex flex-col items-start mb-2">
-            <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">合約書狀態</label>
+            <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">{{ $t('teacherContractDrawer.contractFileStatus') }}</label>
             <div class="w-full text-12px flex flex-col items-start gap-2">
               <div class="flex items-center gap-2">
                 <div class="flex items-center gap-1 text-12px" :class="contractFileStatus ? 'text-green-600' : 'text-orange-500'">
                   <div :class="contractFileStatus ? 'i-hugeicons:checkmark-circle-03' : 'i-hugeicons:alert-02'" />
-                  <span>{{ contractFileStatus ? '已上傳' : '未上傳' }}</span>
+                  <span>{{ contractFileStatus ? $t('teacherContractDrawer.uploaded') : $t('teacherContractDrawer.notUploaded') }}</span>
                 </div>
                 <el-upload
                   ref="uploadContractRef"
@@ -35,7 +35,7 @@
                 >
                   <el-button color="#626aef" plain round size="small" :loading="uploadingContract">
                     <template #icon><div class="i-hugeicons:file-upload" /></template>
-                    {{ contractFileStatus ? '更新合約書' : '上傳合約書' }}
+                    {{ contractFileStatus ? $t('teacherContractDrawer.updateContractFile') : $t('teacherContractDrawer.uploadContractFile') }}
                   </el-button>
                 </el-upload>
               </div>
@@ -43,7 +43,7 @@
                 v-if="contract?.contract_file_uploaded_at"
                 class="text-11px color-gray-400 mt-2"
               >
-                更新時間：{{ dayjs(contract?.contract_file_uploaded_at).format('YYYY-MM-DD HH:mm:ss') }}
+                {{ $t('teacherContractDrawer.updatedAt') }}：{{ dayjs(contract?.contract_file_uploaded_at).format('YYYY-MM-DD HH:mm:ss') }}
               </div>
             </div>
           </div>
@@ -66,21 +66,21 @@
           <el-col :span="12" :push="3">
             <el-form-item :label="$t('teacher.contractType')" prop="employment_type">
             <el-radio-group v-model="contractForm.employment_type">
-              <el-radio value="hourly">時薪</el-radio>
-              <el-radio value="full_time">全職</el-radio>
+              <el-radio value="hourly">{{ $t('teacherContractDrawer.hourly') }}</el-radio>
+              <el-radio value="full_time">{{ $t('teacherContractDrawer.fullTime') }}</el-radio>
             </el-radio-group>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row>
           <el-col :span="19">
-            <el-form-item label="合約區間">
+            <el-form-item :label="$t('teacherContractDrawer.contractRange')">
             <el-date-picker
                 v-model="contractDates"
                 type="daterange"
                 range-separator="-"
-                start-placeholder="起始時間"
-                end-placeholder="結束時間"
+                :start-placeholder="$t('teacherContractDrawer.rangeStart')"
+                :end-placeholder="$t('teacherContractDrawer.rangeEnd')"
                 format="YYYY-MM-DD"
                 value-format="YYYY-MM-DD"
                 class="w-full h-30px!"
@@ -90,7 +90,7 @@
         </el-row>
         <el-row>
           <el-col :span="8">
-            <el-form-item label="試上完成獎金">
+            <el-form-item :label="$t('teacherContractDrawer.trialCompletedBonus')">
             <el-input-number 
               v-model="contractForm.trial_completed_bonus" 
               :min="0" 
@@ -99,7 +99,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8" :push="3">
-            <el-form-item label="試上轉正獎金">
+            <el-form-item :label="$t('teacherContractDrawer.trialFormalBonus')">
             <el-input-number 
               v-model="contractForm.trial_to_formal_bonus" 
               :min="0" 
@@ -110,7 +110,7 @@
         </el-row>
         <el-row>
           <el-col :span="24">
-            <el-form-item label="備註">
+            <el-form-item :label="$t('common.note')">
               <el-input v-model="contractForm.notes" type="textarea" :rows="3" />
             </el-form-item>
           </el-col>
@@ -119,10 +119,10 @@
           <!-- BLOCK B: Work Schedules (Full-time only) -->
           <el-col :span="24">
             <div class="flex justify-between">
-              <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">正職工作時段</label>
+              <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">{{ $t('teacherContractDrawer.workSchedule') }}</label>
               <el-button type="primary" round size="small" text class="text-11px" @click="copyMondayToAll">
                 <template #icon><div class="i-hugeicons:copy-01" /></template>
-                複製週一至平日
+                {{ $t('teacherContractDrawer.copyWeekdays') }}
               </el-button>
             </div>
             
@@ -148,7 +148,7 @@
                     <div class="i-hugeicons:delete-02" />
                   </el-button>
                 </div>
-                <el-button 
+                  <el-button
                   type="primary" 
                   round
                   text
@@ -158,7 +158,7 @@
                   <template #icon>
                     <div class="i-hugeicons:plus-sign-square" />
                   </template>
-                  新增時段
+                  {{ $t('teacherContractDrawer.addSlot') }}
                 </el-button>
               </div>
             </div>
@@ -170,7 +170,7 @@
               <template #icon>
                 <div class="i-hugeicons:floppy-disk text-lg" />
               </template>
-              儲存
+              {{ $t('teacherContractDrawer.saveContract') }}
             </el-button>
           </el-col>
           <!-- <el-col :span="12" justify="end">
@@ -263,12 +263,12 @@
 
       <!-- BLOCK C: Course Rates -->
       <el-divider content-position="left" class="mt-4 mb-2">
-        <span class="text-13px color-[#1d2d44]">合約明細</span>
+        <span class="text-13px color-[#1d2d44]">{{ $t('teacherContractDrawer.contractDetailsTitle') }}</span>
       </el-divider>
       <div class="flex justify-end">
         <el-button type="primary" round text size="small" class="mb-2" @click="openAddRateDialog()">
           <template #icon><div class="i-hugeicons:add-square" /></template>
-          新增合約明細
+          {{ $t('teacherContractDrawer.addContractDetail') }}
         </el-button>
       </div>
       <!-- List-style detail rows -->
@@ -287,24 +287,24 @@
               <span v-if="row.course_name" class="text-12px font-500 text-[#3f4254]">{{ row.course_name }}</span>
               <span v-if="row.description" class="text-12px" :class="{'font-500 text-[#3f4254]': !row.course_name, 'text-[#7e8299]': row.course_name}">{{ row.description }}</span>
             </div>
-            <div v-if="row.notes" class="text-11px color-gray-400 mt-0.5">備註：{{ row.notes }}</div>
+            <div v-if="row.notes" class="text-11px color-gray-400 mt-0.5">{{ $t('teacherContractDrawer.notesPrefix') }}{{ row.notes }}</div>
           </div>
           <!-- Right -->
           <div class="flex items-center gap-2 flex-shrink-0">
             <span class="text-13px font-600 text-[#3f4254] mr-6">NT$ {{ row.amount }}</span>
-            <el-tooltip content="編輯" effect="dark">
+            <el-tooltip :content="$t('common.edit')" effect="dark">
               <el-button link type="primary" @click="openAddRateDialog(row)">
                 <div class="i-hugeicons:edit-02" />
               </el-button>
             </el-tooltip>
-            <el-tooltip content="刪除" effect="dark">
+            <el-tooltip :content="$t('common.delete')" effect="dark">
               <el-button link type="danger" @click="handleDeleteRate(row.id)">
                 <div class="i-hugeicons:delete-02" />
               </el-button>
             </el-tooltip>
           </div>
         </div>
-        <div v-if="!courseRates.length" class="text-center text-12px color-gray-400 py-4">尚無合約明細</div>
+        <div v-if="!courseRates.length" class="text-center text-12px color-gray-400 py-4">{{ $t('teacherContractDrawer.noContractDetails') }}</div>
       </div>
     </div>
   </el-drawer>
@@ -312,7 +312,7 @@
   <!-- Add / Edit Rate Dialog -->
   <el-dialog
     v-model="showAddRateDialog"
-    :title="editingRateId ? '編輯合約明細' : '新增合約明細'"
+    :title="editingRateId ? $t('teacherContractDrawer.editDetailTitle') : $t('teacherContractDrawer.addDetailTitle')"
     width="440px"
     append-to-body
     destroy-on-close
@@ -322,18 +322,18 @@
       <el-row>
         <el-col :span="10">  
           <!-- 明細類型 -->
-          <el-form-item label="明細類型" prop="detail_type">
-            <el-select v-model="rateForm.detail_type" placeholder="請選擇明細類型" class="w-full">
-              <el-option label="底薪" value="base_salary" />
-              <el-option label="津貼" value="allowance" />
-              <el-option label="課程時薪" value="course_rate" />
+          <el-form-item :label="$t('teacherContractDrawer.detailType')" prop="detail_type">
+            <el-select v-model="rateForm.detail_type" :placeholder="$t('teacherContractDrawer.selectDetailType')" class="w-full">
+              <el-option :label="$t('teacherContractDrawer.detailTypes.base_salary')" value="base_salary" />
+              <el-option :label="$t('teacherContractDrawer.detailTypes.allowance')" value="allowance" />
+              <el-option :label="$t('teacherContractDrawer.detailTypes.course_rate')" value="course_rate" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="10" :push="2">
           <!-- 課程：僅 course_rate 顯示 -->
-          <el-form-item v-if="rateForm.detail_type === 'course_rate'" label="課程" prop="course_id">
-            <el-select v-model="rateForm.course_id" filterable clearable placeholder="請選擇課程（選填）" class="w-full">
+          <el-form-item v-if="rateForm.detail_type === 'course_rate'" :label="$t('common.course')" prop="course_id">
+            <el-select v-model="rateForm.course_id" filterable clearable :placeholder="$t('teacherContractDrawer.selectCourseOptional')" class="w-full">
               <el-option
                 v-for="c in courseOptions"
                 :key="c.id"
@@ -346,14 +346,14 @@
       </el-row>
       <el-row>
         <el-col :span="22">
-          <el-form-item label="說明" prop="description">
-            <el-input v-model="rateForm.description" placeholder="請輸入說明（選填）" class="w-full h-30px!" />
+          <el-form-item :label="$t('teacherContractDrawer.description')" prop="description">
+            <el-input v-model="rateForm.description" :placeholder="$t('teacherContractDrawer.descriptionPlaceholder')" class="w-full h-30px!" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row>
         <el-col :span="12">
-          <el-form-item label="金額（必填）" prop="amount">
+          <el-form-item :label="$t('teacherContractDrawer.amountRequiredLabel')" prop="amount">
             <el-input-number
               v-model="rateForm.amount"
               :min="0"
@@ -365,8 +365,8 @@
       </el-row>
       <el-row>
         <el-col :span="24">
-          <el-form-item label="備註" prop="notes">
-            <el-input v-model="rateForm.notes" type="textarea" :rows="4" placeholder="請輸入備註（選填）" class="w-full" />
+          <el-form-item :label="$t('common.note')" prop="notes">
+            <el-input v-model="rateForm.notes" type="textarea" :rows="4" :placeholder="$t('teacherContractDrawer.notesPlaceholder')" class="w-full" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -375,7 +375,7 @@
       <div class="dialog-footer flex justify-end gap-2">
         <el-button round size="small" class="h-30px! px-5!" @click="showAddRateDialog = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" round size="small" class="h-30px! px-5!" :loading="savingRate" @click="saveRate">
-          {{ editingRateId ? $t('common.save') : '新增' }}
+          {{ editingRateId ? $t('common.save') : $t('teacherContractDrawer.addAction') }}
         </el-button>
       </div>
     </template>
@@ -482,7 +482,7 @@ const contractFormRef = ref<FormInstance>();
 const contract = ref<TeacherContractResponse | null>(null);
 
 const drawerTitle = computed(() => {
-  return (contract.value?.teacher_name ? `${contract.value?.teacher_name}` : 'Teacher') + '合約';
+  return `${contract.value?.teacher_name ? `${contract.value?.teacher_name}` : t('teacherContractDrawer.teacherFallback')}${t('teacherContractDrawer.titleSuffix')}`;
 });
 
 const contractDates = ref<[string, string] | null>(null);
@@ -503,15 +503,15 @@ const contractRules = reactive<FormRules>({
 const teacherContractStatusOptions = computed(() => getTeacherContractStatusOptions(t));
 
 // Schedules
-const weekdaysInfo = [
-  { value: 0, label: '週一' },
-  { value: 1, label: '週二' },
-  { value: 2, label: '週三' },
-  { value: 3, label: '週四' },
-  { value: 4, label: '週五' },
-  { value: 5, label: '週六' },
-  { value: 6, label: '週日' }
-];
+const weekdaysInfo = computed(() => ([
+  { value: 0, label: t('teacherContractDrawer.weekdays.mon') },
+  { value: 1, label: t('teacherContractDrawer.weekdays.tue') },
+  { value: 2, label: t('teacherContractDrawer.weekdays.wed') },
+  { value: 3, label: t('teacherContractDrawer.weekdays.thu') },
+  { value: 4, label: t('teacherContractDrawer.weekdays.fri') },
+  { value: 5, label: t('teacherContractDrawer.weekdays.sat') },
+  { value: 6, label: t('teacherContractDrawer.weekdays.sun') },
+]));
 
 type ScheduleSlot = { start_time: string | null; end_time: string | null; notes: string };
 
@@ -521,12 +521,12 @@ const groupedSchedules = ref<Record<number, ScheduleSlot[]>>({
 
 // Detail type options
 type DetailType = 'base_salary' | 'allowance' | 'course_rate';
-const DETAIL_TYPE_MAP: Record<string, string> = {
-  base_salary: '底薪',
-  allowance: '津貼',
-  course_rate: '課程時薪',
-  overtime_rate: '加班時薪',
-};
+const DETAIL_TYPE_MAP = computed<Record<string, string>>(() => ({
+  base_salary: t('teacherContractDrawer.detailTypes.base_salary'),
+  allowance: t('teacherContractDrawer.detailTypes.allowance'),
+  course_rate: t('teacherContractDrawer.detailTypes.course_rate'),
+  overtime_rate: t('teacherContractDrawer.detailTypes.overtime_rate'),
+}));
 const detailTypeTagType = (type: string) => {
   if (type === 'base_salary') return 'primary';
   if (type === 'allowance') return 'success';
@@ -550,10 +550,10 @@ const rateForm = reactive({
   notes: ''
 });
 const rateRules = reactive<FormRules>({
-  detail_type: [{ required: true, message: '請選擇明細類型', trigger: 'change' }],
+  detail_type: [{ required: true, message: t('teacherContractDrawer.detailTypeRequired'), trigger: 'change' }],
   amount: [
-    { required: true, message: '金額為必填欄位', trigger: 'blur' },
-    { type: 'number', min: 0, message: '金額不可為負數', trigger: 'change' }
+    { required: true, message: t('teacherContractDrawer.amountRequired'), trigger: 'blur' },
+    { type: 'number', min: 0, message: t('teacherContractDrawer.amountNonNegative'), trigger: 'change' }
   ]
 });
 
@@ -573,7 +573,7 @@ const contractFileList = ref<any[]>([]);
 const loadContracts = async () => {
   if (!props.teacherId) return;
   try {
-    const cRes = assertApiSuccess(await getTeacherContracts(props.teacherId), '載入教師合約失敗');
+    const cRes = assertApiSuccess(await getTeacherContracts(props.teacherId), t('teacherContractDrawer.loadContractFailed'));
     if (cRes.data.length > 0) {
       // Take the most recent contract for simplicity, or active one
       contract.value = cRes.data[0] || null;
@@ -594,7 +594,7 @@ const loadContracts = async () => {
 
       // Load Schedules
       if (contract.value.employment_type === 'full_time') {
-        const sRes = assertApiSuccess(await getTeacherWorkSchedules(contract.value.id), '載入工作時段失敗');
+        const sRes = assertApiSuccess(await getTeacherWorkSchedules(contract.value.id), t('teacherContractDrawer.loadScheduleFailed'));
         groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
         if (sRes.data) {
           sRes.data.forEach(s => {
@@ -615,7 +615,7 @@ const loadContracts = async () => {
       }
 
       // Load Course Rates
-      const dRes = assertApiSuccess(await getTeacherContractDetails(contract.value.id), '載入合約明細失敗');
+      const dRes = assertApiSuccess(await getTeacherContractDetails(contract.value.id), t('teacherContractDrawer.loadContractDetailFailed'));
       // Filter just to be safe, though details API might return all detail types
       courseRates.value = dRes.data || [];
       // Load Addendums
@@ -642,7 +642,7 @@ const loadContracts = async () => {
     hasContract.value = false;
     contractId.value = null;
     contract.value = null;
-    ElMessage.error(getApiErrorMessage(error, '載入教師合約失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('teacherContractDrawer.loadContractFailed')));
   }
 
   // Clear any stale validation state that may have fired during async load
@@ -652,15 +652,15 @@ const loadContracts = async () => {
 
 const openAddRateDialog = async (row?: TeacherContractDetailResponse) => {
   if (!hasContract.value) {
-    ElMessage.warning('請先儲存合約後再新增合約明細');
+    ElMessage.warning(t('teacherContractDrawer.saveDetailFirst'));
     return;
   }
   if (courseOptions.value.length === 0) {
     try {
-      const res = assertApiSuccess(await getCourseOptions(), '載入課程選單失敗');
+      const res = assertApiSuccess(await getCourseOptions(), t('teacherContractDrawer.loadCourseOptionsFailed'));
       courseOptions.value = res.data || [];
     } catch (e) {
-      ElMessage.error(getApiErrorMessage(e, '載入課程選單失敗'));
+      ElMessage.error(getApiErrorMessage(e, t('teacherContractDrawer.loadCourseOptionsFailed')));
     }
   }
   if (row) {
@@ -701,24 +701,24 @@ const saveContract = async () => {
         
         const cId = contractId.value;
         if (hasContract.value && cId) {
-          const res = assertApiSuccess(await updateTeacherContract(cId, payload as TeacherContractUpdate), '教師合約更新失敗');
-          ElMessage.success(res.message || '教師合約更新成功');
+          const res = assertApiSuccess(await updateTeacherContract(cId, payload as TeacherContractUpdate), t('teacherContractDrawer.updateContractFailed'));
+          ElMessage.success(res.message || t('teacherContractDrawer.updateContractSuccess'));
           if (contractForm.employment_type === 'full_time') {
             await saveSchedules();
           }
         } else {
           payload.teacher_id = tId;
-          const res = assertApiSuccess(await createTeacherContract(payload as TeacherContractCreate), '教師合約新增失敗');
+          const res = assertApiSuccess(await createTeacherContract(payload as TeacherContractCreate), t('teacherContractDrawer.createContractFailed'));
           contractId.value = res.data.id;
           hasContract.value = true;
-          ElMessage.success(res.message || '教師合約新增成功');
+          ElMessage.success(res.message || t('teacherContractDrawer.createContractSuccess'));
           if (contractForm.employment_type === 'full_time') {
             await saveSchedules();
           }
           await loadContracts(); // Reload to get contract ID
         }
       } catch (e) {
-        ElMessage.error(getApiErrorMessage(e, 'Failed to save contract'));
+      ElMessage.error(getApiErrorMessage(e, t('teacherContractDrawer.updateContractFailed')));
       } finally {
         savingContract.value = false;
       }
@@ -734,12 +734,12 @@ const uploadContractDoc = async (uploadFile: any) => {
   try {
     const res = await uploadContractFile('teacher', cId, null, uploadFile.raw);
     if (res && res.success) {
-      ElMessage.success(res.message || '合約書已上傳');
+      ElMessage.success(res.message || t('teacherContractDrawer.contractFileUploaded'));
       await loadContracts();
     }
   } catch (e) {
     console.error(e);
-    ElMessage.error(getApiErrorMessage(e, '合約書上傳失敗'));
+    ElMessage.error(getApiErrorMessage(e, t('teacherContractDrawer.contractFileUploadFailed')));
   } finally {
     uploadingContract.value = false;
     contractFileList.value = [];
@@ -842,14 +842,14 @@ const uploadContractDoc = async (uploadFile: any) => {
 const copyMondayToAll = () => {
   const mondaySlots = groupedSchedules.value[0] || [];
   if (!mondaySlots.length) {
-    ElMessage.warning('週一尚未設定任何時段');
+    ElMessage.warning(t('teacherContractDrawer.mondayEmpty'));
     return;
   }
   // Deep clone each slot and assign to weekdays 1–4
   for (let day = 1; day <= 4; day++) {
     groupedSchedules.value[day] = mondaySlots.map(slot => ({ ...slot }));
   }
-  ElMessage.success('已複製週一時段至週二～週五');
+  ElMessage.success(t('teacherContractDrawer.copiedWeekdays'));
 };
 
 const addScheduleToDay = (weekday: number) => {
@@ -891,10 +891,10 @@ const saveSchedules = async () => {
       }
     });
 
-    const res = assertApiSuccess(await batchSetTeacherWorkSchedules(cId, { schedules: flattenedSchedules }), '工作時段更新失敗');
-    ElMessage.success(res.message || '工作時段更新成功');
+    const res = assertApiSuccess(await batchSetTeacherWorkSchedules(cId, { schedules: flattenedSchedules }), t('teacherContractDrawer.updateScheduleFailed'));
+    ElMessage.success(res.message || t('teacherContractDrawer.updateScheduleSuccess'));
   } catch (e) {
-    ElMessage.error(getApiErrorMessage(e, '工作時段更新失敗'));
+    ElMessage.error(getApiErrorMessage(e, t('teacherContractDrawer.updateScheduleFailed')));
   } finally {
     savingSchedules.value = false;
   }
@@ -926,17 +926,17 @@ const saveRate = async () => {
         };
         if (editingRateId.value) {
           // No update API — delete & re-create
-          assertApiSuccess(await deleteTeacherContractDetail(cId, editingRateId.value), '更新合約明細失敗');
-          const res = assertApiSuccess(await createTeacherContractDetail(cId, payload), '更新合約明細失敗');
-          ElMessage.success(res.message || '合約明細已更新');
+          assertApiSuccess(await deleteTeacherContractDetail(cId, editingRateId.value), t('teacherContractDrawer.updateDetailFailed'));
+          const res = assertApiSuccess(await createTeacherContractDetail(cId, payload), t('teacherContractDrawer.updateDetailFailed'));
+          ElMessage.success(res.message || t('teacherContractDrawer.updateDetailSuccess'));
         } else {
-          const res = assertApiSuccess(await createTeacherContractDetail(cId, payload), '新增合約明細失敗');
-          ElMessage.success(res.message || '合約明細已新增');
+          const res = assertApiSuccess(await createTeacherContractDetail(cId, payload), t('teacherContractDrawer.createDetailFailed'));
+          ElMessage.success(res.message || t('teacherContractDrawer.createDetailSuccess'));
         }
         showAddRateDialog.value = false;
         await loadContracts();
       } catch (e) {
-        ElMessage.error(getApiErrorMessage(e, editingRateId.value ? '更新合約明細失敗' : '新增合約明細失敗'));
+        ElMessage.error(getApiErrorMessage(e, editingRateId.value ? t('teacherContractDrawer.updateDetailFailed') : t('teacherContractDrawer.createDetailFailed')));
       } finally {
         savingRate.value = false;
       }
@@ -948,12 +948,16 @@ const handleDeleteRate = async (detailId: string) => {
   const cId = contractId.value;
   if (!cId) return;
   try {
-    await ElMessageBox.confirm('Are you sure you want to delete this course rate?', 'Warning', { type: 'warning' });
-    const res = assertApiSuccess(await deleteTeacherContractDetail(cId, detailId), '刪除合約明細失敗');
-    ElMessage.success(res.message || 'Rate deleted');
+    await ElMessageBox.confirm(t('teacherContractDrawer.deleteDetailConfirm'), t('teacherContractDrawer.deleteDetailTitle'), {
+      type: 'warning',
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+    });
+    const res = assertApiSuccess(await deleteTeacherContractDetail(cId, detailId), t('teacherContractDrawer.deleteDetailFailed'));
+    ElMessage.success(res.message || t('teacherContractDrawer.deleteDetailSuccess'));
     await loadContracts(); // Reload rates
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, 'Failed to delete rate'));
+    if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, t('teacherContractDrawer.deleteDetailFailed')));
   }
 };
 

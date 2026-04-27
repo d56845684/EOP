@@ -2,9 +2,9 @@
   <div class="profile-page pl-2 pr-4">
     <div class="px-1 mb-4">
       <h3 class="my-0">{{ $t('menu.profile') }}</h3>
-      <p class="text-sm text-[var(--el-text-color-secondary)] mt-2 mb-0">
+      <!-- <p class="text-sm text-[var(--el-text-color-secondary)] mt-2 mb-0">
         {{ $t('profile.intro') }}
-      </p>
+      </p> -->
     </div>
 
     <el-row :gutter="16">
