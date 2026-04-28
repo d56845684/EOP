@@ -7,15 +7,15 @@
       <div class="header-actions">
         <el-button type="danger" size="small" round plain class="h-30px px-2" @click="openBatchDialog('delete')">
           <template #icon><div class="i-hugeicons:delete-02" /></template>
-          批次刪除
+          {{ $t('teacherSchedulePortal.batchDelete') }}
         </el-button>
         <el-button type="warning" size="small" round plain class="h-30px px-2" @click="openBatchDialog('update')">
           <template #icon><div class="i-hugeicons:edit-02" /></template>
-          批次修改
+          {{ $t('teacherSchedulePortal.batchUpdate') }}
         </el-button>
         <el-button type="success" size="small" round plain class="h-30px px-2" @click="openBatchCreateDialog">
           <template #icon><div class="i-hugeicons:layers-01" /></template>
-          批次新增
+          {{ $t('teacherSchedulePortal.batchCreate') }}
         </el-button>
         <el-button type="primary" size="small" round class="h-30px px-2" @click="openCreateDialog()">
           <template #icon><div class="i-hugeicons:plus-sign-square" /></template>
@@ -31,41 +31,41 @@
         label-position="top"
         size="small"
         class="filter-form flex items-end">
-        <el-form-item label="日期範圍">
+        <el-form-item :label="$t('common.dateRange')">
           <el-date-picker
             v-model="filters.dateRange"
             type="daterange"
             value-format="YYYY-MM-DD"
             range-separator="~"
-            start-placeholder="開始日期"
-            end-placeholder="結束日期"
+            :start-placeholder="$t('common.startDate')"
+            :end-placeholder="$t('common.endDate')"
             :disabled-date="disabledScheduleRangeDate"
             class="w-200px! h-30px!"
             clearable
             @change="handleDateRangeChange"
           />
         </el-form-item>
-        <el-form-item label="狀態">
+        <el-form-item :label="$t('common.status')">
           <el-select
             v-model="filters.status"
-            placeholder="全部"
+            :placeholder="$t('common.all')"
             clearable
             class="w-150px! h-30px!"
             @change="handleFilterChange"
           >
-            <el-option label="可預約" value="available" />
-            <el-option label="已有預約" value="booked" />
-            <el-option label="暫停開放" value="closed" />
+            <el-option :label="$t('teacherSchedulePortal.statusAvailable')" value="available" />
+            <el-option :label="$t('teacherSchedulePortal.statusBooked')" value="booked" />
+            <el-option :label="$t('teacherSchedulePortal.statusClosed')" value="closed" />
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" round class="px-4! h-30px!" @click="handleFilterChange">
             <template #icon><div class="i-hugeicons:search-01" /></template>
-            查詢
+            {{ $t('common.search') }}
           </el-button>
           <el-button round class="px-4! h-30px!" @click="resetFilters">
             <template #icon><div class="i-hugeicons:arrow-reload-horizontal" /></template>
-            重置
+            {{ $t('common.btnReset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -76,7 +76,7 @@
         <div class="calendar-toolbar">
           <div>
             <span class="calendar-title">{{ calendarTitle }}</span>
-            <span class="calendar-subtitle">共 {{ visibleFilteredSlots.length }} 筆時段</span>
+            <span class="calendar-subtitle">{{ $t('teacherSchedulePortal.total', { total: visibleFilteredSlots.length }) }}</span>
           </div>
           <div class="calendar-actions">
             <el-segmented v-model="calendarView" :options="calendarViewOptions" size="small" />
@@ -84,14 +84,14 @@
               <el-button size="small" @click="moveCalendar(-1)">
                 <template #icon><div class="i-hugeicons:arrow-left-01" /></template>
               </el-button>
-              <el-button size="small" @click="goToday">今天</el-button>
+              <el-button size="small" @click="goToday">{{ $t('common.today') }}</el-button>
               <el-button size="small" @click="moveCalendar(1)">
                 <template #icon><div class="i-hugeicons:arrow-right-01" /></template>
               </el-button>
             </el-button-group>
             <el-button :loading="loading" size="small" round class="h-30px px-2" @click="fetchSlots">
               <template #icon><div class="i-hugeicons:refresh" /></template>
-              重新整理
+              {{ $t('common.refresh') }}
             </el-button>
           </div>
         </div>
@@ -136,7 +136,7 @@
                 type="button"
                 @click.stop="handleDateClick(scope.timestamp.date)"
               >
-                +{{ getCalendarEventsByDate(scope.timestamp.date).length - 3 }} 更多
+                +{{ getCalendarEventsByDate(scope.timestamp.date).length - 3 }} {{ $t('common.more') }}
               </button>
             </div>
           </template>
@@ -196,7 +196,7 @@
               >
                 <div class="inline-flex items-center gap-1.5">
                   <div class="i-hugeicons:calendar-add-01" />
-                  <span>新增時段</span>
+                  <span>{{ $t('teacherSchedulePortal.addSlot') }}</span>
                 </div>
               </button>
             </div>
@@ -214,7 +214,7 @@
       <div class="drawer-actions">
         <el-button type="primary" size="small" @click="openCreateDialog(selectedDate)">
           <template #icon><div class="i-hugeicons:plus-sign-square" /></template>
-          新增此日時段
+          {{ $t('teacherSchedulePortal.addDailySlot') }}
         </el-button>
       </div>
 
@@ -234,7 +234,7 @@
             <p v-if="slot.notes" class="slot-notes">{{ slot.notes }}</p>
           </div>
           <div class="slot-actions">
-            <el-button link type="primary" size="small" @click="openEditDialog(slot)">編輯</el-button>
+            <el-button link type="primary" size="small" @click="openEditDialog(slot)">{{ $t('common.edit') }}</el-button>
             <el-button
               link
               type="danger"
@@ -242,11 +242,11 @@
               :disabled="slot.is_booked"
               @click="handleDelete(slot)"
             >
-              刪除
+              {{ $t('common.delete') }}
             </el-button>
           </div>
         </article>
-        <el-empty v-if="dailySlots.length === 0" description="此日尚無時段" />
+        <el-empty v-if="dailySlots.length === 0" :description="$t('teacherSchedulePortal.emptyDay')" />
       </div>
     </el-drawer>
 
@@ -257,12 +257,12 @@
       destroy-on-close
     >
       <el-form :model="slotForm" label-width="108px">
-        <el-form-item :label="createMode === 'batch' ? '開始日期' : $t('teacherSchedule.date')" required>
+        <el-form-item :label="createMode === 'batch' ? $t('teacherSchedulePortal.startDate') : $t('teacherSchedule.date')" required>
           <el-date-picker
             v-model="slotForm.date"
             type="date"
             value-format="YYYY-MM-DD"
-            placeholder="選擇日期"
+            :placeholder="$t('teacherSchedulePortal.selectDate')"
             :disabled="isEditingBookedSlot"
             :disabled-date="disabledSlotDate"
             class="w-full"
@@ -277,8 +277,8 @@
               format="HH:mm"
               value-format="HH:mm"
               range-separator="~"
-              start-placeholder="開始"
-              end-placeholder="結束"
+              :start-placeholder="$t('teacherSchedulePortal.startTime')"
+              :end-placeholder="$t('teacherSchedulePortal.endTime')"
               :disabled="slotForm.isAllDay || isEditingBookedSlot"
               class="time-picker"
             />
@@ -288,12 +288,12 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="開放預約">
+        <el-form-item :label="$t('teacherSchedulePortal.bookingOpen')">
           <el-switch
             v-model="slotForm.isAvailable"
             inline-prompt
-            active-text="開"
-            inactive-text="關"
+            :active-text="$t('teacherSchedulePortal.on')"
+            :inactive-text="$t('teacherSchedulePortal.off')"
           />
         </el-form-item>
 
@@ -304,7 +304,7 @@
             :rows="3"
             maxlength="200"
             show-word-limit
-            placeholder="可填寫時段說明或提醒"
+            :placeholder="$t('teacherSchedulePortal.notesPlaceholder')"
           />
         </el-form-item>
 
@@ -341,7 +341,7 @@
                 v-model="slotForm.endDate"
                 type="date"
                 value-format="YYYY-MM-DD"
-                placeholder="選擇結束日期"
+                :placeholder="$t('teacherSchedulePortal.selectEndDate')"
                 :disabled-date="disabledBatchEndDate"
                 class="w-full"
               />
@@ -371,7 +371,7 @@
     >
       <el-alert
         v-if="batchMode === 'delete'"
-        title="只會刪除未被預約的時段；已有預約的時段會自動跳過。"
+        :title="$t('teacherSchedulePortal.batchDeleteHint')"
         type="warning"
         :closable="false"
         show-icon
@@ -379,7 +379,7 @@
       />
       <el-alert
         v-else
-        title="若修改時間，已有預約的時段會自動跳過；狀態與備註會套用到符合條件的時段。"
+        :title="$t('teacherSchedulePortal.batchUpdateHint')"
         type="info"
         :closable="false"
         show-icon
@@ -387,20 +387,20 @@
       />
 
       <el-form :model="batchForm" label-width="118px">
-        <el-form-item label="日期範圍" required>
+        <el-form-item :label="$t('common.dateRange')" required>
           <el-date-picker
             v-model="batchForm.dateRange"
             type="daterange"
             value-format="YYYY-MM-DD"
             range-separator="~"
-            start-placeholder="開始日期"
-            end-placeholder="結束日期"
+            :start-placeholder="$t('common.startDate')"
+            :end-placeholder="$t('common.endDate')"
             :disabled-date="disabledBatchRangeDate"
             class="w-full"
           />
         </el-form-item>
 
-        <el-form-item label="星期">
+        <el-form-item :label="$t('teacherSchedulePortal.weekday')">
           <div class="form-hint-row">
             <el-checkbox-group v-model="batchForm.weekdays">
               <el-checkbox-button
@@ -411,60 +411,60 @@
                 {{ day.label }}
               </el-checkbox-button>
             </el-checkbox-group>
-            <span class="form-hint">不選則套用全部星期</span>
+            <span class="form-hint">{{ $t('teacherSchedulePortal.weekdayAllHint') }}</span>
           </div>
         </el-form-item>
 
-        <el-form-item label="篩選時間">
+        <el-form-item :label="$t('teacherSchedulePortal.filterTime')">
           <el-time-picker
             v-model="batchForm.filterTimeRange"
             is-range
             format="HH:mm"
             value-format="HH:mm"
             range-separator="~"
-            start-placeholder="開始"
-            end-placeholder="結束"
+            :start-placeholder="$t('teacherSchedulePortal.startTime')"
+            :end-placeholder="$t('teacherSchedulePortal.endTime')"
             clearable
             class="w-full"
           />
         </el-form-item>
 
         <template v-if="batchMode === 'update'">
-          <el-divider content-position="left">更新內容</el-divider>
+          <el-divider content-position="left">{{ $t('teacherSchedulePortal.updateContent') }}</el-divider>
 
-          <el-form-item label="新時間">
+          <el-form-item :label="$t('teacherSchedulePortal.newTime')">
             <el-time-picker
               v-model="batchForm.newTimeRange"
               is-range
               format="HH:mm"
               value-format="HH:mm"
               range-separator="~"
-              start-placeholder="新開始"
-              end-placeholder="新結束"
+              :start-placeholder="$t('teacherSchedulePortal.newStartTime')"
+              :end-placeholder="$t('teacherSchedulePortal.newEndTime')"
               clearable
               class="w-full"
             />
           </el-form-item>
 
-          <el-form-item label="開放狀態">
+          <el-form-item :label="$t('teacherSchedulePortal.bookingOpenStatus')">
             <div class="switch-row">
               <el-checkbox v-model="batchForm.shouldUpdateAvailability">
-                更新開放狀態
+                {{ $t('teacherSchedulePortal.updateBookingOpenStatus') }}
               </el-checkbox>
               <el-switch
                 v-model="batchForm.isAvailable"
                 inline-prompt
-                active-text="開"
-                inactive-text="關"
+                :active-text="$t('teacherSchedulePortal.on')"
+                :inactive-text="$t('teacherSchedulePortal.off')"
                 :disabled="!batchForm.shouldUpdateAvailability"
               />
             </div>
           </el-form-item>
 
-          <el-form-item label="備註">
+          <el-form-item :label="$t('common.note')">
             <div class="notes-update">
               <el-checkbox v-model="batchForm.shouldUpdateNotes">
-                更新備註
+                {{ $t('teacherSchedulePortal.updateNotes') }}
               </el-checkbox>
               <el-input
                 v-model="batchForm.notes"
@@ -472,7 +472,7 @@
                 :rows="3"
                 maxlength="200"
                 show-word-limit
-                placeholder="批次套用的備註"
+                :placeholder="$t('teacherSchedulePortal.batchNotesPlaceholder')"
                 :disabled="!batchForm.shouldUpdateNotes"
               />
             </div>
@@ -487,7 +487,7 @@
           :loading="batchSaving"
           @click="submitBatchAction"
         >
-          {{ batchMode === 'delete' ? '批次刪除' : '批次修改' }}
+          {{ batchMode === 'delete' ? $t('teacherSchedulePortal.batchDelete') : $t('teacherSchedulePortal.batchUpdate') }}
         </el-button>
       </template>
     </el-dialog>
@@ -551,10 +551,10 @@ const slots = ref<TeacherSlotResponse[]>([]);
 const isDateRangeSyncedToCalendar = ref(true);
 const calendarView = ref<CalendarView>('agenda');
 const qCalendarWeekdays = [1, 2, 3, 4, 5, 6, 0];
-const calendarViewOptions = [
-  { label: '週', value: 'agenda' },
-  { label: '月', value: 'month' },
-];
+const calendarViewOptions = computed(() => [
+  { label: t('teacherSchedulePortal.viewWeek'), value: 'agenda' },
+  { label: t('teacherSchedulePortal.viewMonth'), value: 'month' },
+]);
 
 const filters = reactive({
   dateRange: getDefaultQueryRange(currentDate.value),
@@ -676,11 +676,15 @@ const dailySlots = computed(() => {
 
 const formattedSelectedDate = computed(() => dayjs(selectedDate.value).format('YYYY/MM/DD dddd'));
 const slotDialogTitle = computed(() => {
-  if (isEditMode.value) return '編輯預約時段';
-  if (createMode.value === 'batch') return '批次新增預約時段';
+  if (isEditMode.value) return t('teacherSchedulePortal.editSlotTitle');
+  if (createMode.value === 'batch') return t('teacherSchedulePortal.batchCreateTitle');
   return t('teacherSchedule.dialogTitle');
 });
-const batchDialogTitle = computed(() => (batchMode.value === 'delete' ? '批次刪除預約時段' : '批次修改預約時段'));
+const batchDialogTitle = computed(() => (
+  batchMode.value === 'delete'
+    ? t('teacherSchedulePortal.batchDeleteTitle')
+    : t('teacherSchedulePortal.batchUpdateTitle')
+));
 const isEditingBookedSlot = computed(() => Boolean(isEditMode.value && editingSlot.value?.is_booked));
 const calendarMonthKey = computed(() => dayjs(currentDate.value).format('YYYY-MM'));
 
@@ -761,7 +765,7 @@ function getSlotStatus(slot: TeacherSlotResponse): SlotStatus {
 function getStatusLabel(slot: TeacherSlotResponse) {
   const status = getSlotStatus(slot);
   if (status === 'booked') return t('teacherSchedule.statusBooked');
-  if (status === 'closed') return '暫停開放';
+  if (status === 'closed') return t('teacherSchedulePortal.statusClosed');
   return t('teacherSchedule.statusAvailable');
 }
 
@@ -776,7 +780,15 @@ function formatSlotTime(slot: TeacherSlotResponse) {
 }
 
 function formatAgendaWeekday(date: string) {
-  const weekdays = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+  const weekdays = [
+    t('teacherSchedule.sun'),
+    t('teacherSchedule.mon'),
+    t('teacherSchedule.tue'),
+    t('teacherSchedule.wed'),
+    t('teacherSchedule.thu'),
+    t('teacherSchedule.fri'),
+    t('teacherSchedule.sat'),
+  ];
   return weekdays[dayjs(date).day()];
 }
 
@@ -800,7 +812,7 @@ async function fetchSlots() {
   const teacherId = resolveTeacherId();
   if (!teacherId) {
     slots.value = [];
-    ElMessage.warning('目前登入帳號沒有教師資料，無法載入預約時段');
+    ElMessage.warning(t('teacherSchedulePortal.missingTeacherLoad'));
     return;
   }
 
@@ -825,7 +837,7 @@ async function fetchSlots() {
         params.is_available = false;
       }
 
-      const res = assertApiSuccess(await getTeacherSlots(params), '載入時段失敗');
+      const res = assertApiSuccess(await getTeacherSlots(params), t('teacherSchedulePortal.loadFailed'));
       allSlots.push(...(res.data || []));
       totalPages = res.total_pages || 1;
 
@@ -836,7 +848,7 @@ async function fetchSlots() {
     slots.value = allSlots.sort((a, b) => `${a.slot_date} ${a.start_time}`.localeCompare(`${b.slot_date} ${b.start_time}`));
   } catch (error) {
     console.error(error);
-    ElMessage.error(getApiErrorMessage(error, '載入時段失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('teacherSchedulePortal.loadFailed')));
   } finally {
     loading.value = false;
   }
@@ -884,7 +896,7 @@ function goToday() {
 
 function handleDateClick(day: string) {
   if (!isWithinScheduleRange(day)) {
-    ElMessage.warning('只能設定今天起三個月內的預約時段');
+    ElMessage.warning(t('teacherSchedulePortal.outOfRange'));
     return;
   }
 
@@ -986,14 +998,14 @@ function resetBatchForm() {
 async function saveSlot() {
   const teacherId = resolveTeacherId();
   if (!teacherId) {
-    ElMessage.warning('目前登入帳號沒有教師資料，無法儲存預約時段');
+    ElMessage.warning(t('teacherSchedulePortal.missingTeacherSave'));
     return;
   }
 
   const times = resolveTimeRange();
   if (!slotForm.date || !times) return;
   if (!isWithinScheduleRange(slotForm.date)) {
-    ElMessage.warning('只能設定今天起三個月內的預約時段');
+    ElMessage.warning(t('teacherSchedulePortal.outOfRange'));
     return;
   }
 
@@ -1011,11 +1023,11 @@ async function saveSlot() {
         payload.end_time = times.end;
       }
 
-      const res = assertApiSuccess(await updateTeacherSlot(editingSlot.value.id, payload), '更新時段失敗');
-      ElMessage.success(res.message || '時段已更新');
+      const res = assertApiSuccess(await updateTeacherSlot(editingSlot.value.id, payload), t('teacherSchedulePortal.updateSlotFailed'));
+      ElMessage.success(res.message || t('teacherSchedulePortal.updateSlotSuccess'));
     } else if (createMode.value === 'batch' || slotForm.repeatType === 'custom') {
       if (slotForm.weekdays.length === 0) {
-        ElMessage.warning('請至少選擇一個星期');
+        ElMessage.warning(t('teacherSchedulePortal.selectWeekday'));
         return;
       }
 
@@ -1032,8 +1044,8 @@ async function saveSlot() {
         notes: slotForm.notes || undefined,
       };
 
-      const res = assertApiSuccess(await batchCreateTeacherSlots(payload), '批次新增時段失敗');
-      ElMessage.success(res.message || '時段已新增');
+      const res = assertApiSuccess(await batchCreateTeacherSlots(payload), t('teacherSchedulePortal.batchCreateFailed'));
+      ElMessage.success(res.message || t('teacherSchedulePortal.createSuccess'));
     } else {
       const payload: TeacherSlotCreate = {
         teacher_id: teacherId,
@@ -1044,8 +1056,8 @@ async function saveSlot() {
         notes: slotForm.notes || undefined,
       };
 
-      const res = assertApiSuccess(await createTeacherSlot(payload), '新增時段失敗');
-      ElMessage.success(res.message || '時段已新增');
+      const res = assertApiSuccess(await createTeacherSlot(payload), t('teacherSchedulePortal.createFailed'));
+      ElMessage.success(res.message || t('teacherSchedulePortal.createSuccess'));
     }
 
     slotDialogVisible.value = false;
@@ -1053,7 +1065,7 @@ async function saveSlot() {
     await fetchSlots();
   } catch (error) {
     console.error(error);
-    ElMessage.error(getApiErrorMessage(error, '儲存時段失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('teacherSchedulePortal.saveFailed')));
   } finally {
     saving.value = false;
   }
@@ -1062,43 +1074,43 @@ async function saveSlot() {
 async function submitBatchAction() {
   const teacherId = resolveTeacherId();
   if (!teacherId) {
-    ElMessage.warning('目前登入帳號沒有教師資料，無法批次處理預約時段');
+    ElMessage.warning(t('teacherSchedulePortal.missingTeacherBatch'));
     return;
   }
 
   if (!batchForm.dateRange || batchForm.dateRange.length !== 2) {
-    ElMessage.warning('請選擇批次處理的日期範圍');
+    ElMessage.warning(t('teacherSchedulePortal.selectBatchRange'));
     return;
   }
 
   const startDate = batchForm.dateRange[0];
   const endDate = batchForm.dateRange[1];
   if (!startDate || !endDate) {
-    ElMessage.warning('請選擇批次處理的日期範圍');
+    ElMessage.warning(t('teacherSchedulePortal.selectBatchRange'));
     return;
   }
 
   if (dayjs(endDate).isBefore(dayjs(startDate), 'day')) {
-    ElMessage.warning('結束日期不得早於開始日期');
+    ElMessage.warning(t('teacherSchedulePortal.endDateBeforeStart'));
     return;
   }
 
   if (!isWithinScheduleRange(startDate) || !isWithinScheduleRange(endDate)) {
-    ElMessage.warning('批次處理日期需在今天起三個月內');
+    ElMessage.warning(t('teacherSchedulePortal.batchRangeOutOfRange'));
     return;
   }
 
-  const filterTimeRange = resolveOptionalTimeRange(batchForm.filterTimeRange, '篩選時間');
+  const filterTimeRange = resolveOptionalTimeRange(batchForm.filterTimeRange, t('teacherSchedulePortal.filterTimeLabel'));
   if (filterTimeRange === false) return;
 
   batchSaving.value = true;
   try {
     if (batchMode.value === 'delete') {
       await ElMessageBox.confirm(
-        `${startDate} ~ ${endDate} 符合條件的未預約時段將被刪除，確定繼續嗎？`,
-        '確認批次刪除',
+        t('teacherSchedulePortal.confirmBatchDeleteMessage', { startDate, endDate }),
+        t('teacherSchedulePortal.confirmBatchDeleteTitle'),
         {
-          confirmButtonText: '批次刪除',
+          confirmButtonText: t('teacherSchedulePortal.batchDelete'),
           cancelButtonText: t('common.cancel'),
           type: 'warning',
         },
@@ -1113,14 +1125,14 @@ async function submitBatchAction() {
         end_time: filterTimeRange?.end,
       };
 
-      const res = assertApiSuccess(await batchDeleteTeacherSlots(payload), '批次刪除時段失敗');
-      ElMessage.success(res.message || '批次刪除完成');
+      const res = assertApiSuccess(await batchDeleteTeacherSlots(payload), t('teacherSchedulePortal.batchActionFailed', { action: t('teacherSchedulePortal.batchDelete') }));
+      ElMessage.success(res.message || t('teacherSchedulePortal.batchDeleteSuccess'));
     } else {
-      const newTimeRange = resolveOptionalTimeRange(batchForm.newTimeRange, '新時間');
+      const newTimeRange = resolveOptionalTimeRange(batchForm.newTimeRange, t('teacherSchedulePortal.newTimeLabel'));
       if (newTimeRange === false) return;
 
       if (!newTimeRange && !batchForm.shouldUpdateAvailability && !batchForm.shouldUpdateNotes) {
-        ElMessage.warning('請至少指定一項要批次修改的內容');
+        ElMessage.warning(t('teacherSchedulePortal.selectBatchUpdateContent'));
         return;
       }
 
@@ -1137,8 +1149,8 @@ async function submitBatchAction() {
         notes: batchForm.shouldUpdateNotes ? batchForm.notes : undefined,
       };
 
-      const res = assertApiSuccess(await batchUpdateTeacherSlots(payload), '批次修改時段失敗');
-      ElMessage.success(res.message || '批次修改完成');
+      const res = assertApiSuccess(await batchUpdateTeacherSlots(payload), t('teacherSchedulePortal.batchActionFailed', { action: t('teacherSchedulePortal.batchUpdate') }));
+      ElMessage.success(res.message || t('teacherSchedulePortal.batchUpdateSuccess'));
     }
 
     batchDialogVisible.value = false;
@@ -1146,7 +1158,12 @@ async function submitBatchAction() {
   } catch (error) {
     if (error === 'cancel') return;
     console.error(error);
-    ElMessage.error(getApiErrorMessage(error, batchMode.value === 'delete' ? '批次刪除時段失敗' : '批次修改時段失敗'));
+    ElMessage.error(getApiErrorMessage(
+      error,
+      t('teacherSchedulePortal.batchActionFailed', {
+        action: batchMode.value === 'delete' ? t('teacherSchedulePortal.batchDelete') : t('teacherSchedulePortal.batchUpdate'),
+      }),
+    ));
   } finally {
     batchSaving.value = false;
   }
@@ -1157,12 +1174,12 @@ function resolveTimeRange() {
   const end = slotForm.isAllDay ? '23:59:00' : toTimePayload(slotForm.timeRange?.[1] || '');
 
   if (!start || !end) {
-    ElMessage.warning('請選擇開始與結束時間');
+    ElMessage.warning(t('teacherSchedulePortal.selectTimeRange'));
     return null;
   }
 
   if (start >= end) {
-    ElMessage.warning('結束時間必須晚於開始時間');
+    ElMessage.warning(t('teacherSchedulePortal.invalidTimeRange'));
     return null;
   }
 
@@ -1176,12 +1193,12 @@ function resolveOptionalTimeRange(range: string[], label: string) {
   const end = toTimePayload(range[1] || '');
 
   if (!start || !end) {
-    ElMessage.warning(`請完整選擇${label}的開始與結束時間`);
+    ElMessage.warning(t('teacherSchedulePortal.incompleteTimeRange', { label }));
     return false;
   }
 
   if (start >= end) {
-    ElMessage.warning(`${label}的結束時間必須晚於開始時間`);
+    ElMessage.warning(t('teacherSchedulePortal.invalidOptionalTimeRange', { label }));
     return false;
   }
 
@@ -1191,15 +1208,15 @@ function resolveOptionalTimeRange(range: string[], label: string) {
 function resolveBatchEndDate() {
   if (slotForm.endType === 'date') {
     if (!slotForm.endDate) {
-      ElMessage.warning('請選擇結束日期');
+      ElMessage.warning(t('teacherSchedulePortal.selectRepeatEndDate'));
       return '';
     }
     if (dayjs(slotForm.endDate).isBefore(dayjs(slotForm.date), 'day')) {
-      ElMessage.warning('結束日期不得早於開始日期');
+      ElMessage.warning(t('teacherSchedulePortal.endDateBeforeStart'));
       return '';
     }
     if (!isWithinScheduleRange(slotForm.endDate)) {
-      ElMessage.warning('結束日期需在今天起三個月內');
+      ElMessage.warning(t('teacherSchedulePortal.repeatEndOutOfRange'));
       return '';
     }
     return slotForm.endDate;
@@ -1211,7 +1228,7 @@ function resolveBatchEndDate() {
 
   for (let guard = 0; guard < 370; guard += 1) {
     if (cursor.isAfter(getScheduleMaxDate(), 'day')) {
-      ElMessage.warning('重複次數會超出今天起三個月內的可設定範圍');
+      ElMessage.warning(t('teacherSchedulePortal.repeatCountOutOfRange'));
       return '';
     }
 
@@ -1220,7 +1237,7 @@ function resolveBatchEndDate() {
       matchedCount += 1;
       if (matchedCount >= slotForm.repeatCount) {
         if (!isWithinScheduleRange(cursor)) {
-          ElMessage.warning('重複次數會超出今天起三個月內的可設定範圍');
+          ElMessage.warning(t('teacherSchedulePortal.repeatCountOutOfRange'));
           return '';
         }
         return cursor.format('YYYY-MM-DD');
@@ -1229,19 +1246,19 @@ function resolveBatchEndDate() {
     cursor = cursor.add(1, 'day');
   }
 
-  ElMessage.warning('無法計算重複結束日期');
+  ElMessage.warning(t('teacherSchedulePortal.repeatEndCalcFailed'));
   return '';
 }
 
 async function handleDelete(slot: TeacherSlotResponse) {
   if (slot.is_booked) {
-    ElMessage.warning('已有預約的時段無法刪除');
+    ElMessage.warning(t('teacherSchedulePortal.bookedDeleteBlocked'));
     return;
   }
 
   try {
     await ElMessageBox.confirm(
-      `${slot.slot_date} ${formatSlotTime(slot)} 將被刪除，確定繼續嗎？`,
+      t('teacherSchedulePortal.confirmDeleteMessage', { date: slot.slot_date, time: formatSlotTime(slot) }),
       t('teacherSchedule.confirmRemoveTitle'),
       {
         confirmButtonText: t('common.confirm'),
@@ -1250,13 +1267,13 @@ async function handleDelete(slot: TeacherSlotResponse) {
       },
     );
 
-    const res = assertApiSuccess(await deleteTeacherSlot(slot.id), '刪除時段失敗');
-    ElMessage.success(res.message || '時段已刪除');
+    const res = assertApiSuccess(await deleteTeacherSlot(slot.id), t('teacherSchedulePortal.deleteFailed'));
+    ElMessage.success(res.message || t('teacherSchedulePortal.deleteSuccess'));
     await fetchSlots();
   } catch (error) {
     if (error === 'cancel') return;
     console.error(error);
-    ElMessage.error(getApiErrorMessage(error, '刪除時段失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('teacherSchedulePortal.deleteFailed')));
   }
 }
 

@@ -27,6 +27,7 @@ interface ApiErrorPayload {
   message: string;
   detail?: unknown;
   error_code?: string | null;
+  request_url?: string | null;
   response?: {
     status: number;
     data: unknown;
@@ -37,6 +38,7 @@ const normalizeApiError = (
   status: number,
   data?: Record<string, any>,
   fallbackMessage = '系統異常',
+  requestUrl?: string | null,
 ): ApiErrorPayload => {
   const message = data?.message || (typeof data?.detail === 'string' ? data.detail : '') || fallbackMessage;
 
@@ -46,6 +48,7 @@ const normalizeApiError = (
     message,
     detail: data?.detail,
     error_code: data?.error_code ?? null,
+    request_url: requestUrl ?? null,
     response: {
       status,
       data,
@@ -123,19 +126,19 @@ service.interceptors.response.use(
         // 將 Blob 轉回 JSON 文字，這樣才能顯示正確的錯誤訊息
         const text = await response.data.text();
         const errorData = JSON.parse(text);
-        const normalizedBlobError = normalizeApiError(response.status || 500, errorData, '操作失敗');
+        const normalizedBlobError = normalizeApiError(response.status || 500, errorData, '操作失敗', response.config?.url);
         if (errorData.error_code === AUTH_SESSION_EXPIRED) {
           redirectToLoginForExpiredSession();
         }
         return Promise.reject(normalizedBlobError);
       } catch {
-        return Promise.reject(normalizeApiError(response.status || 500, undefined, '操作失敗'));
+        return Promise.reject(normalizeApiError(response.status || 500, undefined, '操作失敗', response.config?.url));
       }
     }
 
     if (response?.data?.error_code === AUTH_SESSION_EXPIRED) {
       redirectToLoginForExpiredSession();
-      return Promise.reject(normalizeApiError(response.status || 401, response.data, '登入狀態已過期，請重新登入'));
+      return Promise.reject(normalizeApiError(response.status || 401, response.data, '登入狀態已過期，請重新登入', response.config?.url));
     }
 
     if (response?.status === 401 && !originalRequest._retry) {
@@ -143,7 +146,7 @@ service.interceptors.response.use(
       if (originalRequest.url?.includes('/v1/auth/refresh')) {
         const authStore = useAuthStore();
         authStore.clearLocalState();
-        return Promise.reject(normalizeApiError(response.status || 401, response.data, '登入狀態已過期，請重新登入'));
+        return Promise.reject(normalizeApiError(response.status || 401, response.data, '登入狀態已過期，請重新登入', response.config?.url));
       }
 
       if (isRefreshing) {
@@ -177,25 +180,26 @@ service.interceptors.response.use(
               refreshError.response?.status || 401,
               refreshError.response?.data,
               '登入狀態已過期，請重新登入',
+              refreshError.response?.config?.url ?? originalRequest?.url,
             ),
           );
         }
-        return Promise.reject(normalizeApiError(401, undefined, '登入狀態已過期，請重新登入'));
+        return Promise.reject(normalizeApiError(401, undefined, '登入狀態已過期，請重新登入', originalRequest?.url));
       } finally {
         isRefreshing = false;
       }
     }
 
     if (!error.response) {
-      return Promise.reject(normalizeApiError(0, undefined, '網路連線異常，請稍後再試'));
+      return Promise.reject(normalizeApiError(0, undefined, '網路連線異常，請稍後再試', originalRequest?.url));
     }
 
     // 處理 400 / 403 / 404 / 409 / 422 / 500 等一般錯誤
     if (response) {
-      return Promise.reject(normalizeApiError(response.status, response.data, '系統異常'));
+      return Promise.reject(normalizeApiError(response.status, response.data, '系統異常', response.config?.url));
     }
 
-    return Promise.reject(normalizeApiError(0, undefined, '網路連線異常，請稍後再試'));
+    return Promise.reject(normalizeApiError(0, undefined, '網路連線異常，請稍後再試', originalRequest?.url));
   }
 );
 

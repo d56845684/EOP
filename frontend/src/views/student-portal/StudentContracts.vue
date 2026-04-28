@@ -149,7 +149,7 @@
         >
           <el-col :xs="24" :lg="12">
             <el-descriptions
-              :title="`合約編號：${contract.contract_no}`"
+              :title="`${$t('myContracts.colContractNo')}：${contract.contract_no}`"
               :column="4"
               border
               size="small"
@@ -590,8 +590,10 @@ const downloadContract = async (contractId: string) => {
   downloadingId.value = contractId;
   try {
     const res = assertApiSuccess(await getContractDownloadUrl(contractId), t('myContracts.downloadFailed'));
-    if (res.data) {
-      window.open(res.data, '_blank');
+    if (res.success) {
+      const { download_url} = res
+      const downloadUrl = download_url
+      window.open(downloadUrl, '_blank');
     } else {
       ElMessage.warning(t('myContracts.noDownloadUrl'));
     }

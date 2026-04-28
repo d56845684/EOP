@@ -1,5 +1,5 @@
 <template>
-  <div class="aside w-180px  overflow-unset transition-all duration-300" :class="{ '!w-64px': isCollapse }">
+  <div class="aside w-200px  overflow-unset transition-all duration-300" :class="{ '!w-56px': isCollapse }">
     <div class="aside-header h-59px box-border relative flex items-center gap-2 pt-3.5 pb-1.2 px-3 transition-all duration-300">
       <el-image :src="logo" fit="contain" class="w-10 y-10 flex-shrink-0" />
       <div class="w-full text-size-4 line-height-5 font-bold color-[#073572] overflow-hidden transition-all duration-300" :class="{ '!w-0': isCollapse }">EOP<br>ENGLISH</div>
@@ -123,11 +123,22 @@
   
   .aside-menu {
     flex: 1;
-    .el-menu {
-        border-right: none;
-        .el-menu-item {
-            gap: 5px;
+    :deep(.el-menu) {
+      border-right: none;
+      .el-menu-item {
+        padding: 0 16px;
+        gap: 5px;
+      }
+      .el-sub-menu {
+        &__title {
+          padding-left: 16px !important;
+          gap: 5px;
         }
+        .el-menu-item {
+          padding-left: 32px; 
+          gap: 5px;
+        }
+      }
     }
   }
 }

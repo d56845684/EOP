@@ -19,10 +19,10 @@
 
     <el-card shadow="never" class="mb-14px">
       <el-form :inline="true" :model="queryParams" size="small" label-position="top" class="filter-form flex items-end">
-        <el-form-item label="關鍵字" class="mb-0">
+        <el-form-item :label="$t('common.searchKeyword')" class="mb-0">
           <el-input 
             v-model="queryParams.search" 
-            placeholder="搜尋編號、姓名或Email" 
+            :placeholder="$t('teacher.searchPlaceholder')"
             clearable 
             @clear="fetchTeachersList" 
             @keyup.enter="fetchTeachersList"
@@ -33,11 +33,11 @@
             </template>
           </el-input>
         </el-form-item>
-        <el-form-item label="狀態" class="mb-0">
+        <el-form-item :label="$t('common.status')" class="mb-0">
           <el-select v-model="queryParams.is_active" style="width: 120px" @change="fetchTeachersList">
-            <el-option label="全部" value="all" />
-            <el-option label="啟用" :value="true" />
-            <el-option label="停用" :value="false" />
+            <el-option :label="$t('common.all')" value="all" />
+            <el-option :label="$t('common.active')" :value="true" />
+            <el-option :label="$t('common.inactive')" :value="false" />
           </el-select>
         </el-form-item>
         <el-form-item class="mb-0">
@@ -66,8 +66,8 @@
                 <el-switch 
                   v-model="teacher.is_active" 
                   inline-prompt
-                  active-text="啟用" 
-                  inactive-text="停用" 
+                  :active-text="$t('common.active')"
+                  :inactive-text="$t('common.inactive')"
                   size="small"
                   :before-change="() => handleToggleStatus(teacher)"
                 />
@@ -90,18 +90,18 @@
                   </template>
                 </el-image>
               </el-descriptions-item>
-              <el-descriptions-item label="編號 (No.)">{{ teacher.teacher_no || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="等級" align="center" :width="120">
+              <el-descriptions-item :label="$t('teacher.teacherNo')">{{ teacher.teacher_no || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="$t('teacher.level')" align="center" :width="120">
                 <template #label>
                   <div class="flex items-center justify-center gap-1">
                     <div class="i-hugeicons:star-award-02 font-size-14px" />
-                    等級
+                    {{ $t('teacher.level') }}
                   </div>
                 </template>
                 LV.{{ teacher.teacher_level }}
               </el-descriptions-item>
-              <el-descriptions-item label="電話 (Phone)">{{ teacher.phone || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="帳號驗證">
+              <el-descriptions-item :label="$t('common.phone')">{{ teacher.phone || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="$t('common.accountVerified')">
                 <div class="flex items-center justify-center">
                   <el-button
                     v-if="!teacher.email_verified_at"
@@ -112,11 +112,11 @@
                     @click="handleVerify(teacher)"
                   >
                     <div class="i-hugeicons:mail-validation-01 mr-2px" />
-                    帳號驗證
+                    {{ $t('common.verify') }}
                   </el-button>
                   <div v-else class="flex items-center justify-center gap-1 color-success">
                     <div class="i-hugeicons:checkmark-badge-03" />
-                    已驗證
+                    {{ $t('common.verified') }}
                   </div>
                 </div>
               </el-descriptions-item>
@@ -143,13 +143,13 @@
                     {{ $t('contract.contracts') }}
                   </template>
                 </el-button>
-                <div 
+                <!-- <div 
                   v-if="teacher.total_contracts && !teacher.active_contracts" 
                   class="color-info text-10px flex items-center gap-1"
                 >
                   <div class="i-hugeicons:alert-02" />
-                  合約可能尚未生效
-                </div>
+                  {{ $t('teacher.contractPending') }}
+                </div> -->
               </div>
               <div class="right">
                 <el-button v-permission="'teachers.details'" type="primary" plain round size="small" @click="openDetailDrawer(teacher)">
@@ -159,7 +159,7 @@
                   <template #icon v-else>
                     <div class="i-hugeicons:view mr-2px" />
                   </template>
-                  {{ $t('common.baseInfo') }}
+                  {{ $t('common.basicInfo') }}
                 </el-button>
                 <el-button 
                   v-permission="'teachers.delete'" 
@@ -176,7 +176,7 @@
           </el-card>
         </el-col>
       </el-row>
-      <el-empty v-if="teachersData.length === 0" description="No Teachers Found" />
+      <el-empty v-if="teachersData.length === 0" :description="$t('teacher.noTeachersFound')" />
     </div>
 
     <div class="flex justify-end mt-4">
@@ -291,8 +291,8 @@ const addForm = reactive<TeacherCreate>({
 });
 
 const addRules = reactive<FormRules>({
-  name: [{ required: true, message: '姓名為必填', trigger: 'blur' }],
-  email: [{ required: true, message: 'Email為必填', trigger: 'blur', type: 'email' }]
+  name: [{ required: true, message: t('teacher.nameRequired'), trigger: 'blur' }],
+  email: [{ required: true, message: t('teacher.emailRequired'), trigger: 'blur', type: 'email' }]
 });
 
 const fetchTeachersList = async () => {
@@ -304,7 +304,7 @@ const fetchTeachersList = async () => {
       search: queryParams.search || undefined,
       is_active: queryParams.is_active === 'all' ? undefined : queryParams.is_active
     };
-    const res = assertApiSuccess(await getTeacherOverviewList(params), '載入老師列表失敗');
+    const res = assertApiSuccess(await getTeacherOverviewList(params), t('teacher.loadFailed'));
     teachersData.value = res.data;
     totalTeachers.value = res.total;
   } catch (e: any) {
@@ -350,7 +350,7 @@ const handleAdd = async () => {
     if (valid) {
       addingFile.value = true;
       try {
-        const res = assertApiSuccess(await createTeacher(addForm), '新增老師失敗');
+        const res = assertApiSuccess(await createTeacher(addForm), t('teacher.createFailed'));
         ElMessage.success(res.message || t('common.addSuccess'));
         addDialogVisible.value = false;
         fetchTeachersList();
@@ -367,13 +367,13 @@ const handleAdd = async () => {
 
 const handleToggleStatus = (teacher: TeacherResponse): Promise<boolean> => {
   return new Promise((resolve, reject) => {
-    ElMessageBox.confirm(`確定要${teacher.is_active ? '停用' : '啟用'}此教師嗎？`, '警告', {
+    ElMessageBox.confirm(teacher.is_active ? t('teacher.toggleDisableConfirm') : t('teacher.toggleEnableConfirm'), 'Warning', {
       confirmButtonText: t('common.confirm'),
       cancelButtonText: t('common.cancel'),
       type: 'warning',
     }).then(async () => {
       try {
-        const res = assertApiSuccess(await updateTeacher(teacher.id, { is_active: !teacher.is_active }), '更新教師狀態失敗');
+        const res = assertApiSuccess(await updateTeacher(teacher.id, { is_active: !teacher.is_active }), t('teacher.statusUpdateFailed'));
         ElMessage.success(res.message || t('common.updateSuccess'));
         resolve(true);
       } catch (e) {
@@ -388,10 +388,10 @@ const handleToggleStatus = (teacher: TeacherResponse): Promise<boolean> => {
 
 const handleDelete = async (teacher: TeacherResponse) => {
   try {
-    await ElMessageBox.confirm(`是否確定刪除 ${teacher.name} 老師?`, '警告', {
+    await ElMessageBox.confirm(t('teacher.deleteConfirm', { name: teacher.name }), 'Warning', {
       type: 'warning'
     });
-    const res = assertApiSuccess(await deleteTeacher(teacher.id), '刪除老師失敗');
+    const res = assertApiSuccess(await deleteTeacher(teacher.id), t('teacher.deleteFailed'));
     ElMessage.success(res.message || t('common.deleteSuccess'));
     fetchTeachersList();
   } catch (e) {
@@ -403,7 +403,7 @@ const handleVerify = async (teacher: TeacherResponse) => {
   try {
     const res = await generateInviteLinkApi({ entity_type: 'teacher', entity_id: teacher.id });
     if (res.success === false && res.error_code === code.VALIDATION_ERROR) {
-      ElMessage.error('此Email已有登入帳號');
+      ElMessage.error(t('teacher.duplicateEmail'));
       return;
     }
     inviteUrl.value = res.invite_url || '';
@@ -412,7 +412,7 @@ const handleVerify = async (teacher: TeacherResponse) => {
   } catch (err: any) {
     // console.error(err);
     if (err.error_code === code.VALIDATION_ERROR) {
-      ElMessage.error('此Email已有登入帳號');
+      ElMessage.error(t('teacher.duplicateEmail'));
       return;
     }
     ElMessage.error(t('common.operationFailed'));

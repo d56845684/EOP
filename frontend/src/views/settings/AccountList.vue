@@ -74,10 +74,10 @@
 
     <el-card shadow="never">
       <el-table :data="accounts" size="small" class="w-full" v-loading="loading">
-        <el-table-column prop="email" min-width="240" :label="$t('account.account')" show-overflow-tooltip>
+        <el-table-column prop="email" min-width="260" :label="$t('account.account')" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="flex items-center gap-2">
-              <el-tooltip v-if="row.is_protected" content="受保護帳號" placement="top">
+              <el-tooltip v-if="row.is_protected" :content="$t('account.protectedAccount')" placement="top">
                 <div class="i-hugeicons:lock-key text-amber" />
               </el-tooltip>
               <span class="truncate">{{ row.email }}</span>
@@ -91,7 +91,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="role" width="100" align="center" :label="$t('account.role')">
+        <el-table-column prop="role" min-width="120" align="center" :label="$t('account.role')">
           <template #default="{ row }">
             <el-tag size="small" effect="light" :type="getRoleTagType(row.role)">
               {{ getRoleLabel(row.role) }}
@@ -99,7 +99,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="employee_subtype" width="100" align="center" :label="$t('account.employeeSubtype')">
+        <el-table-column prop="employee_subtype" min-width="120" align="center" :label="$t('account.employeeSubtype')">
           <template #default="{ row }">
             <!-- <el-tag
               v-if="row.employee_subtype"
@@ -114,17 +114,17 @@
           </template>
         </el-table-column>
 
-        <el-table-column width="160" align="center" :label="$t('account.createdTime')">
+        <el-table-column min-width="180" align="center" :label="$t('account.createdTime')">
           <template #default="{ row }">
             {{ formatTime(row.created_at) }}
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('common.actions')" width="150" fixed="right" align="center">
+        <el-table-column :label="$t('common.actions')" width="180" fixed="right" align="center">
           <template #default="{ row }">
             <div v-if="row.is_protected" class="flex items-center justify-center gap-1">
               <div class="i-hugeicons:square-lock-01 text-md text-gray-400" />
-              <span class="text-12px text-[var(--el-text-color-secondary)]">受保護</span>
+              <span class="text-12px text-[var(--el-text-color-secondary)]">{{ $t('account.protected') }}</span>
             </div>
             <div v-else class="flex items-center justify-center gap-1">
               <el-button
@@ -148,14 +148,14 @@
               >
                 <div class="flex items-center gap-0.5">
                   <div class="i-hugeicons:shield-key" />
-                  權限設定
+                  {{ $t('account.permissionSettings') }}
                 </div>
               </el-button>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="資料狀態" width="75" fixed="right" align="center">
+        <el-table-column :label="$t('account.statusColumn')" width="75" fixed="right" align="center">
           <template #default="{ row }">
             <el-switch
               v-model="row.is_active"
@@ -252,7 +252,7 @@
     <el-drawer
       v-model="permissionDrawerVisible"
       size="400px"
-      title="頁面權限"
+      :title="$t('account.pagePermissions')"
       @closed="resetPermissionDrawer"
     >
       <div v-if="permissionAccount" class="h-64px mb-4 rounded-2 bg-[var(--el-fill-color-light)] px-4 py-3">
@@ -355,7 +355,7 @@ const editForm = reactive({
 });
 
 const editRules = reactive<FormRules>({
-  role_id: [{ required: true, message: '請選擇角色', trigger: 'change' }],
+  role_id: [{ required: true, message: t('account.roleRequired'), trigger: 'change' }],
 });
 
 const selectedEditRole = computed(() => roleIdMap.value.get(editForm.role_id));
@@ -430,21 +430,21 @@ const buildQueryParams = () => {
 
 const fetchRoles = async () => {
   try {
-    const res = assertApiSuccess(await getRolesApi(), '載入角色失敗');
+    const res = assertApiSuccess(await getRolesApi(), t('account.loadRolesFailed'));
     roles.value = res.data || [];
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '載入角色失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('account.loadRolesFailed')));
   }
 };
 
 const fetchAccounts = async () => {
   loading.value = true;
   try {
-    const res = assertApiSuccess(await getUsersApi(buildQueryParams()), '載入帳號失敗');
+    const res = assertApiSuccess(await getUsersApi(buildQueryParams()), t('account.loadAccountsFailed'));
     accounts.value = sortProtectedAccountsFirst(res.data || []);
     total.value = res.total || 0;
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '載入帳號失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('account.loadAccountsFailed')));
   } finally {
     loading.value = false;
   }
@@ -495,13 +495,13 @@ const handleSaveAccount = async () => {
         role_id: editForm.role_id,
         employee_subtype: employeeSubtype,
         is_active: editForm.is_active,
-      }), '更新帳號失敗');
+      }), t('account.updateFailed'));
 
-      ElMessage.success(res.message || '帳號更新成功');
+      ElMessage.success(res.message || t('account.updateSuccess'));
       editDrawerVisible.value = false;
       fetchAccounts();
     } catch (error) {
-      ElMessage.error(getApiErrorMessage(error, '更新帳號失敗'));
+      ElMessage.error(getApiErrorMessage(error, t('account.updateFailed')));
     } finally {
       savingAccount.value = false;
     }
@@ -515,26 +515,29 @@ const canToggleAccountStatus = (account: AccountInfo) => {
 
 const handleStatusSwitch = async (account: AccountInfo) => {
   const nextActive = !account.is_active;
-  const actionText = nextActive ? '啟用' : '停用';
-
   try {
-    await ElMessageBox.confirm(`確定要${actionText}「${account.email}」嗎？`, `${actionText}帳號`, {
-      confirmButtonText: '確定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(
+      nextActive
+        ? t('account.activateConfirmMessage', { email: account.email })
+        : t('account.deactivateConfirmMessage', { email: account.email }),
+      nextActive ? t('account.activateTitle') : t('account.deactivateTitle'),
+      {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: nextActive ? 'info' : 'warning',
     });
 
     statusUpdatingId.value = account.id;
     const res = nextActive
-      ? assertApiSuccess(await updateUserApi(account.id, { is_active: true }), '啟用帳號失敗')
-      : assertApiSuccess(await deleteUserApi(account.id), '停用帳號失敗');
+      ? assertApiSuccess(await updateUserApi(account.id, { is_active: true }), t('account.activateFailed'))
+      : assertApiSuccess(await deleteUserApi(account.id), t('account.deactivateFailed'));
 
-    ElMessage.success(res.message || `${actionText}成功`);
+    ElMessage.success(res.message || (nextActive ? t('account.activateSuccess') : t('account.deactivateSuccess')));
     fetchAccounts();
     return true;
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
-      ElMessage.error(getApiErrorMessage(error, `${actionText}帳號失敗`));
+      ElMessage.error(getApiErrorMessage(error, nextActive ? t('account.activateFailed') : t('account.deactivateFailed')));
     }
     return false;
   } finally {
@@ -544,7 +547,7 @@ const handleStatusSwitch = async (account: AccountInfo) => {
 
 const openPermissionDrawer = async (account: AccountInfo) => {
   if (!account.role_id) {
-    ElMessage.warning('此帳號尚未設定角色，無法編輯頁面權限');
+    ElMessage.warning(t('account.noRoleWarning'));
     return;
   }
 
@@ -559,9 +562,9 @@ const openPermissionDrawer = async (account: AccountInfo) => {
       getUserPageOverridesApi(account.id),
     ]);
 
-    const pages = assertApiSuccess(pagesRes, '載入頁面權限失敗').data || [];
-    const rolePages = assertApiSuccess(rolePagesRes, '載入角色權限失敗').pages || [];
-    const overrides = assertApiSuccess(overridesRes, '載入個人權限失敗').overrides || [];
+    const pages = assertApiSuccess(pagesRes, t('account.loadPagePermissionsFailed')).data || [];
+    const rolePages = assertApiSuccess(rolePagesRes, t('account.loadRolePermissionsFailed')).pages || [];
+    const overrides = assertApiSuccess(overridesRes, t('account.loadUserPermissionsFailed')).overrides || [];
 
     allPages.value = pages.filter((page) => page.is_active !== false);
     rolePageIds.value = new Set(rolePages.map((page) => page.id));
@@ -571,7 +574,7 @@ const openPermissionDrawer = async (account: AccountInfo) => {
         .map((override) => [override.page_id, override.access_type]),
     );
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '載入頁面權限失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('account.loadPagePermissionsFailed')));
   } finally {
     permissionLoading.value = false;
   }
@@ -600,13 +603,13 @@ const handleSavePermissions = async (pageIds: string[]) => {
 
     const res = assertApiSuccess(
       await updateUserPageOverridesApi(permissionAccount.value.id, overrides),
-      '儲存頁面權限失敗',
+      t('account.savePagePermissionsFailed'),
     );
 
-    ElMessage.success(res.message || '頁面權限已更新');
+    ElMessage.success(res.message || t('account.savePagePermissionsSuccess'));
     permissionDrawerVisible.value = false;
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '儲存頁面權限失敗'));
+    ElMessage.error(getApiErrorMessage(error, t('account.savePagePermissionsFailed')));
   } finally {
     savingPermissions.value = false;
   }

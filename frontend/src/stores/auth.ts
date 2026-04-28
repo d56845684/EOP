@@ -4,16 +4,17 @@ import { loginApi, logout as logoutApi, getMeApi, type LoginRequest, type UserIn
 import { usePermissionStore } from '@/stores/permission';
 import router from '@/router';
 import { getUserProfileApi, type UserProfile } from '@/api/user';
-import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
-import { ElMessage } from 'element-plus';
+import { assertApiSuccess } from '@/api/response';
 import adminAvatar from '@/assets/avatars/admin.svg?url';
 import teacherAvatar from '@/assets/avatars/teacher.svg?url';
 import studentAvatar from '@/assets/avatars/student.svg?url';
 import defaultAvatar from '@/assets/avatars/default.svg?url';
 import { clearAuthTokens, setAuthTokens } from '@/utils/auth-token';
+import { useApiError } from '@/composables/useApiError';
 
 
 export const useAuthStore = defineStore('auth', () => {
+  const { showApiError } = useApiError();
   // State: Keep userInfo and add profile
   const userInfo = ref<UserInfo | null>(null);
   const profile = ref<UserProfile | null>(null);
@@ -51,7 +52,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
     } catch (error) {
       console.error('Fetch profile failed:', error);
-      ElMessage.error(getApiErrorMessage(error, 'Failed to fetch user profile'));
+      showApiError(error, 'Failed to fetch user profile');
       clearLocalState();
       throw error;
     }

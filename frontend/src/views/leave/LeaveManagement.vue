@@ -1,12 +1,12 @@
 <template>
   <div class="leave-management pl-2 pr-4">
     <section class="flex justify-between items-center px-1 mb-2">
-      <h3 class="my-0">請假管理</h3>
+      <h3 class="my-0">{{ $t('menu.leave_management') }}</h3>
       <el-button :loading="loading" size="small" round class="h-30px! px-3!" @click="fetchLeaveRecords">
         <template #icon>
           <div class="i-hugeicons:refresh" />
         </template>
-        重新整理
+        {{ $t('common.refresh') }}
       </el-button>
     </section>
 
@@ -19,19 +19,16 @@
         class="filter-form flex items-end"
         @submit.prevent="handleSearch"
       >
-        <el-form-item label="狀態">
+        <el-form-item :label="$t('common.status')">
           <el-select
             v-model="queryParams.leave_status"
             clearable
-            placeholder="全部"
+            :placeholder="$t('common.all')"
             class="w-150px"
             @clear="handleSearch"
             @change="handleSearch"
           >
-            <el-option label="待審核" value="pending" />
-            <el-option label="已核准" value="approved" />
-            <el-option label="已駁回" value="rejected" />
-            <el-option label="已撤回" value="cancelled" />
+            <el-option v-for="(label, value) in leaveStatusMap" :key="value" :label="label" :value="value" />
           </el-select>
         </el-form-item>
 
@@ -40,13 +37,13 @@
             <template #icon>
               <div class="i-hugeicons:search-01" />
             </template>
-            查詢
+            {{ $t('common.search') }}
           </el-button>
           <el-button round class="h-30px!" @click="resetQuery">
             <template #icon>
               <div class="i-hugeicons:arrow-reload-horizontal" />
             </template>
-            重置
+            {{ $t('common.btnReset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -59,44 +56,44 @@
         size="small"
         stripe
         class="w-full"
-        empty-text="尚無請假紀錄"
+        :empty-text="$t('leaveManagement.noRecords')"
       >
-        <el-table-column prop="leave_no" label="請假編號" width="145" fixed="left" show-overflow-tooltip />
+        <el-table-column prop="leave_no" :label="$t('leaveManagement.leaveNo')" width="145" fixed="left" show-overflow-tooltip />
 
-        <el-table-column label="預約編號" width="145" show-overflow-tooltip>
+        <el-table-column :label="$t('leaveManagement.bookingNo')" width="145" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.booking_no || '-' }}
           </template>
         </el-table-column>
 
-        <el-table-column label="申請人" min-width="140" show-overflow-tooltip>
+        <el-table-column :label="$t('leaveManagement.applicant')" min-width="250" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="initiator-cell">
               <span>{{ row.initiator_name || '-' }}</span>
-              <el-tag size="small" effect="plain" :type="row.initiator_type === 'teacher' ? 'primary' : 'success'">
+              <el-tag size="small" effect="plain" class="flex-shrink-0" :type="row.initiator_type === 'teacher' ? 'primary' : 'success'">
                 {{ getInitiatorLabel(row.initiator_type) }}
               </el-tag>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="請假日期 / 時間" width="165" align="center">
+        <el-table-column :label="$t('leaveManagement.leaveDateTime')" width="165" align="center">
           <template #default="{ row }">
             <div>{{ row.leave_date || '-' }}</div>
             <div class="muted-text">{{ formatTime(row.start_time) }} ~ {{ formatTime(row.end_time) }}</div>
           </template>
         </el-table-column>
 
-        <el-table-column label="類型" width="105" align="center">
+        <el-table-column :label="$t('common.type')" min-width="130" align="center">
           <template #default="{ row }">
             <el-tag :type="row.leave_type === 'emergency' ? 'warning' : 'info'" size="small" effect="plain">
               {{ getLeaveTypeLabel(row.leave_type) }}
             </el-tag>
-            <div v-if="row.deduct_lesson" class="muted-text mt-1">扣堂</div>
+            <div v-if="row.deduct_lesson" class="muted-text mt-1">{{ $t('leaveManagement.deductLesson') }}</div>
           </template>
         </el-table-column>
 
-        <el-table-column label="狀態" width="95" align="center">
+        <el-table-column :label="$t('common.status')" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusTagType(row.leave_status)" size="small" effect="plain">
               {{ getStatusLabel(row.leave_status) }}
@@ -104,32 +101,32 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="請假原因" min-width="220" show-overflow-tooltip>
+        <el-table-column :label="$t('leaveManagement.reason')" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.reason || '-' }}
           </template>
         </el-table-column>
 
-        <el-table-column label="駁回原因" min-width="180" show-overflow-tooltip>
+        <el-table-column :label="$t('leaveManagement.rejectionReason')" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.rejection_reason || '-' }}
           </template>
         </el-table-column>
 
-        <el-table-column label="審核資訊" width="175" align="center">
+        <el-table-column :label="$t('leaveManagement.approvalInfo')" min-width="175">
           <template #default="{ row }">
             <div>{{ row.approver_name || '-' }}</div>
             <div class="muted-text">{{ formatDateTime(row.approved_at) }}</div>
           </template>
         </el-table-column>
 
-        <el-table-column label="申請時間" width="165" align="center">
+        <el-table-column :label="$t('leaveManagement.appliedAt')" min-width="240" align="center">
           <template #default="{ row }">
             {{ formatDateTime(row.created_at) }}
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="160" fixed="right" align="center">
+        <el-table-column :label="$t('common.actions')" width="160" fixed="right" align="center">
           <template #default="{ row }">
             <div v-if="row.leave_status === 'pending'" class="action-cell">
               <el-button
@@ -140,7 +137,7 @@
                 :loading="operatingId === row.id && operatingAction === 'approve'"
                 @click="handleApprove(row)"
               >
-                核准
+                {{ $t('leaveManagement.approve') }}
               </el-button>
               <el-button
                 v-if="hasPermission('bookings.edit')"
@@ -150,7 +147,7 @@
                 :loading="operatingId === row.id && operatingAction === 'reject'"
                 @click="openRejectDialog(row)"
               >
-                駁回
+                {{ $t('leaveManagement.reject') }}
               </el-button>
               <el-button
                 v-if="hasPermission('bookings.list')"
@@ -160,7 +157,7 @@
                 :loading="operatingId === row.id && operatingAction === 'cancel'"
                 @click="handleCancel(row)"
               >
-                撤回
+                {{ $t('leaveManagement.withdraw') }}
               </el-button>
             </div>
             <span v-else class="muted-text">-</span>
@@ -181,7 +178,7 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="rejectDialogVisible" title="駁回請假" width="460px" destroy-on-close @closed="resetRejectForm">
+    <el-dialog v-model="rejectDialogVisible" :title="$t('leaveManagement.rejectTitle')" width="460px" destroy-on-close @closed="resetRejectForm">
       <el-alert
         v-if="rejectTarget"
         :title="`${rejectTarget.leave_no}｜${rejectTarget.initiator_name || '-'}｜${rejectTarget.leave_date}`"
@@ -191,27 +188,28 @@
         class="mb-4"
       />
       <el-form ref="rejectFormRef" :model="rejectForm" :rules="rejectRules" label-position="top">
-        <el-form-item label="駁回原因" prop="rejection_reason">
+        <el-form-item :label="$t('leaveManagement.rejectionReason')" prop="rejection_reason">
           <el-input
             v-model="rejectForm.rejection_reason"
             type="textarea"
             :rows="4"
             maxlength="300"
             show-word-limit
-            placeholder="請輸入駁回原因"
+            :placeholder="$t('leaveManagement.rejectPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button round @click="rejectDialogVisible = false">取消</el-button>
-        <el-button type="primary" round :loading="rejecting" @click="submitReject">送出駁回</el-button>
+        <el-button round @click="rejectDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" round :loading="rejecting" @click="submitReject">{{ $t('leaveManagement.submitReject') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import dayjs from 'dayjs';
@@ -224,21 +222,24 @@ import {
   type LeaveRecordResponse,
   type LeaveStatus,
 } from '@/api/leaveRecord';
-import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
+import { assertApiSuccess } from '@/api/response';
 import { usePermissionStore } from '@/stores/permission';
+import { useApiError } from '@/composables/useApiError';
 
 const permissionStore = usePermissionStore();
 const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
+const { showApiError } = useApiError();
+const { t } = useI18n();
 
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | '';
 type OperatingAction = 'approve' | 'reject' | 'cancel' | '';
 
-const LEAVE_STATUS_MAP: Record<LeaveStatus, string> = {
-  pending: '待審核',
-  approved: '已核准',
-  rejected: '已駁回',
-  cancelled: '已撤回',
-};
+const leaveStatusMap = computed<Record<LeaveStatus, string>>(() => ({
+  pending: t('leaveManagement.status.pending'),
+  approved: t('leaveManagement.status.approved'),
+  rejected: t('leaveManagement.status.rejected'),
+  cancelled: t('leaveManagement.status.cancelled'),
+}));
 
 const loading = ref(false);
 const leaveRecords = ref<LeaveRecordResponse[]>([]);
@@ -252,7 +253,7 @@ const rejectTarget = ref<LeaveRecordResponse | null>(null);
 const rejectFormRef = ref<FormInstance>();
 const rejectForm = reactive({ rejection_reason: '' });
 const rejectRules: FormRules = {
-  rejection_reason: [{ required: true, message: '請輸入駁回原因', trigger: 'blur' }],
+  rejection_reason: [{ required: true, message: t('leaveManagement.rejectReasonRequired'), trigger: 'blur' }],
 };
 
 const queryParams = reactive({
@@ -270,12 +271,12 @@ function formatDateTime(value?: string | null) {
 }
 
 function getInitiatorLabel(type: LeaveInitiatorType) {
-  return type === 'teacher' ? '老師' : '學生';
+  return type === 'teacher' ? t('leaveManagement.initiator.teacher') : t('leaveManagement.initiator.student');
 }
 
 function getLeaveTypeLabel(type?: string | null) {
-  if (type === 'emergency') return '緊急請假';
-  if (type === 'normal') return '一般請假';
+  if (type === 'emergency') return t('leaveManagement.type.emergency');
+  if (type === 'normal') return t('leaveManagement.type.normal');
   return '-';
 }
 
@@ -288,7 +289,7 @@ function getStatusTagType(status: LeaveStatus): TagType {
 }
 
 function getStatusLabel(status: LeaveStatus) {
-  return LEAVE_STATUS_MAP[status] || status;
+  return leaveStatusMap.value[status] || status;
 }
 
 async function fetchLeaveRecords() {
@@ -298,12 +299,12 @@ async function fetchLeaveRecords() {
       page: queryParams.page,
       per_page: queryParams.per_page,
       leave_status: queryParams.leave_status || undefined,
-    }), '載入請假紀錄失敗');
+    }), t('leaveManagement.loadFailed'));
 
     leaveRecords.value = res.data || [];
     total.value = res.total || 0;
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '載入請假紀錄失敗'));
+    showApiError(error, t('leaveManagement.loadFailed'));
   } finally {
     loading.value = false;
   }
@@ -322,9 +323,9 @@ function resetQuery() {
 
 async function handleApprove(row: LeaveRecordResponse) {
   try {
-    await ElMessageBox.confirm(`確定要核准「${row.leave_no}」的請假申請嗎？`, '核准請假', {
-      confirmButtonText: '核准',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('leaveManagement.approveConfirmMessage', { leaveNo: row.leave_no }), t('leaveManagement.approveTitle'), {
+      confirmButtonText: t('leaveManagement.approve'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning',
     });
   } catch {
@@ -334,11 +335,11 @@ async function handleApprove(row: LeaveRecordResponse) {
   operatingId.value = row.id;
   operatingAction.value = 'approve';
   try {
-    const res = assertApiSuccess(await approveLeaveRecord(row.id), '核准請假失敗');
-    ElMessage.success(res.message || '請假已核准');
+    const res = assertApiSuccess(await approveLeaveRecord(row.id), t('leaveManagement.approveFailed'));
+    ElMessage.success(res.message || t('leaveManagement.approved'));
     fetchLeaveRecords();
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '核准請假失敗'));
+    showApiError(error, t('leaveManagement.approveFailed'));
   } finally {
     operatingId.value = '';
     operatingAction.value = '';
@@ -369,13 +370,13 @@ async function submitReject() {
     try {
       const res = assertApiSuccess(await rejectLeaveRecord(rejectTarget.value.id, {
         rejection_reason: rejectForm.rejection_reason.trim(),
-      }), '駁回請假失敗');
+      }), t('leaveManagement.rejectFailed'));
 
-      ElMessage.success(res.message || '請假已駁回');
+      ElMessage.success(res.message || t('leaveManagement.rejected'));
       rejectDialogVisible.value = false;
       fetchLeaveRecords();
     } catch (error) {
-      ElMessage.error(getApiErrorMessage(error, '駁回請假失敗'));
+      showApiError(error, t('leaveManagement.rejectFailed'));
     } finally {
       rejecting.value = false;
       operatingId.value = '';
@@ -386,9 +387,9 @@ async function submitReject() {
 
 async function handleCancel(row: LeaveRecordResponse) {
   try {
-    await ElMessageBox.confirm(`確定要撤回「${row.leave_no}」的請假申請嗎？`, '撤回請假', {
-      confirmButtonText: '撤回',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('leaveManagement.withdrawConfirmMessage', { leaveNo: row.leave_no }), t('leaveManagement.withdrawTitle'), {
+      confirmButtonText: t('leaveManagement.withdraw'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning',
     });
   } catch {
@@ -398,11 +399,11 @@ async function handleCancel(row: LeaveRecordResponse) {
   operatingId.value = row.id;
   operatingAction.value = 'cancel';
   try {
-    const res = assertApiSuccess(await cancelLeaveRecord(row.id), '撤回請假失敗');
-    ElMessage.success(res.message || '請假已撤回');
+    const res = assertApiSuccess(await cancelLeaveRecord(row.id), t('leaveManagement.withdrawFailed'));
+    ElMessage.success(res.message || t('leaveManagement.withdrawn'));
     fetchLeaveRecords();
   } catch (error) {
-    ElMessage.error(getApiErrorMessage(error, '撤回請假失敗'));
+    showApiError(error, t('leaveManagement.withdrawFailed'));
   } finally {
     operatingId.value = '';
     operatingAction.value = '';
@@ -427,6 +428,7 @@ onMounted(() => {
   .initiator-cell {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 6px;
     min-width: 0;
 

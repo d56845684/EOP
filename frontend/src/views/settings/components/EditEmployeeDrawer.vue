@@ -15,14 +15,14 @@
     >
       <el-row>
         <el-col :span="24">
-          <el-form-item label="暱稱" prop="name">
+          <el-form-item :label="$t('account.nickname')" prop="name">
               <el-input v-model="form.name" class="w-full h-30px!" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row>
         <el-col :span="24">
-          <el-form-item label="Email帳號" prop="email">
+          <el-form-item :label="$t('account.account')" prop="email">
               <el-input v-model="form.email" class="w-full h-30px!" />
           </el-form-item>
         </el-col>
@@ -41,7 +41,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="10" :push=2>
-          <el-form-item label="員工類別" prop="employee_subtype">
+          <el-form-item :label="$t('account.employeeSubtype')" prop="employee_subtype">
               <el-input v-model="form.employee_subtype" class="w-full h-30px!" />
           </el-form-item>
         </el-col>
@@ -57,10 +57,12 @@
 
 <script setup lang="ts">
   import { ref, reactive, computed, watch, type PropType } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { ElMessage, type FormRules, type FormInstance } from 'element-plus';
   import { updateUserApi, type RoleInfo, type AccountInfo } from '@/api/user';
   import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 
+  const { t } = useI18n();
   const submitting = ref(false);
   const formRef = ref<FormInstance>();
   const dialogVisible = ref(false);
@@ -137,14 +139,14 @@
             role_id: form.value.role_id,
             employee_subtype: form.value.employee_subtype || null,
             is_active: form.value.is_active
-          }), '更新失敗');
-          ElMessage.success(res.message || '更新成功');
+          }), t('account.updateFailed'));
+          ElMessage.success(res.message || t('common.updateSuccess'));
           dialogVisible.value = false;
           emit('update:modelValue', false);
           emit('fetch-users');
           emit('clear-user')
         } catch (error) {
-          ElMessage.error(getApiErrorMessage(error, '更新失敗'));
+          ElMessage.error(getApiErrorMessage(error, t('account.updateFailed')));
         } finally {
           submitting.value = false;
         }

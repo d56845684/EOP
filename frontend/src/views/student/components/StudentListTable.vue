@@ -2,10 +2,10 @@
   <!-- Student Table -->
   <el-table :data="studentList" size="small" class="student-table w-full" v-loading="loading" stripe>
     <!-- Student No -->
-    <el-table-column prop="student_no" :label="$t('student.studentNo')" min-width="100" />
+    <el-table-column prop="student_no" :label="$t('student.studentNo')" min-width="120" />
     
     <!-- Name -->
-    <el-table-column prop="name" :label="$t('common.name')" min-width="120">
+    <el-table-column prop="name" :label="$t('common.name')" min-width="220">
       <template #default="{ row }">
         <div class="flex items-center justify-between gap-2">
           <div class="flex flex-col">
@@ -17,7 +17,7 @@
             :color="row.student_type === 'formal' ? '#d5f0e1' : '#dfe0f2'" 
             effect="dark" 
             size="small"
-            class="font-size-10px h-16px w-40px opacity-80"
+            class="font-size-10px h-16px w-40px mr-1 opacity-80"
             :style="{ 
               borderColor: row.student_type === 'formal'? '#91b5a1' : '#afb0c4' ,
               color: row.student_type === 'formal'? '#288a52' : '#707187' 
@@ -33,7 +33,7 @@
     <el-table-column prop="email" :label="$t('common.contactInfo')" min-width="250">
       <template #default="{ row }">
         <div class="flex flex-col">
-          <div v-show="row.email" class="flex items-center gap-4px">
+          <div v-show="row.email" class="flex items-center gap-6px">
             <div class="i-hugeicons:mail-01 w-12px h-12px color-gray-500 flex-shrink-0" />
             <el-text class="text-xs" truncated>{{ row.email }}</el-text>
             <el-button type="text" size="small" round class="!px-1" @click="copyEmail(row.email)">
@@ -42,7 +42,7 @@
               </template>
             </el-button>
           </div>
-          <div v-show="row.phone" class="flex items-center gap-4px">
+          <div v-show="row.phone" class="flex items-center gap-6px">
             <div class="i-hugeicons:call-02 w-12px h-12px color-gray-500" />
             <el-text class="text-xs" truncated>{{ row.phone }}</el-text>
           </div>
@@ -51,15 +51,15 @@
     </el-table-column>
 
     <!-- Student Status -->
-    <el-table-column prop="student_status" :label="$t('student.status')" width="80" align="center">
+    <el-table-column prop="student_status" :label="$t('student.status')" min-width="80" align="center">
       <template #default="{ row }">
-        <el-tag size="small" :type="STUDENT_STATUS_TAG_MAP[row.student_status]" class="w-50px">
+        <el-tag size="small" :type="STUDENT_STATUS_TAG_MAP[row.student_status]" class="w-50px min-w-max">
           {{ formatStudentStatusLabel(row.student_status, row.student_status, t) }}
         </el-tag>
       </template>
     </el-table-column>
 
-    <el-table-column :label="$t('common.accountVerified')" width="90" align="center">
+    <el-table-column :label="$t('common.accountVerified')" min-width="100" align="center">
         <template #default="{ row }">
         <template v-if="row.email_verified_at">
           <el-tag size="small" type="success" effect='plain'>
@@ -78,9 +78,9 @@
     </el-table-column>
 
     <!-- Actions -->
-    <el-table-column :label="$t('common.actions')" label-class-name="text-center" width="240" fixed="right" class-name="action-column">
+    <el-table-column :label="$t('common.actions')" label-class-name="text-center" min-width="260" fixed="right" class-name="action-column">
       <template #default="{ row }">
-        <div>
+        <div class="min-w-max">
           <el-button v-permission="'students.edit'" round size="small" @click="openDrawer(row, drawerTypeMap.MANAGE)">
             <template #icon>
               <div class="i-hugeicons:pencil-edit-01" />
@@ -96,7 +96,7 @@
             @click="openConvertToFormalDialog(row)"
             v-permission="'students.contracts'"
           >
-            轉正
+            {{ $t('student.convertToFormal') }}
           </el-button>
           <el-button
             v-else
@@ -110,7 +110,7 @@
             <template #icon>
               <div class="i-hugeicons:legal-document-02" />
             </template>
-            合約
+            {{ $t('contract.contracts') }}
           </el-button>
         </div>
         <el-button 
@@ -118,6 +118,7 @@
           size="small"
           link
           @click="handleDelete(row)"
+          class="ml-1"
           v-permission="'students.delete'"
         >
           <div class="i-hugeicons:delete-02 mr-2px" />
