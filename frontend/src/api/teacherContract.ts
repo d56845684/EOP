@@ -1,5 +1,5 @@
 import request from '@/utils/request';
-import type { BaseResponse, DataResponse } from './response';
+import type { BaseResponse, DataResponse, DownloadResponse } from './response';
 
 // Base Interfaces
 export type EmploymentType = 'hourly' | 'full_time';
@@ -252,6 +252,10 @@ export function uploadTeacherContract(contractId: string) {
 
 export function confirmUploadTeacherContract(contractId: string, data: { storage_path: string, file_name: string }) {
   return request.post<any, ResData<TeacherContractResponse>>(`/v1/teacher-contracts/${contractId}/confirm-upload`, data);
+}
+
+export function getTeacherContractDownloadUrl(contractId: string) {
+  return request.get<any, DownloadResponse>(`/v1/teacher-contracts/${contractId}/download-url`);
 }
 
 export function uploadTeacherContractAddendum(contractId: string, addendumId: string) {

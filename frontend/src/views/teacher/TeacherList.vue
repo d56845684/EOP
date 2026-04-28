@@ -128,13 +128,13 @@
               <div class="left flex items-center gap-2">
                 <el-button
                   v-permission="'teachers.contracts'"
-                  :type="!teacher.total_contracts ? 'warning' : 'success'"
+                  :type="!teacher.active_contracts ? 'warning' : 'success'"
                   plain
                   round
                   size="small"
                   @click="openContractDrawer(teacher)"
                 >
-                  <template v-if="!teacher.total_contracts">
+                  <template v-if="!teacher.active_contracts">
                     <div class="i-hugeicons:add-circle-half-dot mr-2px" />
                     {{ $t('contract.addContract') }}
                   </template>

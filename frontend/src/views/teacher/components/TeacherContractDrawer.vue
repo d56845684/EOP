@@ -14,13 +14,26 @@
         </el-col>
         <el-col :span="12" :push="3">
           <div class="flex flex-col items-start mb-2">
-            <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">{{ $t('teacherContractDrawer.contractFileStatus') }}</label>
+            <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">{{ $t('teacherContractDrawer.contractFile') }}</label>
             <div class="w-full text-12px flex flex-col items-start gap-2">
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2.5">
                 <div class="flex items-center gap-1 text-12px" :class="contractFileStatus ? 'text-green-600' : 'text-orange-500'">
                   <div :class="contractFileStatus ? 'i-hugeicons:checkmark-circle-03' : 'i-hugeicons:alert-02'" />
                   <span>{{ contractFileStatus ? $t('teacherContractDrawer.uploaded') : $t('teacherContractDrawer.notUploaded') }}</span>
                 </div>
+                <el-button
+                  v-if="contractFileStatus"
+                  type="primary"
+                  link
+                  size="small"
+                  :loading="viewingContract"
+                  @click="viewContractFile"
+                >
+                  <template #icon>
+                    <div class="i-hugeicons:file-view" />
+                  </template>
+                  {{ $t('teacherContractDrawer.viewContractFile') }}
+                </el-button>
                 <el-upload
                   ref="uploadContractRef"
                   v-model:file-list="contractFileList"
@@ -306,6 +319,33 @@
         </div>
         <div v-if="!courseRates.length" class="text-center text-12px color-gray-400 py-4">{{ $t('teacherContractDrawer.noContractDetails') }}</div>
       </div>
+
+      <!-- History Contracts -->
+      <el-divider content-position="left" class="mt-10 mb-5">
+        <span class="text-13px color-[#1d2d44]">{{ $t('teacherContractDrawer.historyContracts') }}</span>
+      </el-divider>
+      <el-table :data="contractHistory" border size="small" :empty-text="$t('teacherContractDrawer.noHistoryContracts')">
+        <el-table-column prop="contract_no" :label="$t('teacherContractDrawer.contractNo')" width="150" />
+        <el-table-column :label="$t('teacherContractDrawer.contractRange')" min-width="180">
+          <template #default="{ row }">
+            {{ formatDate(row.start_date) }} ~ {{ formatDate(row.end_date) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="contract_status" :label="$t('contract.contractStatus')" width="100" align="center">
+          <template #default="{ row }">
+            {{ formatTeacherContractStatusLabel(row.contract_status, row.contract_status, t) }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('common.view')" width="70" align="center">
+          <template #default="{ row }">
+            <el-tooltip :content="$t('common.view')" effect="dark">
+              <el-button type="primary" round link @click="handleViewHistoryContract(row)">
+                <div class="i-hugeicons:property-view" />
+              </el-button>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
   </el-drawer>
 
@@ -381,6 +421,50 @@
     </template>
   </el-dialog>
 
+  <el-dialog
+    v-model="historyContractDialogVisible"
+    :title="selectedHistoryContract?.contract_no || $t('teacherContractDrawer.historyContractDetail')"
+    width="520px"
+    append-to-body
+  >
+    <el-descriptions v-if="selectedHistoryContract" :column="2" border size="small">
+      <el-descriptions-item :label="$t('teacherContractDrawer.contractNo')" :span="2">
+        {{ selectedHistoryContract.contract_no }}
+      </el-descriptions-item>
+      <el-descriptions-item :label="$t('contract.contractStatus')">
+        {{ formatTeacherContractStatusLabel(selectedHistoryContract.contract_status, selectedHistoryContract.contract_status, t) }}
+      </el-descriptions-item>
+      <el-descriptions-item :label="$t('teacher.contractType')">
+        {{ selectedHistoryContract.employment_type === 'full_time' ? $t('teacherContractDrawer.fullTime') : $t('teacherContractDrawer.hourly') }}
+      </el-descriptions-item>
+      <el-descriptions-item :label="$t('teacherContractDrawer.contractRange')" :span="2">
+        {{ formatDate(selectedHistoryContract.start_date) }} ~ {{ formatDate(selectedHistoryContract.end_date) }}
+      </el-descriptions-item>
+      <el-descriptions-item :label="$t('teacherContractDrawer.trialCompletedBonus')">
+        NT$ {{ selectedHistoryContract.trial_completed_bonus || 0 }}
+      </el-descriptions-item>
+      <el-descriptions-item :label="$t('teacherContractDrawer.trialFormalBonus')">
+        NT$ {{ selectedHistoryContract.trial_to_formal_bonus || 0 }}
+      </el-descriptions-item>
+      <el-descriptions-item :label="$t('teacherContractDrawer.contractFile')" :span="2">
+        {{ selectedHistoryContract.contract_file_name || '-' }}
+      </el-descriptions-item>
+      <el-descriptions-item :label="$t('common.note')" :span="2">
+        {{ selectedHistoryContract.notes || '-' }}
+      </el-descriptions-item>
+    </el-descriptions>
+    <template #footer>
+      <div class="flex justify-center">
+        <el-button round size="small" class="h-30px! px-5!" @click="historyContractDialogVisible = false">
+          <template #icon>
+            <div class="i-hugeicons:cancel-circle-half-dot" />
+          </template>
+          {{ $t('common.close') }}
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
+
   <!-- Addendum dialog -->
   <!-- <el-dialog
     v-model="showAddendumDialog"
@@ -437,6 +521,7 @@ import {
   getTeacherContractDetails,
   createTeacherContractDetail,
   deleteTeacherContractDetail,
+  getTeacherContractDownloadUrl,
   getCourseOptions,
   // generateTeacherContractPdf,
   // getTeacherContractAddendums,
@@ -452,7 +537,7 @@ import {
   // type TeacherContractAddendumResponse,
 } from '@/api/teacherContract';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
-import { getTeacherContractStatusOptions } from '@/utils/i18n-formatters';
+import { formatTeacherContractStatusLabel, getTeacherContractStatusOptions } from '@/utils/i18n-formatters';
 import { uploadContractFile } from '@/utils/upload';
 import { useI18n } from 'vue-i18n';
 // import { triggerDownload, getFileNameFromResponse } from '@/utils/download';
@@ -480,6 +565,13 @@ const hasContract = ref(false);
 const contractId = ref<string | null>(null);
 const contractFormRef = ref<FormInstance>();
 const contract = ref<TeacherContractResponse | null>(null);
+const contracts = ref<TeacherContractResponse[]>([]);
+const selectedHistoryContract = ref<TeacherContractResponse | null>(null);
+const historyContractDialogVisible = ref(false);
+
+const contractHistory = computed(() => (
+  contracts.value.filter((item) => item.contract_status !== 'active')
+));
 
 const drawerTitle = computed(() => {
   return `${contract.value?.teacher_name ? `${contract.value?.teacher_name}` : t('teacherContractDrawer.teacherFallback')}${t('teacherContractDrawer.titleSuffix')}`;
@@ -564,19 +656,39 @@ const rateRules = reactive<FormRules>({
 // const editingAddendumId = ref<string | null>(null);
 // const savingAddendum = ref(false);
 const uploadingContract = ref(false);
+const viewingContract = ref(false);
 const contractFileStatus = ref<string | null>(null); // file_uploaded_at from contract
 const contractFileList = ref<any[]>([]);
 
 // const addendumForm = reactive({ new_end_date: '', notes: '' });
 
 // --- Methods ---
+const resetCurrentContract = () => {
+  hasContract.value = false;
+  contractId.value = null;
+  contractDates.value = null;
+  contractForm.contract_status = 'pending';
+  contractForm.employment_type = 'hourly';
+  contractForm.trial_completed_bonus = 0;
+  contractForm.trial_to_formal_bonus = 0;
+  contractForm.notes = '';
+  groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+  courseRates.value = [];
+  contract.value = null;
+  contractFileStatus.value = null;
+};
+
+const formatDate = (date?: string | null) => date ? dayjs(date).format('YYYY-MM-DD') : '-';
+
 const loadContracts = async () => {
   if (!props.teacherId) return;
   try {
     const cRes = assertApiSuccess(await getTeacherContracts(props.teacherId), t('teacherContractDrawer.loadContractFailed'));
-    if (cRes.data.length > 0) {
-      // Take the most recent contract for simplicity, or active one
-      contract.value = cRes.data[0] || null;
+    contracts.value = cRes.data || [];
+    const activeContract = contracts.value.find((item) => item.contract_status === 'active') || null;
+
+    if (activeContract) {
+      contract.value = activeContract;
       if (!contract.value) return;
       contractId.value = contract.value.id;
       hasContract.value = true;
@@ -585,6 +697,7 @@ const loadContracts = async () => {
       contractForm.employment_type = contract.value.employment_type || 'hourly';
       contractForm.trial_completed_bonus = contract.value.trial_completed_bonus;
       contractForm.trial_to_formal_bonus = contract.value.trial_to_formal_bonus;
+      contractForm.notes = contract.value.notes || '';
       
       if (contract.value.start_date && contract.value.end_date) {
         contractDates.value = [contract.value.start_date, contract.value.end_date];
@@ -625,23 +738,11 @@ const loadContracts = async () => {
       // Track contract file upload status (from contract response)
       contractFileStatus.value = (contract.value as any).contract_file_uploaded_at || null;
     } else {
-      hasContract.value = false;
-      contractId.value = null;
-      contractDates.value = null;
-      contractForm.contract_status = 'pending';
-      contractForm.employment_type = 'hourly';
-      contractForm.trial_completed_bonus = 0;
-      contractForm.trial_to_formal_bonus = 0;
-      groupedSchedules.value = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
-      courseRates.value = [];
-      contract.value = null;
-      // addendums.value = [];
-      contractFileStatus.value = null;
+      resetCurrentContract();
     }
   } catch (error) {
-    hasContract.value = false;
-    contractId.value = null;
-    contract.value = null;
+    contracts.value = [];
+    resetCurrentContract();
     ElMessage.error(getApiErrorMessage(error, t('teacherContractDrawer.loadContractFailed')));
   }
 
@@ -706,8 +807,11 @@ const saveContract = async () => {
           if (contractForm.employment_type === 'full_time') {
             await saveSchedules();
           }
+          await loadContracts();
+          emit('saved');
         } else {
           payload.teacher_id = tId;
+          payload.contract_status = 'active';
           const res = assertApiSuccess(await createTeacherContract(payload as TeacherContractCreate), t('teacherContractDrawer.createContractFailed'));
           contractId.value = res.data.id;
           hasContract.value = true;
@@ -716,6 +820,7 @@ const saveContract = async () => {
             await saveSchedules();
           }
           await loadContracts(); // Reload to get contract ID
+          emit('saved');
         }
       } catch (e) {
       ElMessage.error(getApiErrorMessage(e, t('teacherContractDrawer.updateContractFailed')));
@@ -744,6 +849,29 @@ const uploadContractDoc = async (uploadFile: any) => {
     uploadingContract.value = false;
     contractFileList.value = [];
   }
+};
+
+const viewContractFile = async () => {
+  const cId = contractId.value;
+  if (!cId) return;
+  viewingContract.value = true;
+  try {
+    const res = assertApiSuccess(await getTeacherContractDownloadUrl(cId), t('teacherContractDrawer.downloadContractFailed'));
+    if (res.download_url) {
+      window.open(res.download_url, '_blank');
+    } else {
+      ElMessage.warning(t('teacherContractDrawer.noDownloadUrl'));
+    }
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, t('teacherContractDrawer.downloadContractFailed')));
+  } finally {
+    viewingContract.value = false;
+  }
+};
+
+const handleViewHistoryContract = (row: TeacherContractResponse) => {
+  selectedHistoryContract.value = row;
+  historyContractDialogVisible.value = true;
 };
 
 // // Generate / download PDF
@@ -963,6 +1091,10 @@ const handleDeleteRate = async (detailId: string) => {
 
 const handleClosed = () => {
   teacherName.value = '';
+  contracts.value = [];
+  selectedHistoryContract.value = null;
+  historyContractDialogVisible.value = false;
+  resetCurrentContract();
 };
 
 watch(() => props.modelValue, (val) => {
