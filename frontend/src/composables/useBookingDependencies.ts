@@ -1,6 +1,7 @@
 // src/composables/useBookingDependencies.ts
 import { ref, type Ref } from 'vue';
 import type { FormInstance } from 'element-plus';
+import dayjs from 'dayjs';
 import { assertApiSuccess } from '@/api/response';
 import {
   getBookingOptionStudents,
@@ -110,7 +111,11 @@ export function useBookingDependencies(formData: any, formRef?: Ref<FormInstance
       const tasks: Promise<any>[] = [
         getBookingOptionOverlappingCourses({ student_id: formData.student_id, teacher_id: formData.teacher_id })
       ];
-      if (needsSlot) tasks.push(getBookingOptionTeacherSlots(formData.teacher_id));
+      if (needsSlot) {
+        tasks.push(getBookingOptionTeacherSlots(formData.teacher_id, {
+          date_from: dayjs().format('YYYY-MM-DD'),
+        }));
+      }
 
       const results = await Promise.all(tasks);
       courseOptions.value = assertApiSuccess(results[0]).data || [];

@@ -342,7 +342,7 @@
             <el-col :span="10">
 
               <el-form-item :label="$t('common.student')" prop="student_id">
-                  <el-select v-model="addForm.student_id" filterable :placeholder="$t('bookingAdmin.selectStudentFirst')" class="w-full" @change="addDeps.handleStudentChange()">
+                  <el-select v-model="addForm.student_id" filterable :placeholder="$t('bookingAdmin.selectStudentFirst')" class="w-full" @change="handleAddStudentChange">
                       <el-option v-for="s in studentOptions" :key="s.id" :label="s.name" :value="s.id" />
                   </el-select>
               </el-form-item>
@@ -375,9 +375,9 @@
                   :placeholder="$t('bookingAdmin.selectTeacher')"
                   class="w-full" 
                   :disabled="!addForm.student_id" 
-                  @change="addDeps.handleTeacherChange(true)" 
+                  @change="handleAddTeacherChange"
                   :loading="addDeps.isFetchingTeachers">
-                    <el-option v-for="t in addDeps.teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+                    <el-option v-for="t in addDeps.teacherOptions" :key="t.id" :label="formatTeacherOptionLabel(t)" :value="t.id" />
                 </el-select>
               </el-form-item>
             </el-col>
@@ -390,18 +390,23 @@
                   class="w-full" 
                   :disabled="!addForm.student_id || !addForm.teacher_id" 
                   :loading="addDeps.isFetchingCourses">
-                    <el-option v-for="c in addDeps.courseOptions" :key="c.id" :label="c.course_name" :value="c.id" />
+                    <el-option v-for="c in addDeps.courseOptions" :key="c.id" :label="formatCourseOptionLabel(c)" :value="c.id" />
                 </el-select>
+                <div
+                  v-if="addForm.student_id && addForm.teacher_id && !addDeps.isFetchingCourses && addDeps.courseOptions.length === 0"
+                  class="mt-1 text-xs color-[#f56c6c]">
+                  {{ $t('bookingAdmin.noSharedCourses') }}
+                </div>
               </el-form-item>
             </el-col>
           </el-row>
           <el-row>
             <el-col :span="16">
               <el-form-item :label="$t('bookingAdmin.timeMode')">
-                  <el-radio-group v-model="addForm.timeMode" :disabled="!addForm.teacher_id">
-                      <el-radio label="manual">{{ $t('bookingAdmin.manualTime') }}</el-radio>
-                      <el-radio label="slot">{{ $t('bookingAdmin.teacherSlot') }}</el-radio>
-                  </el-radio-group>
+                <el-radio-group v-model="addForm.timeMode" :disabled="!addForm.teacher_id" @change="handleAddTimeModeChange">
+                  <el-radio label="manual">{{ $t('bookingAdmin.manualTime') }}</el-radio>
+                  <el-radio label="slot">{{ $t('bookingAdmin.teacherSlot') }}</el-radio>
+                </el-radio-group>
             </el-form-item>
             </el-col>
           </el-row>
@@ -409,42 +414,43 @@
             <el-col :span="16">
             <!-- Manual Mode -->
             <template v-if="addForm.timeMode === 'manual'">
-                <el-form-item :label="$t('bookingAdmin.date')" prop="booking_date">
-                    <el-date-picker 
-                      v-model="addForm.booking_date" 
-                      type="date" 
-                      value-format="YYYY-MM-DD" 
-                      :placeholder="$t('bookingAdmin.selectDate')"
-                      class="w-full h-30px!" 
-                      :disabled="!addForm.teacher_id" />
-                </el-form-item>
-                <el-form-item :label="$t('bookingAdmin.time')" required>
-                    <div class="flex gap-2 w-full">
-                        <el-time-picker 
-                          v-model="addForm.start_time" 
-                          format="HH:mm" 
-                          value-format="HH:mm" 
-                          :placeholder="$t('bookingAdmin.start')"
-                          class="flex-1 h-30px!" />
-                        <span class="mt-1">-</span>
-                        <el-time-picker 
-                          v-model="addForm.end_time" 
-                          format="HH:mm" 
-                          value-format="HH:mm" 
-                          :placeholder="$t('bookingAdmin.end')"
-                          class="flex-1 h-30px!" />
-                    </div>
-                </el-form-item>
+              <el-form-item :label="$t('bookingAdmin.date')" prop="booking_date">
+                <el-date-picker
+                  v-model="addForm.booking_date"
+                  type="date"
+                  value-format="YYYY-MM-DD"
+                  :placeholder="$t('bookingAdmin.selectDate')"
+                  class="w-full h-30px!"
+                  :disabled="!addForm.teacher_id" />
+              </el-form-item>
+              <el-form-item :label="$t('bookingAdmin.time')" required>
+                <div class="flex gap-2 w-full">
+                  <el-time-picker
+                    v-model="addForm.start_time"
+                    format="HH:mm"
+                    value-format="HH:mm"
+                    :placeholder="$t('bookingAdmin.start')"
+                    class="flex-1 h-30px!" />
+                  <span class="mt-1">-</span>
+                  <el-time-picker
+                    v-model="addForm.end_time"
+                    format="HH:mm"
+                    value-format="HH:mm"
+                    :placeholder="$t('bookingAdmin.end')"
+                    class="flex-1 h-30px!" />
+                </div>
+              </el-form-item>
             </template>
             </el-col>
-            <el-col :span="12">
+            <el-col :span="24">
               <!-- Slot Mode -->
               <template v-if="addForm.timeMode === 'slot'">
                 <el-form-item :label="$t('bookingAdmin.teacherSlotLabel')" prop="teacher_slot_id">
                   <el-select 
                     v-model="addForm.teacher_slot_id" 
                     :placeholder="$t('bookingAdmin.selectTeacherSlot')"
-                    class="w-full" 
+                    class="w-220px"
+                    @change="handleTeacherSlotChange"
                     :loading="addDeps.isFetchingCourses">
                     <template #label="{ label }">
                       <div class="flex gap-2">
@@ -457,7 +463,6 @@
                       :key="slot.id" 
                       :value="slot.id" 
                       :label="`${dayjs(slot.slot_date).format('YYYY/MM/DD')} ${slot.start_time.substring(0,5)}~${slot.end_time.substring(0,5)}`"
-                      :disabled="slot.is_booked" 
                     >
                       <div class="flex gap-2">
                         <span class="font-500 w-85px">{{ dayjs(slot.slot_date).format('YYYY/MM/DD') }}</span>
@@ -465,6 +470,39 @@
                       </div>
                     </el-option>
                   </el-select>
+                </el-form-item>
+                <el-form-item
+                  v-if="addForm.teacher_slot_id"
+                  v-loading="slotAvailabilityLoading"
+                  prop="slot_block_time">
+                  <template #label>
+                    <span>{{ $t('bookingAdmin.availableTimeBlocks') }}</span>
+                    <span class="ml-2 text-xs color-[#909399]">{{ $t('bookingAdmin.slotRangeHint') }}</span>
+                  </template>
+                  <div v-if="slotAvailability?.blocks?.length" class="flex flex-wrap gap-2">
+                    <div class="mt-1" v-for="block in slotAvailability.blocks" :key="`${block.start_time}-${block.end_time}`">
+                      <el-button
+                        size="small"
+                        class="w-80px h-60px p-2! rounded-8px"
+                        :type="isSelectedSlotBlock(block) ? 'primary' : 'default'"
+                        :disabled="!block.is_available"
+                        @click="selectSlotBlock(block)">
+                        <div class="flex flex-col items-center leading-tight">
+                          <span>{{ formatSlotBlockTime(block) }}</span>
+                          <span
+                            v-if="getSlotBlockSelectionText(block)"
+                            class="text-10px opacity-80"
+                          >
+                            {{ getSlotBlockSelectionText(block) }}
+                          </span>
+                          <span v-if="!block.is_available" class="mt-0.5 text-10px">{{ $t('bookingAdmin.slotAlreadyBooked') }}</span>
+                        </div>
+                      </el-button>
+                    </div>
+                  </div>
+                  <div v-else-if="!slotAvailabilityLoading" class="text-xs color-[#f56c6c]">
+                    {{ $t('bookingAdmin.noAvailableTimeBlocks') }}
+                  </div>
                 </el-form-item>
               </template>
             </el-col>
@@ -905,8 +943,11 @@ import {
   batchCreateBookings, batchUpdateBookings, batchDeleteBookings,
   batchUpdateBookingsByIds, batchDeleteBookingsByIds,
   getBookingOptionSubstituteTeachers, getBookingOptionTeacherContracts,
+  getBookingSlotAvailability,
   type BookingItem, type BookingListParams, type BookingStatus,
-  type BookingSubstituteTeacherOption
+  type BookingSubstituteTeacherOption, type BookingSlotAvailability,
+  type BookingSlotAvailabilityBlock, type BookingTeacherOption,
+  type BookingCourseOption
 } from '@/api/booking';
 import { getZoomMeetingByBooking, createZoomMeeting, batchGetZoomMeetings, type ZoomMeetingLogResponse } from '@/api/zoom';
 import { createLeaveRecord } from '@/api/leaveRecord';
@@ -1336,7 +1377,7 @@ const openDialog = (name: keyof typeof dialogs, row?: BookingItem) => {
 };
 
 const resetForm = (name: string) => {
-  if(name === 'add') { addFormRef.value?.resetFields(); addDeps.resetOptions(); }
+  if(name === 'add') { addFormRef.value?.resetFields(); addDeps.resetOptions(); resetSlotAvailability(); }
   if(name === 'edit') { editFormRef.value?.resetFields(); dialogs.edit.editId=''; }
   if(name === 'batchCreate') { batchCreateRef.value?.resetFields(); batchCreateForm.weekdays=[]; batchCreateForm.daterange=[]; batchCreateDeps.resetOptions(); }
   if(name === 'batchUpdate') { batchUpdateRef.value?.resetFields(); batchUpdateForm.weekdays=[]; batchUpdateForm.daterange=[]; batchUpdateDeps.resetOptions(); }
@@ -1348,20 +1389,171 @@ const resetForm = (name: string) => {
 const addFormRef = ref<FormInstance>();
 const addForm = reactive({
   student_id: '', student_contract_id: '', teacher_id: '', course_id: '',
-  timeMode: 'manual', booking_date: '', start_time: '', end_time: '', teacher_slot_id: '', notes: ''
+  timeMode: 'manual', booking_date: '', start_time: '', end_time: '', teacher_slot_id: '', slot_block_time: '', notes: ''
 });
 const addDeps = reactive(useBookingDependencies(addForm, addFormRef));
+const slotAvailability = ref<BookingSlotAvailability | null>(null);
+const slotAvailabilityLoading = ref(false);
+const selectedSlotStartBlock = ref<BookingSlotAvailabilityBlock | null>(null);
+const selectedSlotEndBlock = ref<BookingSlotAvailabilityBlock | null>(null);
+let slotAvailabilityRequestId = 0;
+
+const formatTeacherOptionLabel = (teacher: BookingTeacherOption) => {
+  return teacher.teacher_no ? `${teacher.teacher_no} - ${teacher.name}` : teacher.name;
+};
+
+const formatCourseOptionLabel = (course: BookingCourseOption) => {
+  return course.course_code ? `${course.course_code} - ${course.course_name}` : course.course_name;
+};
 
 const validateBookingDate = (_rule: any, value: any, callback: any) => {
   if (addForm.timeMode === 'manual' && !value) callback(new Error(t('bookingAdmin.required')));
   else callback();
 };
 
+const validateSlotBlockTime = (_rule: any, value: any, callback: any) => {
+  if (addForm.timeMode === 'slot' && addForm.teacher_slot_id && !value) {
+    callback(new Error(t('bookingAdmin.selectAvailableTimeBlock')));
+    return;
+  }
+  callback();
+};
+
 const addRules: FormRules = {
   student_id: [{ required: true, message: t('bookingAdmin.required'), trigger: 'change' }],
   teacher_id: [{ required: true, message: t('bookingAdmin.required'), trigger: 'change' }],
   course_id: [{ required: true, message: t('bookingAdmin.required'), trigger: 'change' }],
-  booking_date: [{ validator: validateBookingDate, trigger: 'change' }]
+  booking_date: [{ validator: validateBookingDate, trigger: 'change' }],
+  slot_block_time: [{ validator: validateSlotBlockTime, trigger: 'change' }]
+};
+
+const resetSlotAvailability = () => {
+  slotAvailabilityRequestId += 1;
+  slotAvailability.value = null;
+  slotAvailabilityLoading.value = false;
+  selectedSlotStartBlock.value = null;
+  selectedSlotEndBlock.value = null;
+  addForm.slot_block_time = '';
+  if (addForm.timeMode === 'slot') {
+    addForm.booking_date = '';
+    addForm.start_time = '';
+    addForm.end_time = '';
+  }
+};
+
+const formatApiTime = (time?: string | null) => time?.substring(0, 5) || '';
+const formatSlotBlockTime = (block: BookingSlotAvailabilityBlock) => {
+  return `${formatApiTime(block.start_time)}~${formatApiTime(block.end_time)}`;
+};
+
+const getSlotBlockIndex = (block: BookingSlotAvailabilityBlock) => {
+  return slotAvailability.value?.blocks.findIndex((item) => (
+    item.start_time === block.start_time && item.end_time === block.end_time
+  )) ?? -1;
+};
+
+const isSelectedSlotBlock = (block: BookingSlotAvailabilityBlock) => {
+  if (!selectedSlotStartBlock.value) return false;
+  const blockIndex = getSlotBlockIndex(block);
+  const startIndex = getSlotBlockIndex(selectedSlotStartBlock.value);
+  const endIndex = selectedSlotEndBlock.value ? getSlotBlockIndex(selectedSlotEndBlock.value) : startIndex;
+  return blockIndex >= startIndex && blockIndex <= endIndex;
+};
+
+const isSameSlotBlock = (a: BookingSlotAvailabilityBlock | null, b: BookingSlotAvailabilityBlock) => (
+  a?.start_time === b.start_time && a?.end_time === b.end_time
+);
+
+const getSlotBlockSelectionText = (block: BookingSlotAvailabilityBlock) => {
+  const isStart = isSameSlotBlock(selectedSlotStartBlock.value, block);
+  const isEnd = isSameSlotBlock(selectedSlotEndBlock.value, block);
+  if (isStart && isEnd) return t('bookingAdmin.slotStartAndEndSelected');
+  if (isStart) return t('bookingAdmin.slotStartSelected');
+  if (isEnd) return t('bookingAdmin.slotEndSelected');
+  return '';
+};
+
+const selectSlotBlock = (block: BookingSlotAvailabilityBlock) => {
+  if (!block.is_available || !slotAvailability.value) return;
+  const blocks = slotAvailability.value.blocks;
+
+  if (!selectedSlotStartBlock.value || selectedSlotEndBlock.value) {
+    selectedSlotStartBlock.value = block;
+    selectedSlotEndBlock.value = null;
+    addForm.booking_date = slotAvailability.value.slot_date;
+    addForm.start_time = formatApiTime(block.start_time);
+    addForm.end_time = '';
+    addForm.slot_block_time = '';
+    return;
+  }
+
+  const startIndex = getSlotBlockIndex(selectedSlotStartBlock.value);
+  const endIndex = getSlotBlockIndex(block);
+
+  if (endIndex < startIndex) {
+    selectedSlotStartBlock.value = block;
+    selectedSlotEndBlock.value = null;
+    addForm.booking_date = slotAvailability.value.slot_date;
+    addForm.start_time = formatApiTime(block.start_time);
+    addForm.end_time = '';
+    addForm.slot_block_time = '';
+    return;
+  }
+
+  const selectedRange = blocks.slice(startIndex, endIndex + 1);
+  if (selectedRange.some((item) => !item.is_available)) {
+    ElMessage.warning(t('bookingAdmin.selectContinuousAvailableBlocks'));
+    return;
+  }
+
+  selectedSlotEndBlock.value = block;
+  addForm.booking_date = slotAvailability.value.slot_date;
+  addForm.start_time = formatApiTime(selectedSlotStartBlock.value.start_time);
+  addForm.end_time = formatApiTime(block.end_time);
+  addForm.slot_block_time = `${addForm.start_time}-${addForm.end_time}`;
+  addFormRef.value?.clearValidate(['slot_block_time']);
+};
+
+const handleTeacherSlotChange = async (slotId: string) => {
+  resetSlotAvailability();
+  if (!slotId) return;
+
+  const requestId = ++slotAvailabilityRequestId;
+  slotAvailabilityLoading.value = true;
+  try {
+    const res = assertApiSuccess(await getBookingSlotAvailability(slotId), t('bookingAdmin.loadSlotAvailabilityFailed'));
+    if (requestId !== slotAvailabilityRequestId) return;
+    slotAvailability.value = res.data;
+  } catch (error) {
+    if (requestId === slotAvailabilityRequestId) {
+      ElMessage.error(getApiErrorMessage(error, t('bookingAdmin.loadSlotAvailabilityFailed')));
+    }
+  } finally {
+    if (requestId === slotAvailabilityRequestId) {
+      slotAvailabilityLoading.value = false;
+    }
+  }
+};
+
+const handleAddStudentChange = async () => {
+  resetSlotAvailability();
+  await addDeps.handleStudentChange();
+};
+
+const handleAddTeacherChange = async () => {
+  resetSlotAvailability();
+  await addDeps.handleTeacherChange(true);
+};
+
+const handleAddTimeModeChange = () => {
+  resetSlotAvailability();
+  if (addForm.timeMode === 'manual') {
+    addForm.teacher_slot_id = '';
+  } else {
+    addForm.booking_date = '';
+    addForm.start_time = '';
+    addForm.end_time = '';
+  }
 };
 
 const submitAdd = async () => {
@@ -1389,11 +1581,15 @@ const submitAdd = async () => {
           dialogs.add.loading = false;
           return;
         }
-        const slot = addDeps.teacherSlotOptions.find(s=>s.id === addForm.teacher_slot_id);
+        if(!selectedSlotStartBlock.value || !selectedSlotEndBlock.value || !slotAvailability.value) {
+          ElMessage.warning(t('bookingAdmin.selectAvailableTimeBlock'));
+          dialogs.add.loading = false;
+          return;
+        }
         data.teacher_slot_id = addForm.teacher_slot_id;
-        data.booking_date = slot?.slot_date;
-        data.start_time = slot?.start_time.substring(0,5);
-        data.end_time = slot?.end_time.substring(0,5);
+        data.booking_date = slotAvailability.value.slot_date;
+        data.start_time = formatApiTime(selectedSlotStartBlock.value.start_time);
+        data.end_time = formatApiTime(selectedSlotEndBlock.value.end_time);
       }
       const res = assertApiSuccess(await createBooking(data), t('bookingAdmin.addFailed'));
       ElMessage.success(res.message || t('bookingAdmin.addSuccess'));

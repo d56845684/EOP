@@ -130,7 +130,7 @@
         <el-row>
           <el-col :span="10">
             <el-form-item :label="$t('course.duration')">
-              <el-input-number v-model="form.duration_minutes" :step="5" class="w-full! h-30px!" />
+              <el-input-number v-model="form.duration_minutes" :step="30" step-strictly class="w-full! h-30px!" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -226,7 +226,7 @@ const openDrawer = (c: CourseResponseData | null, type: string) => {
             course_code: '', 
             course_name: '', 
             description: '', 
-            duration_minutes: 60, 
+            duration_minutes: 30, 
             is_active: true 
         };
     }
