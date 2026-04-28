@@ -83,7 +83,15 @@ async def list_users(
     try:
         # Build SQL with JOINs to get email and name
         params = []
-        where_clauses = []
+        where_clauses = [
+            # 過濾掉底下 entity 已軟刪除的帳號。
+            # user_profiles / public.users 本身沒有 is_deleted，
+            # 而 DELETE /<entity>s 只動 entity 的 is_deleted，不會聯動 user，
+            # 所以這層 LEFT JOIN 預設要把軟刪實體排除。
+            "COALESCE(e.is_deleted, false) = false",
+            "COALESCE(t.is_deleted, false) = false",
+            "COALESCE(s.is_deleted, false) = false",
+        ]
 
         base_sql = """
             SELECT

@@ -123,6 +123,8 @@ test.describe('試上轉正 /students/{id}/convert-to-formal', () => {
       data: {
         name: 'e2e formal',
         email: `e2e-formal-${Date.now()}@example.com`,
+        eng_name: 'e2e-formal-eng',
+        phone: '0900000000',
         student_type: 'formal',
         is_active: true,
       },

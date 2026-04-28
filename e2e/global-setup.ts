@@ -85,7 +85,13 @@ async function createEntity(
         }
       : role === 'teacher'
       ? { name: baseName, email, teacher_level: 1 }
-      : { name: baseName, email, student_type: 'formal' };
+      : {
+          name: baseName,
+          email,
+          eng_name: `e2e-eng-${runId}`,
+          phone: '0900000000',
+          student_type: 'formal',
+        };
 
   const res = await adminCtx.post(endpoint, { data: payload });
   if (!res.ok()) {

@@ -504,7 +504,9 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
                     select="start_time,end_time",
                     filters={
                         "teacher_contract_id": f"eq.{booking['teacher_contract_id']}",
-                        "weekday": f"eq.{weekday}",
+                        # weekday 是 INTEGER 欄位，直接傳 int 走 _parse_filter 早期分支；
+                        # 不能用 f"eq.{weekday}"，因為 _coerce_value 不再 coerce 純數字字串為 int
+                        "weekday": weekday,
                         "is_deleted": "eq.false"
                     },
                 )
@@ -2903,6 +2905,9 @@ async def get_teacher_slot_options(
         # 如果有結束日期，在結果中篩選
         if date_to:
             slots = [s for s in slots if s.get("slot_date") <= date_to.isoformat()]
+
+        # 按日期 + 開始時間升冪排序（由近到遠）
+        slots.sort(key=lambda s: (s.get("slot_date") or "", s.get("start_time") or ""))
 
         return {"success": True, "message": "操作成功", "data": slots}
     except Exception as e:

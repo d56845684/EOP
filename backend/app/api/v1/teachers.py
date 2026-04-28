@@ -123,10 +123,13 @@ async def list_teachers_overview(
     is_active: Optional[bool] = Query(None),
     has_account: Optional[bool] = Query(None),
     has_active_contract: Optional[bool] = Query(None),
+    employment_type: Optional[str] = Query(None, description="僅篩出最新 active 合約為此類型 (hourly/full_time)"),
     role: Optional[str] = Query(None, description="角色篩選 (student/teacher/admin/employee)"),
     current_user: CurrentUser = Depends(require_page_permission("teachers.list"))
 ):
     """教師總覽列表：每位教師一行，附帶合約/預約/帳號/獎金摘要"""
+    if employment_type is not None and employment_type not in ("hourly", "full_time"):
+        raise HTTPException(status_code=400, detail="employment_type 只能是 'hourly' 或 'full_time'")
     try:
         pool = supabase_service.pool
 
@@ -165,6 +168,7 @@ async def list_teachers_overview(
                 -- 合約摘要
                 COALESCE(ct.total_contracts, 0) AS total_contracts,
                 COALESCE(ct.active_contracts, 0) AS active_contracts,
+                lac.employment_type AS latest_active_employment_type,
                 -- 預約摘要
                 COALESCE(bk.total_bookings, 0) AS total_bookings,
                 COALESCE(bk.completed_bookings, 0) AS completed_bookings,
@@ -188,6 +192,15 @@ async def list_teachers_overview(
                 FROM teacher_contracts
                 WHERE teacher_id = t.id AND is_deleted = FALSE
             ) ct ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT employment_type
+                FROM teacher_contracts
+                WHERE teacher_id = t.id
+                  AND is_deleted = FALSE
+                  AND contract_status = 'active'
+                ORDER BY start_date DESC, created_at DESC
+                LIMIT 1
+            ) lac ON TRUE
             LEFT JOIN LATERAL (
                 SELECT
                     COUNT(*) AS total_bookings,
@@ -218,6 +231,10 @@ async def list_teachers_overview(
                 having_conditions.append("COALESCE(ct.active_contracts, 0) > 0")
             else:
                 having_conditions.append("COALESCE(ct.active_contracts, 0) = 0")
+        if employment_type is not None:
+            idx += 1
+            having_conditions.append(f"lac.employment_type = ${idx}")
+            params.append(employment_type)
 
         if having_conditions:
             base_sql += " AND " + " AND ".join(having_conditions)
@@ -259,6 +276,7 @@ async def list_teachers_overview(
                 "line_display_name": row["line_display_name"],
                 "total_contracts": row["total_contracts"],
                 "active_contracts": row["active_contracts"],
+                "latest_active_employment_type": row["latest_active_employment_type"],
                 "total_bookings": row["total_bookings"],
                 "completed_bookings": row["completed_bookings"],
                 "upcoming_bookings": row["upcoming_bookings"],
