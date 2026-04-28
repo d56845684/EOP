@@ -1,25 +1,25 @@
 <template>
-  <el-dialog v-model="show" :title="`${currentStudent?.name}(${currentStudent?.student_no}) - 新增合約`" width="500px">
+  <el-dialog v-model="show" :title="$t('studentAdmin.createContractDialog.title', { name: currentStudent?.name, studentNo: currentStudent?.student_no })" width="500px">
     <el-form :model="convertForm" :rules="convertRules" ref="convertFormRef" size="small" label-position="top" label-width="120px" @submit.prevent>
       <el-row>
         <el-col :span="16">
-          <el-form-item label="合約編號" prop="contract_no">
+          <el-form-item :label="$t('contract.contractNo')" prop="contract_no">
             <el-input 
               v-model="convertForm.contract_no" 
               class="h-30px" 
-              placeholder="請輸入合約編號" 
+              :placeholder="$t('studentAdmin.createContractDialog.contractNoPlaceholder')" 
             />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row>
         <el-col :span="16">
-          <el-form-item label="起迄日期" prop="dateRange">
+          <el-form-item :label="$t('studentAdmin.period')" prop="dateRange">
             <el-date-picker
               v-model="convertForm.dateRange"
               type="daterange"
               value-format="YYYY-MM-DD"
-              range-separator="至"
+              :range-separator="$t('studentAdmin.to')"
               class="h-30px!"
             />
           </el-form-item>
@@ -27,7 +27,7 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="10">
-          <el-form-item label="總堂數" prop="total_lessons">
+          <el-form-item :label="$t('contract.contractTotalLessons')" prop="total_lessons">
             <el-input-number 
               v-model="convertForm.total_lessons" 
               :min="1" 
@@ -36,7 +36,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="合約總金額" prop="total_amount">
+          <el-form-item :label="$t('contract.contractTotalAmount')" prop="total_amount">
             <el-input-number 
               v-model="convertForm.total_amount" 
               :min="0" 
@@ -51,11 +51,11 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="10">
-          <el-form-item label="關聯試上預約">
+          <el-form-item :label="$t('studentAdmin.createContractDialog.relatedTrialBooking')">
             <el-select
               v-model="convertForm.booking_id"
               :disabled="bookingOptions.length === 0"
-              :placeholder="bookingOptions.length > 0 ? '請選擇' : '無預約紀錄'"
+              :placeholder="bookingOptions.length > 0 ? $t('studentAdmin.pleaseSelect') : $t('studentAdmin.noBookingRecords')"
               class="w-200px h-30px"
               clearable
             >
@@ -64,10 +64,10 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="指定教師">
+          <el-form-item :label="$t('studentAdmin.createContractDialog.assignedTeacher')">
             <el-select 
               v-model="convertForm.teacher_id" 
-              placeholder="請選擇教師(選填)" 
+              :placeholder="$t('studentAdmin.createContractDialog.teacherPlaceholder')" 
               class="w-full h-30px" 
               clearable
             >
@@ -84,14 +84,14 @@
       </el-row>
       <el-row>
         <el-col :span="24">
-          <el-form-item label="備註">
+          <el-form-item :label="$t('common.note')">
             <el-input type="textarea" v-model="convertForm.notes" :rows="3"></el-input>
           </el-form-item>
         </el-col>
       </el-row>
     </el-form>
     <template #footer>
-      <el-button round @click="show = false">取消</el-button>
+      <el-button round @click="show = false">{{ $t('common.cancel') }}</el-button>
       <el-button round type="primary" :loading="converting" @click="submitConvert">
         <template #icon>
           <div class="i-hugeicons:floppy-disk" />
@@ -106,6 +106,7 @@ import { convertToFormal, type ConvertToFormalRequest, type StudentResponse } fr
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { reactive, ref, computed, type PropType } from 'vue'
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps({
     convertVisible: {
@@ -125,6 +126,8 @@ const props = defineProps({
       required: true
     }
 })
+
+const { t } = useI18n();
 
 const emit = defineEmits(['submit-finish', 'update:convertVisible'])
 
@@ -149,10 +152,10 @@ const convertForm = reactive({
 
 
 const convertRules = reactive<FormRules>({
-    contract_no: [{ required: true, message: '請輸入合約編號', trigger: 'blur' }],
-    total_lessons: [{ required: true, message: '請輸入總堂數', trigger: 'blur' }],
-    total_amount: [{ required: true, message: '請輸入合約總金額', trigger: 'blur' }],
-    dateRange: [{ required: true, message: '請選擇起迄日期', trigger: 'change' }]
+    contract_no: [{ required: true, message: t('studentAdmin.createContractDialog.contractNoRequired'), trigger: 'blur' }],
+    total_lessons: [{ required: true, message: t('studentAdmin.createContractDialog.totalLessonsRequired'), trigger: 'blur' }],
+    total_amount: [{ required: true, message: t('studentAdmin.createContractDialog.totalAmountRequired'), trigger: 'blur' }],
+    dateRange: [{ required: true, message: t('studentAdmin.createContractDialog.dateRangeRequired'), trigger: 'change' }]
 })
 
 const convertFormRef = ref<FormInstance | null>(null);
@@ -173,8 +176,8 @@ const submitConvert = async () => {
           booking_id: convertForm.booking_id || null,
           notes: convertForm.notes || null,
         };
-        const res = assertApiSuccess(await convertToFormal(props.currentStudent.id, payload), '轉換學生身份失敗');
-        ElMessage.success(res.message || '轉換學生身份成功');
+        const res = assertApiSuccess(await convertToFormal(props.currentStudent.id, payload), t('studentAdmin.createContractDialog.convertFailed'));
+        ElMessage.success(res.message || t('studentAdmin.createContractDialog.convertSuccess'));
           
         const rowAny: any = props.currentStudent;
         rowAny.student_type = 'formal';
@@ -182,7 +185,7 @@ const submitConvert = async () => {
           
         emit('submit-finish');
       } catch (err) {
-        ElMessage.error(getApiErrorMessage(err, '轉換學生身份失敗'));
+        ElMessage.error(getApiErrorMessage(err, t('studentAdmin.createContractDialog.convertFailed')));
       } finally {
         converting.value = false;
       }

@@ -1,21 +1,21 @@
 <template>
-  <el-dialog v-model="show" :title="type === 'create' ? '新增附約' : '編輯附約'" width="360px" style="max-height: 80vh; overflow-y: auto;">
+  <el-dialog v-model="show" :title="type === 'create' ? $t('studentAdmin.addendum.createTitle') : $t('studentAdmin.addendum.editTitle')" width="360px" style="max-height: 80vh; overflow-y: auto;">
     <div class="w-full box-border rounded-lg px-2 py-2 mb-4 bg-[#f5f7fa] text-xs">
       <div class="flex items-center gap-4 mb-2">
-        <label class="text-xs color-[#606266] font-500">主約</label>
+        <label class="text-xs color-[#606266] font-500">{{ $t('studentAdmin.addendum.mainContract') }}</label>
         <div class="flex-1">{{ contract?.contract_no }}</div>
       </div>
       <div class="flex items-center gap-4 mb-2">
-        <label class="text-xs color-[#606266] font-500">學生</label>
+        <label class="text-xs color-[#606266] font-500">{{ $t('common.student') }}</label>
         <div class="flex-1">{{ contract?.student_name }}</div>
       </div>
       <div class="flex items-center gap-4">
-        <label class="text-xs color-[#606266] font-500">目前結束日期</label>
+        <label class="text-xs color-[#606266] font-500">{{ $t('studentAdmin.addendum.currentEndDate') }}</label>
         <div class="flex-1">{{ contract?.end_date }}</div>
       </div>
     </div>
     <el-form label-position="top" size="small">
-      <el-form-item label="更新結束時間">
+      <el-form-item :label="$t('studentAdmin.addendum.newEndDate')">
         <el-date-picker
           v-model="contractForm.new_end_date"
           type="date"
@@ -23,7 +23,7 @@
           class="w-160px! h-30px!"
         />
       </el-form-item>
-      <el-form-item label="備註">
+      <el-form-item :label="$t('common.note')">
         <el-input
           type="textarea"
           v-model="contractForm.notes"

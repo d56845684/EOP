@@ -3,22 +3,22 @@
     <!-- Filter Section (區塊 A) -->
     <el-card class="filter-card mb-20px" shadow="never">
       <el-form :inline="true" size="small" :model="queryParams" label-position="top" class="filter-form flex items-end">
-        <el-form-item label="日期區間" >
+        <el-form-item :label="$t('common.dateRange')" >
           <el-date-picker
             v-model="dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="開始日期"
-            end-placeholder="結束日期"
+            :range-separator="$t('studentAdmin.to')"
+            :start-placeholder="$t('common.startDate')"
+            :end-placeholder="$t('common.endDate')"
             value-format="YYYY-MM-DD"
             @change="handleDateRangeChange"
             class="w-220px! h-30px!"
           />
         </el-form-item>
-        <el-form-item label="預約狀態">
+        <el-form-item :label="$t('studentAdmin.bookingStatus')">
           <el-select 
             v-model="queryParams.booking_status" 
-            placeholder="請選擇狀態" 
+            :placeholder="$t('studentAdmin.selectStatus')" 
             clearable 
             class="w-120px"
             @change="handleSearch"
@@ -31,13 +31,13 @@
             <template #icon>
               <div class="i-hugeicons:search-list-02" />
             </template>
-            搜尋
+            {{ $t('common.search') }}
           </el-button>
           <el-button round @click="resetQuery">
             <template #icon>
               <div class="i-hugeicons:arrow-reload-horizontal" />
             </template>
-            重置
+            {{ $t('common.btnReset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -47,29 +47,29 @@
     <el-card shadow="never">
       <el-table :data="bookingList" v-loading="loading" stripe class="w-full" size="small">
         <!-- 預約編號 -->
-        <el-table-column prop="booking_no" label="預約編號" min-width="140" />
+        <el-table-column prop="booking_no" :label="$t('studentAdmin.bookingNo')" min-width="140" />
         
         <!-- 課程名稱 -->
-        <el-table-column prop="course_name" label="課程名稱" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="course_name" :label="$t('studentAdmin.courseName')" min-width="150" show-overflow-tooltip />
         
         <!-- 指導教師 -->
-        <el-table-column prop="teacher_name" label="指導教師" min-width="120" />
+        <el-table-column prop="teacher_name" :label="$t('studentAdmin.instructor')" min-width="120" />
         
         <!-- 上課日期 -->
-        <el-table-column prop="booking_date" label="上課日期" min-width="110" />
+        <el-table-column prop="booking_date" :label="$t('studentAdmin.classDate')" min-width="110" />
         
         <!-- 上課時間 -->
-        <el-table-column label="上課時間" min-width="120">
+        <el-table-column :label="$t('studentAdmin.classTime')" min-width="120">
           <template #default="{ row }">
             {{ formatTime(row.start_time) }} - {{ formatTime(row.end_time) }}
           </template>
         </el-table-column>
         
         <!-- 消耗堂數 -->
-        <el-table-column prop="lessons_used" label="消耗堂數" min-width="90" align="center" />
+        <el-table-column prop="lessons_used" :label="$t('studentAdmin.lessonsUsed')" min-width="100" align="center" />
         
         <!-- 狀態 -->
-        <el-table-column label="狀態" min-width="100" align="center">
+        <el-table-column :label="$t('common.status')" min-width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.booking_status)" effect="light">
               {{ getStatusLabel(row.booking_status) }}
@@ -78,7 +78,7 @@
         </el-table-column>
         
         <!-- 備註 -->
-        <el-table-column prop="notes" label="備註" min-width="160" show-overflow-tooltip>
+        <el-table-column prop="notes" :label="$t('common.note')" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.notes || '-' }}
           </template>
@@ -103,14 +103,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted, watch, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { getBookingList, type BookingListParams, type BookingItem } from '@/api/booking';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
   studentId: string;
 }>();
+
+const { t } = useI18n();
 
 // State
 const loading = ref(false);
@@ -118,13 +121,13 @@ const bookingList = ref<BookingItem[]>([]);
 const total = ref(0);
 const dateRange = ref<[string, string] | null>(null);
 
-const statusOptions = [
-  { value: '', label: '全部' },
-  { value: 'pending', label: '待確認' },
-  { value: 'confirmed', label: '已確認' },
-  { value: 'completed', label: '已完成' },
-  { value: 'cancelled', label: '已取消' }
-];
+const statusOptions = computed(() => [
+  { value: '', label: t('common.all') },
+  { value: 'pending', label: t('display.bookingStatus.pending') },
+  { value: 'confirmed', label: t('display.bookingStatus.confirmed') },
+  { value: 'completed', label: t('display.bookingStatus.completed') },
+  { value: 'cancelled', label: t('display.bookingStatus.cancelled') }
+]);
 
 const queryParams = reactive<BookingListParams>({
   page: 1,
@@ -155,12 +158,12 @@ const fetchBookings = async () => {
       delete params.booking_status;
     }
     
-    const res = assertApiSuccess(await getBookingList(params), '載入上課紀錄失敗');
+    const res = assertApiSuccess(await getBookingList(params), t('studentAdmin.loadBookingsFailed'));
     bookingList.value = res.data || [];
     total.value = res.total || 0;
   } catch (err: any) {
     console.error('Fetch bookings error:', err);
-    ElMessage.error(getApiErrorMessage(err, '載入上課紀錄失敗'));
+    ElMessage.error(getApiErrorMessage(err, t('studentAdmin.loadBookingsFailed')));
   } finally {
     loading.value = false;
   }
@@ -210,10 +213,10 @@ const getStatusType = (status: string) => {
 
 const getStatusLabel = (status: string) => {
   switch (status) {
-    case 'pending': return '待確認';
-    case 'confirmed': return '已確認';
-    case 'completed': return '已完成';
-    case 'cancelled': return '已取消';
+    case 'pending': return t('display.bookingStatus.pending');
+    case 'confirmed': return t('display.bookingStatus.confirmed');
+    case 'completed': return t('display.bookingStatus.completed');
+    case 'cancelled': return t('display.bookingStatus.cancelled');
     default: return status;
   }
 };

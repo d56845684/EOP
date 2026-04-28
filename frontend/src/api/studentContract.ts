@@ -11,7 +11,11 @@ export interface ContractOption {
 }
 
 export interface TeacherOption extends ContractOption { }
-export interface CourseOption extends ContractOption { }
+export interface CourseOption {
+  id: string;
+  course_code?: string | null;
+  course_name: string;
+}
 
 export interface StudentContract {
   id: string;

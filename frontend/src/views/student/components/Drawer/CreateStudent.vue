@@ -3,7 +3,7 @@
     <el-row :gutter="20">
       <el-col :span="12">
         <el-form-item :label="$t('common.status')" prop="is_active">
-            <el-switch v-model="addForm.is_active" active-text="啟用" inactive-text="停用" inline-prompt />
+            <el-switch v-model="addForm.is_active" :active-text="$t('common.active')" :inactive-text="$t('common.inactive')" inline-prompt />
         </el-form-item>
       </el-col>
     </el-row>
@@ -53,14 +53,6 @@
             <el-input v-model="addForm.email" />
         </el-form-item>
       </el-col>
-      <el-col :span="8">
-        <el-form-item :label="$t('student.identity')" prop="student_type">
-            <el-select v-model="addForm.student_type">
-                <el-option :label="$t('student.type.formal')" value="formal" />
-                <el-option :label="$t('student.type.trial')" value="trial" />
-            </el-select>
-        </el-form-item>
-      </el-col>
     </el-row>
     <el-row :gutter="20">
       <el-col :span="24">
@@ -82,6 +74,7 @@
   import { reactive, ref } from 'vue';
   import { type StudentCreate } from '@/api/student';
   import { type FormInstance, type FormRules } from 'element-plus';
+  import { useI18n } from 'vue-i18n';
 
   const props = defineProps({
     saving: {
@@ -89,6 +82,7 @@
       required: true
     }
   })
+  const { t } = useI18n();
   const addFormRef = ref<FormInstance>();
   const addForm = reactive<StudentCreate>({
     name: '',
@@ -98,14 +92,15 @@
     birth_date: '',
     id_number: '',
     google_drive_folder_id: '',
-    student_type: 'formal',
+    student_type: 'trial',
     is_active: true
   });
 
   const addRules = reactive<FormRules>({
-    name: [{ required: true, message: 'Name is required' }],
-    email: [{ required: true, message: 'Email is required', type: 'email' }],
-    birth_date: [{ required: true, message: 'Birth Date is required' }],
+    name: [{ required: true, message: t('studentAdmin.validation.nameRequired') }],
+    eng_name: [{ required: true, message: t('studentAdmin.validation.engNameRequired') }],
+    phone: [{ required: true, message: t('studentAdmin.validation.phoneRequired') }],
+    email: [{ required: true, message: t('studentAdmin.validation.emailRequired'), type: 'email' }],
   });
 
   const emit = defineEmits(['createStudent'])

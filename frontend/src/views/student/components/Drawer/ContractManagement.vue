@@ -3,28 +3,41 @@
     <template v-if="hasActive">
       <!-- 當前合約 Current Contract -->
       <el-divider content-position="left" class="mt-1 mb-8">
-        <span class="text-13px color-[#1d2d44]">當前合約</span>
+        <span class="text-13px color-[#1d2d44]">{{ $t('myContracts.tabCurrent') }}</span>
       </el-divider>
       <el-row :gutter="60">
         <el-col :span="12">
           <div class="flex flex-col items-start mb-2">
-            <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">合約編號</label>
+            <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">{{ $t('contract.contractNo') }}</label>
             <div class="w-full text-xs mt-1">{{ activeContract?.contract_no }}</div>
           </div>
         </el-col>
         <el-col :span="12">
           <div class="flex flex-col items-start mb-2">
-            <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">合約書狀態</label>
+            <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">{{ $t('studentAdmin.contractFileStatus') }}</label>
             <div class="w-full text-12px flex flex-col items-start gap-2" :class="activeContract?.contract_file_uploaded_at ? 'text-green' : 'text-red'">
               <div class="flex items-center gap-2">
                 <div class="flex items-center gap-1">
                   <div :class="activeContract?.contract_file_uploaded_at ? 'i-hugeicons:checkmark-circle-03' : 'i-hugeicons:alert-02'" />
-                  <span>{{ activeContract?.contract_file_uploaded_at ? '已上傳' : '未上傳' }}</span>
+                  <span>{{ activeContract?.contract_file_uploaded_at ? $t('teacherContractDrawer.uploaded') : $t('teacherContractDrawer.notUploaded') }}</span>
                 </div>
+                <el-button
+                  v-if="activeContract?.contract_file_uploaded_at"
+                  type="primary"
+                  link
+                  size="small"
+                  :loading="viewingContract"
+                  @click="viewContractFile"
+                >
+                  <template #icon>
+                    <div class="i-hugeicons:file-view" />
+                  </template>
+                  {{ $t('common.view') }}
+                </el-button>
                 <el-upload
                   ref="uploadRef"
                   v-model:file-list="contractFileList"
-                  class="upload-file flex flex-col items-start ml-4"
+                  class="upload-file flex flex-col items-start"
                   action="#"
                   :limit="1"
                   :multiple="false"
@@ -43,7 +56,7 @@
                     <template #icon>
                       <div class="i-hugeicons:file-upload" />
                     </template>
-                    {{ activeContract?.contract_file_uploaded_at ? '更新合約書' : '上傳合約書' }}
+                    {{ activeContract?.contract_file_uploaded_at ? $t('teacherContractDrawer.updateContractFile') : $t('teacherContractDrawer.uploadContractFile') }}
                   </el-button>
                 </el-upload>
               </div>
@@ -51,7 +64,7 @@
                 v-if="activeContract?.contract_file_uploaded_at"
                 class="text-11px color-gray-400 mt-2"
               >
-                更新時間：{{ dayjs(activeContract?.contract_file_uploaded_at).format('YYYY-MM-DD HH:mm:ss') }}
+                {{ $t('teacherContractDrawer.updatedAt') }}：{{ dayjs(activeContract?.contract_file_uploaded_at).format('YYYY-MM-DD HH:mm:ss') }}
               </div>
             </div>
           </div>
@@ -61,42 +74,42 @@
       <el-form :model="contractForm" size="small" label-position="top" class="constract-form mt-4">
         <el-row :gutter="60">
           <el-col :span="12">
-            <el-form-item label="合約狀態">
+            <el-form-item :label="$t('contract.contractStatus')">
               <el-select v-model="contractForm.contract_status" class="w-150px contract-select">
-                <el-option label="待生效" value="pending"></el-option>
-                <el-option label="生效中" value="active"></el-option>
-                <el-option label="已過期" value="expired"></el-option>
-                <el-option label="已終止" value="terminated"></el-option>
+                <el-option :label="$t('display.contractStatus.pending')" value="pending"></el-option>
+                <el-option :label="$t('display.contractStatus.active')" value="active"></el-option>
+                <el-option :label="$t('display.contractStatus.expired')" value="expired"></el-option>
+                <el-option :label="$t('display.contractStatus.terminated')" value="terminated"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="帶狀課學生">
+            <el-form-item :label="$t('studentAdmin.recurringStudent')">
               <el-switch
                 v-model="contractForm.is_recurring"
                 size="large"
                 inline-prompt
-                active-text="是"
-                inactive-text="否"
+                :active-text="$t('common.yes')"
+                :inactive-text="$t('common.no')"
                 style="--el-switch-off-color: #a7a8bd"
                 class="translate-y-[-4px]"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="起迄時間">
+            <el-form-item :label="$t('myContracts.colPeriod')">
               <el-date-picker
                 v-model="contractForm.dateRange"
                 type="daterange"
                 value-format="YYYY-MM-DD"
-                range-separator="至"
+                :range-separator="$t('studentAdmin.to')"
                 class="w-full h-30px!"
                 :readonly="!contractCanEdit"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="總堂數">
+            <el-form-item :label="$t('contract.contractTotalLessons')">
               <el-input-number
                 v-model="contractForm.total_lessons"
                 :min="1"
@@ -106,14 +119,14 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="剩餘堂數">
+            <el-form-item :label="$t('myContracts.remainingLessons')">
               <span class="block w-130px h-30px line-height-30px px-2 bg-gray-100 rounded">
                 {{ activeContract?.remaining_lessons }}
               </span>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="合約總金額">
+            <el-form-item :label="$t('contract.contractTotalAmount')">
               <el-input-number
                 v-model="contractForm.total_amount"
                 :min="0"
@@ -123,7 +136,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="可請假次數">
+            <el-form-item :label="$t('studentAdmin.totalLeaveAllowed')">
               <el-input-number
                 v-model="contractForm.total_leave_allowed"
                 :min="0"
@@ -133,14 +146,14 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="已請假次數">
+            <el-form-item :label="$t('myContracts.usedLeaveCount')">
               <span class="block w-130px h-30px line-height-30px px-2 bg-gray-100 rounded">
                 {{ activeContract?.used_leave_count }}
               </span>
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="備註">
+            <el-form-item :label="$t('common.note')">
               <el-input
                 type="textarea"
                 v-model="contractForm.notes"
@@ -153,7 +166,7 @@
               <template #icon>
                 <div class="i-hugeicons:floppy-disk text-lg" />
               </template>
-              儲存
+              {{ $t('common.save') }}
             </el-button>
           </el-col>
           <el-col :span="12" justify="end">
@@ -171,7 +184,7 @@
                   <template #icon>
                     <div class="i-hugeicons:file-download" />
                   </template>
-                  產生合約書
+                  {{ $t('studentAdmin.generateContractFile') }}
                 </el-button>
                 <el-button
                   v-if="!activeContract?.addendums.length"
@@ -185,7 +198,7 @@
                   <template #icon>
                     <div class="i-hugeicons:file-add" />
                   </template>
-                  附約
+                  {{ $t('studentAdmin.addendum.title') }}
                 </el-button>
               </el-space>
             </el-form-item>
@@ -196,55 +209,55 @@
       <!-- 附約 Addendum  -->
       <template v-if="(activeContract?.addendums.length || 0) > 0">
         <el-divider content-position="left" class="mt-5 mb-5">
-          <span class="text-13px color-[#1d2d44]">附約</span>
+          <span class="text-13px color-[#1d2d44]">{{ $t('studentAdmin.addendum.title') }}</span>
         </el-divider>
         <el-table :data="activeContract?.addendums" border :preserve-expanded-content="false" size="small" class="mb-8">
           <el-table-column type="expand" width="50">
             <template #default="props">
               <el-row class="px-4">
                 <el-col :span="24" class="my-1">
-                  <label class="text-12px color-gray-400 font-500 mr-4">備註</label>
+                  <label class="text-12px color-gray-400 font-500 mr-4">{{ $t('common.note') }}</label>
                   <span class="text-12px">{{ props.row.notes || '-' }}</span>
                 </el-col>
                 <el-col :span="24" class="my-1">
-                  <label class="text-12px color-gray-400 font-500 mr-4">附約文件</label>
+                  <label class="text-12px color-gray-400 font-500 mr-4">{{ $t('studentAdmin.addendum.file') }}</label>
                   <span class="text-12px">{{ props.row.file_name || '-' }}</span>
                 </el-col>
                 <el-col :span="24" class="my-1">
-                  <label class="text-12px color-gray-400 font-500 mr-4">上傳時間</label>
+                  <label class="text-12px color-gray-400 font-500 mr-4">{{ $t('studentAdmin.uploadedAt') }}</label>
                   <span class="text-12px">{{ props.row.file_uploaded_at ? formatDateTime(props.row.file_uploaded_at) : '-' }}</span>
                 </el-col>
                 <el-col :span="24" class="my-1">
-                  <label class="text-12px color-gray-400 font-500 mr-4">建立時間</label>
+                  <label class="text-12px color-gray-400 font-500 mr-4">{{ $t('studentAdmin.createdAt') }}</label>
                   <span class="text-12px">{{ props.row.created_at ? formatDateTime(props.row.created_at) : '-' }}</span>
                 </el-col>
                 <el-col :span="24" class="my-1">
-                  <label class="text-12px color-gray-400 font-500 mr-4">更新時間</label>
+                  <label class="text-12px color-gray-400 font-500 mr-4">{{ $t('studentAdmin.updatedAt') }}</label>
                   <span class="text-12px">{{ props.row.updated_at ? formatDateTime(props.row.updated_at) : '-' }}</span>
                 </el-col>
               </el-row>
             </template>
           </el-table-column>
-          <el-table-column prop="addendum_no" label="附約編號" width="180" />
-          <el-table-column prop="addendum_status" label="附約狀態" width="80">
+          <el-table-column prop="addendum_no" :label="$t('myContracts.addendumNo')" width="180" />
+          <el-table-column prop="addendum_status" :label="$t('studentAdmin.addendum.status')" width="80">
             <template #default="scope">
               {{ formatStudentContractStatusLabel(scope.row.addendum_status, scope.row.addendum_status, t) }}
             </template>
           </el-table-column>
-          <el-table-column prop="new_end_date" label="展延結束日期" width="120" />
+          <el-table-column prop="new_end_date" :label="$t('studentAdmin.addendum.newEndDate')" width="120" />
           
-          <el-table-column label="操作" min-width="80" align="center">
+          <el-table-column :label="$t('common.actions')" min-width="80" align="center">
               <template #default="{row}">
                 <el-row>
                   <el-col :span="8">
-                    <el-tooltip content="編輯" effect="customized">
+                    <el-tooltip :content="$t('common.edit')" effect="customized">
                       <el-button type="primary" round link @click="extendContract('update', row)">
                         <div class="i-hugeicons:edit-02" />
                       </el-button>
                     </el-tooltip>
                   </el-col>
                   <el-col :span="8">
-                    <el-tooltip content="上傳附約文件" effect="customized">
+                    <el-tooltip :content="$t('studentAdmin.addendum.uploadFile')" effect="customized">
                       <el-upload
                         ref="uploadAddendumRef"
                         v-model:file-list="addendumFileList"
@@ -264,7 +277,7 @@
                     </el-tooltip>
                   </el-col>
                   <el-col :span="8">
-                    <el-tooltip content="刪除" effect="customized">
+                    <el-tooltip :content="$t('common.delete')" effect="customized">
                       <el-button type="danger" round link @click="deleteAddendum()">
                         <div class="i-hugeicons:delete-02" />
                       </el-button>
@@ -278,39 +291,43 @@
 
       <!-- 合約明細 Contract Details -->
       <el-divider content-position="left" class="mt-5 mb-3">
-        <span class="text-13px color-[#1d2d44]">合約明細</span>
+        <span class="text-13px color-[#1d2d44]">{{ $t('contract.contractDetails') }}</span>
       </el-divider>
       <el-button type="primary" round text size="small" class="float-right mb-2" @click="openAddDetailDialog">
         <template #icon><div class="i-hugeicons:add-square" /></template>
-        新增明細
+        {{ $t('studentAdmin.addDetail') }}
       </el-button>
       <el-table :data="contractDetails" size="small" class="mt-2 w-full" border>
-        <el-table-column prop="detail_type" label="類型" width="100">
+        <el-table-column prop="detail_type" :label="$t('common.type')" width="100">
           <template #default="{ row }">
-            {{ row.detail_type === 'lesson_price' ? '課程單價' : row.detail_type === 'discount' ? '優惠折扣' : '補償堂數' }}
+            {{ getDetailTypeLabel(row.detail_type) }}
           </template>
         </el-table-column>
         <el-table-column
           prop="amount"
-          label="金額/堂數"
+          :label="$t('myContracts.detailAmount')"
           width="120"
           :formatter="(
             row: { detail_type: string; amount: string; }) => 
               row.detail_type !== 'compensation' ? 
                 'NT$ ' + row.amount : 
-                row.amount + ' 堂'
+                row.amount + ' ' + $t('studentAdmin.lessonsUnit')
           "
         />
-        <el-table-column prop="description" label="說明" />
-        <el-table-column prop="notes" label="備註" />
-        <el-table-column label="操作" width="80" align="center" fixed="right">
+        <el-table-column :label="$t('studentAdmin.description')">
           <template #default="{ row }">
-            <el-tooltip content="編輯" effect="customized">
+            {{ row.detail_type === 'lesson_price' ? (row.course_name || '-') : (row.description || '-') }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="notes" :label="$t('common.note')" />
+        <el-table-column :label="$t('common.actions')" width="80" align="center" fixed="right">
+          <template #default="{ row }">
+            <el-tooltip :content="$t('common.edit')" effect="customized">
               <el-button type="primary" round link @click="handleEditContractDetail(row)">
                 <div class="i-hugeicons:edit-02" />
               </el-button>
             </el-tooltip>
-            <el-tooltip content="刪除" effect="customized">
+            <el-tooltip :content="$t('common.delete')" effect="customized">
               <el-button type="danger" round link @click="handleDeleteContractDetail(row.id)">
                 <div class="i-hugeicons:delete-02" />
               </el-button>
@@ -321,18 +338,18 @@
 
       <!-- 請假紀錄 Leave Records -->
       <el-divider content-position="left" class="mt-10 mb-5">
-        <span class="text-13px color-[#1d2d44]">請假紀錄</span>
+        <span class="text-13px color-[#1d2d44]">{{ $t('studentAdmin.leaveRecords') }}</span>
       </el-divider>
       <el-button type="primary" round text size="small" class="float-right mb-2" @click="addLeaveDialogVisible = true">
         <template #icon><div class="i-hugeicons:add-square" /></template>
-        新增請假
+        {{ $t('studentAdmin.addLeaveDialog.title') }}
       </el-button>
-      <el-table :data="leaveRecords" border size="small" empty-text="目前沒有請假紀錄">
-        <el-table-column prop="leave_date" label="請假日期" width="120" />
-        <el-table-column prop="reason" label="事由" />
-        <el-table-column label="操作" width="80" align="center">
+      <el-table :data="leaveRecords" border size="small" :empty-text="$t('studentAdmin.noLeaveRecords')">
+        <el-table-column prop="leave_date" :label="$t('studentAdmin.leaveDate')" width="120" />
+        <el-table-column prop="reason" :label="$t('studentAdmin.reason')" />
+        <el-table-column :label="$t('common.actions')" width="80" align="center">
             <template #default="{ row }">
-              <el-tooltip content="刪除" effect="customized">
+              <el-tooltip :content="$t('common.delete')" effect="customized">
                 <el-button type="danger" round link @click="deleteLeave(row.id)">
                   <div class="i-hugeicons:delete-02" />
                 </el-button>
@@ -345,30 +362,30 @@
       <div class="flex items-center justify-center min-h-80px">
         <el-button type="primary" round @click="openAddContractDialog">
           <template #icon><div class="i-hugeicons:add-square" /></template>
-          新增合約
+          {{ $t('contract.addContract') }}
         </el-button>
       </div>
     </template>
 
     <!-- 歷史合約 History Contracts -->
     <el-divider content-position="left" class="mt-10 mb-5">
-      <span class="text-13px color-[#1d2d44]">歷史合約</span>
+      <span class="text-13px color-[#1d2d44]">{{ $t('myContracts.tabHistory') }}</span>
     </el-divider>
-    <el-table :data="contractHistory" border size="small" empty-text="目前沒有歷史合約紀錄">
-      <el-table-column prop="contract_no" label="合約編號" width="180" />
-      <el-table-column label="起迄時間" min-width="200">
+    <el-table :data="contractHistory" border size="small" :empty-text="$t('studentAdmin.noHistoryContracts')">
+      <el-table-column prop="contract_no" :label="$t('contract.contractNo')" width="180" />
+      <el-table-column :label="$t('myContracts.colPeriod')" min-width="200">
         <template #default="{ row }">
           {{ row.start_date }} ~ {{ row.end_date }}
         </template>
       </el-table-column>
-      <el-table-column prop="contract_status" label="合約狀態" width="100" align="center">
+      <el-table-column prop="contract_status" :label="$t('contract.contractStatus')" width="100" align="center">
         <template #default="{ row }">
           {{ formatStudentContractStatusLabel(row.contract_status, row.contract_status, t) }}
         </template>
       </el-table-column>
-      <el-table-column label="檢視" width="60" align="center">
+      <el-table-column :label="$t('common.view')" width="60" align="center">
         <template #default="{ row }">
-          <el-tooltip content="檢視" effect="customized">
+          <el-tooltip :content="$t('common.view')" effect="customized">
             <el-button type="primary" round link @click="handleViewContract(row)">
               <div class="i-hugeicons:property-view" />
             </el-button>
@@ -418,6 +435,7 @@ import ExtendDialog from '../Dialog/ExtendDialog.vue';
 import { 
   deleteContractDetail,
   deleteContractLeaveRecord,
+  getContractDownloadUrl,
   generateContract,
   createAddendum,
   updateAddendum,
@@ -472,6 +490,7 @@ const addLeaveDialogVisible = ref(false)
 const contractDialogVisible = ref(false)
 const extendDialogVisible = ref(false)
 const savingContract = ref(false)
+const viewingContract = ref(false)
 const contractDetailData = ref<StudentContractDetail | null>(null);
 const currentContract = ref<StudentContract | null>(null);
 const extendType = ref<'create' | 'update'>('create');
@@ -520,14 +539,15 @@ const handleUpdateContractDetails = () => {
 const handleAddendum = async ({data, addendumId}: {data: StudentContractAddendumUpdate, addendumId?: string}) => {
   // TODO: Update addendum
   if (!activeContract.value) return;
+  const actionLabel = extendType.value === 'create' ? t('common.add') : t('common.update');
   try {
     const res = extendType.value === 'create' ? await createAddendum(activeContract.value.id, data) : await updateAddendum(activeContract.value.id, addendumId!, data)
-    assertApiSuccess(res, `${extendType.value === 'create' ? '新增' : '更新'}合約附約失敗`);
-    ElMessage.success(res.message || `${extendType.value === 'create' ? '新增' : '更新'}合約附約成功`);
+    assertApiSuccess(res, t('studentAdmin.addendum.saveFailed', { action: actionLabel }));
+    ElMessage.success(res.message || t('studentAdmin.addendum.saveSuccess', { action: actionLabel }));
     extendDialogVisible.value = false;
     emit('updateContent', 'contract')
   } catch(err) {
-    ElMessage.error(getApiErrorMessage(err, `${extendType.value === 'create' ? '新增' : '更新'}合約附約失敗`));
+    ElMessage.error(getApiErrorMessage(err, t('studentAdmin.addendum.saveFailed', { action: actionLabel })));
   }
 }
 
@@ -548,7 +568,24 @@ const downloadContractData = async () => {
     triggerDownload(blob, fileName);
   } catch(err) {
     console.log(err)
-    ElMessage.error('下載合約失敗');
+    ElMessage.error(t('myContracts.downloadFailed'));
+  }
+}
+
+const viewContractFile = async () => {
+  if (!activeContract.value) return;
+  viewingContract.value = true;
+  try {
+    const res = assertApiSuccess(await getContractDownloadUrl(activeContract.value.id), t('myContracts.downloadFailed'));
+    if (res.download_url) {
+      window.open(res.download_url, '_blank');
+    } else {
+      ElMessage.warning(t('myContracts.noDownloadUrl'));
+    }
+  } catch (err) {
+    ElMessage.error(getApiErrorMessage(err, t('myContracts.downloadFailed')));
+  } finally {
+    viewingContract.value = false;
   }
 }
 
@@ -573,12 +610,12 @@ const uploadStudentContract = async (uploadFile: UploadFile, type: 'contract' | 
     const activeAddendumId = type === 'addendum' ? activeAddendum.value!.id : null;
     await uploadContractFile('student', activeContract.value.id, activeAddendumId, uploadFile.raw!).then(res => {
       if (res && res.success) {
-        ElMessage.success(res.message || `${type === 'addendum' ? '合約附約' : '合約'}已上傳`);
+        ElMessage.success(res.message || t(type === 'addendum' ? 'studentAdmin.addendum.uploadSuccess' : 'studentAdmin.contractUploadSuccess'));
         emit('updateContent', 'contract')
       }
     }).catch(err => {
       console.log(err)
-      ElMessage.error(getApiErrorMessage(err, `${type === 'addendum' ? '合約附約' : '合約'}上傳失敗`));
+      ElMessage.error(getApiErrorMessage(err, t(type === 'addendum' ? 'studentAdmin.addendum.uploadFailed' : 'studentAdmin.contractUploadFailed')));
     }).finally(() => {
       if (type === 'addendum') {
         uploadAddendumRef.value?.clearFiles();
@@ -591,7 +628,7 @@ const uploadStudentContract = async (uploadFile: UploadFile, type: 'contract' | 
     })
   } catch(err) {
     console.log(err)
-    ElMessage.error(getApiErrorMessage(err, `${type === 'addendum' ? '合約附約' : '合約'}上傳失敗`));
+    ElMessage.error(getApiErrorMessage(err, t(type === 'addendum' ? 'studentAdmin.addendum.uploadFailed' : 'studentAdmin.contractUploadFailed')));
     if (type === 'addendum') {
       uploadAddendumRef.value?.clearFiles();
       addendumFileList.value = [];
@@ -607,22 +644,22 @@ const handleDeleteContractDetail = async (id: string) => {
   if (!activeContract.value) return;
   try {
     ElMessageBox.confirm(
-      '確定要刪除此合約明細嗎？',
-      '刪除合約明細',
+      t('studentAdmin.deleteContractDetailConfirm'),
+      t('studentAdmin.deleteContractDetailTitle'),
       {
-        confirmButtonText: '確定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     ).then(async () => {
-      const res = assertApiSuccess(await deleteContractDetail(activeContract.value!.id, id), '刪除合約明細失敗');
-      ElMessage.success(res.message || '合約明細已刪除');
+      const res = assertApiSuccess(await deleteContractDetail(activeContract.value!.id, id), t('studentAdmin.deleteContractDetailFailed'));
+      ElMessage.success(res.message || t('studentAdmin.deleteContractDetailSuccess'));
       // Re-fetch to update used leave counts
       // await loadContent('contracts');
       emit('updateContent', 'contracts')
     })
   } catch(err){
-      ElMessage.error(getApiErrorMessage(err, '刪除合約明細失敗'));
+      ElMessage.error(getApiErrorMessage(err, t('studentAdmin.deleteContractDetailFailed')));
   }
 }
 
@@ -630,22 +667,22 @@ const deleteLeave = async (id: string) => {
   if (!activeContract.value) return;
   try {
     ElMessageBox.confirm(
-      '確定要刪除此請假紀錄嗎？',
-      '刪除請假紀錄',
+      t('studentAdmin.deleteLeaveConfirm'),
+      t('studentAdmin.deleteLeaveTitle'),
       {
-        confirmButtonText: '確定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     ).then(async () => {
-      const res = assertApiSuccess(await deleteContractLeaveRecord(activeContract.value!.id, id), '刪除請假紀錄失敗');
-      ElMessage.success(res.message || '請假紀錄已刪除');
+      const res = assertApiSuccess(await deleteContractLeaveRecord(activeContract.value!.id, id), t('studentAdmin.deleteLeaveFailed'));
+      ElMessage.success(res.message || t('studentAdmin.deleteLeaveSuccess'));
       // Re-fetch to update used leave counts
       // await loadContent('contracts');
       emit('updateContent', 'contracts')
     })
   } catch(err){
-      ElMessage.error(getApiErrorMessage(err, '刪除請假紀錄失敗'));
+      ElMessage.error(getApiErrorMessage(err, t('studentAdmin.deleteLeaveFailed')));
   }
 };
 
@@ -656,6 +693,13 @@ const handleViewContract = (row: StudentContract) => {
 
 const formatDateTime = (date: string) => {
   return dayjs(date).format('YYYY-MM-DD HH:mm:ss');
+}
+
+const getDetailTypeLabel = (type: string) => {
+  if (type === 'lesson_price') return t('studentAdmin.detailTypes.lessonPrice');
+  if (type === 'discount') return t('studentAdmin.detailTypes.discount');
+  if (type === 'compensation') return t('studentAdmin.detailTypes.compensation');
+  return type;
 }
 
 watch(activeContract, (newVal: StudentContract | null) => {

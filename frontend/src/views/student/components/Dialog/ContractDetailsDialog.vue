@@ -1,26 +1,31 @@
 <template>
-  <el-dialog v-model="show" title="新增合約明細" width="420px">
+  <el-dialog v-model="show" :title="$t('studentAdmin.contractDetailDialog.title')" width="420px">
     <el-form :model="detailForm" :rules="detailRules" ref="detailFormRef" label-width="120px" label-position="top" @submit.prevent>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="類型" prop="detail_type">
+          <el-form-item :label="$t('common.type')" prop="detail_type">
             <el-select v-model="detailForm.detail_type" class="w-full">
-              <el-option label="課程單價" value="lesson_price"></el-option>
-              <el-option label="優惠折扣" value="discount"></el-option>
-              <el-option label="補償堂數" value="compensation"></el-option>
+              <el-option :label="$t('studentAdmin.detailTypes.lessonPrice')" value="lesson_price"></el-option>
+              <el-option :label="$t('studentAdmin.detailTypes.discount')" value="discount"></el-option>
+              <el-option :label="$t('studentAdmin.detailTypes.compensation')" value="compensation"></el-option>
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="課程" prop="course_id" v-if="detailForm.detail_type === 'lesson_price'">
+          <el-form-item :label="$t('common.course')" prop="course_id" v-if="detailForm.detail_type === 'lesson_price'">
             <el-select v-model="detailForm.course_id" class="w-full" clearable>
-              <el-option v-for="c in detailCourseOptions" :key="c.value" :label="c.label" :value="c.value"></el-option>
+              <el-option
+                v-for="c in detailCourseOptions"
+                :key="c.id"
+                :label="formatCourseOptionLabel(c)"
+                :value="c.id"
+              />
             </el-select>
           </el-form-item>
-          <el-form-item label="堂數" prop="amount" v-else-if="detailForm.detail_type === 'compensation'">
+          <el-form-item :label="$t('studentAdmin.lessons')" prop="amount" v-else-if="detailForm.detail_type === 'compensation'">
             <el-input-number v-model="detailForm.amount" class="w-full"></el-input-number>
           </el-form-item>
-          <el-form-item label="金額" prop="amount" v-else>
+          <el-form-item :label="$t('studentAdmin.amount')" prop="amount" v-else>
             <el-input-number v-model="detailForm.amount" class="w-full">
               <template #prefix>
                 <span class="text-gray-400">NT$</span>
@@ -31,7 +36,7 @@
       </el-row>
       <el-row>
         <el-col :span="12">
-          <el-form-item label="金額" prop="amount" v-if="detailForm.detail_type === 'lesson_price'">
+          <el-form-item :label="$t('studentAdmin.amount')" prop="amount" v-if="detailForm.detail_type === 'lesson_price'">
             <el-input-number v-model="detailForm.amount" class="w-full">
               <template #prefix>
                 <span class="text-gray-400">NT$</span>
@@ -42,23 +47,23 @@
       </el-row>
       <el-row>
         <el-col :span="24">
-          <el-form-item label="說明" prop="description">
+          <el-form-item :label="$t('studentAdmin.description')" prop="description">
             <el-input v-model="detailForm.description" maxlength="100" show-word-limit></el-input>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row>
         <el-col :span="24">
-          <el-form-item label="備註">
+          <el-form-item :label="$t('common.note')">
             <el-input type="textarea" v-model="detailForm.notes"></el-input>
           </el-form-item>
         </el-col>
       </el-row>
     </el-form>
     <template #footer>
-      <el-button round @click="show = false">取消</el-button>
+      <el-button round @click="show = false">{{ $t('common.cancel') }}</el-button>
       <el-button round type="primary" :loading="detailLoading" @click="submitDetailForm">
-        {{ isEdit ? '更新' : '新增' }}
+        {{ isEdit ? $t('common.update') : $t('common.add') }}
       </el-button>
     </template>
   </el-dialog>
@@ -69,6 +74,7 @@ import { createContractDetail, type StudentContractDetailCreate, type CourseOpti
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { ref, computed, reactive, onMounted, watch, type PropType, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps({
     detailVisible: {
@@ -88,6 +94,8 @@ const props = defineProps({
       required: false
     }
 })
+
+const { t } = useI18n();
 
 const detailFormRef = ref<FormInstance>();
 const detailForm = reactive<StudentContractDetailCreate>({
@@ -112,6 +120,10 @@ const show = computed({
 const detailLoading = ref(false);
 const detailCourseOptions = ref<CourseOption[]>([]);
 
+const formatCourseOptionLabel = (course: CourseOption) => {
+  return course.course_code ? `${course.course_code} - ${course.course_name}` : course.course_name;
+};
+
 const submitDetailForm = async () => {
   if (!detailFormRef.value || !props.contractId) return;
   await detailFormRef.value.validate(async valid => {
@@ -123,16 +135,16 @@ const submitDetailForm = async () => {
            payload.course_id = null;
         }
         if (isEdit.value) {
-          const res = assertApiSuccess(await updateContractDetail(props.contractId, props.detailData?.id || '', payload), '更新合約明細失敗');
-          ElMessage.success(res.message || '更新合約明細成功');
+          const res = assertApiSuccess(await updateContractDetail(props.contractId, props.detailData?.id || '', payload), t('studentAdmin.contractDetailDialog.updateFailed'));
+          ElMessage.success(res.message || t('studentAdmin.contractDetailDialog.updateSuccess'));
         } else {
-          const res = assertApiSuccess(await createContractDetail(props.contractId, payload), '新增合約明細失敗');
-          ElMessage.success(res.message || '新增合約明細成功');
+          const res = assertApiSuccess(await createContractDetail(props.contractId, payload), t('studentAdmin.contractDetailDialog.createFailed'));
+          ElMessage.success(res.message || t('studentAdmin.contractDetailDialog.createSuccess'));
         }
         emit('addDetailFinish', props.contractId)
         show.value = false;
       } catch(err) {
-        ElMessage.error(getApiErrorMessage(err, isEdit.value ? '更新合約明細失敗' : '新增合約明細失敗'));
+        ElMessage.error(getApiErrorMessage(err, isEdit.value ? t('studentAdmin.contractDetailDialog.updateFailed') : t('studentAdmin.contractDetailDialog.createFailed')));
       } finally {
         detailLoading.value = false;
         nextTick(() => {
@@ -162,11 +174,11 @@ watch(() => props.detailData, (newVal) => {
 onMounted(async () => {
   if (props.studentId) {
     try {
-      const cRes = assertApiSuccess(await getContractCourseOptions(props.studentId), '載入課程選單失敗');
+      const cRes = assertApiSuccess(await getContractCourseOptions(props.studentId), t('studentAdmin.loadCourseOptionsFailed'));
       detailCourseOptions.value = cRes.data || [];
     } catch(err) {
       console.error(err);
-      ElMessage.error(getApiErrorMessage(err, '載入課程選單失敗'));
+      ElMessage.error(getApiErrorMessage(err, t('studentAdmin.loadCourseOptionsFailed')));
     }
   }
 })

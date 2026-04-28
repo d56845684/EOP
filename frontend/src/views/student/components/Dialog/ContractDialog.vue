@@ -5,41 +5,45 @@
       :column="4"
       border
     >
-      <el-descriptions-item label="合約編號" :span="2">{{ contract?.contract_no }}</el-descriptions-item>
-      <el-descriptions-item label="起迄時間" :span="2">{{ contract?.start_date }} - {{ contract?.end_date }}</el-descriptions-item>
-      <el-descriptions-item label="合約狀態">
+      <el-descriptions-item :label="$t('contract.contractNo')" :span="2">{{ contract?.contract_no }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('myContracts.colPeriod')" :span="2">{{ contract?.start_date }} - {{ contract?.end_date }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('contract.contractStatus')">
         <div class="text-sm">
           {{ formatStudentContractStatusLabel(contract?.contract_status, contract?.contract_status ?? '-', t) }}
         </div>
       </el-descriptions-item>
-      <el-descriptions-item label="合約總金額" :span="3">NT$ {{ contract?.total_amount }}</el-descriptions-item>
-      <el-descriptions-item label="總堂數">
+      <el-descriptions-item :label="$t('contract.contractTotalAmount')" :span="3">NT$ {{ contract?.total_amount }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('contract.contractTotalLessons')">
         <div class="text-sm">{{ contract?.total_lessons }}</div>
       </el-descriptions-item>
-      <el-descriptions-item label="可請假次數">{{ contract?.total_leave_allowed }}</el-descriptions-item>
-      <el-descriptions-item label="已請假次數">{{ contract?.used_leave_count }}</el-descriptions-item>
-      <el-descriptions-item label="剩餘堂數">{{ contract?.remaining_lessons }}</el-descriptions-item>
-      <el-descriptions-item label="備註" :span="4">{{ contract?.notes || '無' }}</el-descriptions-item>
-      <el-descriptions-item label="合約明細" :span="4">
+      <el-descriptions-item :label="$t('studentAdmin.totalLeaveAllowed')">{{ contract?.total_leave_allowed }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('myContracts.usedLeaveCount')">{{ contract?.used_leave_count }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('myContracts.remainingLessons')">{{ contract?.remaining_lessons }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('common.note')" :span="4">{{ contract?.notes || $t('studentAdmin.none') }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('contract.contractDetails')" :span="4">
         <el-table :data="contract?.details" size="small">
-          <el-table-column prop="detail_type" label="類型">
+          <el-table-column prop="detail_type" :label="$t('common.type')">
             <template #default="scope">
-              {{ scope.row.detail_type === 'lesson_price' ? '課程單價' : scope.row.detail_type === 'discount' ? '優惠折扣' : '補償堂數' }}
+              {{ getDetailTypeLabel(scope.row.detail_type) }}
             </template>
           </el-table-column>
           <el-table-column
             prop="amount"
-            label="金額/堂數"
+            :label="$t('myContracts.detailAmount')"
             width="120"
             :formatter="(
               row: { detail_type: string; amount: string; }) => 
                 row.detail_type !== 'compensation' ? 
                   'NT$ ' + row.amount : 
-                  row.amount + ' 堂'
+                  row.amount + ' ' + $t('studentAdmin.lessonsUnit')
             "
           />
-          <el-table-column prop="description" label="說明" />
-          <el-table-column prop="notes" label="備註" />
+          <el-table-column :label="$t('studentAdmin.description')">
+            <template #default="{ row }">
+              {{ row.detail_type === 'lesson_price' ? (row.course_name || '-') : (row.description || '-') }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="notes" :label="$t('common.note')" />
         </el-table>
       </el-descriptions-item>
   </el-descriptions>
@@ -86,6 +90,13 @@ const emit = defineEmits(['update:contractDialogVisible'])
 
 const closeDialog = () => {
   emit('update:contractDialogVisible', false)
+}
+
+const getDetailTypeLabel = (type: string) => {
+  if (type === 'lesson_price') return t('studentAdmin.detailTypes.lessonPrice');
+  if (type === 'discount') return t('studentAdmin.detailTypes.discount');
+  if (type === 'compensation') return t('studentAdmin.detailTypes.compensation');
+  return type;
 }
 
 </script>
