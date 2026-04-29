@@ -9,7 +9,7 @@
             <div class="flex items-center gap-4 mb-6">
               <div class="relative group w-20 h-20 flex-shrink-0">
                 <el-image
-                  :src="avatarUrl || uploadAvatar.url || ''"
+                  :src="uploadAvatar.url || avatarUrl || ''"
                   fit="cover"
                   class="w-20 h-20 rounded-full border-2 border-[#e4e6ef] object-cover"
                 >
@@ -20,6 +20,8 @@
                   </template>
                 </el-image>
                 <el-upload
+                  ref="avatarUploadRef"
+                  v-model:file-list="avatarFileList"
                   class="absolute inset-0 rounded-full overflow-hidden"
                   action="#"
                   :limit="1"
@@ -28,6 +30,7 @@
                   :auto-upload="false"
                   :show-file-list="false"
                   :on-change="handleUploadAvatar"
+                  :on-exceed="handleAvatarExceed"
                 >
                   <div
                     class="w-20 h-20 rounded-full flex flex-col items-center justify-center
@@ -85,56 +88,58 @@
         </el-form-item>
       </el-form>
 
-      <!-- Teacher Details ---------------------------------------------- -->
-      <el-divider content-position="left" class="mt-8 mb-2">
-        <span class="text-13px color-[#1d2d44]">{{ $t('teacherDetailDrawer.relatedInfo') }}</span>
-      </el-divider>
-      <div class="flex justify-end">
-        <el-button type="primary" round text size="small" class="mb-2" @click="openDetailDialog()">
-          <template #icon><div class="i-hugeicons:add-square" /></template>
-          {{ $t('teacherDetailDrawer.addInfo') }}
-        </el-button>
-      </div>
-
-      <!-- Detail list -->
-      <div class="mb-2 flex flex-col gap-2">
-        <div
-          v-for="item in teacherDetails"
-          :key="item.id"
-          class="flex items-start justify-between px-3 py-2 rounded-lg border border-[#ebedf3] bg-white hover:bg-[#f8f9fb] transition-colors"
-        >
-          <!-- Left -->
-          <div class="flex flex-col gap-0.5 min-w-0 mr-3">
-            <div class="flex items-center gap-1.5 mb-0.5">
-              <el-tag size="small" :type="detailTagType(item.detail_type)" class="text-10px px-5px h-16px!">
-                {{ DETAIL_TYPE_MAP[item.detail_type] || item.detail_type }}
-              </el-tag>
-            </div>
-            <span class="text-13px text-[#3f4254cc]">{{ item.content || '-' }}</span>
-            <div class="flex gap-3 mt-0.5">
-              <span v-if="item.issue_date" class="text-11px color-gray-400">{{ $t('teacherDetailDrawer.issuedAt') }}：{{ item.issue_date }}</span>
-              <span v-if="item.expiry_date" class="text-11px color-gray-400">{{ $t('teacherDetailDrawer.expiresAt') }}：{{ item.expiry_date }}</span>
-            </div>
-            <div v-if="item.file_name" class="text-11px color-[#626aef] mt-0.5 flex items-center gap-1">
-              <div class="i-hugeicons:file-02" />{{ item.file_name }}
-            </div>
-          </div>
-          <!-- Right -->
-          <div class="flex items-center gap-1 flex-shrink-0">
-            <el-tooltip :content="$t('common.edit')" effect="dark">
-              <el-button link type="primary" @click="openDetailDialog(item)">
-                <div class="i-hugeicons:edit-02" />
-              </el-button>
-            </el-tooltip>
-            <el-tooltip :content="$t('common.delete')" effect="dark">
-              <el-button link type="danger" @click="handleDeleteDetail(item.id)">
-                <div class="i-hugeicons:delete-02" />
-              </el-button>
-            </el-tooltip>
-          </div>
+      <template v-if="isEdit">
+        <!-- Teacher Details ---------------------------------------------- -->
+        <el-divider content-position="left" class="mt-8 mb-2">
+          <span class="text-13px color-[#1d2d44]">{{ $t('teacherDetailDrawer.relatedInfo') }}</span>
+        </el-divider>
+        <div class="flex justify-end">
+          <el-button type="primary" round text size="small" class="mb-2" @click="openDetailDialog()">
+            <template #icon><div class="i-hugeicons:add-square" /></template>
+            {{ $t('teacherDetailDrawer.addInfo') }}
+          </el-button>
         </div>
-        <div v-if="!teacherDetails.length" class="text-center text-12px color-gray-400 py-4">{{ $t('teacherDetailDrawer.noDetails') }}</div>
-      </div>
+
+        <!-- Detail list -->
+        <div class="mb-2 flex flex-col gap-2">
+          <div
+            v-for="item in teacherDetails"
+            :key="item.id"
+            class="flex items-start justify-between px-3 py-2 rounded-lg border border-[#ebedf3] bg-white hover:bg-[#f8f9fb] transition-colors"
+          >
+            <!-- Left -->
+            <div class="flex flex-col gap-0.5 min-w-0 mr-3">
+              <div class="flex items-center gap-1.5 mb-0.5">
+                <el-tag size="small" :type="detailTagType(item.detail_type)" class="text-10px px-5px h-16px!">
+                  {{ DETAIL_TYPE_MAP[item.detail_type] || item.detail_type }}
+                </el-tag>
+              </div>
+              <span class="text-13px text-[#3f4254cc]">{{ item.content || '-' }}</span>
+              <div class="flex gap-3 mt-0.5">
+                <span v-if="item.issue_date" class="text-11px color-gray-400">{{ $t('teacherDetailDrawer.issuedAt') }}：{{ item.issue_date }}</span>
+                <span v-if="item.expiry_date" class="text-11px color-gray-400">{{ $t('teacherDetailDrawer.expiresAt') }}：{{ item.expiry_date }}</span>
+              </div>
+              <div v-if="item.file_name" class="text-11px color-[#626aef] mt-0.5 flex items-center gap-1">
+                <div class="i-hugeicons:file-02" />{{ item.file_name }}
+              </div>
+            </div>
+            <!-- Right -->
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <el-tooltip :content="$t('common.edit')" effect="dark">
+                <el-button link type="primary" @click="openDetailDialog(item)">
+                  <div class="i-hugeicons:edit-02" />
+                </el-button>
+              </el-tooltip>
+              <el-tooltip :content="$t('common.delete')" effect="dark">
+                <el-button link type="danger" @click="handleDeleteDetail(item.id)">
+                  <div class="i-hugeicons:delete-02" />
+                </el-button>
+              </el-tooltip>
+            </div>
+          </div>
+          <div v-if="!teacherDetails.length" class="text-center text-12px color-gray-400 py-4">{{ $t('teacherDetailDrawer.noDetails') }}</div>
+        </div>
+      </template>
     </div>
   </el-drawer>
 
@@ -245,7 +250,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadInstance, type UploadUserFile } from 'element-plus';
 import { getTeacherById, createTeacher, updateTeacher, type TeacherCreate, type TeacherUpdate } from '@/api/teacher';
 import {
   getTeacherDetails,
@@ -294,6 +299,8 @@ const loading = ref(false);
 const saving = ref(false);
 const uploadingAvatar = ref(false);
 const avatarUrl = ref<string | null>(null);
+const avatarUploadRef = ref<UploadInstance>();
+const avatarFileList = ref<UploadUserFile[]>([]);
 
 const drawerTitle = computed(() => {
   if (!isEdit.value) return t('teacherDetailDrawer.createTitle');
@@ -473,7 +480,7 @@ const fetchData = async () => {
 };
 
 const uploadAvatar = ref({
-  file: null,
+  file: null as any,
   url: '',
 })
 
@@ -489,6 +496,10 @@ const handleUploadAvatar = (uploadFile: any) => {
     handleAvatarChange(uploadFile);
   }
 }
+
+const handleAvatarExceed = () => {
+  avatarUploadRef.value?.clearFiles();
+};
 
 const handleAvatarChange = async (uploadFile: any, teacherId?: string) => {
   const tId = props.teacherId || teacherId;
@@ -507,6 +518,8 @@ const handleAvatarChange = async (uploadFile: any, teacherId?: string) => {
     ElMessage.error(getApiErrorMessage(e, t('teacherDetailDrawer.avatarUploadFailed')));
   } finally {
     uploadingAvatar.value = false;
+    avatarFileList.value = [];
+    avatarUploadRef.value?.clearFiles();
   }
 };
 
@@ -521,22 +534,17 @@ const saveBasicInfo = async () => {
           const res = assertApiSuccess(await updateTeacher(tId, basicForm), t('teacherDetailDrawer.saveFailed'));
           ElMessage.success(res.message || t('teacherDetailDrawer.basicSaved'));
         } else {
-          try {
-            let teacherId: string;
-            const { teacher_no: _teacherNo, ...createPayload } = basicForm;
-            const res = assertApiSuccess(await createTeacher(createPayload as TeacherCreate), t('teacherDetailDrawer.createdFailed'));
-            ElMessage.success(res.message || t('teacherDetailDrawer.basicCreated'));
-            teacherId = res.data.id;
-            if (uploadAvatar.value.file) {
-              handleAvatarChange(uploadAvatar.value.file, teacherId);
-            }
-          } catch (error) {
-            ElMessage.error(getApiErrorMessage(error, t('teacherDetailDrawer.createdFailed')));
+          const { teacher_no: _teacherNo, ...createPayload } = basicForm;
+          const res = assertApiSuccess(await createTeacher(createPayload as TeacherCreate), t('teacherDetailDrawer.createdFailed'));
+          ElMessage.success(res.message || t('teacherDetailDrawer.basicCreated'));
+          if (uploadAvatar.value.file) {
+            await handleAvatarChange(uploadAvatar.value.file, res.data.id);
           }
+          isVisible.value = false;
         }
         emit('saved');
       } catch (e) {
-        ElMessage.error(getApiErrorMessage(e, t('teacherDetailDrawer.saveFailed')));
+        ElMessage.error(getApiErrorMessage(e, isEdit.value ? t('teacherDetailDrawer.saveFailed') : t('teacherDetailDrawer.createdFailed')));
       } finally {
         saving.value = false;
       }
@@ -547,6 +555,18 @@ const saveBasicInfo = async () => {
 const handleClosed = () => {
   avatarUrl.value = null;
   teacherDetails.value = [];
+  uploadAvatar.value.file = null;
+  uploadAvatar.value.url = '';
+  avatarFileList.value = [];
+  avatarUploadRef.value?.clearFiles();
+  basicFormRef.value?.resetFields();
+  basicForm.teacher_no = '';
+  basicForm.name = '';
+  basicForm.email = '';
+  basicForm.phone = '';
+  basicForm.address = '';
+  basicForm.bio = '';
+  basicForm.teacher_level = 1;
 };
 
 watch(() => props.modelValue, (val) => {
