@@ -124,7 +124,7 @@
           <!-- Tab 2: Settings -->
           <el-tab-pane 
             v-if="hasPermission('students.edit') && hasPermission('students.contracts')" 
-            label="偏好設定" 
+            :label="$t('studentAdmin.preferenceSetting')" 
             :name="tabType.SETTINGS"
           >
             <Settings 
@@ -163,10 +163,10 @@
           @openAddContractDialog="openConvertToFormalDialog(currentStudent as StudentResponse)"
         />
         <div v-else class="skeleton-content">
-          <p class="text-[#909399]" v-if="!contractLoading">目前無合約紀錄</p>
+          <p class="text-[#909399]" v-if="!contractLoading">{{ $t('studentAdmin.noContractRecords') }}</p>
           <el-button v-if="hasPermission('contracts.create')" type="primary" @click="openConvertToFormalDialog(currentStudent as StudentResponse)">
             <template #icon><div class="i-hugeicons:add-square" /></template>
-            新增合約
+            {{ $t('contract.addContract') }}
           </el-button>
         </div>
       </template>
@@ -297,9 +297,10 @@ const form = reactive<StudentUpdate>({
 });
 
 const rules = reactive<FormRules>({
-  name: [{ required: true, message: 'Name is required' }],
-  email: [{ required: true, message: 'Email is required', type: 'email' }],
-  birth_date: [{ required: true, message: 'Birth Date is required' }],
+  name: [{ required: true, message: t('studentAdmin.validation.nameRequired') }],
+  eng_name: [{ required: true, message: t('studentAdmin.validation.engNameRequired') }],
+  phone: [{ required: true, message: t('studentAdmin.validation.phoneRequired') }],
+  email: [{ required: true, message: t('studentAdmin.validation.emailRequired'), type: 'email' }],
 });
 
 const basicLoading = ref(false);
@@ -341,12 +342,12 @@ const fetchData = async () => {
     if (params.has_active_contract === OPTION_MAP.ALL) delete params.has_active_contract;
     if (params.role === OPTION_MAP.ALL) delete params.role;
     
-    const res = assertApiSuccess(await getStudentOverviewList(params), '獲取學生列表失敗');
+    const res = assertApiSuccess(await getStudentOverviewList(params), t('studentAdmin.loadStudentListFailed'));
     studentList.value = res.data || [];
     total.value = res.total || 0;
   } catch (err) {
     console.error(err);
-    ElMessage.error(getApiErrorMessage(err, '獲取學生列表失敗'));
+    ElMessage.error(getApiErrorMessage(err, t('studentAdmin.loadStudentListFailed')));
   } finally {
     loading.value = false;
   }
@@ -366,14 +367,14 @@ const resetQuery = () => {
 };
 
 const copyEmail = (email: string) => {
-  copyToClipboardUtil(email, 'Email 已複製');
+  copyToClipboardUtil(email, t('studentAdmin.emailCopied'));
 };
 
 const handleVerify = async (row: StudentOverviewListResponse) => {
   try {
     const res = await generateInviteLinkApi({ entity_type: 'student', entity_id: row.id });
     if (res.success === false && res.error_code) {
-      ElMessage.error('此Email已有登入帳號');
+      ElMessage.error(t('studentAdmin.duplicateEmail'));
       return;
     }
     inviteUrl.value = res.invite_url || '';
@@ -382,22 +383,22 @@ const handleVerify = async (row: StudentOverviewListResponse) => {
   } catch (err:any) {
     console.error(err);
     if (err.success === false && err.error_code) {
-      ElMessage.error('此Email已有登入帳號');
+      ElMessage.error(t('studentAdmin.duplicateEmail'));
       return;
     } else {
-      ElMessage.error('操作失敗');
+      ElMessage.error(t('common.operationFailed'));
     }
   }
 }
 
 const handleStatusChange = async (row: StudentOverviewListResponse) => {
-  const status = row.is_active ? '啟用' : '停用';
+  const status = row.is_active ? t('common.active') : t('common.inactive');
   try {
-    const res = assertApiSuccess(await updateStudent(row.id, { is_active: row.is_active }), `${status}學生狀態失敗`);
-    ElMessage.success(res.message || `${status}學生狀態成功`);
+    const res = assertApiSuccess(await updateStudent(row.id, { is_active: row.is_active }), t('studentAdmin.updateStatusFailed', { status }));
+    ElMessage.success(res.message || t('studentAdmin.updateStatusSuccess', { status }));
   } catch (err) {
     console.error(err);
-    ElMessage.error(getApiErrorMessage(err, `${status}學生狀態失敗`));
+    ElMessage.error(getApiErrorMessage(err, t('studentAdmin.updateStatusFailed', { status })));
   } finally {
     fetchData();
   }
@@ -424,13 +425,13 @@ const openDrawer = async (row: StudentOverviewListResponse | null, type: string)
 const handleCreateStudent = async (data: StudentCreate) => {
   saving.value = true;
   try {
-    const res = assertApiSuccess(await createStudent(data), '新增學生操作失敗');
-    ElMessage.success(res.message || '新增學生操作成功');
+    const res = assertApiSuccess(await createStudent(data), t('studentAdmin.createStudentFailed'));
+    ElMessage.success(res.message || t('studentAdmin.createStudentSuccess'));
     drawerVisible.value = false;
     fetchData();
   } catch (err: any) {
     console.error(err);
-    ElMessage.error(getApiErrorMessage(err, '新增學生操作失敗'));
+    ElMessage.error(getApiErrorMessage(err, t('studentAdmin.createStudentFailed')));
   } finally {
     saving.value = false;
   }
@@ -440,12 +441,12 @@ const handleSaveBasicInfo = async () => {
   if (!currentStudent.value.id) return;
   saving.value = true;
   try {
-    const res = assertApiSuccess(await updateStudent(currentStudent.value.id!, form), '更新學生資料失敗');
-    ElMessage.success(res.message || '更新學生資料成功');
+    const res = assertApiSuccess(await updateStudent(currentStudent.value.id!, form), t('studentAdmin.updateStudentFailed'));
+    ElMessage.success(res.message || t('studentAdmin.updateStudentSuccess'));
     fetchData();
   } catch (err) {
     console.error(err);
-    ElMessage.error(getApiErrorMessage(err, '更新學生資料失敗'));
+    ElMessage.error(getApiErrorMessage(err, t('studentAdmin.updateStudentFailed')));
   } finally {
     saving.value = false;
   }
@@ -454,7 +455,7 @@ const handleSaveBasicInfo = async () => {
 const handleDelete = (row: StudentResponse) => {
   ElMessageBox.confirm(
     t('common.deleteConfirm', { name: `${row.student_no}-${row.name}` }),
-    '警告',
+    t('studentAdmin.warning'),
     {
       confirmButtonText: t('common.delete'),
       cancelButtonText: t('common.cancel'),
@@ -465,12 +466,12 @@ const handleDelete = (row: StudentResponse) => {
     }
   ).then(async () => {
     try {
-      const res = assertApiSuccess(await deleteStudent(row.id), '刪除操作失敗');
-      ElMessage.success(res.message || '刪除操作成功');
+      const res = assertApiSuccess(await deleteStudent(row.id), t('common.deleteFailed'));
+      ElMessage.success(res.message || t('common.deleteSuccess'));
       fetchData();
     } catch (err) {
       console.error(err);
-      ElMessage.error(getApiErrorMessage(err, '刪除操作失敗'));
+      ElMessage.error(getApiErrorMessage(err, t('common.deleteFailed')));
     }
   }).catch(() => {});
 };
@@ -514,7 +515,7 @@ const loadBasicInfo = async () => {
   if (!currentStudent.value?.id) return;
   basicLoading.value = true;
   try {
-    const res = assertApiSuccess(await getStudentView(currentStudent.value.id), '載入基本資料失敗');
+    const res = assertApiSuccess(await getStudentView(currentStudent.value.id), t('studentAdmin.loadBasicInfoFailed'));
     studentView.value = res.data;
     Object.assign(form, {
       name: studentView.value?.student?.name,
@@ -526,7 +527,7 @@ const loadBasicInfo = async () => {
     });
   } catch (err) {
     console.error(err);
-    ElMessage.error(getApiErrorMessage(err, '載入基本資料失敗'));
+    ElMessage.error(getApiErrorMessage(err, t('studentAdmin.loadBasicInfoFailed')));
   } finally {
     basicLoading.value = false;
   }
@@ -536,7 +537,7 @@ const loadContract = async () => {
   if (!currentStudent.value?.id) return;
   contractLoading.value = true;
   try {
-    const res = assertApiSuccess(await getStudentContracts({ student_id: currentStudent.value.id }), '載入合約失敗');
+    const res = assertApiSuccess(await getStudentContracts({ student_id: currentStudent.value.id }), t('studentAdmin.loadContractsFailed'));
     const fetchedContracts = res.data || [];
     if (fetchedContracts.length > 0) {
       contracts.value = fetchedContracts;
@@ -546,7 +547,7 @@ const loadContract = async () => {
     }
   } catch (err) {
     console.error(err);
-    ElMessage.error(getApiErrorMessage(err, '載入合約失敗'));
+    ElMessage.error(getApiErrorMessage(err, t('studentAdmin.loadContractsFailed')));
   } finally {
     contractLoading.value = false;
   }
@@ -556,7 +557,7 @@ const loadBookingList = async () => {
   if (!currentStudent.value?.id) return;
   bookingLoading.value = true;
   try {
-    const res = assertApiSuccess(await getBookingList({ student_id: currentStudent.value.id }), '載入預約失敗');
+    const res = assertApiSuccess(await getBookingList({ student_id: currentStudent.value.id }), t('studentAdmin.loadBookingsFailed'));
     const bookings = res.data || [];
     if (bookings.length > 0) {
       booking.value = bookings[0]!;
@@ -566,7 +567,7 @@ const loadBookingList = async () => {
     }
   } catch (err) {
     console.error(err);
-    ElMessage.error(getApiErrorMessage(err, '載入預約失敗'));
+    ElMessage.error(getApiErrorMessage(err, t('studentAdmin.loadBookingsFailed')));
   } finally {
     bookingLoading.value = false;
   }
@@ -581,8 +582,8 @@ const fetchContractDependencies = async (contractId: string) => {
      contractDetails.value = assertApiSuccess(detailsRes).data || [];
      leaveRecords.value = assertApiSuccess(leavesRes).data || [];
   } catch(err) {
-     console.error("載入合約失敗", err);
-     ElMessage.error(getApiErrorMessage(err, '載入合約失敗'));
+     console.error(t('studentAdmin.loadContractsFailed'), err);
+     ElMessage.error(getApiErrorMessage(err, t('studentAdmin.loadContractsFailed')));
   }
 };
 
@@ -602,13 +603,13 @@ const saveContractData = async (data: StudentContractUpdate) => {
      };
      const contractId = contracts.value[0]?.id;
      if (!contractId) throw new Error('Contract ID string is undefined');
-     const res = assertApiSuccess(await updateStudentContract(contractId, payload), '更新合約失敗');
-     ElMessage.success(res.message || '更新合約成功');
+     const res = assertApiSuccess(await updateStudentContract(contractId, payload), t('studentAdmin.updateContractFailed'));
+     ElMessage.success(res.message || t('studentAdmin.updateContractSuccess'));
      
      // Refresh exactly the loaded tab state to see updated leave limits, etc
      await loadContent('contracts');
    } catch(err) {
-     ElMessage.error(getApiErrorMessage(err, '更新合約失敗'));
+     ElMessage.error(getApiErrorMessage(err, t('studentAdmin.updateContractFailed')));
    } finally {
      savingContract.value = false;
    }

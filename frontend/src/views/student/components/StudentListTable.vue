@@ -51,7 +51,7 @@
     </el-table-column>
 
     <!-- Student Status -->
-    <el-table-column prop="student_status" :label="$t('student.status')" min-width="80" align="center">
+    <el-table-column prop="student_status" :label="$t('student.status')" min-width="110" align="center">
       <template #default="{ row }">
         <el-tag size="small" :type="STUDENT_STATUS_TAG_MAP[row.student_status]" class="w-50px min-w-max">
           {{ formatStudentStatusLabel(row.student_status, row.student_status, t) }}
@@ -59,7 +59,7 @@
       </template>
     </el-table-column>
 
-    <el-table-column :label="$t('common.accountVerified')" min-width="100" align="center">
+    <el-table-column :label="$t('common.accountVerified')" min-width="110" align="center">
         <template #default="{ row }">
         <template v-if="row.email_verified_at">
           <el-tag size="small" type="success" effect='plain'>
