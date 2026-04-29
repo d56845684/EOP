@@ -34,6 +34,16 @@ interface ApiErrorRequestTranslationRule {
 
 const API_ERROR_REQUEST_TRANSLATION_RULES: ApiErrorRequestTranslationRule[] = [
   {
+    requestPattern: /\/v1\/teacher-slots$/,
+    errorCode: 'CONFLICT',
+    key: 'apiErrorsByRequest.teacherSlots.CONFLICT',
+  },
+  {
+    requestPattern: /\/v1\/teacher-slots\/batch$/,
+    errorCode: 'CONFLICT',
+    key: 'apiErrorsByRequest.teacherSlots.CONFLICT',
+  },
+  {
     requestPattern: /\/v1\/students\/[^/]+\/convert-to-formal$/,
     errorCode: 'VALIDATION_ERROR',
     key: 'apiErrorsByRequest.studentConvertToFormal.VALIDATION_ERROR',

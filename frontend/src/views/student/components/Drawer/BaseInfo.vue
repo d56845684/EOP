@@ -101,6 +101,7 @@
             class="py-3!"
             @click="handleSaveBasicInfo" 
             :loading="saving" 
+            :disabled="!isFormDirty"
             v-permission="'students.edit'"
           >
             <template #icon>
@@ -115,8 +116,9 @@
 </template>
 
 <script setup lang="ts">
-  import { ref } from 'vue';
+  import { computed, ref, watch } from 'vue';
   import type { FormInstance } from 'element-plus';
+  import { createFormSnapshot } from '@/utils/formDirty';
 
   const props = defineProps({
     form: {
@@ -134,16 +136,30 @@
   });
 
   const formRef = ref<FormInstance>();
+  const formSnapshot = ref('');
   const emit = defineEmits(['saveBasicInfo']);
+
+  const getFormSnapshot = () => createFormSnapshot(props.form);
+  const resetFormSnapshot = () => {
+    formSnapshot.value = getFormSnapshot();
+  };
+  const isFormDirty = computed(() => getFormSnapshot() !== formSnapshot.value);
 
   const handleSaveBasicInfo = async () => {
     if (!formRef.value) return;
     await formRef.value.validate((valid) => {
       if (valid) {
         emit('saveBasicInfo');
+        resetFormSnapshot();
       }
     });
   };
+
+  watch(
+    () => props.form,
+    () => resetFormSnapshot(),
+    { immediate: true, deep: false },
+  );
 </script>
 
 <style lang="scss" scoped>

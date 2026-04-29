@@ -82,7 +82,7 @@
           <el-input v-model="basicForm.bio" type="textarea" :rows="4" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" round size="small" class="h-30px! px-5!" :loading="saving" @click="saveBasicInfo">
+          <el-button type="primary" round size="small" class="h-30px! px-5!" :loading="saving" :disabled="!isBasicFormDirty" @click="saveBasicInfo">
             {{ $t('common.save') }}
           </el-button>
         </el-form-item>
@@ -248,7 +248,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, computed, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadInstance, type UploadUserFile } from 'element-plus';
 import { getTeacherById, createTeacher, updateTeacher, type TeacherCreate, type TeacherUpdate } from '@/api/teacher';
@@ -261,6 +261,7 @@ import {
 } from '@/api/teacherDetails';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { uploadTeacherAvatar, uploadDetailFile } from '@/utils/upload';
+import { createFormSnapshot } from '@/utils/formDirty';
 
 type DetailType = 'qualification' | 'certificate' | 'video' | 'experience';
 const { t } = useI18n();
@@ -301,6 +302,7 @@ const uploadingAvatar = ref(false);
 const avatarUrl = ref<string | null>(null);
 const avatarUploadRef = ref<UploadInstance>();
 const avatarFileList = ref<UploadUserFile[]>([]);
+const basicFormSnapshot = ref('');
 
 const drawerTitle = computed(() => {
   if (!isEdit.value) return t('teacherDetailDrawer.createTitle');
@@ -324,6 +326,22 @@ const basicRules = reactive<FormRules>({
   name: [{ required: true, message: 'Name is required', trigger: 'blur' }],
   email: [{ required: true, message: 'Email is required', trigger: 'blur', type: 'email' }]
 });
+
+const getBasicFormSnapshot = () => createFormSnapshot({
+  name: basicForm.name,
+  email: basicForm.email,
+  phone: basicForm.phone,
+  address: basicForm.address,
+  bio: basicForm.bio,
+  teacher_level: basicForm.teacher_level,
+  avatar_file_name: isEdit.value ? null : uploadAvatar.value.file?.name || null,
+});
+
+const resetBasicFormSnapshot = () => {
+  basicFormSnapshot.value = getBasicFormSnapshot();
+};
+
+const isBasicFormDirty = computed(() => getBasicFormSnapshot() !== basicFormSnapshot.value);
 
 // --- Teacher Details ---
 const teacherDetails = ref<TeacherDetail[]>([]);
@@ -471,6 +489,7 @@ const fetchData = async () => {
       basicForm.bio = target.bio || '';
       basicForm.teacher_level = target.teacher_level;
       avatarUrl.value = target.avatar_url || null;
+      resetBasicFormSnapshot();
     }
   } catch (error) {
     ElMessage.error(getApiErrorMessage(error, t('teacherDetailDrawer.loadTeacherFailed')));
@@ -542,6 +561,7 @@ const saveBasicInfo = async () => {
           }
           isVisible.value = false;
         }
+        resetBasicFormSnapshot();
         emit('saved');
       } catch (e) {
         ElMessage.error(getApiErrorMessage(e, isEdit.value ? t('teacherDetailDrawer.saveFailed') : t('teacherDetailDrawer.createdFailed')));
@@ -558,6 +578,7 @@ const handleClosed = () => {
   uploadAvatar.value.file = null;
   uploadAvatar.value.url = '';
   avatarFileList.value = [];
+  basicFormSnapshot.value = '';
   avatarUploadRef.value?.clearFiles();
   basicFormRef.value?.resetFields();
   basicForm.teacher_no = '';
@@ -572,6 +593,8 @@ const handleClosed = () => {
 watch(() => props.modelValue, (val) => {
   if (val && props.teacherId) {
     fetchData();
+  } else if (val) {
+    nextTick(resetBasicFormSnapshot);
   }
 });
 </script>

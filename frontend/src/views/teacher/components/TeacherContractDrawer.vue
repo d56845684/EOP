@@ -179,7 +179,7 @@
         </el-row>
         <el-row class="mt-2 mb-10">
           <el-col :span="12">
-            <el-button type="primary" round size="small" class="py-3!" :loading="savingContract" @click="saveContract">
+            <el-button type="primary" round size="small" class="py-3!" :loading="savingContract" :disabled="!isContractFormDirty" @click="saveContract">
               <template #icon>
                 <div class="i-hugeicons:floppy-disk text-lg" />
               </template>
@@ -539,6 +539,7 @@ import {
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { formatTeacherContractStatusLabel, getTeacherContractStatusOptions } from '@/utils/i18n-formatters';
 import { uploadContractFile } from '@/utils/upload';
+import { createFormSnapshot } from '@/utils/formDirty';
 import { useI18n } from 'vue-i18n';
 // import { triggerDownload, getFileNameFromResponse } from '@/utils/download';
 
@@ -578,6 +579,7 @@ const drawerTitle = computed(() => {
 });
 
 const contractDates = ref<[string, string] | null>(null);
+const contractFormSnapshot = ref('');
 
 const contractForm = reactive({
   contract_status: 'pending' as any,
@@ -591,6 +593,22 @@ const contractRules = reactive<FormRules>({
   contract_status: [{ required: true, message: 'Status is required' }],
   employment_type: [{ required: true, message: 'Employment type is required' }]
 });
+
+const getContractFormSnapshot = () => createFormSnapshot({
+  contract_status: contractForm.contract_status,
+  employment_type: contractForm.employment_type,
+  trial_completed_bonus: contractForm.trial_completed_bonus,
+  trial_to_formal_bonus: contractForm.trial_to_formal_bonus,
+  notes: contractForm.notes,
+  contractDates: contractDates.value,
+  groupedSchedules: groupedSchedules.value,
+});
+
+const resetContractFormSnapshot = () => {
+  contractFormSnapshot.value = getContractFormSnapshot();
+};
+
+const isContractFormDirty = computed(() => getContractFormSnapshot() !== contractFormSnapshot.value);
 
 const teacherContractStatusOptions = computed(() => getTeacherContractStatusOptions(t));
 
@@ -740,6 +758,7 @@ const loadContracts = async () => {
     } else {
       resetCurrentContract();
     }
+    resetContractFormSnapshot();
   } catch (error) {
     contracts.value = [];
     resetCurrentContract();
@@ -808,6 +827,7 @@ const saveContract = async () => {
             await saveSchedules();
           }
           await loadContracts();
+          resetContractFormSnapshot();
           emit('saved');
         } else {
           payload.teacher_id = tId;
@@ -820,6 +840,7 @@ const saveContract = async () => {
             await saveSchedules();
           }
           await loadContracts(); // Reload to get contract ID
+          resetContractFormSnapshot();
           emit('saved');
         }
       } catch (e) {
@@ -1095,6 +1116,7 @@ const handleClosed = () => {
   selectedHistoryContract.value = null;
   historyContractDialogVisible.value = false;
   resetCurrentContract();
+  contractFormSnapshot.value = '';
 };
 
 watch(() => props.modelValue, (val) => {

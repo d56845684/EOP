@@ -5,19 +5,19 @@
         <h2>{{ $t('teacherSchedule.title') }}</h2>
       </div>
       <div class="header-actions">
-        <el-button type="danger" size="small" round plain class="h-30px px-2" @click="openBatchDialog('delete')">
+        <el-button type="danger" size="small" round plain class="h-30px px-2" :disabled="!canManageSlots" @click="openBatchDialog('delete')">
           <template #icon><div class="i-hugeicons:delete-02" /></template>
           {{ $t('teacherSchedulePortal.batchDelete') }}
         </el-button>
-        <el-button type="warning" size="small" round plain class="h-30px px-2" @click="openBatchDialog('update')">
+        <el-button type="warning" size="small" round plain class="h-30px px-2" :disabled="!canManageSlots" @click="openBatchDialog('update')">
           <template #icon><div class="i-hugeicons:edit-02" /></template>
           {{ $t('teacherSchedulePortal.batchUpdate') }}
         </el-button>
-        <el-button type="success" size="small" round plain class="h-30px px-2" @click="openBatchCreateDialog">
+        <el-button type="success" size="small" round plain class="h-30px px-2" :disabled="!canManageSlots" @click="openBatchCreateDialog">
           <template #icon><div class="i-hugeicons:layers-01" /></template>
           {{ $t('teacherSchedulePortal.batchCreate') }}
         </el-button>
-        <el-button type="primary" size="small" round class="h-30px px-2" @click="openCreateDialog()">
+        <el-button type="primary" size="small" round class="h-30px px-2" :disabled="!canManageSlots" @click="openCreateDialog()">
           <template #icon><div class="i-hugeicons:plus-sign-square" /></template>
           {{ $t('teacherSchedule.addTimeBtn') }}
         </el-button>
@@ -97,7 +97,7 @@
         </div>
       </template>
 
-      <div v-loading="loading" class="qcalendar-shell">
+      <div v-loading="loading || contractLoading" class="qcalendar-shell">
         <QCalendarMonth
           v-if="calendarView === 'month'"
           v-model="calendarDate"
@@ -122,6 +122,7 @@
                 class="qcal-event"
                 :class="event.status"
                 type="button"
+                :disabled="!canManageSlots"
                 @click.stop="openEditDialog(event.slot)"
               >
                 <span class="qcal-event-time">{{ event.timeLabel }}</span>
@@ -134,6 +135,7 @@
                 v-if="getCalendarEventsByDate(scope.timestamp.date).length > 3"
                 class="qcal-more"
                 type="button"
+                :disabled="!canManageSlots"
                 @click.stop="handleDateClick(scope.timestamp.date)"
               >
                 +{{ getCalendarEventsByDate(scope.timestamp.date).length - 3 }} {{ $t('common.more') }}
@@ -176,6 +178,7 @@
                 class="agenda-event"
                 :class="event.status"
                 type="button"
+                :disabled="!canManageSlots"
                 @click.stop="openEditDialog(event.slot)"
               >
                 <span class="agenda-event-time">{{ event.timeLabel }}</span>
@@ -184,12 +187,10 @@
                     <span class="agenda-event-marker" />
                     {{ event.title }}
                   </strong>
-                  <small v-if="event.slot.teacher_contract_no">{{ event.slot.teacher_contract_no }}</small>
-                  <small v-if="event.slot.notes">{{ event.slot.notes }}</small>
                 </span>
               </button>
               <button
-                v-if="getCalendarEventsByDate(scope.timestamp.date).length === 0"
+                v-if="getCalendarEventsByDate(scope.timestamp.date).length === 0 && canCreateSlotOnDate(scope.timestamp.date)"
                 class="agenda-empty"
                 type="button"
                 @click.stop="openCreateDialog(scope.timestamp.date)"
@@ -212,7 +213,7 @@
       size="420px"
     >
       <div class="drawer-actions">
-        <el-button type="primary" size="small" @click="openCreateDialog(selectedDate)">
+        <el-button v-if="canCreateSlotOnDate(selectedDate)" type="primary" size="small" @click="openCreateDialog(selectedDate)">
           <template #icon><div class="i-hugeicons:plus-sign-square" /></template>
           {{ $t('teacherSchedulePortal.addDailySlot') }}
         </el-button>
@@ -234,12 +235,12 @@
             <p v-if="slot.notes" class="slot-notes">{{ slot.notes }}</p>
           </div>
           <div class="slot-actions">
-            <el-button link type="primary" size="small" @click="openEditDialog(slot)">{{ $t('common.edit') }}</el-button>
+            <el-button link type="primary" size="small" :disabled="!canManageSlots" @click="openEditDialog(slot)">{{ $t('common.edit') }}</el-button>
             <el-button
               link
               type="danger"
               size="small"
-              :disabled="slot.is_booked"
+              :disabled="slot.is_booked || !canManageSlots"
               @click="handleDelete(slot)"
             >
               {{ $t('common.delete') }}
@@ -357,7 +358,7 @@
 
       <template #footer>
         <el-button @click="slotDialogVisible = false">{{ $t('teacherSchedule.cancelBtn') }}</el-button>
-        <el-button type="primary" :loading="saving" @click="saveSlot">
+        <el-button type="primary" :loading="saving" :disabled="!canManageSlots" @click="saveSlot">
           {{ $t('teacherSchedule.saveBtn') }}
         </el-button>
       </template>
@@ -485,6 +486,7 @@
         <el-button
           :type="batchMode === 'delete' ? 'danger' : 'primary'"
           :loading="batchSaving"
+          :disabled="!canManageSlots"
           @click="submitBatchAction"
         >
           {{ batchMode === 'delete' ? $t('teacherSchedulePortal.batchDelete') : $t('teacherSchedulePortal.batchUpdate') }}
@@ -508,8 +510,10 @@ import {
   batchUpdateTeacherSlots,
   createTeacherSlot,
   deleteTeacherSlot,
+  getMyTeacherContracts,
   getTeacherSlots,
   updateTeacherSlot,
+  type TeacherContractOption,
   type TeacherSlotBatchCreate,
   type TeacherSlotBatchDelete,
   type TeacherSlotBatchUpdate,
@@ -546,8 +550,11 @@ const drawerVisible = ref(false);
 const loading = ref(false);
 const saving = ref(false);
 const batchSaving = ref(false);
+const contractLoading = ref(false);
 
 const slots = ref<TeacherSlotResponse[]>([]);
+const teacherContracts = ref<TeacherContractOption[]>([]);
+const teacherContractAlertShown = ref(false);
 const isDateRangeSyncedToCalendar = ref(true);
 const calendarView = ref<CalendarView>('agenda');
 const qCalendarWeekdays = [1, 2, 3, 4, 5, 6, 0];
@@ -593,6 +600,8 @@ const batchForm = reactive({
 });
 
 const currentTeacherId = computed(() => authStore.userInfo?.teacher_id || '');
+const currentTeacherContractId = computed(() => teacherContracts.value[0]?.id || '');
+const canManageSlots = computed(() => Boolean(currentTeacherId.value && currentTeacherContractId.value));
 
 const weekdayOptions = computed(() => [
   { value: 0, label: t('teacherSchedule.mon') },
@@ -689,7 +698,10 @@ const isEditingBookedSlot = computed(() => Boolean(isEditMode.value && editingSl
 const calendarMonthKey = computed(() => dayjs(currentDate.value).format('YYYY-MM'));
 
 onMounted(async () => {
-  await fetchSlots();
+  await loadMyTeacherContracts();
+  if (canManageSlots.value) {
+    await fetchSlots();
+  }
 });
 
 watch(calendarMonthKey, () => {
@@ -752,6 +764,10 @@ function isWithinScheduleRange(date: dayjs.ConfigType) {
     && !value.isAfter(getScheduleMaxDate(), 'day');
 }
 
+function canCreateSlotOnDate(date: dayjs.ConfigType) {
+  return canManageSlots.value && isWithinScheduleRange(date);
+}
+
 function disabledScheduleRangeDate(time: Date) {
   return !isWithinScheduleRange(time);
 }
@@ -808,7 +824,55 @@ function resolveTeacherId() {
   return currentTeacherId.value;
 }
 
+function resolveTeacherContractId() {
+  return currentTeacherContractId.value;
+}
+
+async function showMissingContractAlert() {
+  if (teacherContractAlertShown.value) return;
+  teacherContractAlertShown.value = true;
+  await ElMessageBox.alert(
+    t('teacherSchedulePortal.missingContractPermission'),
+    t('teacherSchedulePortal.missingContractTitle'),
+    {
+      confirmButtonText: t('common.confirm'),
+      type: 'warning',
+    },
+  );
+}
+
+function ensureTeacherContractAccess() {
+  if (canManageSlots.value) return true;
+  ElMessage.warning(t('teacherSchedulePortal.missingContractPermission'));
+  return false;
+}
+
+async function loadMyTeacherContracts() {
+  contractLoading.value = true;
+  try {
+    const res = assertApiSuccess(await getMyTeacherContracts(), t('teacherSchedulePortal.loadContractsFailed'));
+    teacherContracts.value = res.data || [];
+
+    if (teacherContracts.value.length === 0) {
+      slots.value = [];
+      await showMissingContractAlert();
+    }
+  } catch (error) {
+    console.error(error);
+    teacherContracts.value = [];
+    slots.value = [];
+    ElMessage.error(getApiErrorMessage(error, t('teacherSchedulePortal.loadContractsFailed')));
+  } finally {
+    contractLoading.value = false;
+  }
+}
+
 async function fetchSlots() {
+  if (!canManageSlots.value) {
+    slots.value = [];
+    return;
+  }
+
   const teacherId = resolveTeacherId();
   if (!teacherId) {
     slots.value = [];
@@ -913,6 +977,12 @@ function handleQCalendarDayClick(payload: any) {
 }
 
 function openCreateDialog(date?: string) {
+  if (!ensureTeacherContractAccess()) return;
+  if (date && !isWithinScheduleRange(date)) {
+    ElMessage.warning(t('teacherSchedulePortal.outOfRange'));
+    return;
+  }
+
   const baseDate = clampScheduleDate(date || selectedDate.value || dayjs()).format('YYYY-MM-DD');
   createMode.value = 'single';
   isEditMode.value = false;
@@ -933,6 +1003,8 @@ function openCreateDialog(date?: string) {
 }
 
 function openBatchCreateDialog() {
+  if (!ensureTeacherContractAccess()) return;
+
   const [startDate, endDate] = filters.dateRange?.length === 2
     ? normalizeScheduleRange(filters.dateRange)
     : getDefaultQueryRange(currentDate.value);
@@ -956,6 +1028,8 @@ function openBatchCreateDialog() {
 }
 
 function openEditDialog(slot: TeacherSlotResponse) {
+  if (!ensureTeacherContractAccess()) return;
+
   createMode.value = 'single';
   isEditMode.value = true;
   editingSlot.value = slot;
@@ -975,6 +1049,8 @@ function openEditDialog(slot: TeacherSlotResponse) {
 }
 
 function openBatchDialog(mode: BatchMode) {
+  if (!ensureTeacherContractAccess()) return;
+
   batchMode.value = mode;
   resetBatchForm();
   batchDialogVisible.value = true;
@@ -996,7 +1072,10 @@ function resetBatchForm() {
 }
 
 async function saveSlot() {
+  if (!ensureTeacherContractAccess()) return;
+
   const teacherId = resolveTeacherId();
+  const teacherContractId = resolveTeacherContractId();
   if (!teacherId) {
     ElMessage.warning(t('teacherSchedulePortal.missingTeacherSave'));
     return;
@@ -1013,6 +1092,7 @@ async function saveSlot() {
   try {
     if (isEditMode.value && editingSlot.value) {
       const payload: TeacherSlotUpdate = {
+        teacher_contract_id: teacherContractId,
         is_available: slotForm.isAvailable,
         notes: slotForm.notes,
       };
@@ -1036,6 +1116,7 @@ async function saveSlot() {
 
       const payload: TeacherSlotBatchCreate = {
         teacher_id: teacherId,
+        teacher_contract_id: teacherContractId,
         start_date: slotForm.date,
         end_date: endDate,
         weekdays: [...slotForm.weekdays].sort((a, b) => a - b),
@@ -1049,6 +1130,7 @@ async function saveSlot() {
     } else {
       const payload: TeacherSlotCreate = {
         teacher_id: teacherId,
+        teacher_contract_id: teacherContractId,
         slot_date: slotForm.date,
         start_time: times.start,
         end_time: times.end,
@@ -1072,7 +1154,10 @@ async function saveSlot() {
 }
 
 async function submitBatchAction() {
+  if (!ensureTeacherContractAccess()) return;
+
   const teacherId = resolveTeacherId();
+  const teacherContractId = resolveTeacherContractId();
   if (!teacherId) {
     ElMessage.warning(t('teacherSchedulePortal.missingTeacherBatch'));
     return;
@@ -1118,6 +1203,7 @@ async function submitBatchAction() {
 
       const payload: TeacherSlotBatchDelete = {
         teacher_id: teacherId,
+        teacher_contract_id: teacherContractId,
         start_date: startDate,
         end_date: endDate,
         weekdays: batchForm.weekdays.length > 0 ? [...batchForm.weekdays].sort((a, b) => a - b) : undefined,
@@ -1138,6 +1224,7 @@ async function submitBatchAction() {
 
       const payload: TeacherSlotBatchUpdate = {
         teacher_id: teacherId,
+        teacher_contract_id: teacherContractId,
         start_date: startDate,
         end_date: endDate,
         weekdays: batchForm.weekdays.length > 0 ? [...batchForm.weekdays].sort((a, b) => a - b) : undefined,
@@ -1251,6 +1338,8 @@ function resolveBatchEndDate() {
 }
 
 async function handleDelete(slot: TeacherSlotResponse) {
+  if (!ensureTeacherContractAccess()) return;
+
   if (slot.is_booked) {
     ElMessage.warning(t('teacherSchedulePortal.bookedDeleteBlocked'));
     return;
@@ -1267,7 +1356,9 @@ async function handleDelete(slot: TeacherSlotResponse) {
       },
     );
 
-    const res = assertApiSuccess(await deleteTeacherSlot(slot.id), t('teacherSchedulePortal.deleteFailed'));
+    const res = assertApiSuccess(await deleteTeacherSlot(slot.id, {
+      teacher_contract_id: resolveTeacherContractId(),
+    }), t('teacherSchedulePortal.deleteFailed'));
     ElMessage.success(res.message || t('teacherSchedulePortal.deleteSuccess'));
     await fetchSlots();
   } catch (error) {

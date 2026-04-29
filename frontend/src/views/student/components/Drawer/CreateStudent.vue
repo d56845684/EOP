@@ -62,7 +62,7 @@
       </el-col>
     </el-row>
     <el-form-item>
-        <el-button round type="primary" @click="handleCreateStudent" :loading="saving" v-permission="'students.create'">
+        <el-button round type="primary" @click="handleCreateStudent" :loading="saving" :disabled="!isFormDirty" v-permission="'students.create'">
           <template #icon><div class="i-hugeicons:floppy-disk" /></template>
           {{ $t('common.save') }}
         </el-button>
@@ -71,10 +71,11 @@
 </template>
 
 <script setup lang="ts">
-  import { reactive, ref } from 'vue';
+  import { computed, reactive, ref } from 'vue';
   import { type StudentCreate } from '@/api/student';
   import { type FormInstance, type FormRules } from 'element-plus';
   import { useI18n } from 'vue-i18n';
+  import { createFormSnapshot } from '@/utils/formDirty';
 
   const props = defineProps({
     saving: {
@@ -95,6 +96,8 @@
     student_type: 'trial',
     is_active: true
   });
+  const initialSnapshot = createFormSnapshot(addForm);
+  const isFormDirty = computed(() => createFormSnapshot(addForm) !== initialSnapshot);
 
   const addRules = reactive<FormRules>({
     name: [{ required: true, message: t('studentAdmin.validation.nameRequired') }],

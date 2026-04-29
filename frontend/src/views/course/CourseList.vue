@@ -130,7 +130,14 @@
         <el-row>
           <el-col :span="10">
             <el-form-item :label="$t('course.duration')">
-              <el-input-number v-model="form.duration_minutes" :step="30" step-strictly class="w-full! h-30px!" />
+              <el-input-number
+                v-model="form.duration_minutes"
+                :min="30"
+                :step="30"
+                :precision="0"
+                step-strictly
+                class="w-full! h-30px!"
+                @change="normalizeDuration" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -233,7 +240,19 @@ const openDrawer = (c: CourseResponseData | null, type: string) => {
     drawerVisible.value = true;
 };
 
+const normalizeDuration = () => {
+    const duration = Number(form.value.duration_minutes || 30);
+    const normalized = Math.max(30, Math.round(duration / 30) * 30);
+    form.value.duration_minutes = normalized;
+};
+
 const handleSave = async () => {
+    normalizeDuration();
+    if (Number(form.value.duration_minutes) % 30 !== 0) {
+        ElMessage.warning(t('course.durationStepRequired'));
+        return;
+    }
+
     saving.value = true;
     try {
         if (form.value.id) {

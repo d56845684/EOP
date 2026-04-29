@@ -91,6 +91,9 @@ export default {
     SERVICE_UNAVAILABLE: 'The service is temporarily unavailable. Please try again later.',
   },
   apiErrorsByRequest: {
+    teacherSlots: {
+      CONFLICT: '時段衝突，無法建立重疊時段',
+    },
     studentConvertToFormal: {
       VALIDATION_ERROR: 'This student is not a trial student and cannot be converted to formal.',
     },
@@ -492,6 +495,7 @@ export default {
     saveFailed: 'Failed to save course',
     statusUpdateFailed: 'Failed to update status',
     deleteFailed: 'Failed to delete course',
+    durationStepRequired: 'Course duration must be 30 minutes or a multiple of 30',
   },
   salary: {
     title: 'Salary Reports',
@@ -808,6 +812,9 @@ export default {
     missingTeacherLoad: 'This account is not linked to a teacher profile, so slots cannot be loaded',
     missingTeacherSave: 'This account is not linked to a teacher profile, so slots cannot be saved',
     missingTeacherBatch: 'This account is not linked to a teacher profile, so batch slot actions cannot be used',
+    missingContractTitle: 'Slot Settings Unavailable',
+    missingContractPermission: 'You currently do not have setup permission. Please contact an administrator.',
+    loadContractsFailed: 'Failed to load teacher contracts',
     loadFailed: 'Failed to load slots',
     outOfRange: 'Slots can only be set within three months from today',
     updateSlotFailed: 'Failed to update slot',
