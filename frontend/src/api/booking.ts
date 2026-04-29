@@ -207,6 +207,21 @@ export interface BookingTeacherSlotOption {
     teacher_contract_id: string;
 }
 
+export interface BookingSlotAvailabilityBlock {
+    start_time: string;
+    end_time: string;
+    is_available: boolean;
+    booking_id?: string | null;
+}
+
+export interface BookingSlotAvailability {
+    slot_id: string;
+    slot_date: string;
+    slot_start_time: string;
+    slot_end_time: string;
+    blocks: BookingSlotAvailabilityBlock[];
+}
+
 export interface BookingTeacherContractOption {
     id: string;
     contract_no: string;
@@ -240,6 +255,10 @@ export function getBookingOptionStudentContracts(studentId: string) {
 
 export function getBookingOptionTeacherSlots(teacherId: string, params?: { date_from?: string; date_to?: string }) {
     return request.get<any, DataResponse<BookingTeacherSlotOption[]>>(`/v1/bookings/options/teacher-slots/${teacherId}`, { params });
+}
+
+export function getBookingSlotAvailability(slotId: string) {
+    return request.get<any, DataResponse<BookingSlotAvailability>>(`/v1/bookings/slot-availability/${slotId}`);
 }
 
 export function getBookingOptionTeacherContracts(teacherId: string) {
