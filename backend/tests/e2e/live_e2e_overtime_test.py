@@ -222,7 +222,9 @@ class E2EOvertimePayTester:
         resp = await self._post("/api/v1/students", {
             "student_no": f"{TEST_PREFIX}S001",
             "name": f"{TEST_PREFIX}加班費測試學生",
+            "eng_name": f"{TEST_PREFIX}eng",
             "email": f"ot_student_{_TS}@example.com",
+            "phone": "0900000000",
             "student_type": "formal",
         })
         if resp.status_code != 200:

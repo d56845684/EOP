@@ -305,7 +305,9 @@ class E2EBookingFlowTester:
         resp = await self._post("/api/v1/students", {
             "student_no": f"{TEST_PREFIX}S001",
             "name": f"{TEST_PREFIX}測試學生",
+            "eng_name": f"{TEST_PREFIX}eng",
             "email": f"e2e_student_{datetime.now().strftime('%H%M%S')}@example.com",
+            "phone": "0900000000",
             "student_type": "formal",
         })
         if resp.status_code != 200:
@@ -644,7 +646,9 @@ class E2EBookingFlowTester:
         """不提供 student_no，驗證自動產生 EOPS 格式"""
         resp = await self._post("/api/v1/students", {
             "name": f"{TEST_PREFIX}自動編號學生",
+            "eng_name": f"{TEST_PREFIX}eng_auto",
             "email": f"e2e_auto_s_{datetime.now().strftime('%H%M%S%f')}@example.com",
+            "phone": "0900000001",
         })
         if resp.status_code != 200:
             return f"Create auto student failed: {resp.status_code} {resp.text[:200]}"

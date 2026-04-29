@@ -117,10 +117,14 @@ class TeacherFlowTester:
             print("\n  Phase 3: 可用時段")
             print("  " + "-" * 40)
 
+            await self._test("建立時段：缺 teacher_contract_id → 422", self._create_slot_missing_contract)
+            await self._test("建立時段：合約不屬於該老師 → 400", self._create_slot_cross_teacher_contract)
+            await self._test("建立時段：合約非 active → 400", self._create_slot_inactive_contract)
             await self._test("建立教師時段 (09:00-12:00)", self._create_slot)
             await self._test("查詢時段列表", self._list_slots)
             await self._test("編輯時段（改為不可用）", self._update_slot_unavailable)
             await self._test("編輯時段（恢復可用）", self._update_slot_available)
+            await self._test("更新時段：合約非 active → 400", self._update_slot_inactive_contract)
 
             print("\n  Phase 4: 總覽 API 驗證")
             print("  " + "-" * 40)
@@ -226,6 +230,77 @@ class TeacherFlowTester:
         })
         if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
         self.teacher_slot_id = resp.json()["data"]["id"]
+        return True
+
+    async def _create_slot_missing_contract(self):
+        """schema 必填：teacher_contract_id 缺漏 → 422"""
+        resp = await self._post("/api/v1/teacher-slots", {
+            "teacher_id": self.teacher_id,
+            "slot_date": self.slot_date, "start_time": "13:00", "end_time": "14:00",
+            "is_available": True,
+        })
+        if resp.status_code != 422: return f"expected 422, got {resp.status_code} {resp.text[:200]}"
+        return True
+
+    async def _create_slot_cross_teacher_contract(self):
+        """合約屬於別的老師 → 400"""
+        # 建第二個 teacher + active 合約
+        resp = await self._post("/api/v1/teachers", {
+            "teacher_no": f"{TEST_PREFIX}T02", "name": f"{TEST_PREFIX}陳老師",
+            "email": f"{TEST_PREFIX}t2@example.com", "teacher_level": 1,
+        })
+        if resp.status_code != 200: return f"create teacher2: {resp.status_code} {resp.text[:200]}"
+        other_teacher_id = resp.json()["data"]["id"]
+        self._other_teacher_id = other_teacher_id  # for cleanup
+
+        start = date.today().isoformat()
+        end = (date.today() + timedelta(days=365)).isoformat()
+        resp = await self._post("/api/v1/teacher-contracts", {
+            "teacher_id": other_teacher_id, "contract_status": "active",
+            "start_date": start, "end_date": end, "employment_type": "hourly",
+        })
+        if resp.status_code != 200: return f"create contract2: {resp.status_code} {resp.text[:200]}"
+        other_contract_id = resp.json()["data"]["id"]
+        self._other_contract_id = other_contract_id
+
+        # 用 teacher1 + 別人的合約 → 應該 400
+        resp = await self._post("/api/v1/teacher-slots", {
+            "teacher_id": self.teacher_id,
+            "teacher_contract_id": other_contract_id,
+            "slot_date": self.slot_date, "start_time": "13:00", "end_time": "14:00",
+            "is_available": True,
+        })
+        if resp.status_code != 400: return f"expected 400, got {resp.status_code} {resp.text[:200]}"
+        return True
+
+    async def _create_slot_inactive_contract(self):
+        """合約 status != active → 400"""
+        # 建一個 pending 合約
+        start = date.today().isoformat()
+        end = (date.today() + timedelta(days=365)).isoformat()
+        resp = await self._post("/api/v1/teacher-contracts", {
+            "teacher_id": self.teacher_id, "contract_status": "pending",
+            "start_date": start, "end_date": end, "employment_type": "hourly",
+        })
+        if resp.status_code != 200: return f"create pending contract: {resp.status_code} {resp.text[:200]}"
+        pending_contract_id = resp.json()["data"]["id"]
+        self._pending_contract_id = pending_contract_id
+
+        resp = await self._post("/api/v1/teacher-slots", {
+            "teacher_id": self.teacher_id,
+            "teacher_contract_id": pending_contract_id,
+            "slot_date": self.slot_date, "start_time": "13:00", "end_time": "14:00",
+            "is_available": True,
+        })
+        if resp.status_code != 400: return f"expected 400, got {resp.status_code} {resp.text[:200]}"
+        return True
+
+    async def _update_slot_inactive_contract(self):
+        """更新 slot 時若帶非 active 合約 → 400"""
+        resp = await self._put(f"/api/v1/teacher-slots/{self.teacher_slot_id}", {
+            "teacher_contract_id": self._pending_contract_id,
+        })
+        if resp.status_code != 400: return f"expected 400, got {resp.status_code} {resp.text[:200]}"
         return True
 
     async def _list_slots(self):
@@ -341,11 +416,19 @@ class TeacherFlowTester:
         return f"expected 404, got {resp.status_code}"
 
     async def _cleanup(self):
+        # 額外建立的 teacher2 / 合約（cross-teacher / pending 測試用）
+        other_teacher_id = getattr(self, "_other_teacher_id", None)
+        other_contract_id = getattr(self, "_other_contract_id", None)
+        pending_contract_id = getattr(self, "_pending_contract_id", None)
+
         for name, path in [
             ("slot", f"/api/v1/teacher-slots/{self.teacher_slot_id}" if self.teacher_slot_id else None),
             ("detail", f"/api/v1/teacher-contracts/{self.teacher_contract_id}/details/{self.teacher_contract_detail_id}" if self.teacher_contract_id and self.teacher_contract_detail_id else None),
             ("contract", f"/api/v1/teacher-contracts/{self.teacher_contract_id}" if self.teacher_contract_id else None),
+            ("pending_contract", f"/api/v1/teacher-contracts/{pending_contract_id}" if pending_contract_id else None),
+            ("other_contract", f"/api/v1/teacher-contracts/{other_contract_id}" if other_contract_id else None),
             ("teacher", f"/api/v1/teachers/{self.teacher_id}" if self.teacher_id else None),
+            ("other_teacher", f"/api/v1/teachers/{other_teacher_id}" if other_teacher_id else None),
             ("course", f"/api/v1/courses/{self.course_id}" if self.course_id else None),
         ]:
             if not path: continue

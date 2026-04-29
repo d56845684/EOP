@@ -143,7 +143,7 @@ class CourseOption(BaseModel):
     }
 
 class ContractOption(BaseModel):
-    """合約下拉選項"""
+    """學生合約下拉選項"""
     id: str
     contract_no: str
     remaining_lessons: Optional[int] = None
@@ -162,6 +162,21 @@ class ContractOption(BaseModel):
                 "course_ids": ["b2c3d4e5-f6a7-8901-bcde-f12345678901"],
                 "course_name": "英語初級會話",
                 "created_at": "2026-03-15T10:00:00",
+            }]
+        }
+    }
+
+
+class TeacherContractOption(BaseModel):
+    """教師合約下拉選項"""
+    id: str
+    contract_no: str
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "contract_no": "TC20260101001",
             }]
         }
     }

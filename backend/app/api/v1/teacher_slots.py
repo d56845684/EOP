@@ -6,7 +6,7 @@ from app.schemas.teacher_slot import (
     TeacherSlotBatchDeleteByIds, TeacherSlotBatchUpdateByIds,
     TeacherSlotUpdate, TeacherSlotResponse, TeacherSlotListResponse
 )
-from app.schemas.response import BaseResponse, DataResponse, TeacherOption, ContractOption
+from app.schemas.response import BaseResponse, DataResponse, TeacherOption, TeacherContractOption
 from typing import Optional, List
 from datetime import date, datetime, timedelta
 import math
@@ -176,7 +176,7 @@ async def get_teacher_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/my-contracts", tags=["教師時段管理"], response_model=DataResponse[List[ContractOption]])
+@router.get("/my-contracts", tags=["教師時段管理"], response_model=DataResponse[List[TeacherContractOption]])
 async def get_my_contracts(
     current_user: CurrentUser = Depends(require_page_permission("teachers.slots"))
 ):
@@ -260,15 +260,22 @@ async def create_teacher_slot(
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在")
 
-        # 驗證教師合約存在（如果有提供）
-        if data.teacher_contract_id:
-            contract = await supabase_service.table_select(
-                table="teacher_contracts",
-                select="id",
-                filters={"id": data.teacher_contract_id, "is_deleted": "eq.false"},
+        # 驗證教師合約：必須屬於該老師、active、未刪除
+        contract = await supabase_service.table_select(
+            table="teacher_contracts",
+            select="id",
+            filters={
+                "id": data.teacher_contract_id,
+                "teacher_id": data.teacher_id,
+                "contract_status": "eq.active",
+                "is_deleted": "eq.false",
+            },
+        )
+        if not contract:
+            raise HTTPException(
+                status_code=400,
+                detail="教師無有效合約，無法建立時段",
             )
-            if not contract:
-                raise HTTPException(status_code=400, detail="教師合約不存在")
 
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -332,15 +339,22 @@ async def create_teacher_slots_batch(
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在")
 
-        # 驗證教師合約存在（如果有提供）
-        if data.teacher_contract_id:
-            contract = await supabase_service.table_select(
-                table="teacher_contracts",
-                select="id",
-                filters={"id": data.teacher_contract_id, "is_deleted": "eq.false"},
+        # 驗證教師合約：必須屬於該老師、active、未刪除
+        contract = await supabase_service.table_select(
+            table="teacher_contracts",
+            select="id",
+            filters={
+                "id": data.teacher_contract_id,
+                "teacher_id": data.teacher_id,
+                "contract_status": "eq.active",
+                "is_deleted": "eq.false",
+            },
+        )
+        if not contract:
+            raise HTTPException(
+                status_code=400,
+                detail="教師沒有 active 合約，無法建立時段",
             )
-            if not contract:
-                raise HTTPException(status_code=400, detail="教師合約不存在")
 
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -780,6 +794,24 @@ async def update_teacher_slot(
         if data.slot_date is not None or data.start_time is not None or data.end_time is not None:
             if await slot_has_active_bookings(slot_id):
                 raise HTTPException(status_code=400, detail="有預約的時段無法修改日期或時間")
+
+        # 若更新含 teacher_contract_id：必須屬於該老師、active、未刪除
+        if data.teacher_contract_id is not None:
+            contract = await supabase_service.table_select(
+                table="teacher_contracts",
+                select="id",
+                filters={
+                    "id": data.teacher_contract_id,
+                    "teacher_id": slot["teacher_id"],
+                    "contract_status": "eq.active",
+                    "is_deleted": "eq.false",
+                },
+            )
+            if not contract:
+                raise HTTPException(
+                    status_code=400,
+                    detail="教師沒有有效合約，無法更新時段合約",
+                )
 
         # 更新時段
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}

@@ -17,7 +17,7 @@ def _add_months(d: date, months: int) -> date:
 
 class TeacherSlotBase(BaseModel):
     teacher_id: str = Field(..., description="教師 ID")
-    teacher_contract_id: Optional[str] = Field(None, description="教師合約 ID")
+    teacher_contract_id: str = Field(..., description="教師合約 ID（必填，必須為該老師當下 active 合約）")
     slot_date: date = Field(..., description="時段日期")
     start_time: time = Field(..., description="開始時間")
     end_time: time = Field(..., description="結束時間")
@@ -52,7 +52,7 @@ class TeacherSlotCreate(TeacherSlotBase):
 class TeacherSlotBatchCreate(BaseModel):
     """批次建立教師時段的請求（週期性），日期範圍不得超過三個月"""
     teacher_id: str = Field(..., description="教師 ID")
-    teacher_contract_id: Optional[str] = Field(None, description="教師合約 ID")
+    teacher_contract_id: str = Field(..., description="教師合約 ID（必填，必須為該老師當下 active 合約）")
     start_date: date = Field(..., description="開始日期")
     end_date: date = Field(..., description="結束日期")
     weekdays: List[int] = Field(..., description="星期幾（0=週一, 6=週日）")
