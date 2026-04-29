@@ -7,7 +7,7 @@ from app.schemas.booking import (
     BookingBatchUpdateByIds, BookingBatchDeleteByIds, BookingBatchUpdate, BookingBatchDelete,
     BookingBatchCreate, TimeBlock, SlotAvailabilityResponse
 )
-from app.schemas.response import BaseResponse, DataResponse, StudentOption, TeacherOption, CourseOption, ContractOption, SlotOption
+from app.schemas.response import BaseResponse, DataResponse, StudentOption, TeacherOption, CourseOption, ContractOption, TeacherContractOption, SlotOption
 from typing import Optional, List
 from datetime import date, datetime, time
 import asyncio
@@ -1282,6 +1282,14 @@ async def create_booking(
             # 使用時段的教師合約（如果沒有指定）
             if not teacher_contract_id and matching_slot.get("teacher_contract_id"):
                 teacher_contract_id = matching_slot["teacher_contract_id"]
+
+        # bookings.teacher_contract_id 是 NOT NULL；舊資料殘留可能有 slot
+        # 沒綁合約，遇到時直接擋並提示重建時段。
+        if not teacher_contract_id:
+            raise HTTPException(
+                status_code=400,
+                detail="此時段無有效教師有效合約，請重新建立時段",
+            )
 
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -2857,7 +2865,7 @@ async def get_substitute_teacher_options(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/options/teacher-contracts/{teacher_id}", tags=["預約管理"], response_model=DataResponse[List[ContractOption]])
+@router.get("/options/teacher-contracts/{teacher_id}", tags=["預約管理"], response_model=DataResponse[List[TeacherContractOption]])
 async def get_teacher_contract_options(
     teacher_id: str,
     current_user: CurrentUser = Depends(require_page_permission("bookings.list"))

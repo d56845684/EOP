@@ -144,7 +144,9 @@ class StudentFlowTester:
         resp = await self._post("/api/v1/students", {
             "student_no": f"{TEST_PREFIX}S01", "name": f"{TEST_PREFIX}王小明",
             "eng_name": "Wang Xiaoming",
-            "email": f"{TEST_PREFIX}s@example.com", "student_type": "formal",
+            "email": f"{TEST_PREFIX}s@example.com",
+            "phone": "0900000000",
+            "student_type": "formal",
         })
         if resp.status_code != 200: return f"{resp.status_code} {resp.text[:200]}"
         self.student_id = resp.json()["data"]["id"]
