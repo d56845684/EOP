@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+import asyncpg
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.teacher_slot import (
@@ -311,6 +312,8 @@ async def create_teacher_slot(
 
     except HTTPException:
         raise
+    except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"建立教師時段失敗: {str(e)}")
 
@@ -396,6 +399,8 @@ async def create_teacher_slots_batch(
 
     except HTTPException:
         raise
+    except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"批次建立教師時段失敗: {str(e)}")
 
