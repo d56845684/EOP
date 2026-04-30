@@ -40,6 +40,13 @@
             <el-option :label="$t('common.inactive')" :value="false" />
           </el-select>
         </el-form-item>
+        <el-form-item :label="$t('teacher.employmentType')" class="mb-0">
+          <el-select v-model="queryParams.employment_type" style="width: 120px" @change="fetchTeachersList">
+            <el-option :label="$t('common.all')" value="all" />
+            <el-option :label="getEmploymentTypeLabel(EmploymentType.Hourly)" :value="EmploymentType.Hourly" />
+            <el-option :label="getEmploymentTypeLabel(EmploymentType.FullTime)" :value="EmploymentType.FullTime" />
+          </el-select>
+        </el-form-item>
         <el-form-item class="mb-0">
           <el-button type="primary" round size="small" class="py-3!" @click="fetchTeachersList">
             <template #icon>
@@ -61,7 +68,20 @@
       <el-row :gutter="20">
         <el-col :xs="24" :sm="24" :md="24" :lg="12" :xl="12" v-for="teacher in teachersData" :key="teacher.id" class="mb-4">
           <el-card shadow="hover" class="h-full relative flex flex-col h-full card-bg">
-            <el-descriptions :title="teacher.name" direction="vertical" :column="3" border size="small" class="flex-1">
+            <el-descriptions direction="vertical" :column="3" border size="small" class="flex-1">
+              <template #title>
+                <div class="flex items-center gap-2">
+                  {{ teacher.name }}
+                  <el-tag
+                    v-if="teacher.latest_active_employment_type"
+                    size="small"
+                    effect="light"
+                    :type="teacher.latest_active_employment_type === EmploymentType.FullTime ? 'primary' : 'info'"
+                  >
+                    {{ getEmploymentTypeLabel(teacher.latest_active_employment_type) }}
+                  </el-tag>
+                </div>
+              </template>
               <template #extra>
                 <el-switch 
                   v-model="teacher.is_active" 
@@ -101,7 +121,7 @@
                 LV.{{ teacher.teacher_level }}
               </el-descriptions-item>
               <el-descriptions-item :label="$t('common.phone')">{{ teacher.phone || '-' }}</el-descriptions-item>
-              <el-descriptions-item :label="$t('common.accountVerified')">
+              <el-descriptions-item :label="$t('common.accountVerified')" align="center" :width="120">
                 <div class="flex items-center justify-center">
                   <el-button
                     v-if="!teacher.email_verified_at"
@@ -255,10 +275,18 @@ import { code } from '@/constants/code';
 import { useI18n } from 'vue-i18n';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 
+const EmploymentType = {Hourly : 'hourly', FullTime : 'full_time'} as const
+
 const permissionStore = usePermissionStore();
 const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
 
 const { t } = useI18n();
+
+const getEmploymentTypeLabel = (employmentType?: string | null) => {
+  if (employmentType === EmploymentType.Hourly) return t('teacher.employmentTypes.hourly');
+  if (employmentType === EmploymentType.FullTime) return t('teacher.employmentTypes.fullTime');
+  return '-';
+};
 
 const teachersData = ref<TeacherOverviewItem[]>([]);
 const totalTeachers = ref(0);
@@ -268,7 +296,8 @@ const queryParams = reactive({
   page: 1,
   per_page: 20,
   search: '',
-  is_active: 'all' as 'all' | boolean
+  is_active: 'all' as 'all' | boolean,
+  employment_type: 'all' as 'all' | typeof EmploymentType[keyof typeof EmploymentType]
 });
 
 const detailDrawerVisible = ref(false);
@@ -302,7 +331,8 @@ const fetchTeachersList = async () => {
       page: queryParams.page,
       per_page: queryParams.per_page,
       search: queryParams.search || undefined,
-      is_active: queryParams.is_active === 'all' ? undefined : queryParams.is_active
+      is_active: queryParams.is_active === 'all' ? undefined : queryParams.is_active,
+      employment_type: queryParams.employment_type === 'all' ? undefined : queryParams.employment_type
     };
     const res = assertApiSuccess(await getTeacherOverviewList(params), t('teacher.loadFailed'));
     teachersData.value = res.data;
@@ -317,6 +347,7 @@ const fetchTeachersList = async () => {
 const handleReset = () => {
   queryParams.search = '';
   queryParams.is_active = 'all';
+  queryParams.employment_type = 'all';
   queryParams.page = 1;
   fetchTeachersList();
 };

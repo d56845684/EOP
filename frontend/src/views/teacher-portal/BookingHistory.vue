@@ -115,28 +115,59 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Zoom" width="140" align="center">
+        <el-table-column :label="$t('bookingAdmin.zoomColumn')" min-width="160" align="center">
           <template #default="{ row }">
-            <div v-if="isUpcoming(row) && zoomInfoMap[row.id]?.join_url" class="zoom-cell">
-              <el-button
-                type="success"
-                size="small"
-                round
-                plain
-                class="h-24px! px-2!"
-                @click="openUrl(zoomInfoMap[row.id]?.join_url)"
-              >
-                <template #icon><div class="i-hugeicons:video-01" /></template>
-                {{ $t('teacherRecords.zoomJoin') }}
-              </el-button>
-              <div v-if="zoomInfoMap[row.id]?.passcode" class="zoom-passcode">
-                {{ $t('teacherRecords.zoomPasscode', { passcode: zoomInfoMap[row.id]?.passcode }) }}
-                <el-button link size="small" class="copy-btn" @click="copyText(zoomInfoMap[row.id]?.passcode)">
-                  <div class="i-hugeicons:copy-01" />
+            <template v-if="['pending', 'confirmed', 'completed'].includes(row.booking_status)">
+              <div v-if="!zoomInfoMap[row.id]" class="flex justify-center items-center min-h-12">
+                <span class="text-gray-400">-</span>
+              </div>
+              <div v-else class="flex flex-col items-center gap-2 min-h-12 justify-center">
+                <div class="flex flex-col justify-center items-center gap-1">
+                  <el-button
+                    v-if="zoomInfoMap[row.id]?.join_url"
+                    type="success"
+                    size="small"
+                    round
+                    plain
+                    class="text-xs h-20px! px-1.5!"
+                    @click="openUrl(zoomInfoMap[row.id]?.join_url)"
+                  >
+                    <template #icon><div class="i-hugeicons:video-01" /></template>
+                    {{ $t('bookingAdmin.joinMeeting') }}
+                  </el-button>
+                  <div
+                    v-if="zoomInfoMap[row.id]?.passcode"
+                    class="flex items-center gap-0.5 text-11px leading-12px color-gray-400 translate-x-10px"
+                  >
+                    {{ $t('bookingAdmin.passcode', { passcode: zoomInfoMap[row.id]?.passcode }) }}
+                    <el-button
+                      size="small"
+                      round
+                      link
+                      class="text-xs h-20px! px-1! color-gray-400! hover:color-gray-500!"
+                      @click="copyText(zoomInfoMap[row.id]?.passcode)"
+                    >
+                      <div class="i-hugeicons:copy-01" />
+                    </el-button>
+                  </div>
+                </div>
+                <el-button
+                  v-if="zoomInfoMap[row.id]?.drive_view_link || zoomInfoMap[row.id]?.recording_url"
+                  type="info"
+                  size="small"
+                  round
+                  plain
+                  class="text-xs h-20px! px-1.5!"
+                  @click="openUrl(zoomInfoMap[row.id]?.drive_view_link || zoomInfoMap[row.id]?.recording_url)"
+                >
+                  <template #icon><div class="i-hugeicons:video-replay" /></template>
+                  {{ $t('bookingAdmin.viewRecording') }}
                 </el-button>
               </div>
+            </template>
+            <div v-else class="flex justify-center items-center min-h-12">
+              <span class="text-gray-400">-</span>
             </div>
-            <span v-else class="muted-text">-</span>
           </template>
         </el-table-column>
 
@@ -154,9 +185,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('teacherRecords.colActions')" min-width="220" fixed="right" align="center">
+        <el-table-column :label="$t('teacherRecords.colActions')" min-width="180" fixed="right" align="left">
           <template #default="{ row }">
-            <div class="action-cell">
+            <div class="action-cell items-end">
+              <el-button
+                v-if="canConfirmBooking(row)"
+                link
+                type="primary"
+                size="small"
+                :loading="confirmingBookingId === row.id"
+                @click="confirmBooking(row)"
+              >
+                {{ $t('teacherRecords.btnConfirm') }}
+              </el-button>
               <el-button
                 v-if="canEditBooking(row)"
                 link
@@ -164,7 +205,7 @@
                 size="small"
                 @click="openEditDialog(row)"
               >
-                {{ $t('common.edit') }}
+                {{ $t('common.note') }}
               </el-button>
               <el-button
                 v-if="canRequestLeave(row)"
@@ -175,7 +216,7 @@
               >
                 {{ $t('teacherRecords.btnLeave') }}
               </el-button>
-              <span v-if="!canEditBooking(row) && !canRequestLeave(row)" class="muted-text">
+              <span v-if="!canEditBooking(row) && !canConfirmBooking(row) && !canRequestLeave(row)" class="muted-text">
                 -
               </span>
             </div>
@@ -197,22 +238,8 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="editDialogVisible" :title="$t('teacherRecords.editBooking')" width="500px" destroy-on-close @closed="resetEditForm">
-      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="96px">
-        <el-form-item :label="$t('teacherRecords.bookingNo')">
-          <span>{{ editingBooking?.booking_no || '-' }}</span>
-        </el-form-item>
-        <el-form-item :label="$t('teacherRecords.bookingTime')">
-          <span>
-            {{ editingBooking?.booking_date || '-' }}
-            {{ formatTime(editingBooking?.start_time) }} ~ {{ formatTime(editingBooking?.end_time) }}
-          </span>
-        </el-form-item>
-        <el-form-item :label="$t('common.status')" prop="booking_status">
-          <el-select v-model="editForm.booking_status" class="w-full">
-            <el-option :label="$t('bookingShared.status.confirmed')" value="confirmed" />
-          </el-select>
-        </el-form-item>
+    <el-dialog v-model="editDialogVisible" :title="$t('common.note')" width="500px" destroy-on-close @closed="resetEditForm">
+      <el-form ref="editFormRef" :model="editForm" label-position="top">
         <el-form-item :label="$t('common.note')">
           <el-input v-model="editForm.notes" type="textarea" :rows="4" maxlength="500" show-word-limit />
         </el-form-item>
@@ -325,12 +352,9 @@ const editing = ref(false);
 const editingBooking = ref<BookingItem | null>(null);
 const editFormRef = ref<FormInstance>();
 const editForm = reactive({
-  booking_status: 'confirmed' as BookingStatus,
   notes: '',
 });
-const editRules: FormRules = {
-  booking_status: [{ required: true, message: t('teacherRecords.statusRequired'), trigger: 'change' }],
-};
+const confirmingBookingId = ref('');
 
 const leaveDialogVisible = ref(false);
 const leaving = ref(false);
@@ -377,14 +401,18 @@ function isUpcoming(booking: BookingItem) {
 }
 
 function canRequestLeave(booking: BookingItem) {
-  return ['pending', 'confirmed'].includes(booking.booking_status)
+  return booking.booking_status === 'confirmed'
     && isUpcoming(booking)
     && !booking.has_pending_leave
     && getBookingStart(booking).diff(dayjs(), 'minute') >= 30;
 }
 
-function canEditBooking(booking: BookingItem) {
+function canConfirmBooking(booking: BookingItem) {
   return booking.booking_status === 'pending' && !booking.has_pending_leave;
+}
+
+function canEditBooking(booking: BookingItem) {
+  return ['pending', 'confirmed'].includes(booking.booking_status);
 }
 
 function buildListParams(): BookingListParams {
@@ -427,8 +455,7 @@ async function fetchBookings() {
 
 async function fetchZoomInfos() {
   const ids = bookings.value
-    .filter((booking) => ['pending', 'confirmed'].includes(booking.booking_status))
-    .filter((booking) => isUpcoming(booking))
+    .filter((booking) => ['pending', 'confirmed', 'completed'].includes(booking.booking_status))
     .filter((booking) => !zoomInfoMap.value[booking.id])
     .map((booking) => booking.id);
 
@@ -459,14 +486,12 @@ function resetFilters() {
 
 function openEditDialog(booking: BookingItem) {
   editingBooking.value = booking;
-  editForm.booking_status = 'confirmed';
   editForm.notes = booking.notes || '';
   editDialogVisible.value = true;
 }
 
 function resetEditForm() {
   editingBooking.value = null;
-  editForm.booking_status = 'confirmed';
   editForm.notes = '';
   editFormRef.value?.clearValidate();
 }
@@ -480,7 +505,6 @@ async function submitEdit() {
     editing.value = true;
     try {
       const res = assertApiSuccess(await updateBooking(editingBooking.value.id, {
-        booking_status: editForm.booking_status,
         notes: editForm.notes || null,
       }), t('teacherRecords.updateFailed'));
 
@@ -493,6 +517,41 @@ async function submitEdit() {
       editing.value = false;
     }
   });
+}
+
+async function confirmBooking(booking: BookingItem) {
+  if (!canConfirmBooking(booking)) return;
+
+  try {
+    await ElMessageBox.confirm(
+      t('teacherRecords.confirmClassMessage', {
+        date: booking.booking_date,
+        time: `${formatTime(booking.start_time)} ~ ${formatTime(booking.end_time)}`,
+      }),
+      t('teacherRecords.confirmClassTitle'),
+      {
+        confirmButtonText: t('teacherRecords.confirmClassSubmit'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+      },
+    );
+  } catch {
+    return;
+  }
+
+  confirmingBookingId.value = booking.id;
+  try {
+    const res = assertApiSuccess(await updateBooking(booking.id, {
+      booking_status: 'confirmed',
+    }), t('teacherRecords.confirmClassFailed'));
+
+    ElMessage.success(res.message || t('teacherRecords.confirmClassSuccess'));
+    fetchBookings();
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, t('teacherRecords.confirmClassFailed')));
+  } finally {
+    confirmingBookingId.value = '';
+  }
 }
 
 function openLeaveDialog(booking: BookingItem) {
@@ -586,7 +645,7 @@ function openUrl(url?: string | null) {
 }
 
 function copyText(text?: string | null) {
-  if (text) copyToClipboardUtil(text, t('teacherRecords.msgCopySuccess'));
+  if (text) copyToClipboardUtil(text, t('bookingAdmin.passcodeCopied'));
 }
 
 watch(
@@ -634,27 +693,6 @@ watch(
   font-size: 12px;
 }
 
-.zoom-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.zoom-passcode {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-}
-
-.copy-btn {
-  height: 18px !important;
-  padding: 0 2px !important;
-}
-
 .note-preview {
   max-width: 260px;
   color: var(--el-text-color-regular);
@@ -670,7 +708,7 @@ watch(
 .action-cell {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 6px;
   flex-wrap: wrap;
 }

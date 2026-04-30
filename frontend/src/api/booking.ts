@@ -167,7 +167,8 @@ export function batchDeleteBookingsByIds(data: BookingBatchDeleteByIds) {
 export interface BookingStudentOption {
     id: string;
     name: string;
-    email: string;
+    student_no?: string;
+    student_type?: string;
 }
 
 export interface BookingTeacherOption {

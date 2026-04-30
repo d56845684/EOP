@@ -102,7 +102,7 @@
             filterable 
             class="w-140px!" 
             @change="handleFilterChange">
-            <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+            <el-option v-for="t in teacherOptions" :key="t.id" :label="`${t.teacher_no} - ${t.name}`" :value="t.id" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('common.student')">
@@ -113,12 +113,12 @@
             filterable 
             class="w-140px!" 
             @change="handleFilterChange">
-            <el-option v-for="s in studentOptions" :key="s.id" :label="s.name" :value="s.id" />
+            <el-option v-for="s in studentOptions" :key="s.id" :label="`${s.student_no} - ${s.name}`" :value="s.id" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('bookingAdmin.courseFilter')">
           <el-select v-model="filters.courseId" :placeholder="$t('common.all')" clearable filterable class="w-160px!" @change="handleFilterChange">
-            <el-option v-for="c in courseOptions" :key="c.id" :label="c.course_name" :value="c.id" />
+            <el-option v-for="c in courseOptions" :key="c.id" :label="`${c.course_code} - ${c.course_name}`" :value="c.id" />
           </el-select>
         </el-form-item>
 
@@ -251,13 +251,13 @@
                 </div>
                 </div>
                 <el-button 
-                  v-if="zoomInfoMap[row.id]?.recording_url || zoomInfoMap[row.id]?.drive_view_link"
+                  v-if="zoomInfoMap[row.id]?.drive_view_link || zoomInfoMap[row.id]?.recording_url"
                   type="info" 
                   size="small" 
                   round
                   plain
                   class="text-xs h-20px! px-1.5!"
-                  @click="openUrl(zoomInfoMap[row.id]?.recording_url || zoomInfoMap[row.id]?.drive_view_link)">
+                  @click="openUrl(zoomInfoMap[row.id]?.drive_view_link || zoomInfoMap[row.id]?.recording_url)">
                   <template #icon><div class="i-hugeicons:video-replay" /></template>{{ $t('bookingAdmin.viewRecording') }}
                 </el-button>
               </div>
@@ -343,7 +343,7 @@
 
               <el-form-item :label="$t('common.student')" prop="student_id">
                   <el-select v-model="addForm.student_id" filterable :placeholder="$t('bookingAdmin.selectStudentFirst')" class="w-full" @change="handleAddStudentChange">
-                      <el-option v-for="s in studentOptions" :key="s.id" :label="s.name" :value="s.id" />
+                      <el-option v-for="s in studentOptions" :key="s.id" :label="`${s.student_no} - ${s.name}`" :value="s.id" />
                   </el-select>
               </el-form-item>
             </el-col>
@@ -594,27 +594,27 @@
     <el-dialog 
       v-model="dialogs.batchCreate.visible" 
       :title="$t('bookingAdmin.batchCreate')"
-      width="600px" 
+      width="520px" 
       @closed="resetForm('batchCreate')">
-      <el-form :model="batchCreateForm" :rules="batchCreateRules" ref="batchCreateRef" label-width="120px">
+      <el-form :model="batchCreateForm" :rules="batchCreateRules" ref="batchCreateRef" label-width="120px" class="p-2">
         <el-form-item :label="$t('common.student')" prop="student_id">
             <el-select v-model="batchCreateForm.student_id" filterable :placeholder="$t('bookingAdmin.selectStudentFirst')" class="w-full" @change="batchCreateDeps.handleStudentChange()">
-              <el-option v-for="s in studentOptions" :key="s.id" :label="s.name" :value="s.id" />
+              <el-option v-for="s in studentOptions" :key="s.id" :label="`${s.student_no} - ${s.name}`" :value="s.id" />
             </el-select>
         </el-form-item>
         <el-form-item :label="$t('bookingAdmin.studentContractOptional')" prop="student_contract_id">
             <el-select v-model="batchCreateForm.student_contract_id" filterable clearable :placeholder="$t('bookingAdmin.selectContract')" class="w-full" :disabled="!batchCreateForm.student_id" :loading="batchCreateDeps.isFetchingTeachers">
-              <el-option v-for="c in batchCreateDeps.studentContractOptions" :key="c.id" :label="`${c.course_name} (${c.contract_no})`" :value="c.id" />
+              <el-option v-for="c in batchCreateDeps.studentContractOptions" :key="c.id" :label="`${c.course_name || ''} (${c.contract_no})`" :value="c.id" />
             </el-select>
         </el-form-item>
         <el-form-item :label="$t('common.teacher')" prop="teacher_id">
             <el-select v-model="batchCreateForm.teacher_id" filterable :placeholder="$t('bookingAdmin.selectTeacher')" class="w-full" :disabled="!batchCreateForm.student_id" @change="batchCreateDeps.handleTeacherChange(false)" :loading="batchCreateDeps.isFetchingTeachers">
-              <el-option v-for="t in batchCreateDeps.teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+              <el-option v-for="t in batchCreateDeps.teacherOptions" :key="t.id" :label="`${t.teacher_no} - ${t.name}`" :value="t.id" />
             </el-select>
         </el-form-item>
         <el-form-item :label="$t('common.course')" prop="course_id">
             <el-select v-model="batchCreateForm.course_id" filterable :placeholder="$t('bookingAdmin.selectCourse')" class="w-full" :disabled="!batchCreateForm.student_id || !batchCreateForm.teacher_id" :loading="batchCreateDeps.isFetchingCourses">
-              <el-option v-for="c in batchCreateDeps.courseOptions" :key="c.id" :label="c.course_name" :value="c.id" />
+              <el-option v-for="c in batchCreateDeps.courseOptions" :key="c.id" :label="`${c.course_code} - ${c.course_name}`" :value="c.id" />
             </el-select>
         </el-form-item>
         <el-form-item :label="$t('common.dateRange')" required>
@@ -643,7 +643,7 @@
         </el-form-item>
         <el-form-item :label="$t('bookingAdmin.weekday')">
           <el-checkbox-group v-model="batchCreateForm.weekdays">
-            <el-checkbox v-for="option in weekdayOptionsLong" :key="option.value" :label="option.value">{{ option.label }}</el-checkbox>
+            <el-checkbox v-for="option in weekdayOptionsLong" :key="option.value" :label="option.value" class="mr-6">{{ option.label }}</el-checkbox>
           </el-checkbox-group>
           <div class="text-xs text-gray-400 w-full mt-1">{{ $t('bookingAdmin.weekdayBlankAll') }}</div>
         </el-form-item>
@@ -664,9 +664,9 @@
     <el-dialog 
       v-model="dialogs.batchUpdate.visible" 
       :title="$t('bookingAdmin.batchUpdateSchedule')"
-      width="600px" 
+      width="520px" 
       @closed="resetForm('batchUpdate')">
-        <el-form :model="batchUpdateForm" :rules="batchUpdateRules" ref="batchUpdateRef" label-width="120px">
+        <el-form :model="batchUpdateForm" :rules="batchUpdateRules" ref="batchUpdateRef" label-width="120px" class="p-2">
           <div class="font-bold mb-3 border-b pb-2">{{ $t('bookingAdmin.filterSection') }}</div>
           <el-form-item :label="$t('common.dateRange')" required>
             <el-date-picker 
@@ -685,13 +685,13 @@
               v-model="batchUpdateForm.student_id" 
               filterable 
               clearable 
-              :placeholder="$t('common.optionalSelectStudent')"
+              :placeholder="$t('bookingAdmin.selectStudentFirst')"
               class="w-full" 
               @change="batchUpdateDeps.handleStudentChange()">
               <el-option 
                 v-for="s in studentOptions" 
                 :key="s.id" 
-                :label="s.name" 
+                :label="`${s.student_no} - ${s.name}`" 
                 :value="s.id"/>
             </el-select>
           </el-form-item>
@@ -708,7 +708,7 @@
               <el-option 
                 v-for="t in batchUpdateDeps.teacherOptions" 
                 :key="t.id" 
-                :label="t.name" 
+                :label="`${t.teacher_no} - ${t.name}`" 
                 :value="t.id"/>
             </el-select>
           </el-form-item>
@@ -724,7 +724,7 @@
               <el-option 
                 v-for="c in batchUpdateDeps.courseOptions" 
                 :key="c.id" 
-                :label="c.course_name" 
+                :label="`${c.course_code} - ${c.course_name}`" 
                 :value="c.id"/>
             </el-select>
           </el-form-item>
@@ -762,9 +762,9 @@
     <el-dialog 
       v-model="dialogs.batchDelete.visible" 
       :title="$t('bookingAdmin.batchDeleteSchedule')"
-      width="600px" 
+      width="520px" 
       @closed="resetForm('batchDelete')">
-        <el-form :model="batchDeleteForm" :rules="batchDeleteRules" ref="batchDeleteRef" label-width="120px">
+        <el-form :model="batchDeleteForm" :rules="batchDeleteRules" ref="batchDeleteRef" label-width="120px" class="p-2">
           <el-form-item :label="$t('common.dateRange')" required>
               <el-date-picker 
                 v-model="batchDeleteForm.daterange" 
@@ -782,13 +782,13 @@
                 v-model="batchDeleteForm.student_id" 
                 filterable 
                 clearable 
-                :placeholder="$t('common.optionalSelectStudent')"
+                :placeholder="$t('bookingAdmin.selectStudentFirst')"
                 class="w-full" 
                 @change="batchDeleteDeps.handleStudentChange()">
                 <el-option 
                   v-for="s in studentOptions" 
                   :key="s.id" 
-                  :label="s.name" 
+                  :label="`${s.student_no} - ${s.name}`" 
                   :value="s.id"/>
               </el-select>
           </el-form-item>
@@ -805,7 +805,7 @@
                 <el-option 
                   v-for="t in batchDeleteDeps.teacherOptions" 
                   :key="t.id" 
-                  :label="t.name" 
+                  :label="`${t.teacher_no} - ${t.name}`" 
                   :value="t.id"/>
               </el-select>
           </el-form-item>
@@ -821,7 +821,7 @@
                 <el-option 
                   v-for="c in batchDeleteDeps.courseOptions" 
                   :key="c.id" 
-                  :label="c.course_name" 
+                  :label="`${c.course_code} - ${c.course_name}`" 
                   :value="c.id"/>
               </el-select>
           </el-form-item>
