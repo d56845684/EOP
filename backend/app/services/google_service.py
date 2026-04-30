@@ -185,6 +185,9 @@ class GoogleService:
         teacher_email: Optional[str],
     ) -> bool:
         """建立 Calendar 事件並邀請 Gmail 用戶"""
+        if not settings.GOOGLE_CALENDAR_SYNC_ENABLED:
+            return False
+
         token = await self.get_active_token()
         if not token:
             logger.warning("Google Calendar: 無可用 OAuth token，跳過同步")
@@ -257,6 +260,9 @@ class GoogleService:
         teacher_email: Optional[str],
     ) -> bool:
         """更新已同步的 Calendar 事件"""
+        if not settings.GOOGLE_CALENDAR_SYNC_ENABLED:
+            return False
+
         token = await self.get_active_token()
         if not token:
             return False
@@ -311,6 +317,9 @@ class GoogleService:
 
     async def cancel_calendar_event(self, booking_id: str) -> bool:
         """取消已同步的 Calendar 事件"""
+        if not settings.GOOGLE_CALENDAR_SYNC_ENABLED:
+            return False
+
         token = await self.get_active_token()
         if not token:
             return False
