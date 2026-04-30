@@ -115,28 +115,59 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Zoom" width="140" align="center">
+        <el-table-column :label="$t('bookingAdmin.zoomColumn')" min-width="160" align="center">
           <template #default="{ row }">
-            <div v-if="isUpcoming(row) && zoomInfoMap[row.id]?.join_url" class="zoom-cell">
-              <el-button
-                type="success"
-                size="small"
-                round
-                plain
-                class="h-24px! px-2!"
-                @click="openUrl(zoomInfoMap[row.id]?.join_url)"
-              >
-                <template #icon><div class="i-hugeicons:video-01" /></template>
-                {{ $t('teacherRecords.zoomJoin') }}
-              </el-button>
-              <div v-if="zoomInfoMap[row.id]?.passcode" class="zoom-passcode">
-                {{ $t('teacherRecords.zoomPasscode', { passcode: zoomInfoMap[row.id]?.passcode }) }}
-                <el-button link size="small" class="copy-btn" @click="copyText(zoomInfoMap[row.id]?.passcode)">
-                  <div class="i-hugeicons:copy-01" />
+            <template v-if="['pending', 'confirmed', 'completed'].includes(row.booking_status)">
+              <div v-if="!zoomInfoMap[row.id]" class="flex justify-center items-center min-h-12">
+                <span class="text-gray-400">-</span>
+              </div>
+              <div v-else class="flex flex-col items-center gap-2 min-h-12 justify-center">
+                <div class="flex flex-col justify-center items-center gap-1">
+                  <el-button
+                    v-if="zoomInfoMap[row.id]?.join_url"
+                    type="success"
+                    size="small"
+                    round
+                    plain
+                    class="text-xs h-20px! px-1.5!"
+                    @click="openUrl(zoomInfoMap[row.id]?.join_url)"
+                  >
+                    <template #icon><div class="i-hugeicons:video-01" /></template>
+                    {{ $t('bookingAdmin.joinMeeting') }}
+                  </el-button>
+                  <div
+                    v-if="zoomInfoMap[row.id]?.passcode"
+                    class="flex items-center gap-0.5 text-11px leading-12px color-gray-400 translate-x-10px"
+                  >
+                    {{ $t('bookingAdmin.passcode', { passcode: zoomInfoMap[row.id]?.passcode }) }}
+                    <el-button
+                      size="small"
+                      round
+                      link
+                      class="text-xs h-20px! px-1! color-gray-400! hover:color-gray-500!"
+                      @click="copyText(zoomInfoMap[row.id]?.passcode)"
+                    >
+                      <div class="i-hugeicons:copy-01" />
+                    </el-button>
+                  </div>
+                </div>
+                <el-button
+                  v-if="zoomInfoMap[row.id]?.drive_view_link || zoomInfoMap[row.id]?.recording_url"
+                  type="info"
+                  size="small"
+                  round
+                  plain
+                  class="text-xs h-20px! px-1.5!"
+                  @click="openUrl(zoomInfoMap[row.id]?.drive_view_link || zoomInfoMap[row.id]?.recording_url)"
+                >
+                  <template #icon><div class="i-hugeicons:video-replay" /></template>
+                  {{ $t('bookingAdmin.viewRecording') }}
                 </el-button>
               </div>
+            </template>
+            <div v-else class="flex justify-center items-center min-h-12">
+              <span class="text-gray-400">-</span>
             </div>
-            <span v-else class="muted-text">-</span>
           </template>
         </el-table-column>
 
@@ -424,8 +455,7 @@ async function fetchBookings() {
 
 async function fetchZoomInfos() {
   const ids = bookings.value
-    .filter((booking) => ['pending', 'confirmed'].includes(booking.booking_status))
-    .filter((booking) => isUpcoming(booking))
+    .filter((booking) => ['pending', 'confirmed', 'completed'].includes(booking.booking_status))
     .filter((booking) => !zoomInfoMap.value[booking.id])
     .map((booking) => booking.id);
 
@@ -615,7 +645,7 @@ function openUrl(url?: string | null) {
 }
 
 function copyText(text?: string | null) {
-  if (text) copyToClipboardUtil(text, t('teacherRecords.msgCopySuccess'));
+  if (text) copyToClipboardUtil(text, t('bookingAdmin.passcodeCopied'));
 }
 
 watch(
@@ -661,27 +691,6 @@ watch(
 .muted-text {
   color: var(--el-text-color-secondary);
   font-size: 12px;
-}
-
-.zoom-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.zoom-passcode {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-}
-
-.copy-btn {
-  height: 18px !important;
-  padding: 0 2px !important;
 }
 
 .note-preview {

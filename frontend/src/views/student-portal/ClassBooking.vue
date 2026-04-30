@@ -158,17 +158,59 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('studentBooking.colZoom')" width="120" align="center">
+        <el-table-column :label="$t('bookingAdmin.zoomColumn')" min-width="160" align="center">
           <template #default="{ row }">
-            <el-link
-              v-if="zoomInfoMap[row.id]?.join_url"
-              :href="zoomInfoMap[row.id]?.join_url"
-              target="_blank"
-              type="primary"
-            >
-              {{ $t('studentBooking.zoomEnter') }}
-            </el-link>
-            <span v-else>-</span>
+            <template v-if="['pending', 'confirmed', 'completed'].includes(row.booking_status)">
+              <div v-if="!zoomInfoMap[row.id]" class="flex justify-center items-center min-h-12">
+                <span class="text-gray-400">-</span>
+              </div>
+              <div v-else class="flex flex-col items-center gap-2 min-h-12 justify-center">
+                <div class="flex flex-col justify-center items-center gap-1">
+                  <el-button
+                    v-if="zoomInfoMap[row.id]?.join_url"
+                    type="success"
+                    size="small"
+                    round
+                    plain
+                    class="text-xs h-20px! px-1.5!"
+                    @click="openUrl(zoomInfoMap[row.id]?.join_url)"
+                  >
+                    <template #icon><div class="i-hugeicons:video-01" /></template>
+                    {{ $t('bookingAdmin.joinMeeting') }}
+                  </el-button>
+                  <div
+                    v-if="zoomInfoMap[row.id]?.passcode"
+                    class="flex items-center gap-0.5 text-11px leading-12px color-gray-400 translate-x-10px"
+                  >
+                    {{ $t('bookingAdmin.passcode', { passcode: zoomInfoMap[row.id]?.passcode }) }}
+                    <el-button
+                      size="small"
+                      round
+                      link
+                      class="text-xs h-20px! px-1! color-gray-400! hover:color-gray-500!"
+                      @click="copyToClipboard(zoomInfoMap[row.id]?.passcode)"
+                    >
+                      <div class="i-hugeicons:copy-01" />
+                    </el-button>
+                  </div>
+                </div>
+                <el-button
+                  v-if="zoomInfoMap[row.id]?.drive_view_link || zoomInfoMap[row.id]?.recording_url"
+                  type="info"
+                  size="small"
+                  round
+                  plain
+                  class="text-xs h-20px! px-1.5!"
+                  @click="openUrl(zoomInfoMap[row.id]?.drive_view_link || zoomInfoMap[row.id]?.recording_url)"
+                >
+                  <template #icon><div class="i-hugeicons:video-replay" /></template>
+                  {{ $t('bookingAdmin.viewRecording') }}
+                </el-button>
+              </div>
+            </template>
+            <div v-else class="flex justify-center items-center min-h-12">
+              <span class="text-gray-400">-</span>
+            </div>
           </template>
         </el-table-column>
 
@@ -496,6 +538,7 @@ import { createLeaveRecord } from '@/api/leaveRecord';
 import { batchGetZoomMeetings, type ZoomMeetingLogResponse } from '@/api/zoom';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { BOOKING_STATUS_MAP, BOOKING_TYPE_MAP } from '@/constants/booking';
+import { copyToClipboardUtil } from '@/utils/clipboard';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
@@ -584,6 +627,16 @@ const leaveRules = reactive<FormRules>({
 
 const toTimeText = (time?: string | null) => (time ? time.substring(0, 5) : '');
 const formatTime = toTimeText;
+
+const openUrl = (url?: string | null) => {
+  if (url) window.open(url, '_blank');
+};
+
+const copyToClipboard = (text?: string | null) => {
+  if (text) {
+    copyToClipboardUtil(text, t('bookingAdmin.passcodeCopied'));
+  }
+};
 
 const getCourseLabel = (course: BookingCourseOption) => {
   return course.course_code ? `${course.course_code} - ${course.course_name}` : course.course_name;
