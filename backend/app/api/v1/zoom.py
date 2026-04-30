@@ -431,6 +431,9 @@ async def batch_get_meetings_by_bookings(
                 item["teacher_id"] = str(item["teacher_id"])
             item["account_name"] = acct_map.get(str(row.get("zoom_account_id")))
             item["teacher_name"] = teacher_map.get(str(row.get("teacher_id")))
+            # start_url 含 ZAK，等同 host 完整權限，僅 staff 可見
+            if not current_user.is_staff():
+                item["start_url"] = None
             result[bid] = ZoomMeetingLogResponse(**item).model_dump(mode="json")
 
         return {"success": True, "message": "操作成功", "data": result}
@@ -490,6 +493,9 @@ async def get_meeting_by_booking(
             raise HTTPException(status_code=404, detail="此預約尚無 Zoom 會議")
 
         enriched = await enrich_meeting_log(logs[0])
+        # start_url 含 ZAK，等同 host 完整權限，僅 staff 可見
+        if not current_user.is_staff():
+            enriched["start_url"] = None
         return DataResponse(data=ZoomMeetingLogResponse(**enriched))
 
     except HTTPException:

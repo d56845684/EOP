@@ -23,10 +23,6 @@ CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
 CALENDAR_TIMEZONE = "Asia/Taipei"
 
 
-def is_gmail(email: str) -> bool:
-    return email.lower().endswith("@gmail.com")
-
-
 class GoogleService:
 
     # ============================================================
@@ -189,28 +185,31 @@ class GoogleService:
         teacher_email: Optional[str],
     ) -> bool:
         """建立 Calendar 事件並邀請 Gmail 用戶"""
+        if not settings.GOOGLE_CALENDAR_SYNC_ENABLED:
+            return False
+
         token = await self.get_active_token()
         if not token:
             logger.warning("Google Calendar: 無可用 OAuth token，跳過同步")
             return False
 
-        gmail_attendees = []
+        attendees = []
         email_role_map = {}
-        if student_email and is_gmail(student_email):
-            gmail_attendees.append(student_email)
+        if student_email:
+            attendees.append(student_email)
             email_role_map[student_email] = "student"
-        if teacher_email and is_gmail(teacher_email):
-            gmail_attendees.append(teacher_email)
+        if teacher_email:
+            attendees.append(teacher_email)
             email_role_map[teacher_email] = "teacher"
 
-        if not gmail_attendees:
-            logger.info(f"Booking {booking_id}: 無 Gmail attendee，跳過 Calendar 同步")
+        if not attendees:
+            logger.info(f"Booking {booking_id}: 無 attendee email，跳過 Calendar 同步")
             return False
 
         body = self._build_calendar_event(
             summary=summary, description=description,
             date=date, start_time=start_time, end_time=end_time,
-            attendee_emails=gmail_attendees,
+            attendee_emails=attendees,
         )
 
         try:
@@ -230,7 +229,7 @@ class GoogleService:
             if not event_id:
                 return False
 
-            for email in gmail_attendees:
+            for email in attendees:
                 await supabase_service.table_insert(
                     table="booking_calendar_events",
                     data={
@@ -242,7 +241,7 @@ class GoogleService:
                     },
                 )
 
-            logger.info(f"Booking {booking_id}: Calendar 事件建立成功 (event={event_id}, attendees={gmail_attendees})")
+            logger.info(f"Booking {booking_id}: Calendar 事件建立成功 (event={event_id}, attendees={attendees})")
             return True
 
         except Exception as e:
@@ -261,6 +260,9 @@ class GoogleService:
         teacher_email: Optional[str],
     ) -> bool:
         """更新已同步的 Calendar 事件"""
+        if not settings.GOOGLE_CALENDAR_SYNC_ENABLED:
+            return False
+
         token = await self.get_active_token()
         if not token:
             return False
@@ -275,16 +277,16 @@ class GoogleService:
 
         event_id = records[0]["calendar_event_id"]
 
-        gmail_attendees = []
-        if student_email and is_gmail(student_email):
-            gmail_attendees.append(student_email)
-        if teacher_email and is_gmail(teacher_email):
-            gmail_attendees.append(teacher_email)
+        attendees = []
+        if student_email:
+            attendees.append(student_email)
+        if teacher_email:
+            attendees.append(teacher_email)
 
         body = self._build_calendar_event(
             summary=summary, description=description,
             date=date, start_time=start_time, end_time=end_time,
-            attendee_emails=gmail_attendees,
+            attendee_emails=attendees,
         )
 
         try:
@@ -315,6 +317,9 @@ class GoogleService:
 
     async def cancel_calendar_event(self, booking_id: str) -> bool:
         """取消已同步的 Calendar 事件"""
+        if not settings.GOOGLE_CALENDAR_SYNC_ENABLED:
+            return False
+
         token = await self.get_active_token()
         if not token:
             return False

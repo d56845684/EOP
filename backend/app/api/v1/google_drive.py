@@ -8,6 +8,7 @@ from app.services.supabase_service import supabase_service
 from app.services.google_service import google_drive_service
 from app.core.dependencies import CurrentUser, require_staff, get_current_user
 from app.schemas.response import BaseResponse, DataResponse
+from app.schemas.google_drive import GoogleDriveOAuthUrlResponse, GoogleDriveStatusResponse
 from app.config import settings
 from datetime import datetime, timezone, timedelta
 import logging
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # ── OAuth 端點 ──
 
-@router.get("/oauth/authorize", response_model=DataResponse)
+@router.get("/oauth/authorize", response_model=GoogleDriveOAuthUrlResponse)
 async def get_oauth_authorize_url(
     current_user: CurrentUser = Depends(require_staff),
 ):
@@ -101,7 +102,7 @@ async def oauth_callback(
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/zoom-accounts?google_drive=error")
 
 
-@router.get("/oauth/status", response_model=DataResponse)
+@router.get("/oauth/status", response_model=GoogleDriveStatusResponse)
 async def get_drive_status(
     current_user: CurrentUser = Depends(get_current_user),
 ):

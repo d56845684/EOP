@@ -103,6 +103,9 @@ class Settings(BaseSettings):
     def google_drive_oauth_configured(self) -> bool:
         return bool(self.GOOGLE_DRIVE_OAUTH_CLIENT_ID and self.GOOGLE_DRIVE_OAUTH_CLIENT_SECRET)
 
+    # Google Calendar 同步（建立/更新/取消預約時 push 到管理員 Calendar 並寄邀請信）
+    GOOGLE_CALENDAR_SYNC_ENABLED: bool = True
+
     # 試上課錄影統一放到此資料夾（留空 = 放預設資料夾）
     TRIAL_STUDENT_DRIVE_FOLDER_ID: str = ""
 
