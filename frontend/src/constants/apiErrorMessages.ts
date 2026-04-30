@@ -48,6 +48,11 @@ const API_ERROR_REQUEST_TRANSLATION_RULES: ApiErrorRequestTranslationRule[] = [
     errorCode: 'VALIDATION_ERROR',
     key: 'apiErrorsByRequest.studentConvertToFormal.VALIDATION_ERROR',
   },
+  {
+    requestPattern: /\/v1\/bookings$/,
+    errorCode: 'VALIDATION_ERROR',
+    key: 'apiErrorsByRequest.studentBooking.VALIDATION_ERROR',
+  },
 ];
 
 export const getApiErrorTranslationKey = (errorCode?: string | null) => {

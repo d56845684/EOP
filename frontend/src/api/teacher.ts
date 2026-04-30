@@ -64,6 +64,7 @@ export interface TeacherOverviewParams {
   is_active?: boolean | null;
   has_account?: boolean | null;
   has_active_contract?: boolean | null;
+  employment_type?: string | null;
   role?: string | null;
 }
 
@@ -90,6 +91,7 @@ export interface TeacherOverviewItem {
   total_bookings: number;
   total_contracts: number;
   upcoming_bookings: number;
+  latest_active_employment_type: string;
 }
 
 export interface TeacherOverviewListResponse {

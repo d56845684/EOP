@@ -252,7 +252,7 @@
                 <el-option
                   v-for="teacher in teacherOptions"
                   :key="teacher.id"
-                  :label="teacher.name"
+                  :label="`${teacher.teacher_no} - ${teacher.name}`"
                   :value="teacher.id"
                 />
               </el-select>
@@ -312,6 +312,7 @@
                 :disabled="!bookingForm.teacher_id"
                 :loading="slotsLoading"
                 :placeholder="$t('studentBooking.slotPlaceholder')"
+                @change="handleTeacherSlotChange"
               >
                 <el-option
                   v-for="slot in teacherSlotOptions"
@@ -324,6 +325,53 @@
             </el-form-item>
           </el-col>
         </el-row>
+
+        <el-form-item
+          v-if="bookingForm.teacher_slot_id"
+          v-loading="slotAvailabilityLoading"
+          prop="slot_block_time"
+        >
+          <template #label>
+            <span>{{ $t('studentBooking.availableTimeBlocks') }}</span>
+            <span class="ml-2 text-xs color-[#909399]">{{ $t('studentBooking.slotRangeHint') }}</span>
+          </template>
+          <div v-if="slotAvailability?.blocks?.length" class="flex flex-wrap gap-2">
+            <div
+              v-for="block in slotAvailability.blocks"
+              :key="`${block.start_time}-${block.end_time}`"
+              class="mt-1"
+            >
+              <el-button
+                size="small"
+                class="w-80px h-60px p-2! rounded-8px"
+                :type="isSelectedSlotBlock(block) ? 'primary' : 'default'"
+                :disabled="!block.is_available"
+                :class="{ 'shadow-[inset_0_0_0_2px_#3695ff]': isSlotStartAndEndBlock(block) }"
+                @click="selectSlotBlock(block)"
+              >
+                <div
+                  class="flex flex-col items-center leading-tight"
+                  
+                >
+                  <span>{{ formatSlotBlockTime(block) }}</span>
+                  <span
+                    v-if="getSlotBlockSelectionText(block)"
+                    class="text-10px opacity-80"
+                    :class="{ 'slot-block-start-end': isSlotStartAndEndBlock(block) }"
+                  >
+                    {{ getSlotBlockSelectionText(block) }}
+                  </span>
+                  <span v-if="!block.is_available" class="mt-0.5 text-10px" >
+                    {{ $t('studentBooking.slotAlreadyBooked') }}
+                  </span>
+                </div>
+              </el-button>
+            </div>
+          </div>
+          <div v-else-if="!slotAvailabilityLoading" class="text-xs color-[#f56c6c]">
+            {{ $t('studentBooking.noAvailableTimeBlocks') }}
+          </div>
+        </el-form-item>
 
         <el-form-item :label="$t('studentBooking.labelNotes')">
           <el-input
@@ -434,6 +482,9 @@ import {
   getBookingOptionStudentContracts,
   getBookingOptionTeacherSlots,
   getBookingOptionTeachers,
+  getBookingSlotAvailability,
+  type BookingSlotAvailability,
+  type BookingSlotAvailabilityBlock,
   type BookingCourseOption,
   type BookingItem,
   type BookingStatus,
@@ -468,6 +519,7 @@ const bookingForm = reactive({
   course_id: '',
   student_contract_id: '',
   teacher_slot_id: '',
+  slot_block_time: '',
   notes: '',
 });
 
@@ -475,6 +527,16 @@ const bookingRules = reactive<FormRules>({
   teacher_id: [{ required: true, message: t('studentBooking.teacherRequired'), trigger: 'change' }],
   course_id: [{ required: true, message: t('studentBooking.courseRequired'), trigger: 'change' }],
   teacher_slot_id: [{ required: true, message: t('studentBooking.slotRequired'), trigger: 'change' }],
+  slot_block_time: [{
+    validator: (_rule: any, value: any, callback: any) => {
+      if (bookingForm.teacher_slot_id && !value) {
+        callback(new Error(t('studentBooking.selectAvailableTimeBlock')));
+        return;
+      }
+      callback();
+    },
+    trigger: 'change',
+  }],
 });
 
 const contractPlaceholder = computed(() => {
@@ -503,6 +565,11 @@ const bookings = ref<BookingItem[]>([]);
 const loading = ref(false);
 const total = ref(0);
 const zoomInfoMap = ref<Record<string, ZoomMeetingLogResponse>>({});
+const slotAvailability = ref<BookingSlotAvailability | null>(null);
+const slotAvailabilityLoading = ref(false);
+const selectedSlotStartBlock = ref<BookingSlotAvailabilityBlock | null>(null);
+const selectedSlotEndBlock = ref<BookingSlotAvailabilityBlock | null>(null);
+let slotAvailabilityRequestId = 0;
 
 const leaveDialogVisible = ref(false);
 const leaveBooking = ref<BookingItem | null>(null);
@@ -530,6 +597,43 @@ const getContractLabel = (contract: BookingStudentContractOption) => {
 const getSlotLabel = (slot: BookingTeacherSlotOption) => {
   const status = slot.is_booked ? ` (${t('studentBooking.slotBooked')})` : '';
   return `${slot.slot_date} ${toTimeText(slot.start_time)} ~ ${toTimeText(slot.end_time)}${status}`;
+};
+
+const formatApiTime = (time?: string | null) => time?.substring(0, 5) || '';
+
+const formatSlotBlockTime = (block: BookingSlotAvailabilityBlock) => {
+  return `${formatApiTime(block.start_time)}~${formatApiTime(block.end_time)}`;
+};
+
+const getSlotBlockIndex = (block: BookingSlotAvailabilityBlock) => {
+  return slotAvailability.value?.blocks.findIndex((item) => (
+    item.start_time === block.start_time && item.end_time === block.end_time
+  )) ?? -1;
+};
+
+const isSelectedSlotBlock = (block: BookingSlotAvailabilityBlock) => {
+  if (!selectedSlotStartBlock.value) return false;
+  const blockIndex = getSlotBlockIndex(block);
+  const startIndex = getSlotBlockIndex(selectedSlotStartBlock.value);
+  const endIndex = selectedSlotEndBlock.value ? getSlotBlockIndex(selectedSlotEndBlock.value) : startIndex;
+  return blockIndex >= startIndex && blockIndex <= endIndex;
+};
+
+const isSameSlotBlock = (a: BookingSlotAvailabilityBlock | null, b: BookingSlotAvailabilityBlock) => (
+  a?.start_time === b.start_time && a?.end_time === b.end_time
+);
+
+const isSlotStartAndEndBlock = (block: BookingSlotAvailabilityBlock) => (
+  isSameSlotBlock(selectedSlotStartBlock.value, block) && isSameSlotBlock(selectedSlotEndBlock.value, block)
+);
+
+const getSlotBlockSelectionText = (block: BookingSlotAvailabilityBlock) => {
+  if (isSlotStartAndEndBlock(block)) return t('studentBooking.slotStartAndEndSelected');
+  const isStart = isSameSlotBlock(selectedSlotStartBlock.value, block);
+  const isEnd = isSameSlotBlock(selectedSlotEndBlock.value, block);
+  if (isStart) return t('studentBooking.slotStartSelected');
+  if (isEnd) return t('studentBooking.slotEndSelected');
+  return '';
 };
 
 const isPastSlot = (slot: BookingTeacherSlotOption) => {
@@ -641,13 +745,77 @@ const loadCoursesAndSlots = async () => {
   }
 };
 
+const resetSlotAvailability = () => {
+  slotAvailabilityRequestId += 1;
+  slotAvailability.value = null;
+  slotAvailabilityLoading.value = false;
+  selectedSlotStartBlock.value = null;
+  selectedSlotEndBlock.value = null;
+  bookingForm.slot_block_time = '';
+};
+
+const handleTeacherSlotChange = async (slotId: string) => {
+  resetSlotAvailability();
+  bookingFormRef.value?.clearValidate(['slot_block_time']);
+  if (!slotId) return;
+
+  const requestId = ++slotAvailabilityRequestId;
+  slotAvailabilityLoading.value = true;
+  try {
+    const res = assertApiSuccess(await getBookingSlotAvailability(slotId), t('studentBooking.loadSlotAvailabilityFailed'));
+    if (requestId !== slotAvailabilityRequestId) return;
+    slotAvailability.value = res.data;
+  } catch (error) {
+    if (requestId === slotAvailabilityRequestId) {
+      ElMessage.error(getApiErrorMessage(error, t('studentBooking.loadSlotAvailabilityFailed')));
+    }
+  } finally {
+    if (requestId === slotAvailabilityRequestId) {
+      slotAvailabilityLoading.value = false;
+    }
+  }
+};
+
+const selectSlotBlock = (block: BookingSlotAvailabilityBlock) => {
+  if (!block.is_available || !slotAvailability.value) return;
+  const blocks = slotAvailability.value.blocks;
+
+  if (!selectedSlotStartBlock.value || selectedSlotEndBlock.value) {
+    selectedSlotStartBlock.value = block;
+    selectedSlotEndBlock.value = null;
+    bookingForm.slot_block_time = '';
+    return;
+  }
+
+  const startIndex = getSlotBlockIndex(selectedSlotStartBlock.value);
+  const endIndex = getSlotBlockIndex(block);
+
+  if (endIndex < startIndex) {
+    selectedSlotStartBlock.value = block;
+    selectedSlotEndBlock.value = null;
+    bookingForm.slot_block_time = '';
+    return;
+  }
+
+  const selectedRange = blocks.slice(startIndex, endIndex + 1);
+  if (selectedRange.some((item) => !item.is_available)) {
+    ElMessage.warning(t('studentBooking.selectContinuousAvailableBlocks'));
+    return;
+  }
+
+  selectedSlotEndBlock.value = block;
+  bookingForm.slot_block_time = `${formatApiTime(selectedSlotStartBlock.value.start_time)}-${formatApiTime(block.end_time)}`;
+  bookingFormRef.value?.clearValidate(['slot_block_time']);
+};
+
 const handleTeacherChange = () => {
   bookingForm.course_id = '';
   bookingForm.student_contract_id = '';
   bookingForm.teacher_slot_id = '';
+  resetSlotAvailability();
   courseOptions.value = [];
   teacherSlotOptions.value = [];
-  bookingFormRef.value?.clearValidate(['course_id', 'teacher_slot_id']);
+  bookingFormRef.value?.clearValidate(['course_id', 'teacher_slot_id', 'slot_block_time']);
   loadCoursesAndSlots();
 };
 
@@ -664,7 +832,9 @@ const resetBookingForm = () => {
   bookingForm.course_id = '';
   bookingForm.student_contract_id = '';
   bookingForm.teacher_slot_id = '';
+  bookingForm.slot_block_time = '';
   bookingForm.notes = '';
+  resetSlotAvailability();
   courseOptions.value = [];
   teacherSlotOptions.value = [];
   bookingFormRef.value?.clearValidate();
@@ -687,11 +857,13 @@ const submitBooking = async () => {
   if (!bookingFormRef.value || !currentStudentId.value) return;
 
   await bookingFormRef.value.validate(async (valid) => {
-    if (!valid || !selectedSlot.value) return;
+    if (!valid || !selectedSlot.value || !selectedSlotStartBlock.value || !selectedSlotEndBlock.value || !slotAvailability.value) return;
 
     creating.value = true;
     try {
       const slot = selectedSlot.value;
+      const startBlock = selectedSlotStartBlock.value;
+      const endBlock = selectedSlotEndBlock.value;
       const res = assertApiSuccess(await createBooking({
         student_id: currentStudentId.value,
         teacher_id: bookingForm.teacher_id,
@@ -699,9 +871,9 @@ const submitBooking = async () => {
         student_contract_id: bookingForm.student_contract_id || null,
         teacher_contract_id: slot.teacher_contract_id || null,
         teacher_slot_id: slot.id,
-        booking_date: slot.slot_date,
-        start_time: toTimeText(slot.start_time),
-        end_time: toTimeText(slot.end_time),
+        booking_date: slotAvailability.value.slot_date,
+        start_time: formatApiTime(startBlock.start_time),
+        end_time: formatApiTime(endBlock.end_time),
         notes: bookingForm.notes || null,
       }), t('studentBooking.createFailed'));
 
@@ -883,6 +1055,10 @@ watch(
   display: flex;
   justify-content: flex-end;
   margin-top: 20px;
+}
+
+.slot-block-start-end {
+  color: #00ffff;
 }
 
 @media (max-width: 768px) {

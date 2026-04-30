@@ -154,9 +154,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('teacherRecords.colActions')" min-width="220" fixed="right" align="center">
+        <el-table-column :label="$t('teacherRecords.colActions')" min-width="180" fixed="right" align="left">
           <template #default="{ row }">
-            <div class="action-cell">
+            <div class="action-cell items-end">
+              <el-button
+                v-if="canConfirmBooking(row)"
+                link
+                type="primary"
+                size="small"
+                :loading="confirmingBookingId === row.id"
+                @click="confirmBooking(row)"
+              >
+                {{ $t('teacherRecords.btnConfirm') }}
+              </el-button>
               <el-button
                 v-if="canEditBooking(row)"
                 link
@@ -164,7 +174,7 @@
                 size="small"
                 @click="openEditDialog(row)"
               >
-                {{ $t('common.edit') }}
+                {{ $t('common.note') }}
               </el-button>
               <el-button
                 v-if="canRequestLeave(row)"
@@ -175,7 +185,7 @@
               >
                 {{ $t('teacherRecords.btnLeave') }}
               </el-button>
-              <span v-if="!canEditBooking(row) && !canRequestLeave(row)" class="muted-text">
+              <span v-if="!canEditBooking(row) && !canConfirmBooking(row) && !canRequestLeave(row)" class="muted-text">
                 -
               </span>
             </div>
@@ -197,22 +207,8 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="editDialogVisible" :title="$t('teacherRecords.editBooking')" width="500px" destroy-on-close @closed="resetEditForm">
-      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="96px">
-        <el-form-item :label="$t('teacherRecords.bookingNo')">
-          <span>{{ editingBooking?.booking_no || '-' }}</span>
-        </el-form-item>
-        <el-form-item :label="$t('teacherRecords.bookingTime')">
-          <span>
-            {{ editingBooking?.booking_date || '-' }}
-            {{ formatTime(editingBooking?.start_time) }} ~ {{ formatTime(editingBooking?.end_time) }}
-          </span>
-        </el-form-item>
-        <el-form-item :label="$t('common.status')" prop="booking_status">
-          <el-select v-model="editForm.booking_status" class="w-full">
-            <el-option :label="$t('bookingShared.status.confirmed')" value="confirmed" />
-          </el-select>
-        </el-form-item>
+    <el-dialog v-model="editDialogVisible" :title="$t('common.note')" width="500px" destroy-on-close @closed="resetEditForm">
+      <el-form ref="editFormRef" :model="editForm" label-position="top">
         <el-form-item :label="$t('common.note')">
           <el-input v-model="editForm.notes" type="textarea" :rows="4" maxlength="500" show-word-limit />
         </el-form-item>
@@ -325,12 +321,9 @@ const editing = ref(false);
 const editingBooking = ref<BookingItem | null>(null);
 const editFormRef = ref<FormInstance>();
 const editForm = reactive({
-  booking_status: 'confirmed' as BookingStatus,
   notes: '',
 });
-const editRules: FormRules = {
-  booking_status: [{ required: true, message: t('teacherRecords.statusRequired'), trigger: 'change' }],
-};
+const confirmingBookingId = ref('');
 
 const leaveDialogVisible = ref(false);
 const leaving = ref(false);
@@ -377,14 +370,18 @@ function isUpcoming(booking: BookingItem) {
 }
 
 function canRequestLeave(booking: BookingItem) {
-  return ['pending', 'confirmed'].includes(booking.booking_status)
+  return booking.booking_status === 'confirmed'
     && isUpcoming(booking)
     && !booking.has_pending_leave
     && getBookingStart(booking).diff(dayjs(), 'minute') >= 30;
 }
 
-function canEditBooking(booking: BookingItem) {
+function canConfirmBooking(booking: BookingItem) {
   return booking.booking_status === 'pending' && !booking.has_pending_leave;
+}
+
+function canEditBooking(booking: BookingItem) {
+  return ['pending', 'confirmed'].includes(booking.booking_status);
 }
 
 function buildListParams(): BookingListParams {
@@ -459,14 +456,12 @@ function resetFilters() {
 
 function openEditDialog(booking: BookingItem) {
   editingBooking.value = booking;
-  editForm.booking_status = 'confirmed';
   editForm.notes = booking.notes || '';
   editDialogVisible.value = true;
 }
 
 function resetEditForm() {
   editingBooking.value = null;
-  editForm.booking_status = 'confirmed';
   editForm.notes = '';
   editFormRef.value?.clearValidate();
 }
@@ -480,7 +475,6 @@ async function submitEdit() {
     editing.value = true;
     try {
       const res = assertApiSuccess(await updateBooking(editingBooking.value.id, {
-        booking_status: editForm.booking_status,
         notes: editForm.notes || null,
       }), t('teacherRecords.updateFailed'));
 
@@ -493,6 +487,41 @@ async function submitEdit() {
       editing.value = false;
     }
   });
+}
+
+async function confirmBooking(booking: BookingItem) {
+  if (!canConfirmBooking(booking)) return;
+
+  try {
+    await ElMessageBox.confirm(
+      t('teacherRecords.confirmClassMessage', {
+        date: booking.booking_date,
+        time: `${formatTime(booking.start_time)} ~ ${formatTime(booking.end_time)}`,
+      }),
+      t('teacherRecords.confirmClassTitle'),
+      {
+        confirmButtonText: t('teacherRecords.confirmClassSubmit'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+      },
+    );
+  } catch {
+    return;
+  }
+
+  confirmingBookingId.value = booking.id;
+  try {
+    const res = assertApiSuccess(await updateBooking(booking.id, {
+      booking_status: 'confirmed',
+    }), t('teacherRecords.confirmClassFailed'));
+
+    ElMessage.success(res.message || t('teacherRecords.confirmClassSuccess'));
+    fetchBookings();
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, t('teacherRecords.confirmClassFailed')));
+  } finally {
+    confirmingBookingId.value = '';
+  }
 }
 
 function openLeaveDialog(booking: BookingItem) {
@@ -670,7 +699,7 @@ watch(
 .action-cell {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 6px;
   flex-wrap: wrap;
 }
