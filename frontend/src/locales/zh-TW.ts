@@ -93,6 +93,9 @@ export default {
     SERVICE_UNAVAILABLE: '服務暫時不可用，請稍後再試',
   },
   apiErrorsByRequest: {
+    teacherSlots: {
+      CONFLICT: '時段衝突，無法建立重疊時段',
+    },
     studentConvertToFormal: {
       VALIDATION_ERROR: '此學生非試上學生，無法執行轉正。',
     },
@@ -494,6 +497,7 @@ export default {
     saveFailed: '儲存課程失敗',
     statusUpdateFailed: '狀態更新失敗',
     deleteFailed: '刪除課程失敗',
+    durationStepRequired: '課程時長需為 30 分鐘或其倍數',
   },
   salary: {
     title: '薪資報表',
@@ -809,6 +813,9 @@ export default {
     missingTeacherLoad: '目前登入帳號沒有教師資料，無法載入預約時段',
     missingTeacherSave: '目前登入帳號沒有教師資料，無法儲存預約時段',
     missingTeacherBatch: '目前登入帳號沒有教師資料，無法批次處理預約時段',
+    missingContractTitle: '無法設定時段',
+    missingContractPermission: '您目前還沒有設置權限，請洽詢管理員',
+    loadContractsFailed: '載入教師合約失敗',
     loadFailed: '載入時段失敗',
     outOfRange: '只能設定今天起三個月內的預約時段',
     updateSlotFailed: '更新時段失敗',

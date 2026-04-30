@@ -484,14 +484,18 @@
                       <el-button
                         size="small"
                         class="w-80px h-60px p-2! rounded-8px"
+                        :class="{ 'shadow-[inset_0_0_0_2px_#3695ff]': isSlotStartAndEndBlock(block) }"
                         :type="isSelectedSlotBlock(block) ? 'primary' : 'default'"
                         :disabled="!block.is_available"
                         @click="selectSlotBlock(block)">
-                        <div class="flex flex-col items-center leading-tight">
+                        <div
+                          class="flex flex-col items-center gap-0.5 leading-tight"
+                        >
                           <span>{{ formatSlotBlockTime(block) }}</span>
                           <span
                             v-if="getSlotBlockSelectionText(block)"
                             class="text-10px opacity-80"
+                            :class="{ 'slot-block-start-end': isSlotStartAndEndBlock(block) }"
                           >
                             {{ getSlotBlockSelectionText(block) }}
                           </span>
@@ -1464,10 +1468,14 @@ const isSameSlotBlock = (a: BookingSlotAvailabilityBlock | null, b: BookingSlotA
   a?.start_time === b.start_time && a?.end_time === b.end_time
 );
 
+const isSlotStartAndEndBlock = (block: BookingSlotAvailabilityBlock) => (
+  isSameSlotBlock(selectedSlotStartBlock.value, block) && isSameSlotBlock(selectedSlotEndBlock.value, block)
+);
+
 const getSlotBlockSelectionText = (block: BookingSlotAvailabilityBlock) => {
+  if (isSlotStartAndEndBlock(block)) return t('bookingAdmin.slotStartAndEndSelected');
   const isStart = isSameSlotBlock(selectedSlotStartBlock.value, block);
   const isEnd = isSameSlotBlock(selectedSlotEndBlock.value, block);
-  if (isStart && isEnd) return t('bookingAdmin.slotStartAndEndSelected');
   if (isStart) return t('bookingAdmin.slotStartSelected');
   if (isEnd) return t('bookingAdmin.slotEndSelected');
   return '';
@@ -1751,5 +1759,9 @@ const submitBatchDelete = async () => {
      margin-right: 0;
      margin-bottom: 5px;
    }
+}
+
+.slot-block-start-end {
+  color: #00ffff;
 }
 </style>

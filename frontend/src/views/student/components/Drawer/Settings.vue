@@ -255,7 +255,7 @@
         <template #footer>
           <span class="dialog-footer">
             <el-button round size="small" class="px-5! h-30px!" @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
-            <el-button type="primary" round size="small" class="px-5! h-30px!" @click="handleSave" :loading="saving">{{ $t('common.confirm') }}</el-button>
+            <el-button type="primary" round size="small" class="px-5! h-30px!" @click="handleSave" :loading="saving" :disabled="!isPreferenceFormDirty">{{ $t('common.confirm') }}</el-button>
           </span>
         </template>
       </el-dialog>
@@ -290,6 +290,7 @@ import {
 } from '@/api/studentTeacherPreference';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { useI18n } from 'vue-i18n';
+import { createFormSnapshot } from '@/utils/formDirty';
 const props = defineProps<{
   studentId: string;
 }>();
@@ -479,6 +480,12 @@ const formData = reactive({
   course_id: null as string | null,
   min_teacher_level: 1 as number | null
 });
+const preferenceFormSnapshot = ref('');
+const getPreferenceFormSnapshot = () => createFormSnapshot(formData);
+const resetPreferenceFormSnapshot = () => {
+  preferenceFormSnapshot.value = getPreferenceFormSnapshot();
+};
+const isPreferenceFormDirty = computed(() => getPreferenceFormSnapshot() !== preferenceFormSnapshot.value);
 
 const teachers = ref<PreferenceTeacherOption[]>([]);
 const courses = ref<PreferenceCourseOption[]>([]);
@@ -565,6 +572,7 @@ const openDialog = (type: 'add' | 'edit', item?: StudentTeacherPreferenceRespons
       formData.min_teacher_level = item.min_teacher_level || 1;
     }
   }
+  resetPreferenceFormSnapshot();
   dialogVisible.value = true;
 };
 
@@ -604,6 +612,7 @@ const handleSave = async () => {
       const res = assertApiSuccess(await updateStudentTeacherPreference(currentEditId.value, payload), t('common.updateFailed'));
       ElMessage.success(res.message || t('studentAdmin.settings.updatePreferenceSuccess'));
     }
+    resetPreferenceFormSnapshot();
     dialogVisible.value = false;
     loadPreferences();
   } catch (err) {

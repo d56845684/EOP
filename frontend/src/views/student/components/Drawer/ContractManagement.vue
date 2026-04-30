@@ -162,7 +162,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-button type="primary" round size="small" class="py-3!" :loading="savingContract" @click="saveContractData">
+            <el-button type="primary" round size="small" class="py-3!" :loading="savingContract" :disabled="!isContractFormDirty" @click="saveContractData">
               <template #icon>
                 <div class="i-hugeicons:floppy-disk text-lg" />
               </template>
@@ -448,6 +448,7 @@ import { CONTRACT_STATUS } from '@/constants/contract';
 import { triggerDownload, getFileNameFromResponse}  from '@/utils/download';
 import { formatStudentContractStatusLabel } from '@/utils/i18n-formatters';
 import { uploadContractFile } from '@/utils/upload';
+import { createFormSnapshot } from '@/utils/formDirty';
 import { useI18n } from 'vue-i18n';
 
 const props = defineProps({
@@ -484,6 +485,12 @@ const contractForm = ref({
   total_leave_allowed: 0,
   notes: ''
 })
+const contractFormSnapshot = ref('');
+const getContractFormSnapshot = () => createFormSnapshot(contractForm.value);
+const resetContractFormSnapshot = () => {
+  contractFormSnapshot.value = getContractFormSnapshot();
+};
+const isContractFormDirty = computed(() => getContractFormSnapshot() !== contractFormSnapshot.value);
 
 const detailVisible = ref(false);
 const addLeaveDialogVisible = ref(false)
@@ -529,6 +536,7 @@ const openAddDetailDialog = () => {
 const saveContractData = () => {
   // TODO: Save contract data
   emit('saveContractData', contractForm.value)
+  resetContractFormSnapshot();
 }
 
 const handleUpdateContractDetails = () => {
@@ -713,6 +721,7 @@ watch(activeContract, (newVal: StudentContract | null) => {
       total_leave_allowed: newVal.total_leave_allowed,
       notes: newVal.notes || ''
     }
+    resetContractFormSnapshot();
     if (newVal.addendums && newVal.addendums.length > 0) {
       activeAddendum.value = newVal.addendums[newVal.addendums.length - 1] || null;
     }

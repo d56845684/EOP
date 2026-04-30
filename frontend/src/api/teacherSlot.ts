@@ -34,6 +34,7 @@ export interface TeacherSlotBatchCreate {
 
 export interface TeacherSlotBatchDelete {
     teacher_id: string;
+    teacher_contract_id?: string;
     start_date: string; // YYYY-MM-DD
     end_date: string;   // YYYY-MM-DD
     weekdays?: number[]; // 0=Mon, 6=Sun
@@ -43,6 +44,7 @@ export interface TeacherSlotBatchDelete {
 
 export interface TeacherSlotBatchUpdate {
     teacher_id: string;
+    teacher_contract_id?: string;
     start_date: string; // YYYY-MM-DD
     end_date: string;   // YYYY-MM-DD
     weekdays?: number[]; // 0=Mon, 6=Sun
@@ -107,8 +109,8 @@ export function updateTeacherSlot(slotId: string, data: TeacherSlotUpdate) {
     return request.put<any, DataResponse<TeacherSlotResponse>>(`/v1/teacher-slots/${slotId}`, data);
 }
 
-export function deleteTeacherSlot(slotId: string) {
-    return request.delete<any, BaseResponse>(`/v1/teacher-slots/${slotId}`);
+export function deleteTeacherSlot(slotId: string, data?: { teacher_contract_id?: string }) {
+    return request.delete<any, BaseResponse>(`/v1/teacher-slots/${slotId}`, { data });
 }
 
 export function getMyTeacherContracts() {
