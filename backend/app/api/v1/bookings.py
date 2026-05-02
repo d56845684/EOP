@@ -1663,41 +1663,65 @@ async def update_booking(
                 )
 
         # Zoom 整合：狀態變更時觸發
+        # confirmed：同步等 Zoom 建立完，失敗則 rollback 狀態回 old_status 並回 409
+        # cancelled/pending：刪除 Zoom 會議走非同步（即使失敗也不擋 user）
         new_status = update_data.get("booking_status")
         if new_status and new_status != old_status:
-            try:
-                from app.services.zoom_service import zoom_service
-                from app.config import settings as app_settings
-                if app_settings.zoom_enabled:
-                    if new_status == "confirmed":
-                        # 確認 → 建立 Zoom 會議
-                        booking_date_val = existing[0].get("booking_date") or result.get("booking_date")
-                        start_time_val = existing[0].get("start_time") or result.get("start_time")
-                        end_time_val = existing[0].get("end_time") or result.get("end_time")
-                        teacher_id_val = existing[0].get("teacher_id")
-                        if booking_date_val and start_time_val and end_time_val and teacher_id_val:
-                            if isinstance(booking_date_val, str):
-                                booking_date_val = date.fromisoformat(booking_date_val)
-                            if isinstance(start_time_val, str):
-                                start_time_val = time.fromisoformat(start_time_val)
-                            if isinstance(end_time_val, str):
-                                end_time_val = time.fromisoformat(end_time_val)
-                            asyncio.create_task(
-                                zoom_service.create_meeting_for_booking(
-                                    booking_id=booking_id,
-                                    teacher_id=teacher_id_val,
-                                    booking_date=booking_date_val,
-                                    start_time_val=start_time_val,
-                                    end_time_val=end_time_val,
-                                )
+            from app.services.zoom_service import zoom_service
+            from app.config import settings as app_settings
+            if app_settings.zoom_enabled:
+                if new_status == "confirmed":
+                    booking_date_val = existing[0].get("booking_date") or result.get("booking_date")
+                    start_time_val = existing[0].get("start_time") or result.get("start_time")
+                    end_time_val = existing[0].get("end_time") or result.get("end_time")
+                    teacher_id_val = existing[0].get("teacher_id")
+                    zoom_result = None
+                    zoom_err: Optional[Exception] = None
+                    if booking_date_val and start_time_val and end_time_val and teacher_id_val:
+                        if isinstance(booking_date_val, str):
+                            booking_date_val = date.fromisoformat(booking_date_val)
+                        if isinstance(start_time_val, str):
+                            start_time_val = time.fromisoformat(start_time_val)
+                        if isinstance(end_time_val, str):
+                            end_time_val = time.fromisoformat(end_time_val)
+                        try:
+                            zoom_result = await zoom_service.create_meeting_for_booking(
+                                booking_id=booking_id,
+                                teacher_id=teacher_id_val,
+                                booking_date=booking_date_val,
+                                start_time_val=start_time_val,
+                                end_time_val=end_time_val,
                             )
-                    elif new_status in ("cancelled", "pending"):
-                        # 取消或退回待確認 → 刪除已存在的 Zoom 會議
-                        asyncio.create_task(
-                            zoom_service.cancel_meeting_for_booking(booking_id)
+                        except Exception as e:
+                            zoom_err = e
+
+                    if zoom_result is None:
+                        # 還原狀態
+                        await supabase_service.table_update(
+                            table="bookings",
+                            data={"booking_status": old_status},
+                            filters={"id": booking_id},
                         )
-            except Exception as zoom_err:
-                logging.getLogger(__name__).warning(f"Zoom 會議狀態變更觸發失敗: {zoom_err}")
+                        if zoom_err is not None:
+                            logging.getLogger(__name__).error(
+                                f"確認預約 → Zoom 建立例外，已 rollback: booking_id={booking_id} err={zoom_err}"
+                            )
+                            raise HTTPException(
+                                status_code=502,
+                                detail="Zoom 服務目前無法建立會議，請稍後再試。預約狀態保留為原狀態。",
+                            )
+                        logging.getLogger(__name__).warning(
+                            f"確認預約 → Zoom 帳號池無可用帳號，已 rollback: booking_id={booking_id}"
+                        )
+                        raise HTTPException(
+                            status_code=409,
+                            detail="該時段所有 Zoom 帳號皆被佔用，無法建立會議。請改選其他時段或先釋放衝突的時段，預約狀態保留為原狀態。",
+                        )
+                elif new_status in ("cancelled", "pending"):
+                    # 取消 / 退回待確認 → 刪除 Zoom 會議（非同步、失敗不擋）
+                    asyncio.create_task(
+                        zoom_service.cancel_meeting_for_booking(booking_id)
+                    )
 
         # 試上課完成：自動寫入「試上完成」獎金紀錄
         if new_status == "completed" and old_status != "completed":
