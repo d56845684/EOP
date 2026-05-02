@@ -2,6 +2,8 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime, date
 
+from app.schemas._validators import OptionalDate
+
 
 class StudentCreate(BaseModel):
     """建立學生"""
@@ -11,7 +13,7 @@ class StudentCreate(BaseModel):
     email: EmailStr = Field(..., description="Email")
     phone: str = Field(..., min_length=1, max_length=20, description="電話（必填）")
     address: Optional[str] = Field(None, description="地址")
-    birth_date: Optional[date] = Field(None, description="生日")
+    birth_date: OptionalDate = Field(None, description="生日（空字串自動轉 None）")
     id_number: Optional[str] = Field(None, max_length=20, description="身分證字號")
     student_type: str = Field("formal", description="學生類型 (formal/trial)")
     is_active: bool = Field(True, description="是否啟用")
@@ -38,7 +40,7 @@ class StudentUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
-    birth_date: Optional[date] = None
+    birth_date: OptionalDate = None
     id_number: Optional[str] = Field(None, max_length=20)
     student_type: Optional[str] = Field(None, description="學生類型 (formal/trial)")
     is_active: Optional[bool] = None
