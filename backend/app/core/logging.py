@@ -4,7 +4,9 @@ import logging
 import json
 import sys
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+TAIPEI_TZ = timezone(timedelta(hours=8))
 
 # Per-request context variables
 request_id_var: ContextVar[str] = ContextVar("request_id", default="")
@@ -18,10 +20,10 @@ class JSONFormatter(logging.Formatter):
     """每行輸出一個 JSON object，自動帶入 request context"""
 
     def format(self, record: logging.LogRecord) -> str:
+        # UTC+8 + 秒精度
         log_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(TAIPEI_TZ).isoformat(timespec="seconds"),
             "level": record.levelname,
-            "logger": record.name,
             "message": record.getMessage(),
         }
 
