@@ -66,6 +66,8 @@ class AuthService:
         
         # 2. 取得用戶身份資訊 (從 user_profiles 表)
         identity = await self._get_user_identity(user.id)
+        if not identity.get("is_active", True):
+            raise AuthException("帳號已停用，請聯絡管理員")
         user_role = identity["role_key"]
         role_id = identity["role_id"]
         profile_extra = await self.get_profile_extra(user.id)
@@ -260,6 +262,8 @@ class AuthService:
         """
         # 取得用戶身份資訊
         identity = await self._get_user_identity(user_id)
+        if not identity.get("is_active", True):
+            raise AuthException("帳號已停用，請聯絡管理員")
         user_role = identity["role_key"]
         role_id = identity["role_id"]
 
@@ -334,7 +338,8 @@ class AuthService:
             rows = await self.supabase.pool.fetch(
                 """
                 SELECT r.key AS role_key, r.id AS role_id,
-                       up.student_id, up.teacher_id, up.employee_id
+                       up.student_id, up.teacher_id, up.employee_id,
+                       up.is_active
                 FROM user_profiles up
                 JOIN roles r ON r.id = up.role_id
                 WHERE up.id = $1
@@ -349,11 +354,12 @@ class AuthService:
                     "student_id": str(row["student_id"]) if row["student_id"] else None,
                     "teacher_id": str(row["teacher_id"]) if row["teacher_id"] else None,
                     "employee_id": str(row["employee_id"]) if row["employee_id"] else None,
+                    "is_active": bool(row["is_active"]) if row["is_active"] is not None else True,
                 }
         except:
             pass
 
-        return {"role_key": "student", "role_id": None, "student_id": None, "teacher_id": None, "employee_id": None}
+        return {"role_key": "student", "role_id": None, "student_id": None, "teacher_id": None, "employee_id": None, "is_active": True}
 
     async def get_profile_extra(self, user_id: str) -> dict:
         """從資料庫取得用戶 profile 額外資訊（must_change_password, entity IDs, role_id 等）"""

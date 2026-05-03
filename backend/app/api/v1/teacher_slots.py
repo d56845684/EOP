@@ -252,14 +252,14 @@ async def create_teacher_slot(
         elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權建立教師時段")
 
-        # 驗證教師存在
+        # 驗證教師存在且未停用
         teacher = await supabase_service.table_select(
             table="teachers",
             select="id,name",
-            filters={"id": data.teacher_id, "is_deleted": "eq.false"},
+            filters={"id": data.teacher_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在")
+            raise HTTPException(status_code=400, detail="教師不存在或已停用")
 
         # 驗證教師合約：必須屬於該老師、active、未刪除
         contract = await supabase_service.table_select(
@@ -333,14 +333,14 @@ async def create_teacher_slots_batch(
         elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權建立教師時段")
 
-        # 驗證教師存在
+        # 驗證教師存在且未停用
         teacher = await supabase_service.table_select(
             table="teachers",
             select="id,name",
-            filters={"id": data.teacher_id, "is_deleted": "eq.false"},
+            filters={"id": data.teacher_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在")
+            raise HTTPException(status_code=400, detail="教師不存在或已停用")
 
         # 驗證教師合約：必須屬於該老師、active、未刪除
         contract = await supabase_service.table_select(

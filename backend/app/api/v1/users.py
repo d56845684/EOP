@@ -6,6 +6,7 @@ from app.core.dependencies import (
 )
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
+from app.services.session_service import session_service
 from app.config import settings
 from app.schemas.response import DataResponse, PaginatedResponse, BaseResponse
 from app.schemas.user import UserProfile, AccountInfo, AccountUpdate
@@ -292,6 +293,12 @@ async def deactivate_user(
             data={"is_active": False},
             filters={"id": user_id},
         )
+
+        # 主動清掉現有 session，避免被停用帳號繼續用既有 cookie
+        try:
+            await session_service.destroy_all_user_sessions(user_id)
+        except Exception:
+            logger.exception("停用帳號後清除 session 失敗 (non-fatal)")
 
         return BaseResponse(message="帳號已停用")
     except HTTPException:
