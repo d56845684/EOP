@@ -614,6 +614,8 @@ async def update_teacher_slots_batch(
 
     except HTTPException:
         raise
+    except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"批次更新教師時段失敗: {str(e)}")
 
@@ -764,6 +766,8 @@ async def update_teacher_slots_by_ids(
 
     except HTTPException:
         raise
+    except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"批次更新教師時段失敗: {str(e)}")
 
@@ -851,6 +855,8 @@ async def update_teacher_slot(
 
     except HTTPException:
         raise
+    except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"更新教師時段失敗: {str(e)}")
 
