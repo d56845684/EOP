@@ -27,6 +27,11 @@ class JSONFormatter(logging.Formatter):
             "message": record.getMessage(),
         }
 
+        # HTTP status_code 獨立成頂層欄位 (由 LoggingMiddleware extra 傳入)
+        status_code = getattr(record, "status_code", None)
+        if status_code is not None:
+            log_entry["status_code"] = status_code
+
         # 從 contextvars 帶入 request context
         for key, var in [
             ("request_id", request_id_var),
