@@ -6,7 +6,7 @@ from app.schemas.leave_record import (
 )
 from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 import math
 import logging
 
@@ -190,7 +190,7 @@ async def create_leave_record(
         if hasattr(booking_start_str, 'isoformat'):
             booking_start_str = booking_start_str.isoformat()
         class_start_dt = datetime.strptime(f"{booking_date_str} {booking_start_str}", "%Y-%m-%d %H:%M:%S")
-        now = datetime.utcnow() + timedelta(hours=8)  # UTC+8 台灣時間
+        now = datetime.now()  # container TZ=Asia/Taipei，naive Taipei
 
         hours_before = (class_start_dt - now).total_seconds() / 3600
 
