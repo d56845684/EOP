@@ -86,7 +86,7 @@ async def get_course_options(
         # 查詢課程詳情
         pool = supabase_service.pool
         courses = await pool.fetch(
-            "SELECT id, course_name FROM courses WHERE id = ANY($1) AND is_deleted = FALSE",
+            "SELECT id, course_name FROM courses WHERE id = ANY($1) AND is_deleted = FALSE AND is_active = TRUE",
             course_ids,
         )
         return {"success": True, "message": "操作成功", "data": [{"id": str(c["id"]), "course_name": c["course_name"]} for c in courses]}
