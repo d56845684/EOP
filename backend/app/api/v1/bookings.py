@@ -446,10 +446,17 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
     if booking.get("student_id"):
         student = await supabase_service.table_select(
             table="students",
-            select="name",
+            select="name,student_no,eng_name",
             filters={"id": booking["student_id"]},
         )
-        booking["student_name"] = student[0]["name"] if student else None
+        if student:
+            booking["student_name"] = student[0]["name"]
+            booking["student_no"] = student[0].get("student_no")
+            booking["student_eng_name"] = student[0].get("eng_name")
+        else:
+            booking["student_name"] = None
+            booking["student_no"] = None
+            booking["student_eng_name"] = None
 
     # 取得教師名稱
     if booking.get("teacher_id"):
@@ -719,6 +726,8 @@ async def list_bookings(
                             AND tbr.is_deleted = FALSE) AS is_trial_to_formal,
                    -- 關聯名稱
                    s.name AS student_name,
+                   s.student_no,
+                   s.eng_name AS student_eng_name,
                    t.name AS teacher_name,
                    c.course_name AS course_name,
                    c.duration_minutes,

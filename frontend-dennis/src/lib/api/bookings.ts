@@ -29,6 +29,8 @@ export interface Booking {
     updated_at?: string
     // 關聯資料
     student_name?: string
+    student_no?: string
+    student_eng_name?: string
     teacher_name?: string
     course_name?: string
     student_contract_no?: string
