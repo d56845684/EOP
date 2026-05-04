@@ -493,11 +493,21 @@ async def create_student_contract(
         # 驗證學生存在
         student = await supabase_service.table_select(
             table="students",
-            select="id,name",
+            select="id,name,student_type",
             filters={"id": data.student_id, "is_deleted": "eq.false"},
         )
         if not student:
             raise HTTPException(status_code=400, detail="學生不存在")
+
+        # 試上學生只能建 pending 合約，active 必須透過轉正流程
+        if (
+            data.contract_status == ContractStatus.active
+            and student[0].get("student_type") == "trial"
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="試上學生合約只能透過轉正流程啟用，請先建立 pending 合約",
+            )
 
         # 檢查 active 合約唯一性
         if data.contract_status == ContractStatus.active:
@@ -577,6 +587,21 @@ async def update_student_contract(
 
         if not existing:
             raise HTTPException(status_code=404, detail="學生合約不存在")
+
+        # 試上學生不能透過 update 把合約改成 active（必須走轉正流程）
+        if data.contract_status == ContractStatus.active:
+            check_student_id = data.student_id or existing[0].get("student_id")
+            if check_student_id:
+                stu = await supabase_service.table_select(
+                    table="students",
+                    select="student_type",
+                    filters={"id": check_student_id, "is_deleted": "eq.false"},
+                )
+                if stu and stu[0].get("student_type") == "trial":
+                    raise HTTPException(
+                        status_code=400,
+                        detail="試上學生合約只能透過轉正流程啟用",
+                    )
 
         # 檢查 active 合約唯一性
         if data.contract_status == ContractStatus.active:

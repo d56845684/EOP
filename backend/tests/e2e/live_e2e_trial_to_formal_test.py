@@ -162,6 +162,8 @@ class TrialToFormalTester:
             await self._test("拒絕 pending booking（400）", self._reject_pending)
             await self._test("拒絕沒上傳 PDF 的合約（400）", self._reject_no_pdf)
             await self._test("拒絕合約不屬於該學生（400）", self._reject_wrong_student)
+            await self._test("拒絕為試上學生建 active 合約（400）", self._reject_create_active_for_trial)
+            await self._test("拒絕 PUT 把試上學生合約改 active（400）", self._reject_update_to_active_for_trial)
 
             # Phase 3: 試上轉正 → 差額獎金
             print(f"\n  Phase 3: 試上轉正")
@@ -454,6 +456,36 @@ class TrialToFormalTester:
             return f"expected 400, got {resp.status_code}: {resp.text[:200]}"
         msg = self._err_msg(resp)
         if "不屬於" not in msg:
+            return f"wrong message: {msg}"
+        return True
+
+    async def _reject_create_active_for_trial(self):
+        # 直接用 API POST 建 active 合約給 trial 學生 → 應拒
+        resp = await self._post("/api/v1/student-contracts", {
+            "student_id": self.student_2_id,
+            "contract_status": "active",
+            "start_date": date.today().isoformat(),
+            "end_date": (date.today() + timedelta(days=180)).isoformat(),
+            "total_lessons": 10, "remaining_lessons": 10, "total_amount": 10000,
+            "notes": TEST_PREFIX,
+        })
+        if resp.status_code != 400:
+            return f"expected 400, got {resp.status_code}: {resp.text[:200]}"
+        msg = self._err_msg(resp)
+        if "轉正" not in msg:
+            return f"wrong message: {msg}"
+        return True
+
+    async def _reject_update_to_active_for_trial(self):
+        # PUT 把 contract_2_id (pending, trial) 改 active → 應拒
+        resp = await self._put(
+            f"/api/v1/student-contracts/{self.contract_2_id}",
+            {"contract_status": "active"},
+        )
+        if resp.status_code != 400:
+            return f"expected 400, got {resp.status_code}: {resp.text[:200]}"
+        msg = self._err_msg(resp)
+        if "轉正" not in msg:
             return f"wrong message: {msg}"
         return True
 
