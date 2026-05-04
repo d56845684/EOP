@@ -136,9 +136,17 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
     )
     contract["leave_records"] = leave_records
 
-    # 計算緊急請假額度
-    total_lessons = contract.get("total_lessons", 0)
-    contract["emergency_leave_quota"] = math.ceil(total_lessons * 0.2) if total_lessons else 0
+    # 計算緊急請假額度（堂數 = total_lessons + 補償堂數）
+    total_lessons = contract.get("total_lessons", 0) or 0
+    compensation_total = sum(
+        int(d.get("amount", 0) or 0)
+        for d in enriched_details
+        if d.get("detail_type") == "compensation"
+    )
+    effective_lessons = total_lessons + compensation_total
+    contract["emergency_leave_quota"] = math.ceil(effective_lessons * 0.2) if effective_lessons else 0
+    used_em = contract.get("used_emergency_leave_count", 0) or 0
+    contract["remaining_emergency_leave_count"] = max(0, contract["emergency_leave_quota"] - used_em)
 
     # 取得附約列表
     addendums = await supabase_service.table_select(
@@ -403,8 +411,16 @@ async def list_student_contracts(
             contract["student_id_number"] = student.get("id_number") if student else None
             contract["details"] = detail_map.get(str(cid), [])
             contract["leave_records"] = leave_map.get(str(cid), [])
-            total_lessons = contract.get("total_lessons", 0)
-            contract["emergency_leave_quota"] = math.ceil(total_lessons * 0.2) if total_lessons else 0
+            total_lessons = contract.get("total_lessons", 0) or 0
+            compensation_total = sum(
+                int(d.get("amount", 0) or 0)
+                for d in contract["details"]
+                if d.get("detail_type") == "compensation"
+            )
+            effective_lessons = total_lessons + compensation_total
+            contract["emergency_leave_quota"] = math.ceil(effective_lessons * 0.2) if effective_lessons else 0
+            used_em = contract.get("used_emergency_leave_count", 0) or 0
+            contract["remaining_emergency_leave_count"] = max(0, contract["emergency_leave_quota"] - used_em)
             addendums = addendum_map.get(str(cid), [])
             for a in addendums:
                 a["parent_contract_no"] = contract.get("contract_no")
