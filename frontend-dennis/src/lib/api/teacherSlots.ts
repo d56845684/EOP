@@ -9,6 +9,7 @@ export interface TeacherSlot {
     end_time: string
     is_available: boolean
     is_booked: boolean
+    booking_count?: number
     notes?: string
     created_at?: string
     updated_at?: string

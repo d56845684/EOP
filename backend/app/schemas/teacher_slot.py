@@ -199,6 +199,7 @@ class TeacherSlotResponse(BaseModel):
     end_time: time
     is_available: bool
     is_booked: bool
+    booking_count: int = 0
     notes: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -219,6 +220,7 @@ class TeacherSlotResponse(BaseModel):
                 "end_time": "12:00:00",
                 "is_available": True,
                 "is_booked": False,
+                "booking_count": 0,
                 "notes": None,
                 "created_at": "2026-04-01T08:00:00",
                 "updated_at": "2026-04-01T08:00:00",
