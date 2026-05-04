@@ -93,6 +93,11 @@ class TrialToFormalTester:
         self.pending_booking_id = None     # trial + pending (should reject)
         self.trial_booking_2_id = None     # trial + completed for student 2
 
+        # 新流程：必須預先有 pending 合約並上傳 PDF
+        self.contract_1_id = None          # pending, student_1, with PDF
+        self.contract_2_id = None          # pending, student_2, with PDF
+        self.contract_no_pdf_id = None     # pending, student_2, no PDF (錯誤測試)
+
         self.original_completed_bonus = None
         self.original_formal_bonus = None
 
@@ -155,11 +160,14 @@ class TrialToFormalTester:
             print("  " + "-" * 40)
             await self._test("拒絕 regular booking（400）", self._reject_regular)
             await self._test("拒絕 pending booking（400）", self._reject_pending)
+            await self._test("拒絕沒上傳 PDF 的合約（400）", self._reject_no_pdf)
+            await self._test("拒絕合約不屬於該學生（400）", self._reject_wrong_student)
 
             # Phase 3: 試上轉正 → 差額獎金
             print(f"\n  Phase 3: 試上轉正")
             print("  " + "-" * 40)
             await self._test("轉正學生 1（成功）", self._convert_student_1)
+            await self._test("驗證合約狀態 → active", self._verify_contract_active)
             await self._test("驗證 trial_to_formal 差額獎金", self._verify_diff_bonus)
             await self._test("驗證總獎金 = trial_to_formal_bonus", self._verify_total_bonus)
             await self._test("驗證 bookings_view.is_trial_to_formal", self._verify_is_trial_to_formal)
@@ -263,6 +271,29 @@ class TrialToFormalTester:
 
         if not all([self.trial_booking_id, self.regular_booking_id, self.pending_booking_id, self.trial_booking_2_id]):
             return "Failed to create some bookings"
+
+        # 預建 pending 合約（新流程要求）
+        start = date.today().isoformat()
+        end = (date.today() + timedelta(days=180)).isoformat()
+
+        def _sc(no, sid, with_pdf=True):
+            file_clause = (
+                f"'student-contracts/seed/{no}.pdf'" if with_pdf else "NULL"
+            )
+            return db_value(
+                f"INSERT INTO student_contracts "
+                f"(contract_no, student_id, contract_status, start_date, end_date, "
+                f" total_lessons, remaining_lessons, total_amount, total_leave_allowed, "
+                f" contract_file_path, notes) "
+                f"VALUES ('{no}', '{sid}', 'pending', '{start}', '{end}', "
+                f"10, 10, 10000, 2, {file_clause}, '{TEST_PREFIX}') RETURNING id"
+            )
+
+        self.contract_1_id = _sc(f"{TEST_PREFIX}C1", self.student_1_id, with_pdf=True)
+        self.contract_2_id = _sc(f"{TEST_PREFIX}C2", self.student_2_id, with_pdf=True)
+        self.contract_no_pdf_id = _sc(f"{TEST_PREFIX}CNOPDF", self.student_2_id, with_pdf=False)
+        if not all([self.contract_1_id, self.contract_2_id, self.contract_no_pdf_id]):
+            return "Failed to create pending contracts"
         return True
 
     # ── Phase 1: 試上完成 ──
@@ -303,22 +334,17 @@ class TrialToFormalTester:
 
     # ── Phase 2: 轉正 ──
 
-    def _convert_payload(self, booking_id, suffix="C001"):
+    def _convert_payload(self, contract_id, booking_id=None):
         return {
-            "contract_no": f"{TEST_PREFIX}{suffix}",
-            "total_lessons": 10,
-            "total_amount": 10000,
-            "start_date": date.today().isoformat(),
-            "end_date": (date.today() + timedelta(days=180)).isoformat(),
+            "student_contract_id": contract_id,
             "teacher_id": self.teacher_id,
             "booking_id": booking_id,
-            "notes": TEST_PREFIX,
         }
 
     async def _convert_student_1(self):
         resp = await self._post(
             f"/api/v1/students/{self.student_1_id}/convert-to-formal",
-            self._convert_payload(self.trial_booking_id),
+            self._convert_payload(self.contract_1_id, self.trial_booking_id),
         )
         if resp.status_code != 200:
             return f"{resp.status_code} {resp.text[:200]}"
@@ -327,6 +353,16 @@ class TrialToFormalTester:
             return f"student_type not formal"
         if data.get("bonus_amount") != EXPECTED_DIFF_BONUS:
             return f"bonus_amount={data.get('bonus_amount')}, expected {EXPECTED_DIFF_BONUS}"
+        return True
+
+    async def _verify_contract_active(self):
+        rows = db_query(
+            f"SELECT contract_status FROM student_contracts WHERE id = '{self.contract_1_id}'"
+        )
+        if not rows:
+            return "contract not found"
+        if rows[0]["contract_status"] != "active":
+            return f"contract_status={rows[0]['contract_status']}, expected active"
         return True
 
     async def _verify_diff_bonus(self):
@@ -375,7 +411,7 @@ class TrialToFormalTester:
     async def _reject_regular(self):
         resp = await self._post(
             f"/api/v1/students/{self.student_1_id}/convert-to-formal",
-            self._convert_payload(self.regular_booking_id, "ERR1"),
+            self._convert_payload(self.contract_1_id, self.regular_booking_id),
         )
         if resp.status_code != 400:
             return f"expected 400, got {resp.status_code}: {resp.text[:200]}"
@@ -387,7 +423,7 @@ class TrialToFormalTester:
     async def _reject_pending(self):
         resp = await self._post(
             f"/api/v1/students/{self.student_1_id}/convert-to-formal",
-            self._convert_payload(self.pending_booking_id, "ERR2"),
+            self._convert_payload(self.contract_1_id, self.pending_booking_id),
         )
         if resp.status_code != 400:
             return f"expected 400, got {resp.status_code}: {resp.text[:200]}"
@@ -396,10 +432,36 @@ class TrialToFormalTester:
             return f"wrong message: {msg}"
         return True
 
-    async def _reject_already_converted(self):
+    async def _reject_no_pdf(self):
         resp = await self._post(
             f"/api/v1/students/{self.student_2_id}/convert-to-formal",
-            self._convert_payload(self.trial_booking_id, "ERR3"),
+            self._convert_payload(self.contract_no_pdf_id),
+        )
+        if resp.status_code != 400:
+            return f"expected 400, got {resp.status_code}: {resp.text[:200]}"
+        msg = self._err_msg(resp)
+        if "PDF" not in msg:
+            return f"wrong message: {msg}"
+        return True
+
+    async def _reject_wrong_student(self):
+        # student_2 拿 student_1 的 contract_1_id
+        resp = await self._post(
+            f"/api/v1/students/{self.student_2_id}/convert-to-formal",
+            self._convert_payload(self.contract_1_id),
+        )
+        if resp.status_code != 400:
+            return f"expected 400, got {resp.status_code}: {resp.text[:200]}"
+        msg = self._err_msg(resp)
+        if "不屬於" not in msg:
+            return f"wrong message: {msg}"
+        return True
+
+    async def _reject_already_converted(self):
+        # student_2 + 已被 student_1 標記轉正的 trial_booking_id
+        resp = await self._post(
+            f"/api/v1/students/{self.student_2_id}/convert-to-formal",
+            self._convert_payload(self.contract_2_id, self.trial_booking_id),
         )
         if resp.status_code != 400:
             return f"expected 400, got {resp.status_code}: {resp.text[:200]}"
@@ -418,7 +480,7 @@ class TrialToFormalTester:
         )
         resp = await self._post(
             f"/api/v1/students/{self.student_2_id}/convert-to-formal",
-            self._convert_payload(self.trial_booking_2_id, "C002"),
+            self._convert_payload(self.contract_2_id, self.trial_booking_2_id),
         )
         if resp.status_code != 200:
             return f"{resp.status_code} {resp.text[:200]}"
@@ -452,6 +514,8 @@ class TrialToFormalTester:
 
     async def _cleanup(self):
         sqls = [
+            f"DELETE FROM system_alerts WHERE alert_type = 'trial_to_formal_bonus_failed' "
+            f"AND metadata->>'student_id' IN (SELECT id::text FROM students WHERE student_no LIKE '{TEST_PREFIX}%')",
             f"DELETE FROM teacher_bonus_records WHERE "
             f"related_student_id IN (SELECT id FROM students WHERE student_no LIKE '{TEST_PREFIX}%') "
             f"OR description LIKE '%{TEST_PREFIX}%'",

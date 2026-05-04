@@ -104,14 +104,9 @@ export interface UpdateStudentData {
 }
 
 export interface ConvertToFormalData {
-    contract_no: string
-    total_lessons: number
-    total_amount: number
-    start_date: string
-    end_date: string
+    student_contract_id: string
     teacher_id?: string
     booking_id?: string
-    notes?: string
 }
 
 export interface ConvertToFormalResponse {
@@ -132,6 +127,7 @@ export interface ConvertToFormalResponse {
     }
     bonus_recorded: boolean
     bonus_amount?: number
+    bonus_error?: string
 }
 
 export const studentsApi = {

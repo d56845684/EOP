@@ -1318,7 +1318,10 @@ async def confirm_student_contract_upload(
 ):
     """確認學生合約檔案上傳完成（僅限員工）
 
-    前端直接上傳 S3 成功後呼叫此 API，更新 DB 並將狀態改為 active。
+    前端直接上傳 S3 成功後呼叫此 API，更新 DB。
+    狀態翻 active 行為：
+      - 一般 (formal) 學生：上傳完成後自動翻 active（既有行為）
+      - trial 學生：維持 pending，等轉正流程才 activate（避免破壞轉正前置條件）
     """
     try:
         # 檢查合約是否存在
@@ -1330,9 +1333,21 @@ async def confirm_student_contract_upload(
         if not existing:
             raise HTTPException(status_code=404, detail="學生合約不存在")
 
-        # 檢查 active 合約唯一性（上傳確認會自動設為 active）
         check_student_id = existing[0].get("student_id")
+
+        # 判斷學生類型，決定是否要翻 active
+        auto_activate = True
         if check_student_id:
+            student_rows = await supabase_service.table_select(
+                table="students",
+                select="student_type",
+                filters={"id": check_student_id, "is_deleted": "eq.false"},
+            )
+            if student_rows and student_rows[0].get("student_type") == "trial":
+                auto_activate = False
+
+        # 只在會翻 active 時才檢查 active 合約唯一性
+        if auto_activate and check_student_id:
             conflict = await check_student_active_conflict(check_student_id, exclude_contract_id=contract_id)
             if conflict:
                 raise HTTPException(
@@ -1355,13 +1370,14 @@ async def confirm_student_contract_upload(
         # 取得員工 ID
         employee_id = await get_user_employee_id(current_user.user_id)
 
-        # 更新 DB：檔案資訊 + 狀態改為 active
+        # 更新 DB：檔案資訊 +（視情況）狀態改為 active
         update_data = {
             "contract_file_path": body.storage_path,
             "contract_file_name": body.file_name,
             "contract_file_uploaded_at": datetime.utcnow().isoformat(),
-            "contract_status": "active",
         }
+        if auto_activate:
+            update_data["contract_status"] = "active"
         if employee_id:
             update_data["contract_file_uploaded_by"] = employee_id
 
@@ -1375,8 +1391,9 @@ async def confirm_student_contract_upload(
             raise HTTPException(status_code=500, detail="更新合約資訊失敗")
 
         enriched = await enrich_contract_with_relations(result)
+        msg = "合約檔案上傳成功，狀態已更新為生效中" if auto_activate else "合約檔案上傳成功（試上學生：合約維持 pending，轉正時再生效）"
         return DataResponse(
-            message="合約檔案上傳成功，狀態已更新為生效中",
+            message=msg,
             data=StudentContractResponse(**enriched)
         )
 

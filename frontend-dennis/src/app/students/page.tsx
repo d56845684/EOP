@@ -6,6 +6,7 @@ import { studentsApi, Student, CreateStudentData, UpdateStudentData, ConvertToFo
 import { Booking } from '@/lib/api/bookings'
 import { studentTeacherPreferencesApi, StudentTeacherPreference, CreatePreferenceData, AllowedTeacher } from '@/lib/api/studentTeacherPreferences'
 import { bookingsApi, CourseOption } from '@/lib/api/bookings'
+import { studentContractsApi, StudentContract } from '@/lib/api/studentContracts'
 import { invitesApi } from '@/lib/api/invites'
 import { Plus, Pencil, Trash2, Search, X, GraduationCap, CheckCircle, XCircle, Mail, Phone, Star, Settings, ArrowLeft, Link, Copy, Check, UserPlus, ArrowUpCircle, Eye } from 'lucide-react'
 import NextLink from 'next/link'
@@ -68,13 +69,14 @@ export default function StudentsPage() {
     // 試上轉正
     const [convertStudent, setConvertStudent] = useState<Student | null>(null)
     const [convertFormData, setConvertFormData] = useState<ConvertToFormalData>({
-        contract_no: '', total_lessons: 1, total_amount: 0,
-        start_date: '', end_date: '',
+        student_contract_id: '',
     })
     const [convertError, setConvertError] = useState<string | null>(null)
     const [convertSubmitting, setConvertSubmitting] = useState(false)
     const [convertBookings, setConvertBookings] = useState<Booking[]>([])
     const [convertBookingsLoading, setConvertBookingsLoading] = useState(false)
+    const [convertContracts, setConvertContracts] = useState<StudentContract[]>([])
+    const [convertContractsLoading, setConvertContractsLoading] = useState(false)
 
     const isStaff = profile?.employee_id != null
 
@@ -299,18 +301,28 @@ export default function StudentsPage() {
     // === 試上轉正 ===
     const openConvertModal = async (student: Student) => {
         setConvertStudent(student)
-        setConvertFormData({
-            contract_no: '', total_lessons: 1, total_amount: 0,
-            start_date: '', end_date: '',
-        })
+        setConvertFormData({ student_contract_id: '' })
         setConvertError(null)
         setConvertBookings([])
+        setConvertContracts([])
         setConvertBookingsLoading(true)
+        setConvertContractsLoading(true)
         try {
-            const { data } = await bookingsApi.list({ student_id: student.id, per_page: 100 })
-            if (data) setConvertBookings(data.data)
+            const [bookingsRes, contractsRes] = await Promise.all([
+                bookingsApi.list({ student_id: student.id, per_page: 100 }),
+                studentContractsApi.list({ student_id: student.id, contract_status: 'pending', per_page: 100 }),
+            ])
+            if (bookingsRes.data) setConvertBookings(bookingsRes.data.data)
+            if (contractsRes.data) {
+                setConvertContracts(contractsRes.data.data)
+                // 只有一筆 pending 合約 → 自動預選
+                if (contractsRes.data.data.length === 1) {
+                    setConvertFormData(prev => ({ ...prev, student_contract_id: contractsRes.data!.data[0].id }))
+                }
+            }
         } catch {}
         setConvertBookingsLoading(false)
+        setConvertContractsLoading(false)
     }
 
     const handleConvert = async (e: React.FormEvent) => {
@@ -323,11 +335,18 @@ export default function StudentsPage() {
         if (error) {
             setConvertError(error.message)
         } else {
+            if (data?.bonus_error) {
+                // 轉正成功但獎金處理失敗 → 提示 + 關閉 modal
+                alert(`轉正成功，但獎金處理失敗：${data.bonus_error}（已記錄於系統告警）`)
+            }
             setConvertStudent(null)
             fetchStudents()
         }
         setConvertSubmitting(false)
     }
+
+    const selectedConvertContract = convertContracts.find(c => c.id === convertFormData.student_contract_id)
+    const canSubmitConvert = !!selectedConvertContract && !!selectedConvertContract.contract_file_path
 
     // === 邀請連結 ===
     const handleGenerateInvite = async (student: Student) => {
@@ -898,41 +917,36 @@ export default function StudentsPage() {
 
                                 <form onSubmit={handleConvert} className="space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">合約編號 <span className="text-red-500">*</span></label>
-                                        <input type="text" value={convertFormData.contract_no}
-                                            onChange={(e) => setConvertFormData({ ...convertFormData, contract_no: e.target.value })}
-                                            className="input-field" placeholder="例如：SC20260303001" required />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">總堂數 <span className="text-red-500">*</span></label>
-                                            <input type="number" min={1} value={convertFormData.total_lessons}
-                                                onChange={(e) => setConvertFormData({ ...convertFormData, total_lessons: parseInt(e.target.value) || 1 })}
-                                                className="input-field" required />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">合約總金額 <span className="text-red-500">*</span></label>
-                                            <input type="number" min={0} step={1} value={convertFormData.total_amount}
-                                                onChange={(e) => setConvertFormData({ ...convertFormData, total_amount: parseFloat(e.target.value) || 0 })}
-                                                className="input-field" required />
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">開始日期 <span className="text-red-500">*</span></label>
-                                            <input type="date" value={convertFormData.start_date}
-                                                onChange={(e) => setConvertFormData({ ...convertFormData, start_date: e.target.value })}
-                                                className="input-field" required />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">結束日期 <span className="text-red-500">*</span></label>
-                                            <input type="date" value={convertFormData.end_date}
-                                                onChange={(e) => setConvertFormData({ ...convertFormData, end_date: e.target.value })}
-                                                className="input-field" required />
-                                        </div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">待確認合約 <span className="text-red-500">*</span></label>
+                                        {convertContractsLoading ? (
+                                            <div className="text-sm text-gray-400">載入合約中...</div>
+                                        ) : convertContracts.length > 0 ? (
+                                            <select
+                                                value={convertFormData.student_contract_id}
+                                                onChange={(e) => setConvertFormData({ ...convertFormData, student_contract_id: e.target.value })}
+                                                className="input-field" required
+                                            >
+                                                <option value="">請選擇</option>
+                                                {convertContracts.map(c => (
+                                                    <option key={c.id} value={c.id}>
+                                                        {c.contract_no}（{c.start_date} ~ {c.end_date}, {c.total_lessons} 堂）
+                                                        {!c.contract_file_path ? ' — 未上傳 PDF' : ''}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+                                                尚無 pending 合約，請先到「學生合約」頁建立一筆 pending 合約並上傳 PDF。
+                                            </div>
+                                        )}
+                                        {selectedConvertContract && !selectedConvertContract.contract_file_path && (
+                                            <div className="mt-2 text-sm text-red-600">
+                                                此合約尚未上傳 PDF，無法轉正。請先於合約頁完成 PDF 上傳。
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">關聯試上預約（選填）</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">關聯試上預約（選填，計算獎金、標記轉正）</label>
                                         {convertBookingsLoading ? (
                                             <div className="text-sm text-gray-400">載入預約中...</div>
                                         ) : convertBookings.length > 0 ? (
@@ -973,15 +987,9 @@ export default function StudentsPage() {
                                             ))}
                                         </select>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
-                                        <textarea value={convertFormData.notes || ''}
-                                            onChange={(e) => setConvertFormData({ ...convertFormData, notes: e.target.value || undefined })}
-                                            className="input-field" rows={2} />
-                                    </div>
                                     <div className="flex gap-3 pt-4">
                                         <button type="button" onClick={() => setConvertStudent(null)} className="btn-secondary flex-1" disabled={convertSubmitting}>取消</button>
-                                        <button type="submit" className="btn-primary flex-1" disabled={convertSubmitting}>
+                                        <button type="submit" className="btn-primary flex-1" disabled={convertSubmitting || !canSubmitConvert}>
                                             {convertSubmitting ? <span className="flex items-center justify-center"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>處理中...</span> : '確認轉正'}
                                         </button>
                                     </div>
