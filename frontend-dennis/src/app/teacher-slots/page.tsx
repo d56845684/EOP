@@ -847,6 +847,10 @@ export default function TeacherSlotsPage() {
                                                             <AlertCircle className="w-3 h-3 mr-1" />
                                                             預約已滿
                                                         </span>
+                                                    ) : (slot.booking_count ?? 0) > 0 ? (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                                            已預約 {slot.booking_count} 堂
+                                                        </span>
                                                     ) : (
                                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                                                             尚有空位

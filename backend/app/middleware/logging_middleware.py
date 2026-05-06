@@ -66,12 +66,13 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # 添加 X-Request-ID header
         response.headers["X-Request-ID"] = rid
 
-        # 記錄 response log
+        # 記錄 response log；status_code 獨立欄位方便 log aggregator 過濾
         msg = f"{request.method} {path} {response.status_code} {elapsed_ms:.0f}ms"
+        extra = {"status_code": response.status_code}
         if elapsed_ms > 3000:
-            logger.warning(msg)
+            logger.warning(msg, extra=extra)
         else:
-            logger.info(msg)
+            logger.info(msg, extra=extra)
 
         # 重置 contextvars
         request_id_var.reset(tok_rid)

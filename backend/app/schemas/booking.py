@@ -117,6 +117,8 @@ class BookingResponse(BaseModel):
     updated_at: Optional[datetime] = None
     # 關聯資料
     student_name: Optional[str] = None
+    student_no: Optional[str] = None
+    student_eng_name: Optional[str] = None
     teacher_name: Optional[str] = None
     course_name: Optional[str] = None
     student_contract_no: Optional[str] = None
@@ -155,6 +157,8 @@ class BookingResponse(BaseModel):
                 "created_at": "2026-04-10T08:00:00",
                 "updated_at": "2026-04-10T08:00:00",
                 "student_name": "王小明",
+                "student_no": "EOPS001",
+                "student_eng_name": "Ming Wang",
                 "teacher_name": "陳美玲",
                 "course_name": "英語日常會話",
                 "student_contract_no": "SC-2026-001",

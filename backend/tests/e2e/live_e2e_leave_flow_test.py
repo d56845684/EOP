@@ -173,6 +173,7 @@ class LeaveFlowTester:
             await self._test("列表包含 leave_type / deduct_lesson", self._verify_list)
             await self._test("單筆查詢欄位正確", self._verify_single)
             await self._test("合約 emergency_leave_quota 正確", self._verify_contract_quota)
+            await self._test("補償堂數計入 emergency_leave_quota", self._verify_quota_with_compensation)
 
             # Cleanup
             print(f"\n  Cleanup")
@@ -426,6 +427,63 @@ class LeaveFlowTester:
             return f"quota={data.get('emergency_leave_quota')}, expected 1 (ceil(5*0.2))"
         if data.get("used_emergency_leave_count") != 1:
             return f"used={data.get('used_emergency_leave_count')}, expected 1"
+        if data.get("remaining_emergency_leave_count") != 0:
+            return f"remaining_em={data.get('remaining_emergency_leave_count')}, expected 0"
+        return True
+
+    async def _verify_quota_with_compensation(self):
+        """補償堂數應計入 emergency_leave_quota = ceil((total_lessons + 補償) * 0.2)"""
+        sc_id = self.student_contract_id
+        # baseline: total_lessons=5, used_em=1, quota=1, remaining=0
+
+        # +compensation 10 → effective=15, quota=ceil(15*0.2)=3, remaining=max(0,3-1)=2
+        r = await self._post(f"/api/v1/student-contracts/{sc_id}/details", {
+            "detail_type": "compensation", "description": f"{TEST_PREFIX}comp1", "amount": 10,
+        })
+        if r.status_code != 200:
+            return f"add comp1: {r.status_code} {r.text[:200]}"
+        comp1_id = r.json()["data"]["id"]
+
+        r = await self._get(f"/api/v1/student-contracts/{sc_id}")
+        d = r.json()["data"]
+        if d.get("emergency_leave_quota") != 3:
+            return f"+10: quota={d.get('emergency_leave_quota')}, expected 3"
+        if d.get("remaining_emergency_leave_count") != 2:
+            return f"+10: remaining_em={d.get('remaining_emergency_leave_count')}, expected 2"
+
+        # +compensation 5 → effective=20, quota=4, remaining=3
+        r = await self._post(f"/api/v1/student-contracts/{sc_id}/details", {
+            "detail_type": "compensation", "description": f"{TEST_PREFIX}comp2", "amount": 5,
+        })
+        if r.status_code != 200:
+            return f"add comp2: {r.status_code}"
+        comp2_id = r.json()["data"]["id"]
+
+        r = await self._get(f"/api/v1/student-contracts/{sc_id}")
+        d = r.json()["data"]
+        if d.get("emergency_leave_quota") != 4:
+            return f"+15: quota={d.get('emergency_leave_quota')}, expected 4"
+        if d.get("remaining_emergency_leave_count") != 3:
+            return f"+15: remaining_em={d.get('remaining_emergency_leave_count')}, expected 3"
+
+        # list endpoint 也應反映
+        r = await self._get("/api/v1/student-contracts", params={"student_id": self.student_id})
+        items = r.json().get("data", [])
+        match = [x for x in items if x["id"] == sc_id]
+        if not match:
+            return "contract missing in list"
+        if match[0].get("emergency_leave_quota") != 4:
+            return f"list: quota={match[0].get('emergency_leave_quota')}, expected 4"
+        if match[0].get("remaining_emergency_leave_count") != 3:
+            return f"list: remaining_em={match[0].get('remaining_emergency_leave_count')}, expected 3"
+
+        # 刪除補償 → quota 還原 (cleanup 也會兜底，這裡先驗證刪除路徑)
+        await self.client.delete(f"{self.url}/api/v1/student-contracts/{sc_id}/details/{comp1_id}")
+        await self.client.delete(f"{self.url}/api/v1/student-contracts/{sc_id}/details/{comp2_id}")
+        r = await self._get(f"/api/v1/student-contracts/{sc_id}")
+        d = r.json()["data"]
+        if d.get("emergency_leave_quota") != 1:
+            return f"after delete: quota={d.get('emergency_leave_quota')}, expected 1"
         return True
 
     # ── Cleanup ──
@@ -436,6 +494,7 @@ class LeaveFlowTester:
         sqls = [
             f"DELETE FROM leave_records WHERE booking_id IN ({bk_sub})",
             f"DELETE FROM student_contract_leave_records WHERE student_contract_id IN ({sc_sub})",
+            f"DELETE FROM student_contract_details WHERE student_contract_id IN ({sc_sub})",
             f"DELETE FROM substitute_details WHERE booking_id IN ({bk_sub})",
             f"DELETE FROM booking_details WHERE booking_id IN ({bk_sub})",
             f"DELETE FROM zoom_meeting_logs WHERE booking_id IN ({bk_sub})",

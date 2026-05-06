@@ -446,10 +446,17 @@ async def enrich_booking_with_relations(booking: dict) -> dict:
     if booking.get("student_id"):
         student = await supabase_service.table_select(
             table="students",
-            select="name",
+            select="name,student_no,eng_name",
             filters={"id": booking["student_id"]},
         )
-        booking["student_name"] = student[0]["name"] if student else None
+        if student:
+            booking["student_name"] = student[0]["name"]
+            booking["student_no"] = student[0].get("student_no")
+            booking["student_eng_name"] = student[0].get("eng_name")
+        else:
+            booking["student_name"] = None
+            booking["student_no"] = None
+            booking["student_eng_name"] = None
 
     # 取得教師名稱
     if booking.get("teacher_id"):
@@ -719,6 +726,8 @@ async def list_bookings(
                             AND tbr.is_deleted = FALSE) AS is_trial_to_formal,
                    -- 關聯名稱
                    s.name AS student_name,
+                   s.student_no,
+                   s.eng_name AS student_eng_name,
                    t.name AS teacher_name,
                    c.course_name AS course_name,
                    c.duration_minutes,
@@ -1067,25 +1076,25 @@ async def create_booking(
             # 教師和其他角色不能建立預約
             raise HTTPException(status_code=403, detail="無權建立預約")
 
-        # 驗證學生存在
+        # 驗證學生存在且未停用
         student = await supabase_service.table_select(
             table="students",
             select="id,name,student_type",
-            filters={"id": data.student_id, "is_deleted": "eq.false"},
+            filters={"id": data.student_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not student:
-            raise HTTPException(status_code=400, detail="學生不存在")
+            raise HTTPException(status_code=400, detail="學生不存在或已停用")
 
         is_trial = student[0].get("student_type") == "trial"
 
-        # 驗證教師存在
+        # 驗證教師存在且未停用
         teacher = await supabase_service.table_select(
             table="teachers",
             select="id,name,teacher_level",
-            filters={"id": data.teacher_id, "is_deleted": "eq.false"},
+            filters={"id": data.teacher_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在")
+            raise HTTPException(status_code=400, detail="教師不存在或已停用")
 
         # 驗證課程存在
         course = await supabase_service.table_select(
@@ -2040,25 +2049,25 @@ async def batch_create_bookings(
         elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權建立預約")
 
-        # 驗證學生存在
+        # 驗證學生存在且未停用
         student = await supabase_service.table_select(
             table="students",
             select="id,name,student_type",
-            filters={"id": data.student_id, "is_deleted": "eq.false"},
+            filters={"id": data.student_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not student:
-            raise HTTPException(status_code=400, detail="學生不存在")
+            raise HTTPException(status_code=400, detail="學生不存在或已停用")
 
         is_trial = student[0].get("student_type") == "trial"
 
-        # 驗證教師存在
+        # 驗證教師存在且未停用
         teacher = await supabase_service.table_select(
             table="teachers",
             select="id,name,teacher_level",
-            filters={"id": data.teacher_id, "is_deleted": "eq.false"},
+            filters={"id": data.teacher_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在")
+            raise HTTPException(status_code=400, detail="教師不存在或已停用")
 
         # 課程 ID：優先使用前端傳入的 course_id
         course_id = data.course_id

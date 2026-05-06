@@ -240,13 +240,17 @@ async def convert_to_formal(
 ):
     """試上學生轉正式學生（僅限員工）
 
+    新流程（必須先建好 pending 合約並上傳 PDF）：
     1. 驗證學生為 trial 類型
-    2. 更新 student_type → formal
-    3. 建立 student_contracts（status=active）
-    4. 若提供 teacher_id，記錄轉正獎金
+    2. 驗證合約：屬於該學生、status=pending、已上傳 PDF
+    3. 驗證 booking（若提供）為已完成的試上、未轉正
+    4. Transaction：student → formal、contract → active
+    5. 若提供 teacher_id，記錄轉正差額獎金（失敗寫 system_alerts，不擋流程）
     """
     try:
-        # 1. 驗證學生存在且為 trial
+        pool = supabase_service.pool
+
+        # 1. 驗證學生
         students = await supabase_service.table_select(
             table="students", select=STUDENT_SELECT,
             filters={"id": student_id, "is_deleted": "eq.false"},
@@ -258,9 +262,34 @@ async def convert_to_formal(
         if student.get("student_type") != "trial":
             raise HTTPException(status_code=400, detail="此學生非試上學生，無法執行轉正")
 
-        # 1.5 驗證 booking_id 為 trial、已完成、且未轉正
+        # 2. 驗證合約
+        try:
+            sc_uuid = uuid.UUID(data.student_contract_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="合約 ID 格式錯誤")
+
+        contract_rows = await pool.fetch(
+            """
+            SELECT id, contract_no, student_id, contract_status,
+                   start_date, end_date, total_lessons, remaining_lessons,
+                   contract_file_path, notes, created_at
+            FROM student_contracts
+            WHERE id = $1 AND is_deleted = FALSE AND contract_status = 'pending'
+            """,
+            sc_uuid,
+        )
+        if not contract_rows:
+            raise HTTPException(status_code=404, detail="找不到 pending 合約（合約不存在、已生效或已刪除）")
+
+        contract = dict(contract_rows[0])
+        if str(contract["student_id"]) != student_id:
+            raise HTTPException(status_code=400, detail="合約不屬於此學生")
+        if not contract.get("contract_file_path"):
+            raise HTTPException(status_code=400, detail="合約必須先上傳 PDF 才能轉正")
+
+        # 3. 驗證 booking
         if data.booking_id:
-            booking_rows = await supabase_service.pool.fetch(
+            booking_rows = await pool.fetch(
                 """
                 SELECT id, booking_type, booking_status, is_trial_to_formal
                 FROM bookings_view
@@ -278,43 +307,43 @@ async def convert_to_formal(
             if bk["is_trial_to_formal"]:
                 raise HTTPException(status_code=400, detail="此預約已被標記為轉正")
 
-        # 2. 更新 student_type → formal, student_status → active
-        updated_student = await supabase_service.table_update(
-            table="students",
-            data={"student_type": "formal", "student_status": "active"},
+        employee_id = await get_user_employee_id(current_user.user_id)
+
+        # 4. Transaction：學生 + 合約狀態同步翻轉
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    """
+                    UPDATE students
+                    SET student_type = 'formal', student_status = 'active', updated_at = NOW()
+                    WHERE id = $1
+                    """,
+                    uuid.UUID(student_id),
+                )
+                await conn.execute(
+                    """
+                    UPDATE student_contracts
+                    SET contract_status = 'active', updated_at = NOW()
+                    WHERE id = $1
+                    """,
+                    sc_uuid,
+                )
+
+        # 重新撈最新狀態（用 table_select 確保 UUID/date → str）
+        updated_student_rows = await supabase_service.table_select(
+            table="students", select=STUDENT_SELECT,
             filters={"id": student_id},
         )
-        if not updated_student:
-            raise HTTPException(status_code=500, detail="更新學生類型失敗")
-
-        # 3. 建立 student_contracts
-        employee_id = await get_user_employee_id(current_user.user_id)
-        contract_data = {
-            "contract_no": data.contract_no,
-            "student_id": student_id,
-            "contract_status": "active",
-            "start_date": data.start_date.isoformat(),
-            "end_date": data.end_date.isoformat(),
-            "total_lessons": data.total_lessons,
-            "total_amount": data.total_amount,
-            "remaining_lessons": data.total_lessons,
-            "total_leave_allowed": math.ceil(data.total_lessons * 0.2),
-            "notes": data.notes,
-        }
-        if employee_id:
-            contract_data["created_by"] = employee_id
-
-        contract = await supabase_service.table_insert(
-            table="student_contracts", data=contract_data
+        updated_contract_rows = await supabase_service.table_select(
+            table="student_contracts",
+            select="id,contract_no,student_id,contract_status,start_date,end_date,total_lessons,remaining_lessons,notes,created_at",
+            filters={"id": data.student_contract_id},
         )
-        if not contract:
-            raise HTTPException(status_code=500, detail="建立合約失敗")
 
-        # 4. 若提供 teacher_id，記錄轉正差額獎金
-        #    差額 = trial_to_formal_bonus - trial_completed_bonus
-        #    （試上完成獎金已在 booking completed 時發放）
+        # 5. 轉正差額獎金（失敗寫 alert）
         bonus_recorded = False
         bonus_amount = None
+        bonus_error: Optional[str] = None
         if data.teacher_id:
             try:
                 tc_list = await supabase_service.table_select(
@@ -326,40 +355,52 @@ async def convert_to_formal(
                         "is_deleted": "eq.false",
                     },
                 )
-                if tc_list:
+                if not tc_list:
+                    bonus_error = "教師沒有 active 合約，無法計算轉正獎金"
+                else:
                     formal_bonus = float(tc_list[0].get("trial_to_formal_bonus", 0) or 0)
                     completed_bonus = float(tc_list[0].get("trial_completed_bonus", 0) or 0)
-                    bonus_amount = formal_bonus - completed_bonus
-                    if bonus_amount < 0:
-                        bonus_amount = 0
+                    bonus_amount = max(0.0, formal_bonus - completed_bonus)
+                    bonus_data = {
+                        "teacher_id": data.teacher_id,
+                        "bonus_type": "trial_to_formal",
+                        "amount": bonus_amount,
+                        "bonus_date": date.today().isoformat(),
+                        "description": f"學生 {student.get('name', '')} 試上轉正獎金（差額）",
+                        "related_student_id": student_id,
+                    }
+                    if data.booking_id:
+                        bonus_data["related_booking_id"] = data.booking_id
+                    if employee_id:
+                        bonus_data["created_by"] = employee_id
+                    await supabase_service.table_insert(
+                        table="teacher_bonus_records", data=bonus_data,
+                    )
                     bonus_recorded = True
-                    # 寫入差額獎金紀錄
-                    try:
-                        bonus_data = {
-                            "teacher_id": data.teacher_id,
-                            "bonus_type": "trial_to_formal",
-                            "amount": bonus_amount,
-                            "bonus_date": date.today().isoformat(),
-                            "description": f"學生 {student.get('name', '')} 試上轉正獎金（差額）",
-                            "related_student_id": student_id,
-                        }
-                        if data.booking_id:
-                            bonus_data["related_booking_id"] = data.booking_id
-                        if employee_id:
-                            bonus_data["created_by"] = employee_id
-                        await supabase_service.table_insert(
-                            table="teacher_bonus_records", data=bonus_data
-                        )
-                    except Exception:
-                        pass  # 獎金寫入失敗不影響轉正流程
-            except Exception:
-                pass  # 獎金查詢失敗不影響轉正
+            except Exception as e:
+                bonus_error = f"獎金處理失敗：{e}"
+
+            if bonus_error:
+                from app.services.alert_service import alert_service
+                await alert_service.create(
+                    alert_type="trial_to_formal_bonus_failed",
+                    severity="error",
+                    title="轉正獎金寫入失敗",
+                    message=bonus_error,
+                    metadata={
+                        "student_id": student_id,
+                        "student_contract_id": data.student_contract_id,
+                        "teacher_id": data.teacher_id,
+                        "booking_id": data.booking_id,
+                    },
+                )
 
         return ConvertToFormalResponse(
-            student=StudentResponse(**updated_student),
-            contract=ConvertToFormalContractInfo(**contract),
+            student=StudentResponse(**updated_student_rows[0]),
+            contract=ConvertToFormalContractInfo(**updated_contract_rows[0]),
             bonus_recorded=bonus_recorded,
             bonus_amount=bonus_amount,
+            bonus_error=bonus_error,
         )
     except HTTPException:
         raise

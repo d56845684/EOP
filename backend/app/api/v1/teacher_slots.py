@@ -11,6 +11,7 @@ from app.schemas.response import BaseResponse, DataResponse, TeacherOption, Teac
 from typing import Optional, List
 from datetime import date, datetime, timedelta
 import math
+import uuid
 
 router = APIRouter(prefix="/teacher-slots", tags=["教師時段管理"])
 
@@ -131,6 +132,7 @@ async def list_teacher_slots(
         if slots:
             t_ids = list({s["teacher_id"] for s in slots if s.get("teacher_id")})
             tc_ids = list({s["teacher_contract_id"] for s in slots if s.get("teacher_contract_id")})
+            slot_ids = [s["id"] for s in slots]
             pool = supabase_service.pool
 
             import asyncio as _aio
@@ -138,16 +140,29 @@ async def list_teacher_slots(
 
             t_task = pool.fetch("SELECT id, name, teacher_no FROM teachers WHERE id = ANY($1)", t_ids) if t_ids else _empty()
             tc_task = pool.fetch("SELECT id, contract_no FROM teacher_contracts WHERE id = ANY($1)", tc_ids) if tc_ids else _empty()
+            bc_task = pool.fetch(
+                """
+                SELECT teacher_slot_id, COUNT(*) AS cnt
+                FROM bookings
+                WHERE teacher_slot_id = ANY($1)
+                  AND is_deleted = false
+                  AND booking_status != 'cancelled'
+                GROUP BY teacher_slot_id
+                """,
+                slot_ids,
+            )
 
-            t_rows, tc_rows = await _aio.gather(t_task, tc_task)
+            t_rows, tc_rows, bc_rows = await _aio.gather(t_task, tc_task, bc_task)
             t_map = {str(r["id"]): r for r in t_rows}
             tc_map = {str(r["id"]): r["contract_no"] for r in tc_rows}
+            bc_map = {str(r["teacher_slot_id"]): r["cnt"] for r in bc_rows}
 
             for slot in slots:
                 t = t_map.get(str(slot.get("teacher_id")))
                 slot["teacher_name"] = t["name"] if t else None
                 slot["teacher_no"] = t["teacher_no"] if t else None
                 slot["teacher_contract_no"] = tc_map.get(str(slot.get("teacher_contract_id")))
+                slot["booking_count"] = bc_map.get(str(slot["id"]), 0)
 
         return TeacherSlotListResponse(
             data=[TeacherSlotResponse(**s) for s in slots],
@@ -229,6 +244,16 @@ async def get_teacher_slot(
                 raise HTTPException(status_code=403, detail="此時段不可查看")
 
         enriched = await enrich_slot_with_relations(slot)
+
+        # 該 slot 有效預約數（非取消、非已刪除）
+        enriched["booking_count"] = await supabase_service.pool.fetchval(
+            """SELECT COUNT(*) FROM bookings
+               WHERE teacher_slot_id = $1
+                 AND is_deleted = false
+                 AND booking_status != 'cancelled'""",
+            uuid.UUID(slot["id"]),
+        )
+
         return DataResponse(data=TeacherSlotResponse(**enriched))
 
     except HTTPException:
@@ -252,14 +277,14 @@ async def create_teacher_slot(
         elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權建立教師時段")
 
-        # 驗證教師存在
+        # 驗證教師存在且未停用
         teacher = await supabase_service.table_select(
             table="teachers",
             select="id,name",
-            filters={"id": data.teacher_id, "is_deleted": "eq.false"},
+            filters={"id": data.teacher_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在")
+            raise HTTPException(status_code=400, detail="教師不存在或已停用")
 
         # 驗證教師合約：必須屬於該老師、active、未刪除
         contract = await supabase_service.table_select(
@@ -333,14 +358,14 @@ async def create_teacher_slots_batch(
         elif not current_user.is_staff():
             raise HTTPException(status_code=403, detail="無權建立教師時段")
 
-        # 驗證教師存在
+        # 驗證教師存在且未停用
         teacher = await supabase_service.table_select(
             table="teachers",
             select="id,name",
-            filters={"id": data.teacher_id, "is_deleted": "eq.false"},
+            filters={"id": data.teacher_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在")
+            raise HTTPException(status_code=400, detail="教師不存在或已停用")
 
         # 驗證教師合約：必須屬於該老師、active、未刪除
         contract = await supabase_service.table_select(
@@ -614,6 +639,8 @@ async def update_teacher_slots_batch(
 
     except HTTPException:
         raise
+    except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"批次更新教師時段失敗: {str(e)}")
 
@@ -764,6 +791,8 @@ async def update_teacher_slots_by_ids(
 
     except HTTPException:
         raise
+    except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"批次更新教師時段失敗: {str(e)}")
 
@@ -851,6 +880,8 @@ async def update_teacher_slot(
 
     except HTTPException:
         raise
+    except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"更新教師時段失敗: {str(e)}")
 

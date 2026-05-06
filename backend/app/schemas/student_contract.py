@@ -208,6 +208,7 @@ class StudentContractResponse(BaseModel):
     used_leave_count: int = 0
     used_emergency_leave_count: int = 0
     emergency_leave_quota: Optional[int] = None  # enrich 計算: ceil(total_lessons * 0.2)
+    remaining_emergency_leave_count: Optional[int] = None  # enrich 計算: max(0, quota - used)
     is_recurring: bool = False
     notes: Optional[str] = None
     created_at: Optional[datetime] = None

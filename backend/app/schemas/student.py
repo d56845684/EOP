@@ -114,24 +114,20 @@ class StudentListResponse(BaseModel):
 # ========== 試上轉正 ==========
 
 class ConvertToFormalRequest(BaseModel):
-    """試上轉正請求"""
-    contract_no: str = Field(..., description="合約編號")
-    total_lessons: int = Field(..., ge=1, description="總堂數")
-    total_amount: float = Field(..., ge=0, description="合約總金額")
-    start_date: date = Field(..., description="合約開始日期")
-    end_date: date = Field(..., description="合約結束日期")
+    """試上轉正請求
+
+    新流程：必須先建立 pending 合約並上傳 PDF，轉正只負責 activate。
+    """
+    student_contract_id: str = Field(..., description="待確認合約 ID（contract_status=pending 且已上傳 PDF）")
     teacher_id: Optional[str] = Field(None, description="指定教師 ID（計算轉正獎金）")
     booking_id: Optional[str] = Field(None, description="關聯的試上預約 ID")
-    notes: Optional[str] = Field(None, description="備註")
 
     model_config = {
         "json_schema_extra": {
             "examples": [{
-                "contract_no": "SC-2026-001",
-                "total_lessons": 24,
-                "total_amount": 36000.0,
-                "start_date": "2026-02-01",
-                "end_date": "2026-07-31",
+                "student_contract_id": "660e8400-e29b-41d4-a716-446655440000",
+                "teacher_id": "770e8400-e29b-41d4-a716-446655440000",
+                "booking_id": "880e8400-e29b-41d4-a716-446655440000",
             }]
         }
     }
@@ -177,6 +173,7 @@ class ConvertToFormalResponse(BaseModel):
     contract: ConvertToFormalContractInfo
     bonus_recorded: bool = False
     bonus_amount: Optional[float] = None
+    bonus_error: Optional[str] = None  # 獎金處理失敗訊息（已記到 system_alerts）
 
     model_config = {
         "json_schema_extra": {
