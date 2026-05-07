@@ -136,12 +136,6 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('studentBooking.colContract')" min-width="140">
-          <template #default="{ row }">
-            {{ row.student_contract_no || '-' }}
-          </template>
-        </el-table-column>
-
         <el-table-column :label="$t('studentBooking.colStatus')" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.booking_status)" size="small" effect="plain">

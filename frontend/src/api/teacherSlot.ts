@@ -79,6 +79,7 @@ export interface TeacherSlotResponse {
     end_time: string;
     is_available: boolean;
     is_booked: boolean;
+    booking_count: number;
     notes?: string | null;
     teacher_name?: string | null;
     teacher_no?: string | null;

@@ -505,6 +505,7 @@ async function submitEdit() {
     editing.value = true;
     try {
       const res = assertApiSuccess(await updateBooking(editingBooking.value.id, {
+        booking_status: editingBooking.value.booking_status,
         notes: editForm.notes || null,
       }), t('teacherRecords.updateFailed'));
 
@@ -626,6 +627,7 @@ async function submitNote() {
     savingNote.value = true;
     try {
       const res = assertApiSuccess(await updateBooking(noteBooking.value.id, {
+        booking_status: noteBooking.value.booking_status,
         notes: noteForm.notes,
       }), t('teacherRecords.saveFailed'));
 

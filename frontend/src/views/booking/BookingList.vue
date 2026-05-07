@@ -282,7 +282,7 @@
                   <div v-if="hasPermission('bookings.list')">
                     <el-button
                       plain
-                      type="warning"
+                      type="primary"
                       size="small"
                       round
                       :disabled="Boolean(row.has_pending_leave)"
@@ -294,7 +294,7 @@
                     <el-button
                     v-if="!row.substitute_detail_id"
                     plain
-                    type="success"
+                    type="primary"
                     size="small"
                     round
                     @click="openSubstituteDialog(row)">

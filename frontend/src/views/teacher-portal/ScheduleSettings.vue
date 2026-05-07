@@ -54,6 +54,7 @@
             @change="handleFilterChange"
           >
             <el-option :label="$t('teacherSchedulePortal.statusAvailable')" value="available" />
+            <el-option :label="$t('teacherSchedulePortal.statusPartiallyBooked')" value="partially_booked" />
             <el-option :label="$t('teacherSchedulePortal.statusBooked')" value="booked" />
             <el-option :label="$t('teacherSchedulePortal.statusClosed')" value="closed" />
           </el-select>
@@ -524,7 +525,7 @@ import {
 } from '@/api/teacherSlot';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 
-type SlotStatus = 'available' | 'booked' | 'closed';
+type SlotStatus = 'available' | 'partially_booked' | 'booked' | 'closed';
 type SlotStatusFilter = '' | SlotStatus;
 type RepeatType = 'none' | 'custom';
 type EndType = 'date' | 'count';
@@ -774,15 +775,19 @@ function disabledScheduleRangeDate(time: Date) {
 
 function getSlotStatus(slot: TeacherSlotResponse): SlotStatus {
   if (slot.is_booked) return 'booked';
+  if ((slot.booking_count || 0) > 0) return 'partially_booked';
   if (!slot.is_available) return 'closed';
   return 'available';
 }
 
 function getStatusLabel(slot: TeacherSlotResponse) {
   const status = getSlotStatus(slot);
-  if (status === 'booked') return t('teacherSchedule.statusBooked');
+  if (status === 'booked') return t('teacherSchedulePortal.statusFullyBooked');
+  if (status === 'partially_booked') {
+    return t('teacherSchedulePortal.statusPartiallyBookedCount', { count: slot.booking_count || 0 });
+  }
   if (status === 'closed') return t('teacherSchedulePortal.statusClosed');
-  return t('teacherSchedule.statusAvailable');
+  return t('teacherSchedulePortal.statusAvailable');
 }
 
 function getCalendarEventsByDate(date: string) {
@@ -1703,6 +1708,16 @@ function disabledBatchEndDate(time: Date) {
     background: linear-gradient(180deg, var(--el-fill-color-lighter), var(--el-bg-color));
   }
 
+  &.available {
+    border-color: var(--el-color-success-light-7);
+    background: linear-gradient(180deg, var(--el-color-success-light-9), var(--el-bg-color));
+  }
+
+  &.partially_booked {
+    border-color: var(--el-color-warning-light-5);
+    background: linear-gradient(180deg, var(--el-color-warning-light-8), var(--el-bg-color));
+  }
+
   &.booked {
     border-color: var(--el-color-danger-light-7);
     background: linear-gradient(180deg, var(--el-color-danger-light-9), var(--el-bg-color));
@@ -1737,7 +1752,13 @@ function disabledBatchEndDate(time: Date) {
 
 .qcal-event.available {
   border-left: 3px solid var(--el-color-success);
-  background: #f0f9eb;
+  background: var(--el-color-success-light-9);
+}
+
+.qcal-event.partially_booked {
+  border: 1px solid var(--el-border-color-lighter);
+  border-left: 3px solid var(--el-color-warning-dark-2);
+  background: var(--el-color-warning-light-8);
 }
 
 .qcal-event.booked {
@@ -1761,6 +1782,14 @@ function disabledBatchEndDate(time: Date) {
 
 .qcal-event.closed .qcal-event-dot {
   background: var(--el-color-info);
+}
+
+.qcal-event.available .qcal-event-dot {
+  background: var(--el-color-success);
+}
+
+.qcal-event.partially_booked .qcal-event-dot {
+  background: var(--el-color-warning-dark-2);
 }
 
 .qcal-event.booked .qcal-event-dot {
@@ -1797,6 +1826,14 @@ function disabledBatchEndDate(time: Date) {
 
 .agenda-event.closed .agenda-event-marker {
   background: var(--el-color-info);
+}
+
+.agenda-event.available .agenda-event-marker {
+  background: var(--el-color-success);
+}
+
+.agenda-event.partially_booked .agenda-event-marker {
+  background: var(--el-color-warning-dark-2);
 }
 
 .agenda-event.booked .agenda-event-marker {
@@ -1913,6 +1950,16 @@ function disabledBatchEndDate(time: Date) {
 
   &.booked {
     border-left-color: var(--el-color-danger);
+  }
+
+  &.partially_booked {
+    border-left-color: var(--el-color-warning-dark-2);
+    background: var(--el-color-warning-light-9);
+  }
+
+  &.available {
+    border-left-color: var(--el-color-success);
+    background: var(--el-color-success-light-9);
   }
 
   &.closed {
