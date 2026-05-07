@@ -113,6 +113,7 @@ class BookingResponse(BaseModel):
     overtime_pay: Optional[float] = None
     lessons_used: int = 1
     notes: Optional[str] = None
+    meeting_creation_error: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     # 關聯資料
@@ -196,6 +197,37 @@ class BookingBatchUpdateByIds(BaseModel):
                 ],
                 "booking_status": "confirmed",
                 "notes": "批次確認本週預約",
+            }]
+        }
+    }
+
+
+class BookingBatchUpdateResult(BaseModel):
+    """批次更新預約 by ids 的結果 payload。
+
+    `meeting_failed_*` 欄位僅在目標狀態為 confirmed 時可能非空（會議建立失敗的筆數）；
+    其他狀態切換（如 cancelled）不涉及會議建立，這兩個欄位永遠為空。
+    """
+    updated_count: int = 0
+    updated_booking_ids: List[str] = []
+    meeting_failed_ids: List[str] = []
+    meeting_failed_reasons: dict[str, str] = {}
+    skipped_ids: List[str] = []
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "updated_count": 3,
+                "updated_booking_ids": [
+                    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                    "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                ],
+                "meeting_failed_ids": ["d4e5f6a7-b8c9-0123-def0-234567890123"],
+                "meeting_failed_reasons": {
+                    "d4e5f6a7-b8c9-0123-def0-234567890123": "Zoom 帳號池當下無可用",
+                },
+                "skipped_ids": [],
             }]
         }
     }
