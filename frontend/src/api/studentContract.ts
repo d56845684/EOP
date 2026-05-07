@@ -41,6 +41,7 @@ export interface StudentContract {
   leave_records: StudentContractLeaveRecord[];
   emergency_leave_quota: number;
   used_emergency_leave_count: number;
+  remaining_emergency_leave_count?: number | null;
   addendums: StudentContractAddendum[];
 }
 

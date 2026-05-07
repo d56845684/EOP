@@ -146,7 +146,9 @@ export interface ContractSummary {
   total_amount: number;
   total_leave_allowed: number;
   used_leave_count: number;
+  emergency_leave_quota?: number | null;
   used_emergency_leave_count: number;
+  remaining_emergency_leave_count?: number | null;
   is_recurring: boolean;
   start_date: string | null;
   end_date: string | null;

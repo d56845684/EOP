@@ -152,6 +152,20 @@
               </span>
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('myContracts.emergencyLeaveQuota')">
+              <span class="block w-130px h-30px line-height-30px px-2 bg-gray-100 rounded">
+                {{ activeContract?.emergency_leave_quota || 0 }}
+              </span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('myContracts.usedEmergencyLeaveCount')">
+              <span class="block w-130px h-30px line-height-30px px-2 bg-gray-100 rounded">
+                {{ activeContract?.used_emergency_leave_count || 0 }}
+              </span>
+            </el-form-item>
+          </el-col>
           <el-col :span="24">
             <el-form-item :label="$t('common.note')">
               <el-input
