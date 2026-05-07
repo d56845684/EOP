@@ -180,7 +180,14 @@
           </template>
         </el-table-column>
         <el-table-column :label="$t('common.student')" min-width="140">
-          <template #default="{ row }">{{ row.student_name || '-' }}</template>
+          <template #default="{ row }">
+            <div class="w-fit flex flex-col items-start">
+              <span class="lh-normal">{{ formatBookingStudentBase(row) }}</span>
+              <span v-if="formatBookingStudentEngName(row)" class="student-eng-name lh-normal">
+                {{ formatBookingStudentEngName(row) }}
+              </span>
+            </div>
+          </template>
         </el-table-column>
         <el-table-column :label="$t('common.teacher')" min-width="140">
           <template #default="{ row }">
@@ -232,21 +239,31 @@
                 </el-button>
               </div>
               <div v-else class="flex flex-col items-center gap-2 min-h-12 justify-center">
-                <div class="flex flex-col justify-center items-center gap-1"> 
-                  <el-button 
-                    v-if="zoomInfoMap[row.id]?.join_url"
-                    type="success" 
-                    size="small"
-                    round
-                    plain
-                    class="text-xs h-20px! px-1.5!"
-                    @click="openUrl(zoomInfoMap[row.id]?.join_url)">
-                    <template #icon><div class="i-hugeicons:video-01" /></template>{{ $t('bookingAdmin.joinMeeting') }}
-                  </el-button>
+                <div class="flex flex-col justify-center items-center gap-1 translate-x-14px"> 
+                  <div v-if="zoomInfoMap[row.id]?.join_url" class="grid grid-cols-[1fr_24px] items-center gap-1">
+                    <el-button
+                      type="success"
+                      size="small"
+                      round
+                      plain
+                      class="text-xs h-20px! px-1.5!"
+                      @click="openUrl(zoomInfoMap[row.id]?.join_url)">
+                      <template #icon><div class="i-hugeicons:video-01" /></template>{{ $t('bookingAdmin.joinMeeting') }}
+                    </el-button>
+                    <el-button
+                      size="small"
+                      round
+                      link
+                      class="text-xs h-20px! px-1! color-gray-400! hover:color-gray-500! ml-0!"
+                      :title="$t('common.copy')"
+                      @click="copyMeetingLink(zoomInfoMap[row.id]?.join_url)">
+                      <div class="i-hugeicons:copy-01" />
+                    </el-button>
+                  </div>
                   <div 
                     v-if="zoomInfoMap[row.id]?.passcode" 
-                    class="flex items-center gap-0.5 text-11px leading-12px color-gray-400 translate-x-10px">
-                    {{ $t('bookingAdmin.passcode', { passcode: zoomInfoMap[row.id]?.passcode }) }}
+                    class="w-full grid grid-cols-[1fr_24px] items-center gap-1 text-11px leading-12px color-gray-400">
+                    <span>{{ $t('bookingAdmin.passcode', { passcode: zoomInfoMap[row.id]?.passcode }) }}</span>
                     <el-button size="small" round link class="text-xs h-20px! px-1! color-gray-400! hover:color-gray-500!" @click="copyToClipboard(zoomInfoMap[row.id]?.passcode)"><div class="i-hugeicons:copy-01" /></el-button>
                 </div>
                 </div>
@@ -1053,6 +1070,22 @@ const getStatusColor = (status: string) => {
   }
 };
 
+const formatBookingStudentBase = (booking: BookingItem) => {
+  const studentNo = booking.student_no?.trim();
+  const studentName = booking.student_name?.trim();
+  const baseName = studentNo && studentName ? `${studentNo}-${studentName}` : studentNo || studentName || '';
+
+  return baseName || booking.student_eng_name?.trim() || '-';
+};
+
+const formatBookingStudentEngName = (booking: BookingItem) => {
+  const studentNo = booking.student_no?.trim();
+  const studentName = booking.student_name?.trim();
+  const studentEngName = booking.student_eng_name?.trim();
+  if (!studentNo && !studentName) return '';
+  return studentEngName || '';
+};
+
 // Zoom logic
 const zoomInfoMap = ref<Record<string, ZoomMeetingLogResponse>>({});
 const creatingZoomMap = ref<Record<string, boolean>>({});
@@ -1104,6 +1137,11 @@ const handleCreateZoom = async (row: BookingItem) => {
 const copyToClipboard = (text: string | undefined | null) => {
   if (text) {
     copyToClipboardUtil(text, t('bookingAdmin.passcodeCopied'));
+  }
+};
+const copyMeetingLink = (url: string | undefined | null) => {
+  if (url) {
+    copyToClipboardUtil(url, t('bookingAdmin.joinLinkCopied'));
   }
 };
 const openUrl = (url?: string | null) => {
@@ -1763,5 +1801,10 @@ const submitBatchDelete = async () => {
 
 .slot-block-start-end {
   color: #00ffff;
+}
+
+.student-eng-name {
+  color: var(--el-text-color-secondary);
+  font-style: italic;
 }
 </style>

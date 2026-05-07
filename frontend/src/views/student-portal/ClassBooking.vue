@@ -159,24 +159,35 @@
                 <span class="text-gray-400">-</span>
               </div>
               <div v-else class="flex flex-col items-center gap-2 min-h-12 justify-center">
-                <div class="flex flex-col justify-center items-center gap-1">
-                  <el-button
-                    v-if="zoomInfoMap[row.id]?.join_url"
-                    type="success"
-                    size="small"
-                    round
-                    plain
-                    class="text-xs h-20px! px-1.5!"
-                    @click="openUrl(zoomInfoMap[row.id]?.join_url)"
-                  >
-                    <template #icon><div class="i-hugeicons:video-01" /></template>
-                    {{ $t('bookingAdmin.joinMeeting') }}
-                  </el-button>
+                <div class="flex flex-col items-center gap-0.5 translate-x-14px">
+                  <div v-if="zoomInfoMap[row.id]?.join_url" class="w-full grid grid-cols-[1fr_24px] items-center gap-1">
+                    <el-button
+                      type="success"
+                      size="small"
+                      round
+                      plain
+                      class="text-xs h-20px! px-1.5!"
+                      @click="openUrl(zoomInfoMap[row.id]?.join_url)"
+                    >
+                      <template #icon><div class="i-hugeicons:video-01" /></template>
+                      {{ $t('bookingAdmin.joinMeeting') }}
+                    </el-button>
+                    <el-button
+                      size="small"
+                      round
+                      link
+                      class="text-xs h-20px! px-1! color-gray-400! hover:color-gray-500! ml-0!"
+                      :title="$t('common.copy')"
+                      @click="copyMeetingLink(zoomInfoMap[row.id]?.join_url)"
+                    >
+                      <div class="i-hugeicons:copy-01" />
+                    </el-button>
+                  </div>
                   <div
                     v-if="zoomInfoMap[row.id]?.passcode"
-                    class="flex items-center gap-0.5 text-11px leading-12px color-gray-400 translate-x-10px"
+                    class="w-full grid grid-cols-[1fr_24px] items-center gap-1 text-11px leading-12px color-gray-400"
                   >
-                    {{ $t('bookingAdmin.passcode', { passcode: zoomInfoMap[row.id]?.passcode }) }}
+                    <span>{{ $t('bookingAdmin.passcode', { passcode: zoomInfoMap[row.id]?.passcode }) }}</span>
                     <el-button
                       size="small"
                       round
@@ -629,6 +640,12 @@ const openUrl = (url?: string | null) => {
 const copyToClipboard = (text?: string | null) => {
   if (text) {
     copyToClipboardUtil(text, t('bookingAdmin.passcodeCopied'));
+  }
+};
+
+const copyMeetingLink = (url?: string | null) => {
+  if (url) {
+    copyToClipboardUtil(url, t('bookingAdmin.joinLinkCopied'));
   }
 };
 

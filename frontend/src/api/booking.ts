@@ -39,6 +39,8 @@ export interface BookingItem {
     created_at?: string | null;
     updated_at?: string | null;
     student_name?: string | null;
+    student_no?: string | null;
+    student_eng_name?: string | null;
     teacher_name?: string | null;
     course_name?: string | null;
     student_contract_no?: string | null;
