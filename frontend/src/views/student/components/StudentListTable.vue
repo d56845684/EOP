@@ -78,28 +78,16 @@
     </el-table-column>
 
     <!-- Actions -->
-    <el-table-column :label="$t('common.actions')" label-class-name="text-center" min-width="260" fixed="right" class-name="action-column">
+    <el-table-column :label="$t('common.actions')" label-class-name="text-center" min-width="240" fixed="right" class-name="action-column">
       <template #default="{ row }">
-        <div class="min-w-max">
+        <div class="min-w-max flex gap-4px justify-center items-center">
           <el-button v-permission="'students.edit'" round size="small" @click="openDrawer(row, drawerTypeMap.MANAGE)">
             <template #icon>
               <div class="i-hugeicons:pencil-edit-01" />
             </template>
             {{ $t('student.detailsTitle') }}
           </el-button>
-          <el-button 
-            v-if="row.student_status === 'trial' && row.active_contracts === 0"
-            type="primary" 
-            round
-            size="small" 
-            link
-            @click="openConvertToFormalDialog(row)"
-            v-permission="'students.contracts'"
-          >
-            {{ $t('student.convertToFormal') }}
-          </el-button>
           <el-button
-            v-else
             v-permission="'students.contracts'"
             round
             size="small"
@@ -113,17 +101,6 @@
             {{ $t('contract.contracts') }}
           </el-button>
         </div>
-        <el-button 
-          type="danger" 
-          size="small"
-          link
-          @click="handleDelete(row)"
-          class="ml-1"
-          v-permission="'students.delete'"
-        >
-          <div class="i-hugeicons:delete-02 mr-2px" />
-          {{ $t('common.delete') }}
-        </el-button>
       </template>
     </el-table-column>
 
@@ -178,15 +155,9 @@ import { useI18n } from 'vue-i18n';
   const permissionStore = usePermissionStore();
   const { t } = useI18n();
   const hasPermission = (permission: string) => permissionStore.hasPermission(permission);
-  const emit = defineEmits(['openDrawer', 'openConvertToFormalDialog', 'handleDelete', 'handleStatusChange', 'handleVerify', 'copyEmail'])
+  const emit = defineEmits(['openDrawer', 'handleStatusChange', 'handleVerify', 'copyEmail'])
   const openDrawer = (student: StudentResponse, type: string) => {
     emit('openDrawer', student, type)
-  }
-  const openConvertToFormalDialog = (student: StudentResponse) => {
-    emit('openConvertToFormalDialog', student)
-  }
-  const handleDelete = (student: StudentResponse) => {
-    emit('handleDelete', student)
   }
   const handleStatusChange = (student: StudentResponse) => {
     emit('handleStatusChange', student)
@@ -207,13 +178,6 @@ import { useI18n } from 'vue-i18n';
     .cell {
       text-align: center !important;
       justify-content: center !important;
-    }
-  }
-  :deep(.action-column) {
-    .cell {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
     }
   }
 }

@@ -358,8 +358,8 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="slotDialogVisible = false">{{ $t('teacherSchedule.cancelBtn') }}</el-button>
-        <el-button type="primary" :loading="saving" :disabled="!canManageSlots" @click="saveSlot">
+        <el-button round size="small" class="px-5! h-30px!" @click="slotDialogVisible = false">{{ $t('teacherSchedule.cancelBtn') }}</el-button>
+        <el-button type="primary" round size="small" class="px-5! h-30px!" :loading="saving" :disabled="!canManageSlots" @click="saveSlot">
           {{ $t('teacherSchedule.saveBtn') }}
         </el-button>
       </template>
@@ -483,11 +483,14 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="batchDialogVisible = false">{{ $t('teacherSchedule.cancelBtn') }}</el-button>
+        <el-button round size="small" class="px-3! h-30px!" @click="batchDialogVisible = false">{{ $t('teacherSchedule.cancelBtn') }}</el-button>
         <el-button
           :type="batchMode === 'delete' ? 'danger' : 'primary'"
           :loading="batchSaving"
           :disabled="!canManageSlots"
+          round
+          size="small"
+          class="px-3! h-30px!"
           @click="submitBatchAction"
         >
           {{ batchMode === 'delete' ? $t('teacherSchedulePortal.batchDelete') : $t('teacherSchedulePortal.batchUpdate') }}

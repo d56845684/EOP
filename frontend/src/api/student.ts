@@ -43,14 +43,33 @@ export interface StudentUpdate {
 }
 
 export interface ConvertToFormalRequest {
-  contract_no: string;
-  total_lessons: number;
-  total_amount: number;
-  start_date: string;
-  end_date: string;
+  student_contract_id: string;
   teacher_id?: string | null;
   booking_id?: string | null;
+}
+
+export interface ConvertToFormalContractInfo {
+  id: string;
+  contract_no: string;
+  student_id: string;
+  contract_status: string;
+  start_date: string;
+  end_date: string;
+  total_lessons: number;
+  remaining_lessons: number;
   notes?: string | null;
+  created_at?: string | null;
+}
+
+export interface ConvertToFormalResponse {
+  success: boolean;
+  message?: string;
+  error_code?: string | null;
+  student: StudentResponse;
+  contract: ConvertToFormalContractInfo;
+  bonus_recorded?: boolean;
+  bonus_amount?: number | null;
+  bonus_error?: string | null;
 }
 
 export interface StudentResponse {
@@ -226,7 +245,7 @@ export function deleteStudent(id: string) {
 }
 
 export function convertToFormal(id: string, data: ConvertToFormalRequest) {
-  return request.post<any, DataResponse<StudentResponse & { contract?: { id?: string | null } }>>(`/v1/students/${id}/convert-to-formal`, data);
+  return request.post<any, ConvertToFormalResponse>(`/v1/students/${id}/convert-to-formal`, data);
 }
 
 export function getStudentView(id: string) {

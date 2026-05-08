@@ -96,14 +96,14 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('common.status')" width="110" align="center">
+        <el-table-column :label="$t('common.status')" width="120" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.booking_status)" size="small" effect="plain">
               {{ $t(`bookingShared.status.${row.booking_status}`) }}
             </el-tag>
-            <el-tag v-if="row.has_pending_leave" class="mt-1" type="warning" size="small" effect="plain">
+            <div v-if="row.has_pending_leave" class="mt-1 text-[var(--el-color-info-light-3)] text-11px leading-12px">
               {{ $t('teacherRecords.leavePending') }}
-            </el-tag>
+            </div>
           </template>
         </el-table-column>
 
@@ -218,7 +218,17 @@
               >
                 {{ $t('teacherRecords.btnLeave') }}
               </el-button>
-              <span v-if="!canConfirmBooking(row) && !canRequestLeave(row)" class="muted-text">
+              <el-button
+                v-if="canWithdrawLeave(row)"
+                link
+                type="info"
+                size="small"
+                :loading="withdrawingLeaveId === pendingLeaveMap[row.id]?.id"
+                @click="handleWithdrawLeave(row)"
+              >
+                {{ $t('leaveManagement.withdraw') }}
+              </el-button>
+              <span v-if="!canConfirmBooking(row) && !canRequestLeave(row) && !canWithdrawLeave(row)" class="muted-text">
                 -
               </span>
             </div>
@@ -310,7 +320,7 @@ import {
   type BookingListParams,
   type BookingStatus,
 } from '@/api/booking';
-import { createLeaveRecord } from '@/api/leaveRecord';
+import { cancelLeaveRecord, createLeaveRecord, getLeaveRecordList, type LeaveRecordResponse } from '@/api/leaveRecord';
 import { batchGetZoomMeetings, type ZoomMeetingLogResponse } from '@/api/zoom';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { copyToClipboardUtil } from '@/utils/clipboard';
@@ -324,6 +334,7 @@ const loading = ref(false);
 const bookings = ref<BookingItem[]>([]);
 const total = ref(0);
 const zoomInfoMap = ref<Record<string, ZoomMeetingLogResponse>>({});
+const pendingLeaveMap = ref<Record<string, LeaveRecordResponse>>({});
 
 const queryParams = reactive({
   page: 1,
@@ -338,6 +349,7 @@ const filters = reactive({
 });
 
 const confirmingBookingId = ref('');
+const withdrawingLeaveId = ref('');
 
 const leaveDialogVisible = ref(false);
 const leaving = ref(false);
@@ -401,6 +413,10 @@ function canConfirmBooking(booking: BookingItem) {
   return booking.booking_status === 'pending' && !booking.has_pending_leave;
 }
 
+function canWithdrawLeave(booking: BookingItem) {
+  return Boolean(pendingLeaveMap.value[booking.id]);
+}
+
 function buildListParams(): BookingListParams {
   const params: BookingListParams = {
     page: queryParams.page,
@@ -431,11 +447,41 @@ async function fetchBookings() {
     const res = assertApiSuccess(await getBookingList(buildListParams()), t('teacherRecords.loadFailed'));
     bookings.value = res.data || [];
     total.value = res.total || 0;
+    await fetchPendingLeaves();
     await fetchZoomInfos();
   } catch (error) {
     ElMessage.error(getApiErrorMessage(error, t('teacherRecords.loadFailed')));
   } finally {
     loading.value = false;
+  }
+}
+
+async function fetchPendingLeaves() {
+  const pendingLeaves: LeaveRecordResponse[] = [];
+  let page = 1;
+  let totalPages = 1;
+
+  try {
+    do {
+      const res = assertApiSuccess(await getLeaveRecordList({
+        page,
+        per_page: 100,
+        leave_status: 'pending',
+      }), t('teacherRecords.loadFailed'));
+      pendingLeaves.push(...(res.data || []));
+      totalPages = res.total_pages || 1;
+      page += 1;
+    } while (page <= totalPages);
+
+    pendingLeaveMap.value = pendingLeaves.reduce<Record<string, LeaveRecordResponse>>((map, leave) => {
+      if (leave.booking_id) {
+        map[leave.booking_id] = leave;
+      }
+      return map;
+    }, {});
+  } catch (error) {
+    pendingLeaveMap.value = {};
+    ElMessage.error(getApiErrorMessage(error, t('teacherRecords.loadFailed')));
   }
 }
 
@@ -554,6 +600,37 @@ async function submitLeave() {
       leaving.value = false;
     }
   });
+}
+
+async function handleWithdrawLeave(booking: BookingItem) {
+  const leaveRecord = pendingLeaveMap.value[booking.id];
+  if (!leaveRecord) return;
+  const withdrawTarget = `${booking.booking_no} - ${booking.booking_date} ${formatTime(booking.start_time)}~${formatTime(booking.end_time)}`;
+
+  try {
+    await ElMessageBox.confirm(
+      t('leaveManagement.withdrawConfirmMessage', { leaveNo: withdrawTarget }),
+      t('leaveManagement.withdrawTitle'),
+      {
+        confirmButtonText: t('leaveManagement.withdraw'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+      },
+    );
+  } catch {
+    return;
+  }
+
+  withdrawingLeaveId.value = leaveRecord.id;
+  try {
+    const res = assertApiSuccess(await cancelLeaveRecord(leaveRecord.id), t('leaveManagement.withdrawFailed'));
+    ElMessage.success(res.message || t('leaveManagement.withdrawn'));
+    fetchBookings();
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, t('leaveManagement.withdrawFailed')));
+  } finally {
+    withdrawingLeaveId.value = '';
+  }
 }
 
 function openNoteDialog(booking: BookingItem) {

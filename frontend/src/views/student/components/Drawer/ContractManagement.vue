@@ -1,6 +1,6 @@
 <template>
   <div v-loading="contractLoading" class="pl-1 pr-2">
-    <template v-if="hasActive">
+    <template v-if="activeContract || isCreatingContract">
       <!-- 當前合約 Current Contract -->
       <el-divider content-position="left" class="mt-1 mb-8">
         <span class="text-13px color-[#1d2d44]">{{ $t('myContracts.tabCurrent') }}</span>
@@ -9,10 +9,10 @@
         <el-col :span="12">
           <div class="flex flex-col items-start mb-2">
             <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">{{ $t('contract.contractNo') }}</label>
-            <div class="w-full text-xs mt-1">{{ activeContract?.contract_no }}</div>
+            <div class="w-full text-xs mt-1">{{ activeContract?.contract_no || '-' }}</div>
           </div>
         </el-col>
-        <el-col :span="12">
+        <el-col v-if="activeContract" :span="12">
           <div class="flex flex-col items-start mb-2">
             <label class="mb-2 flex-shrink-0 text-xs color-[#606266]">{{ $t('studentAdmin.contractFileStatus') }}</label>
             <div class="w-full text-12px flex flex-col items-start gap-2" :class="activeContract?.contract_file_uploaded_at ? 'text-green' : 'text-red'">
@@ -75,9 +75,10 @@
         <el-row :gutter="60">
           <el-col :span="12">
             <el-form-item :label="$t('contract.contractStatus')">
-              <el-select v-model="contractForm.contract_status" class="w-150px contract-select">
+              <el-select v-model="contractForm.contract_status" class="w-150px contract-select" disabled>
                 <el-option :label="$t('display.contractStatus.pending')" value="pending"></el-option>
                 <el-option :label="$t('display.contractStatus.active')" value="active"></el-option>
+                <el-option :label="$t('display.contractStatus.suspended')" value="suspended"></el-option>
                 <el-option :label="$t('display.contractStatus.expired')" value="expired"></el-option>
                 <el-option :label="$t('display.contractStatus.terminated')" value="terminated"></el-option>
               </el-select>
@@ -113,12 +114,13 @@
               <el-input-number
                 v-model="contractForm.total_lessons"
                 :min="1"
+                :value-on-clear="null"
                 :readonly="!contractCanEdit"
                 class="w-150px h-30px"
               />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col v-if="activeContract" :span="12">
             <el-form-item :label="$t('myContracts.remainingLessons')">
               <span class="block w-130px h-30px line-height-30px px-2 bg-gray-100 rounded">
                 {{ activeContract?.remaining_lessons }}
@@ -130,6 +132,7 @@
               <el-input-number
                 v-model="contractForm.total_amount"
                 :min="0"
+                :value-on-clear="null"
                 :readonly="!contractCanEdit"
                 class="w-150px h-30px!"
               />
@@ -140,26 +143,27 @@
               <el-input-number
                 v-model="contractForm.total_leave_allowed"
                 :min="0"
+                :value-on-clear="null"
                 :readonly="!contractCanEdit"
                 class="w-150px h-30px!"
               />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col v-if="activeContract" :span="12">
             <el-form-item :label="$t('myContracts.usedLeaveCount')">
               <span class="block w-130px h-30px line-height-30px px-2 bg-gray-100 rounded">
                 {{ activeContract?.used_leave_count }}
               </span>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col v-if="activeContract" :span="12">
             <el-form-item :label="$t('myContracts.emergencyLeaveQuota')">
               <span class="block w-130px h-30px line-height-30px px-2 bg-gray-100 rounded">
                 {{ activeContract?.emergency_leave_quota || 0 }}
               </span>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col v-if="activeContract" :span="12">
             <el-form-item :label="$t('myContracts.usedEmergencyLeaveCount')">
               <span class="block w-130px h-30px line-height-30px px-2 bg-gray-100 rounded">
                 {{ activeContract?.used_emergency_leave_count || 0 }}
@@ -183,7 +187,7 @@
               {{ $t('common.save') }}
             </el-button>
           </el-col>
-          <el-col :span="12" justify="end">
+          <el-col v-if="activeContract" :span="12" justify="end">
             <el-form-item class="w-full action-column">
               <el-space :size="10" :spacer="h(ElDivider, { direction: 'vertical' })">
                 <el-button
@@ -221,7 +225,7 @@
       </el-form>
 
       <!-- 附約 Addendum  -->
-      <template v-if="(activeContract?.addendums.length || 0) > 0">
+      <template v-if="activeContract && (activeContract?.addendums.length || 0) > 0">
         <el-divider content-position="left" class="mt-5 mb-5">
           <span class="text-13px color-[#1d2d44]">{{ $t('studentAdmin.addendum.title') }}</span>
         </el-divider>
@@ -304,14 +308,14 @@
       </template>
 
       <!-- 合約明細 Contract Details -->
-      <el-divider content-position="left" class="mt-5 mb-3">
+      <el-divider v-if="activeContract" content-position="left" class="mt-5 mb-3">
         <span class="text-13px color-[#1d2d44]">{{ $t('contract.contractDetails') }}</span>
       </el-divider>
-      <el-button type="primary" round text size="small" class="float-right mb-2" @click="openAddDetailDialog">
+      <el-button v-if="activeContract" type="primary" round text size="small" class="float-right mb-2" @click="openAddDetailDialog">
         <template #icon><div class="i-hugeicons:add-square" /></template>
         {{ $t('studentAdmin.addDetail') }}
       </el-button>
-      <el-table :data="contractDetails" size="small" class="mt-2 w-full" border>
+      <el-table v-if="activeContract" :data="contractDetails" size="small" class="mt-2 w-full" border>
         <el-table-column prop="detail_type" :label="$t('common.type')" width="100">
           <template #default="{ row }">
             {{ getDetailTypeLabel(row.detail_type) }}
@@ -351,14 +355,14 @@
       </el-table>
 
       <!-- 請假紀錄 Leave Records -->
-      <el-divider content-position="left" class="mt-10 mb-5">
+      <el-divider v-if="activeContract" content-position="left" class="mt-10 mb-5">
         <span class="text-13px color-[#1d2d44]">{{ $t('studentAdmin.leaveRecords') }}</span>
       </el-divider>
-      <el-button type="primary" round text size="small" class="float-right mb-2" @click="addLeaveDialogVisible = true">
+      <el-button v-if="activeContract" type="primary" round text size="small" class="float-right mb-2" @click="addLeaveDialogVisible = true">
         <template #icon><div class="i-hugeicons:add-square" /></template>
         {{ $t('studentAdmin.addLeaveDialog.title') }}
       </el-button>
-      <el-table :data="leaveRecords" border size="small" :empty-text="$t('studentAdmin.noLeaveRecords')">
+      <el-table v-if="activeContract" :data="leaveRecords" border size="small" :empty-text="$t('studentAdmin.noLeaveRecords')">
         <el-table-column prop="leave_date" :label="$t('studentAdmin.leaveDate')" width="120" />
         <el-table-column prop="reason" :label="$t('studentAdmin.reason')" />
         <el-table-column :label="$t('common.actions')" width="80" align="center">
@@ -458,12 +462,22 @@ import {
   type StudentContractAddendum,
   type StudentContractAddendumUpdate
 } from '@/api/studentContract';
-import { CONTRACT_STATUS } from '@/constants/contract';
+import { CONTRACT_STATUS, ENDED_STUDENT_CONTRACT_STATUSES } from '@/constants/contract';
 import { triggerDownload, getFileNameFromResponse}  from '@/utils/download';
 import { formatStudentContractStatusLabel } from '@/utils/i18n-formatters';
 import { uploadContractFile } from '@/utils/upload';
 import { createFormSnapshot } from '@/utils/formDirty';
 import { useI18n } from 'vue-i18n';
+
+type ContractForm = {
+  contract_status: StudentContract['contract_status'];
+  is_recurring: boolean;
+  dateRange: string[];
+  total_lessons: number | null;
+  total_amount: number | null;
+  total_leave_allowed: number | null;
+  notes: string;
+}
 
 const props = defineProps({
   contracts: {
@@ -490,21 +504,38 @@ const props = defineProps({
 
 const { t } = useI18n();
 
-const contractForm = ref({
+const createEmptyContractForm = (): ContractForm => ({
   contract_status: 'pending',
   is_recurring: false,
-  dateRange: [] as string[],
-  total_lessons: 0,
-  total_amount: 0,
-  total_leave_allowed: 0,
+  dateRange: [],
+  total_lessons: null,
+  total_amount: null,
+  total_leave_allowed: null,
   notes: ''
-})
+});
+
+const contractForm = ref<ContractForm>(createEmptyContractForm())
 const contractFormSnapshot = ref('');
 const getContractFormSnapshot = () => createFormSnapshot(contractForm.value);
 const resetContractFormSnapshot = () => {
   contractFormSnapshot.value = getContractFormSnapshot();
 };
 const isContractFormDirty = computed(() => getContractFormSnapshot() !== contractFormSnapshot.value);
+const fillContractForm = (contract: StudentContract) => {
+  contractForm.value = {
+    contract_status: contract.contract_status,
+    is_recurring: contract.is_recurring,
+    dateRange: [contract.start_date, contract.end_date],
+    total_lessons: contract.total_lessons,
+    total_amount: contract.total_amount,
+    total_leave_allowed: contract.total_leave_allowed,
+    notes: contract.notes || ''
+  }
+  resetContractFormSnapshot();
+  if (contract.addendums && contract.addendums.length > 0) {
+    activeAddendum.value = contract.addendums[contract.addendums.length - 1] || null;
+  }
+};
 
 const detailVisible = ref(false);
 const addLeaveDialogVisible = ref(false)
@@ -516,32 +547,55 @@ const contractDetailData = ref<StudentContractDetail | null>(null);
 const currentContract = ref<StudentContract | null>(null);
 const extendType = ref<'create' | 'update'>('create');
 const activeAddendum = ref<StudentContractAddendum | null>(null);
+const isCreatingContract = ref(false);
 
 const addendumFileList = ref([]);
 const contractFileList = ref([]);
 
 const contractCanEdit = computed(() => {
-  return activeContract.value?.contract_status === CONTRACT_STATUS.PENDING;
+  return isCreatingContract.value || activeContract.value?.contract_status === CONTRACT_STATUS.PENDING;
+})
+
+const endedContractStatusSet = new Set<string>(ENDED_STUDENT_CONTRACT_STATUSES);
+
+const isEndedContract = (contract: StudentContract) => {
+  return endedContractStatusSet.has(contract.contract_status.toLowerCase());
+}
+
+const getContractTimestamp = (contract: StudentContract) => {
+  const dateValue = contract.updated_at || contract.created_at || contract.start_date || contract.end_date;
+  const timestamp = dayjs(dateValue).valueOf();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+const sortedContracts = computed(() => {
+  return [...props.contracts].sort((a, b) => getContractTimestamp(b) - getContractTimestamp(a));
 })
 
 const activeContract = computed(() => {
-  return props.contracts.find((contract) => contract.contract_status === CONTRACT_STATUS.ACTIVE) || null;
+  return sortedContracts.value.find((contract) => !isEndedContract(contract)) || null;
 })
 
 const contractHistory = computed(() => {
-  return props.contracts.filter((contract) => contract.contract_status !== CONTRACT_STATUS.ACTIVE);
+  return sortedContracts.value.filter(isEndedContract);
 })
 
 const emit = defineEmits([
   'saveContractData',
   'updateContent',
-  'updateContractDetails',
-  'openAddContractDialog'
+  'updateContractDetails'
 ])
 
 const openAddContractDialog = () => {
-  emit('openAddContractDialog')
+  isCreatingContract.value = true;
+  activeAddendum.value = null;
+  contractForm.value = createEmptyContractForm();
+  resetContractFormSnapshot();
 }
+
+defineExpose({
+  openAddContractDialog,
+});
 
 const openAddDetailDialog = () => {
   detailVisible.value = true;
@@ -549,7 +603,7 @@ const openAddDetailDialog = () => {
 
 const saveContractData = () => {
   // TODO: Save contract data
-  emit('saveContractData', contractForm.value)
+  emit('saveContractData', contractForm.value, isCreatingContract.value)
   resetContractFormSnapshot();
 }
 
@@ -725,22 +779,23 @@ const getDetailTypeLabel = (type: string) => {
 }
 
 watch(activeContract, (newVal: StudentContract | null) => {
+  if (isCreatingContract.value) return;
   if (newVal) {
-    contractForm.value = {
-      contract_status: newVal.contract_status,
-      is_recurring: newVal.is_recurring,
-      dateRange: [newVal.start_date, newVal.end_date],
-      total_lessons: newVal.total_lessons,
-      total_amount: newVal.total_amount,
-      total_leave_allowed: newVal.total_leave_allowed,
-      notes: newVal.notes || ''
-    }
-    resetContractFormSnapshot();
-    if (newVal.addendums && newVal.addendums.length > 0) {
-      activeAddendum.value = newVal.addendums[newVal.addendums.length - 1] || null;
-    }
+    fillContractForm(newVal);
   }
 }, { deep: true, immediate: true })
+
+watch(() => props.contracts, () => {
+  if (isCreatingContract.value && activeContract.value) {
+    isCreatingContract.value = false;
+    fillContractForm(activeContract.value);
+  }
+}, { deep: true })
+
+watch(() => contractForm.value.total_lessons, (totalLessons) => {
+  if (!isCreatingContract.value) return;
+  contractForm.value.total_leave_allowed = totalLessons ? Math.ceil(totalLessons * 0.2) : null;
+})
 </script>
 
 <style lang="scss" scoped>

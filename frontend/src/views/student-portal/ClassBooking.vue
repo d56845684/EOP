@@ -136,11 +136,14 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('studentBooking.colStatus')" width="110" align="center">
+        <el-table-column :label="$t('studentBooking.colStatus')" width="120" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.booking_status)" size="small" effect="plain">
               {{ BOOKING_STATUS_MAP[row.booking_status] || row.booking_status }}
             </el-tag>
+            <div v-if="row.has_pending_leave" class="mt-1 text-[var(--el-color-info-light-3)] text-11px leading-12px">
+              {{ getPendingLeaveLabel(row) }}
+            </div>
           </template>
         </el-table-column>
 
@@ -221,11 +224,8 @@
 
         <el-table-column :label="$t('teacherRecords.colActions')" width="150" fixed="right" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.has_pending_leave" size="small" type="warning" effect="plain">
-              {{ $t('studentBooking.leavePending') }}
-            </el-tag>
             <el-button
-              v-else-if="row.booking_status === 'confirmed'"
+              v-if="row.booking_status === 'confirmed' && !row.has_pending_leave"
               type="danger"
               link
               size="small"
@@ -233,6 +233,16 @@
               @click="openLeaveDialog(row)"
             >
               {{ $t('studentBooking.btnCancel') }}
+            </el-button>
+            <el-button
+              v-else-if="canWithdrawLeave(row)"
+              type="info"
+              link
+              size="small"
+              :loading="withdrawingLeaveId === pendingLeaveMap[row.id]?.id"
+              @click="handleWithdrawLeave(row)"
+            >
+              {{ $t('leaveManagement.withdraw') }}
             </el-button>
             <span v-else class="text-12px text-[var(--el-text-color-secondary)]">
               {{ getActionHint(row) }}
@@ -539,7 +549,7 @@ import {
   type BookingTeacherOption,
   type BookingTeacherSlotOption,
 } from '@/api/booking';
-import { createLeaveRecord } from '@/api/leaveRecord';
+import { cancelLeaveRecord, createLeaveRecord, getLeaveRecordList, type LeaveRecordResponse } from '@/api/leaveRecord';
 import { batchGetZoomMeetings, type ZoomMeetingLogResponse } from '@/api/zoom';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { BOOKING_STATUS_MAP, BOOKING_TYPE_MAP } from '@/constants/booking';
@@ -613,6 +623,7 @@ const bookings = ref<BookingItem[]>([]);
 const loading = ref(false);
 const total = ref(0);
 const zoomInfoMap = ref<Record<string, ZoomMeetingLogResponse>>({});
+const pendingLeaveMap = ref<Record<string, LeaveRecordResponse>>({});
 const slotAvailability = ref<BookingSlotAvailability | null>(null);
 const slotAvailabilityLoading = ref(false);
 const selectedSlotStartBlock = ref<BookingSlotAvailabilityBlock | null>(null);
@@ -622,6 +633,7 @@ let slotAvailabilityRequestId = 0;
 const leaveDialogVisible = ref(false);
 const leaveBooking = ref<BookingItem | null>(null);
 const leaving = ref(false);
+const withdrawingLeaveId = ref('');
 const leaveFormRef = ref<FormInstance>();
 const leaveForm = reactive({
   reason: '',
@@ -719,12 +731,26 @@ const getStatusType = (status: BookingStatus) => {
   }
 };
 
+const getPendingLeaveLabel = (booking: BookingItem) => {
+  return booking.pending_leave_initiator_type === 'teacher'
+    ? t('studentBooking.teacherLeavePending')
+    : t('studentBooking.leavePending');
+};
+
 const getBookingStart = (booking: BookingItem) => {
   return dayjs(`${booking.booking_date} ${toTimeText(booking.start_time)}`);
 };
 
 const canRequestLeave = (booking: BookingItem) => {
-  return getBookingStart(booking).diff(dayjs(), 'minute') >= 30;
+  return booking.booking_status === 'confirmed'
+    && !booking.has_pending_leave
+    && getBookingStart(booking).diff(dayjs(), 'minute') >= 30;
+};
+
+const canWithdrawLeave = (booking: BookingItem) => {
+  return booking.booking_status === 'confirmed'
+    && booking.pending_leave_initiator_type === 'student'
+    && Boolean(pendingLeaveMap.value[booking.id]);
 };
 
 const isEmergencyLeave = (booking: BookingItem) => {
@@ -977,11 +1003,41 @@ const fetchBookings = async () => {
     const res = assertApiSuccess(await getBookingList(params), t('studentBooking.loadFailed'));
     bookings.value = res.data || [];
     total.value = res.total || 0;
+    await fetchPendingLeaves();
     fetchZoomInfos();
   } catch (error) {
     ElMessage.error(getApiErrorMessage(error, t('studentBooking.loadFailed')));
   } finally {
     loading.value = false;
+  }
+};
+
+const fetchPendingLeaves = async () => {
+  const pendingLeaves: LeaveRecordResponse[] = [];
+  let page = 1;
+  let totalPages = 1;
+
+  try {
+    do {
+      const res = assertApiSuccess(await getLeaveRecordList({
+        page,
+        per_page: 100,
+        leave_status: 'pending',
+      }), t('studentBooking.loadFailed'));
+      pendingLeaves.push(...(res.data || []));
+      totalPages = res.total_pages || 1;
+      page += 1;
+    } while (page <= totalPages);
+
+    pendingLeaveMap.value = pendingLeaves.reduce<Record<string, LeaveRecordResponse>>((map, leave) => {
+      if (leave.booking_id) {
+        map[leave.booking_id] = leave;
+      }
+      return map;
+    }, {});
+  } catch (error) {
+    pendingLeaveMap.value = {};
+    ElMessage.error(getApiErrorMessage(error, t('studentBooking.loadFailed')));
   }
 };
 
@@ -1067,6 +1123,40 @@ const submitLeave = async () => {
       leaving.value = false;
     }
   });
+};
+
+const getWithdrawTargetLabel = (booking: BookingItem) => {
+  return `${booking.booking_no} - ${booking.booking_date} ${formatTime(booking.start_time)}~${formatTime(booking.end_time)}`;
+};
+
+const handleWithdrawLeave = async (booking: BookingItem) => {
+  const leaveRecord = pendingLeaveMap.value[booking.id];
+  if (!leaveRecord) return;
+
+  try {
+    await ElMessageBox.confirm(
+      t('leaveManagement.withdrawConfirmMessage', { leaveNo: getWithdrawTargetLabel(booking) }),
+      t('leaveManagement.withdrawTitle'),
+      {
+        confirmButtonText: t('leaveManagement.withdraw'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+      },
+    );
+  } catch {
+    return;
+  }
+
+  withdrawingLeaveId.value = leaveRecord.id;
+  try {
+    const res = assertApiSuccess(await cancelLeaveRecord(leaveRecord.id), t('leaveManagement.withdrawFailed'));
+    ElMessage.success(res.message || t('leaveManagement.withdrawn'));
+    fetchBookings();
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, t('leaveManagement.withdrawFailed')));
+  } finally {
+    withdrawingLeaveId.value = '';
+  }
 };
 
 watch(

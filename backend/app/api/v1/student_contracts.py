@@ -535,6 +535,7 @@ async def create_student_contract(
             "remaining_lessons": data.remaining_lessons,
             "total_amount": data.total_amount,
             "total_leave_allowed": total_leave_allowed,
+            "is_recurring": data.is_recurring,
             "used_leave_count": 0,
             "notes": data.notes,
         }

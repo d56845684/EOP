@@ -149,16 +149,6 @@
               >
                 {{ $t('leaveManagement.reject') }}
               </el-button>
-              <el-button
-                v-if="hasPermission('bookings.list')"
-                link
-                type="info"
-                size="small"
-                :loading="operatingId === row.id && operatingAction === 'cancel'"
-                @click="handleCancel(row)"
-              >
-                {{ $t('leaveManagement.withdraw') }}
-              </el-button>
             </div>
             <span v-else class="muted-text">-</span>
           </template>
@@ -215,7 +205,6 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import dayjs from 'dayjs';
 import {
   approveLeaveRecord,
-  cancelLeaveRecord,
   getLeaveRecordList,
   rejectLeaveRecord,
   type LeaveInitiatorType,
@@ -232,7 +221,7 @@ const { showApiError } = useApiError();
 const { t } = useI18n();
 
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | '';
-type OperatingAction = 'approve' | 'reject' | 'cancel' | '';
+type OperatingAction = 'approve' | 'reject' | '';
 
 const leaveStatusMap = computed<Record<LeaveStatus, string>>(() => ({
   pending: t('leaveManagement.status.pending'),
@@ -383,31 +372,6 @@ async function submitReject() {
       operatingAction.value = '';
     }
   });
-}
-
-async function handleCancel(row: LeaveRecordResponse) {
-  try {
-    await ElMessageBox.confirm(t('leaveManagement.withdrawConfirmMessage', { leaveNo: row.leave_no }), t('leaveManagement.withdrawTitle'), {
-      confirmButtonText: t('leaveManagement.withdraw'),
-      cancelButtonText: t('common.cancel'),
-      type: 'warning',
-    });
-  } catch {
-    return;
-  }
-
-  operatingId.value = row.id;
-  operatingAction.value = 'cancel';
-  try {
-    const res = assertApiSuccess(await cancelLeaveRecord(row.id), t('leaveManagement.withdrawFailed'));
-    ElMessage.success(res.message || t('leaveManagement.withdrawn'));
-    fetchLeaveRecords();
-  } catch (error) {
-    showApiError(error, t('leaveManagement.withdrawFailed'));
-  } finally {
-    operatingId.value = '';
-    operatingAction.value = '';
-  }
 }
 
 onMounted(() => {

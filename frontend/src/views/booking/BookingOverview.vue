@@ -255,8 +255,8 @@ const calendarEvents = computed<CalendarBookingEvent[]>(() => bookings.value
     date: booking.booking_date,
     timeLabel: `${formatTime(booking.start_time)}-${formatTime(booking.end_time)}`,
     title: [
-      booking.teacher_name || t('bookingOverview.unspecifiedTeacher'),
       booking.student_name || t('bookingOverview.unspecifiedStudent'),
+      booking.teacher_name || t('bookingOverview.unspecifiedTeacher'),
       booking.course_name || t('bookingOverview.unspecifiedCourse'),
     ].join(' / '),
     booking,

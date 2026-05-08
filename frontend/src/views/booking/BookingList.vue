@@ -599,9 +599,12 @@
           </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogs.batchUpdateByIds.visible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button size="small" round class="h-30px! px-4!" @click="dialogs.batchUpdateByIds.visible = false">{{ $t('common.cancel') }}</el-button>
         <el-button 
+          size="small" 
           type="primary" 
+          round
+          class="h-30px! px-4!"
           @click="submitBatchUpdateByIds" 
           :loading="dialogs.batchUpdateByIds.loading">{{ $t('bookingAdmin.update') }}</el-button>
       </template>
@@ -669,9 +672,12 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogs.batchCreate.visible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button size="small" round class="h-30px! px-4!" @click="dialogs.batchCreate.visible = false">{{ $t('common.cancel') }}</el-button>
         <el-button 
           type="primary" 
+          size="small" 
+          round
+          class="h-30px! px-4!"
           @click="submitBatchCreate" 
           :loading="dialogs.batchCreate.loading">{{ $t('bookingAdmin.create') }}</el-button>
       </template>
@@ -767,9 +773,12 @@
           </el-form-item>
         </el-form>
         <template #footer>
-          <el-button @click="dialogs.batchUpdate.visible = false">{{ $t('common.cancel') }}</el-button>
+          <el-button size="small" round class="h-30px! px-4!" @click="dialogs.batchUpdate.visible = false">{{ $t('common.cancel') }}</el-button>
           <el-button 
             type="primary" 
+            size="small" 
+            round
+            class="h-30px! px-4!"
             @click="submitBatchUpdate" 
             :loading="dialogs.batchUpdate.loading">{{ $t('bookingAdmin.update') }}</el-button>
         </template>
@@ -852,9 +861,12 @@
           </el-form-item>
         </el-form>
         <template #footer>
-          <el-button @click="dialogs.batchDelete.visible = false">{{ $t('common.cancel') }}</el-button>
+          <el-button size="small" round class="h-30px! px-4!" @click="dialogs.batchDelete.visible = false">{{ $t('common.cancel') }}</el-button>
           <el-button 
+            size="small" 
             type="danger" 
+            round
+            class="h-30px! px-4!"
             @click="submitBatchDelete" 
             :loading="dialogs.batchDelete.loading">{{ $t('common.delete') }}</el-button>
         </template>
@@ -889,8 +901,8 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="leaveDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="leaveSubmitting" @click="submitLeave">{{ $t('bookingAdmin.leaveSubmit') }}</el-button>
+        <el-button size="small" round class="h-30px! px-4!" @click="leaveDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" size="small" round class="h-30px! px-4!" :loading="leaveSubmitting" @click="submitLeave">{{ $t('bookingAdmin.leaveSubmit') }}</el-button>
       </template>
     </el-dialog>
 
@@ -947,8 +959,8 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="substituteDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="substituteSubmitting" @click="submitSubstitute">{{ $t('bookingAdmin.substituteSubmit') }}</el-button>
+        <el-button size="small" round class="h-30px! px-4!" @click="substituteDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" size="small" round class="h-30px! px-4!" :loading="substituteSubmitting" @click="submitSubstitute">{{ $t('bookingAdmin.substituteSubmit') }}</el-button>
       </template>
     </el-dialog>
   </div>
