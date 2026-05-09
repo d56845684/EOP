@@ -7,8 +7,34 @@ from app.schemas.course import (
 from app.schemas.response import BaseResponse, DataResponse
 from typing import Optional
 import math
+import uuid
 
 router = APIRouter(prefix="/courses", tags=["課程管理"])
+
+
+async def _count_active_teacher_contract_details_for_course(course_id: str) -> int:
+    """計算課程被多少 active 教師合約明細引用。
+
+    用於刪除 / 停用課程前的硬擋檢查
+
+    Active reference 定義：
+    - teacher_contract_details.is_deleted = FALSE
+    - teacher_contracts.is_deleted = FALSE
+    - teacher_contracts.contract_status = 'active'
+
+    其他狀態（pending / expired / terminated / suspended）的合約不算 active
+    引用，視為歷史紀錄，允許課程刪除 / 停用。
+    """
+    return await supabase_service.pool.fetchval(
+        """SELECT COUNT(*)
+           FROM teacher_contract_details d
+           JOIN teacher_contracts c ON c.id = d.teacher_contract_id
+           WHERE d.course_id = $1
+             AND d.is_deleted = FALSE
+             AND c.is_deleted = FALSE
+             AND c.contract_status = 'active'""",
+        uuid.UUID(course_id),
+    )
 
 
 @router.get("", response_model=CourseListResponse)
@@ -167,6 +193,18 @@ async def update_course(
         if not update_data:
             raise HTTPException(status_code=400, detail="沒有要更新的資料")
 
+        # 停用課程（is_active=False）若仍有 active 教師合約引用，硬擋
+        if update_data.get("is_active") is False:
+            ref_count = await _count_active_teacher_contract_details_for_course(course_id)
+            if ref_count > 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"該課程仍在 {ref_count} 份 active 教師合約明細中使用，"
+                        "無法停用。請先在合約明細中移除此課程。"
+                    ),
+                )
+
         result = await supabase_service.table_update(
             table="courses",
             data=update_data,
@@ -193,7 +231,10 @@ async def delete_course(
     course_id: str,
     current_user: CurrentUser = Depends(require_page_permission("courses.delete"))
 ):
-    """刪除課程（軟刪除，僅限員工）"""
+    """刪除課程（軟刪除，僅限員工）。
+
+    若仍有 active 教師合約明細引用，硬擋並提示員工先去合約清掉。
+    """
     try:
         # 檢查課程是否存在
         existing = await supabase_service.table_select(
@@ -204,6 +245,17 @@ async def delete_course(
 
         if not existing:
             raise HTTPException(status_code=404, detail="課程不存在")
+
+        # 硬擋：仍被 active 教師合約明細引用
+        ref_count = await _count_active_teacher_contract_details_for_course(course_id)
+        if ref_count > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"該課程仍在 {ref_count} 份 active 教師合約明細中使用，"
+                    "無法刪除。請先在合約明細中移除此課程。"
+                ),
+            )
 
         # 軟刪除
         from datetime import datetime

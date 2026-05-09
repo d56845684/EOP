@@ -25,6 +25,7 @@ export interface Booking {
     start_time: string
     end_time: string
     notes?: string
+    meeting_creation_error?: string | null
     created_at?: string
     updated_at?: string
     // 關聯資料
@@ -78,6 +79,14 @@ export interface BatchUpdateByIdsData {
     booking_ids: string[]
     booking_status: BookingStatus
     notes?: string
+}
+
+export interface BatchUpdateResult {
+    updated_count: number
+    updated_booking_ids: string[]
+    meeting_failed_ids: string[]
+    meeting_failed_reasons: Record<string, string>
+    skipped_ids: string[]
 }
 
 export interface BatchDeleteByIdsData {
@@ -220,7 +229,7 @@ export const bookingsApi = {
         apiAction('POST', '/api/v1/bookings/batch', data, '批次建立預約失敗'),
 
     updateByIds: (data: BatchUpdateByIdsData) =>
-        apiAction('POST', '/api/v1/bookings/batch-by-ids/update', data, '批次更新預約失敗'),
+        apiPost<BatchUpdateResult>('/api/v1/bookings/batch-by-ids/update', data, '批次更新預約失敗'),
 
     deleteByIds: (data: BatchDeleteByIdsData) =>
         apiAction('POST', '/api/v1/bookings/batch-by-ids/delete', data, '批次刪除預約失敗'),

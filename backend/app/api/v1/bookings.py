@@ -4,7 +4,8 @@ from app.services.preference_service import preference_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
 from app.schemas.booking import (
     BookingCreate, BookingUpdate, BookingResponse, BookingListResponse, BookingStatus,
-    BookingBatchUpdateByIds, BookingBatchDeleteByIds, BookingBatchUpdate, BookingBatchDelete,
+    BookingBatchUpdateByIds, BookingBatchUpdateResult,
+    BookingBatchDeleteByIds, BookingBatchUpdate, BookingBatchDelete,
     BookingBatchCreate, TimeBlock, SlotAvailabilityResponse
 )
 from app.schemas.response import BaseResponse, DataResponse, StudentOption, TeacherOption, CourseOption, ContractOption, TeacherContractOption, SlotOption
@@ -719,7 +720,8 @@ async def list_bookings(
                    b.student_contract_id, b.teacher_contract_id, b.teacher_slot_id,
                    b.substitute_detail_id, b.teacher_hourly_rate, b.teacher_rate_percentage,
                    b.booking_status, b.booking_type, b.booking_date, b.start_time, b.end_time,
-                   b.lessons_used, b.overtime_pay, b.notes, b.created_at, b.updated_at,
+                   b.lessons_used, b.overtime_pay, b.notes, b.meeting_creation_error,
+                   b.created_at, b.updated_at,
                    -- is_trial_to_formal (from bookings_view logic)
                    EXISTS(SELECT 1 FROM teacher_bonus_records tbr
                           WHERE tbr.related_booking_id = b.id AND tbr.bonus_type = 'trial_to_formal'
@@ -1026,7 +1028,7 @@ async def get_booking(
     try:
         result = await supabase_service.table_select(
             table="bookings_view",
-            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,substitute_detail_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_type,is_trial_to_formal,booking_date,start_time,end_time,notes,created_at,updated_at",
+            select="id,booking_no,student_id,teacher_id,course_id,student_contract_id,teacher_contract_id,teacher_slot_id,substitute_detail_id,teacher_hourly_rate,teacher_rate_percentage,booking_status,booking_type,is_trial_to_formal,booking_date,start_time,end_time,notes,meeting_creation_error,created_at,updated_at",
             filters={"id": booking_id, "is_deleted": "eq.false"},
         )
 
@@ -1096,14 +1098,18 @@ async def create_booking(
         if not teacher:
             raise HTTPException(status_code=400, detail="教師不存在或已停用")
 
-        # 驗證課程存在
+        # 驗證課程存在且未停用（跟 student_teacher_preferences / teacher_contracts options 對齊，補 enforcement gap）
         course = await supabase_service.table_select(
             table="courses",
             select="id,course_name,duration_minutes",
-            filters={"id": data.course_id, "is_deleted": "eq.false"},
+            filters={
+                "id": data.course_id,
+                "is_deleted": "eq.false",
+                "is_active": "eq.true",
+            },
         )
         if not course:
-            raise HTTPException(status_code=400, detail="課程不存在")
+            raise HTTPException(status_code=400, detail="課程不存在或已停用")
 
         # 驗證預約時長是課程時長的倍數
         course_duration = course[0].get("duration_minutes", 60)
@@ -1705,10 +1711,18 @@ async def update_booking(
                             zoom_err = e
 
                     if zoom_result is None:
-                        # 還原狀態
+                        # 還原狀態並寫入 meeting_creation_error 供前端顯示與診斷
+                        err_msg = (
+                            f"Zoom API 例外：{zoom_err}"
+                            if zoom_err is not None
+                            else "Zoom 帳號池當下無可用"
+                        )
                         await supabase_service.table_update(
                             table="bookings",
-                            data={"booking_status": old_status},
+                            data={
+                                "booking_status": old_status,
+                                "meeting_creation_error": err_msg,
+                            },
                             filters={"id": booking_id},
                         )
                         if zoom_err is not None:
@@ -1726,6 +1740,13 @@ async def update_booking(
                             status_code=409,
                             detail="該時段所有 Zoom 帳號皆被佔用，無法建立會議。請改選其他時段或先釋放衝突的時段，預約狀態保留為原狀態。",
                         )
+
+                    # Zoom 建立成功 → 清除上次的 meeting_creation_error
+                    await supabase_service.table_update(
+                        table="bookings",
+                        data={"meeting_creation_error": None},
+                        filters={"id": booking_id},
+                    )
                 elif new_status in ("cancelled", "pending"):
                     # 取消 / 退回待確認 → 刪除 Zoom 會議（非同步、失敗不擋）
                     asyncio.create_task(
@@ -2074,14 +2095,18 @@ async def batch_create_bookings(
         if not course_id:
             raise HTTPException(status_code=400, detail="請提供課程 ID")
 
-        # 查詢課程取得 duration_minutes
+        # 查詢課程取得 duration_minutes（is_active filter）
         batch_course = await supabase_service.table_select(
             table="courses",
             select="id,duration_minutes",
-            filters={"id": course_id, "is_deleted": "eq.false"},
+            filters={
+                "id": course_id,
+                "is_deleted": "eq.false",
+                "is_active": "eq.true",
+            },
         )
         if not batch_course:
-            raise HTTPException(status_code=400, detail="課程不存在")
+            raise HTTPException(status_code=400, detail="課程不存在或已停用")
         batch_course_duration = batch_course[0].get("duration_minutes", 60)
 
         # 驗證學生合約存在且有效（試上學生可不提供合約）
@@ -2344,81 +2369,259 @@ async def batch_create_bookings(
         raise HTTPException(status_code=500, detail=f"批次建立預約失敗: {str(e)}")
 
 
-@router.post("/batch-by-ids/update", response_model=BaseResponse)
+_BATCH_CONFIRM_CONCURRENCY = 10
+
+
+async def _confirm_one_booking(
+    booking_id: str,
+    booking_row: dict,
+    sem: asyncio.Semaphore,
+) -> dict:
+    """並發單元：將單筆 pending booking 確認為 confirmed 並建立 Zoom 會議。
+
+    回傳：
+        {"id": booking_id, "result": "confirmed"|"meeting_failed", "error": Optional[str]}
+        - confirmed：booking_status 已 'confirmed'、meeting_creation_error 已清空
+        - meeting_failed：booking_status 仍 'pending'、meeting_creation_error 已寫入
+
+    Zoom 帳號池滿、Zoom API 例外都歸類為 meeting_failed；過去時段視為 confirmed
+    成功（但跳過 Zoom）。所有錯誤都不向上 raise，由呼叫方依 result 統計。
+    """
+    from app.services.zoom_service import zoom_service
+    from app.config import settings as app_settings
+
+    async with sem:
+        # 先把狀態改 confirmed（讓使用者立即看到狀態變更）
+        await supabase_service.table_update(
+            table="bookings",
+            data={"booking_status": "confirmed"},
+            filters={"id": booking_id},
+        )
+
+        booking_date_val = booking_row.get("booking_date")
+        start_time_val = booking_row.get("start_time")
+        end_time_val = booking_row.get("end_time")
+        teacher_id_val = booking_row.get("teacher_id")
+
+        if isinstance(booking_date_val, str):
+            booking_date_val = date.fromisoformat(booking_date_val)
+        if isinstance(start_time_val, str):
+            start_time_val = time.fromisoformat(start_time_val)
+        if isinstance(end_time_val, str):
+            end_time_val = time.fromisoformat(end_time_val)
+
+        # Zoom 沒啟用 → 直接成功（清 error）
+        if not app_settings.zoom_enabled:
+            await supabase_service.table_update(
+                table="bookings",
+                data={"meeting_creation_error": None},
+                filters={"id": booking_id},
+            )
+            return {"id": booking_id, "result": "confirmed", "error": None}
+
+        # 過去時段 → 跳過 Zoom，視為 confirmed 成功
+        if booking_date_val and start_time_val:
+            booking_start = datetime.combine(booking_date_val, start_time_val)
+            if booking_start < datetime.now():
+                msg = "過去時段，未建立 Zoom"
+                await supabase_service.table_update(
+                    table="bookings",
+                    data={"meeting_creation_error": msg},
+                    filters={"id": booking_id},
+                )
+                await alert_service.create(
+                    alert_type="zoom_skipped_past_time",
+                    title=f"批次確認跳過 Zoom：{booking_row.get('booking_no', booking_id)}",
+                    message="過去時段，已 confirmed 但未建立 Zoom 會議",
+                    metadata={"booking_id": booking_id},
+                )
+                return {"id": booking_id, "result": "confirmed", "error": msg}
+
+        # 嘗試建立 Zoom 會議
+        zoom_err: Optional[str] = None
+        zoom_result = None
+        if booking_date_val and start_time_val and end_time_val and teacher_id_val:
+            try:
+                zoom_result = await zoom_service.create_meeting_for_booking(
+                    booking_id=booking_id,
+                    teacher_id=teacher_id_val,
+                    booking_date=booking_date_val,
+                    start_time_val=start_time_val,
+                    end_time_val=end_time_val,
+                )
+            except Exception as e:
+                zoom_err = f"Zoom API 例外：{e}"
+
+        if zoom_result is None:
+            if not zoom_err:
+                zoom_err = "Zoom 帳號池當下無可用"
+            # rollback 狀態回 pending、寫入失敗原因
+            await supabase_service.table_update(
+                table="bookings",
+                data={
+                    "booking_status": "pending",
+                    "meeting_creation_error": zoom_err,
+                },
+                filters={"id": booking_id},
+            )
+            return {"id": booking_id, "result": "meeting_failed", "error": zoom_err}
+
+        # Zoom 建立成功 → 清掉先前的 error
+        await supabase_service.table_update(
+            table="bookings",
+            data={"meeting_creation_error": None},
+            filters={"id": booking_id},
+        )
+        return {"id": booking_id, "result": "confirmed", "error": None}
+
+
+@router.post("/batch-by-ids/update", response_model=DataResponse[BookingBatchUpdateResult])
 async def batch_update_bookings_by_ids(
     data: BookingBatchUpdateByIds,
     current_user: CurrentUser = Depends(require_page_permission("bookings.edit"))
 ):
-    """根據 ID 批次更新預約狀態（僅限員工）"""
+    """根據 ID 批次更新預約狀態（僅限員工）。
+
+    切到 'confirmed' 時：對每筆同步建立 Zoom 會議（最多 10 筆並發）。
+    Zoom 帳號池滿 / API 例外 → 該筆 rollback 回 pending 並寫入 meeting_creation_error。
+    其他狀態切換（cancelled 等）走原本邏輯。
+    """
     try:
         if not data.booking_ids:
             raise HTTPException(status_code=400, detail="請提供預約 ID")
 
-        updated_count = 0
-        restored_contracts = []
-        affected_slot_ids = set()
+        target_status = data.booking_status.value
+
+        # 撈出所有目標 booking 的關鍵欄位（一次撈完，避免 N 次 fetch）
+        existing_rows = await supabase_service.pool.fetch(
+            """SELECT id, booking_no, booking_status, teacher_slot_id,
+                      student_contract_id, lessons_used,
+                      teacher_id, booking_date, start_time, end_time
+               FROM bookings
+               WHERE id = ANY($1) AND is_deleted = FALSE""",
+            [uuid.UUID(bid) for bid in data.booking_ids],
+        )
+        existing_map = {str(r["id"]): dict(r) for r in existing_rows}
+
+        # 分流要 confirm 的 vs 其他狀態切換
+        to_confirm: list[str] = []
+        legacy_ids: list[str] = []
+        skipped_ids: list[str] = []
 
         for booking_id in data.booking_ids:
-            # 檢查預約是否存在
-            existing = await supabase_service.table_select(
-                table="bookings",
-                select="id,booking_status,teacher_slot_id,student_contract_id,lessons_used",
-                filters={"id": booking_id, "is_deleted": "eq.false"},
-            )
-
-            if not existing:
+            row = existing_map.get(booking_id)
+            if not row:
+                skipped_ids.append(booking_id)
                 continue
-
-            old_status = existing[0].get("booking_status")
-
-            # 已取消的預約不可修改
+            old_status = row.get("booking_status")
             if old_status == "cancelled":
+                skipped_ids.append(booking_id)
                 continue
+            if target_status == "confirmed":
+                # 已是 confirmed 的不需要再跑 Zoom 建立流程
+                if old_status == "confirmed":
+                    skipped_ids.append(booking_id)
+                    continue
+                to_confirm.append(booking_id)
+            else:
+                legacy_ids.append(booking_id)
 
-            # 準備更新資料
-            update_data = {"booking_status": data.booking_status.value}
+        updated_booking_ids: list[str] = []
+        meeting_failed_ids: list[str] = []
+        meeting_failed_reasons: dict[str, str] = {}
+        affected_slot_ids: set[str] = set()
+        restored_contracts: list[str] = []
+
+        # ── confirm 路徑：並發處理 ──
+        if to_confirm:
+            sem = asyncio.Semaphore(_BATCH_CONFIRM_CONCURRENCY)
+            tasks = [
+                _confirm_one_booking(bid, existing_map[bid], sem)
+                for bid in to_confirm
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=False)
+            for r in results:
+                if r["result"] == "confirmed":
+                    updated_booking_ids.append(r["id"])
+                else:
+                    meeting_failed_ids.append(r["id"])
+                    if r.get("error"):
+                        meeting_failed_reasons[r["id"]] = r["error"]
+
+            # data.notes 對 confirm 流程仍套用（一次性 UPDATE）
+            if data.notes is not None and updated_booking_ids:
+                await supabase_service.pool.execute(
+                    "UPDATE bookings SET notes = $1 WHERE id = ANY($2)",
+                    data.notes,
+                    [uuid.UUID(bid) for bid in updated_booking_ids],
+                )
+
+        # ── 非 confirm 路徑：保留原本邏輯（cancelled 等） ──
+        for booking_id in legacy_ids:
+            row = existing_map[booking_id]
+            old_status = row.get("booking_status")
+            update_data = {"booking_status": target_status}
             if data.notes is not None:
                 update_data["notes"] = data.notes
-
-            # 更新預約
             result = await supabase_service.table_update(
                 table="bookings",
                 data=update_data,
                 filters={"id": booking_id},
             )
+            if not result:
+                continue
+            updated_booking_ids.append(booking_id)
 
-            if result:
-                updated_count += 1
-
-                # 如果狀態變更為取消，恢復堂數
-                if data.booking_status.value == "cancelled" and old_status != "cancelled":
-                    booking_lessons = existing[0].get("lessons_used", 1)
-                    # 恢復學生合約剩餘堂數
+            # 切到 cancelled → 還原合約剩餘堂數 + 標記 affected slot
+            if target_status == "cancelled" and old_status != "cancelled":
+                booking_lessons = row.get("lessons_used", 1) or 1
+                if row.get("student_contract_id"):
                     contract = await supabase_service.table_select(
                         table="student_contracts",
                         select="remaining_lessons",
-                        filters={"id": existing[0]["student_contract_id"]},
+                        filters={"id": str(row["student_contract_id"])},
                     )
                     if contract:
                         await supabase_service.table_update(
                             table="student_contracts",
-                            data={"remaining_lessons": contract[0]["remaining_lessons"] + booking_lessons},
-                            filters={"id": existing[0]["student_contract_id"]},
+                            data={
+                                "remaining_lessons": contract[0]["remaining_lessons"] + booking_lessons,
+                            },
+                            filters={"id": str(row["student_contract_id"])},
                         )
-                        restored_contracts.append(existing[0]["student_contract_id"])
+                        restored_contracts.append(str(row["student_contract_id"]))
+                if row.get("teacher_slot_id"):
+                    affected_slot_ids.add(str(row["teacher_slot_id"]))
 
-                    if existing[0].get("teacher_slot_id"):
-                        affected_slot_ids.add(existing[0]["teacher_slot_id"])
+        # confirm 路徑也要更新 slot is_booked（新增成功的 confirmed 視為佔位）
+        if to_confirm and updated_booking_ids:
+            for bid in updated_booking_ids:
+                slot_id = existing_map.get(bid, {}).get("teacher_slot_id")
+                if slot_id:
+                    affected_slot_ids.add(str(slot_id))
 
-        # 更新所有受影響 slot 的預約已滿狀態
         for sid in affected_slot_ids:
             await update_slot_booked_status(sid)
 
-        message = f"已更新 {updated_count} 筆預約"
+        # 組訊息
+        msg_parts = [f"已更新 {len(updated_booking_ids)} 筆預約"]
+        if meeting_failed_ids:
+            msg_parts.append(f"{len(meeting_failed_ids)} 筆 Zoom 建立失敗")
+        if skipped_ids:
+            msg_parts.append(f"跳過 {len(skipped_ids)} 筆")
         if restored_contracts:
-            message += f"，恢復 {len(restored_contracts)} 份合約堂數"
+            msg_parts.append(f"恢復 {len(restored_contracts)} 份合約堂數")
 
-        return BaseResponse(message=message)
+        return DataResponse(
+            message="，".join(msg_parts),
+            data=BookingBatchUpdateResult(
+                updated_count=len(updated_booking_ids),
+                updated_booking_ids=updated_booking_ids,
+                meeting_failed_ids=meeting_failed_ids,
+                meeting_failed_reasons=meeting_failed_reasons,
+                skipped_ids=skipped_ids,
+            ),
+        )
 
     except HTTPException:
         raise

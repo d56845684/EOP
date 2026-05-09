@@ -782,21 +782,51 @@ export default function BookingsPage() {
         setBatchSubmitting(true)
         setBatchError(null)
 
-        const { success, message, error } = await bookingsApi.updateByIds({
+        const { data, error } = await bookingsApi.updateByIds({
             booking_ids: selectedIds,
             booking_status: batchStatus,
             notes: batchNotes || undefined
         })
 
-        if (error) {
-            setBatchError(error.message)
-        } else {
-            closeBatchModal()
-            setSelectedIds([])
-            setSelectAll(false)
-            fetchBookings()
+        if (error || !data) {
+            setBatchError(error?.message || '批次更新失敗')
+            setBatchSubmitting(false)
+            return
         }
 
+        // 精準更新本地 state：依 updated_booking_ids / meeting_failed_ids 標記
+        setBookings(prev => prev.map(b => {
+            if (data.updated_booking_ids.includes(b.id)) {
+                return {
+                    ...b,
+                    booking_status: batchStatus,
+                    meeting_creation_error: batchStatus === 'confirmed' ? null : b.meeting_creation_error,
+                }
+            }
+            if (data.meeting_failed_ids.includes(b.id)) {
+                return {
+                    ...b,
+                    meeting_creation_error: data.meeting_failed_reasons?.[b.id] ?? '會議建立失敗',
+                }
+            }
+            return b
+        }))
+
+        // Toast 提示
+        const toastParts: string[] = []
+        if (data.updated_count > 0) toastParts.push(`✅ 已更新 ${data.updated_count} 筆`)
+        if (data.meeting_failed_ids.length > 0) toastParts.push(`⚠ ${data.meeting_failed_ids.length} 筆 Zoom 建立失敗，可逐筆重試`)
+        if (data.skipped_ids.length > 0) toastParts.push(`已跳過 ${data.skipped_ids.length} 筆（已取消或不存在）`)
+        if (toastParts.length > 0) {
+            // 用 setError 暫顯（既有 banner），meeting_failed 也一併提示
+            setError(toastParts.join('；'))
+            // 5 秒後清掉 banner
+            setTimeout(() => setError(null), 5000)
+        }
+
+        closeBatchModal()
+        setSelectedIds([])
+        setSelectAll(false)
         setBatchSubmitting(false)
     }
 
@@ -1580,6 +1610,44 @@ export default function BookingsPage() {
                                                                                 {fetchingRecordingFor === booking.id ? '取得中...' : '取得錄影'}
                                                                             </button>
                                                                         ) : null}
+                                                                    </div>
+                                                                )
+                                                            }
+                                                            // 還沒有 Zoom 會議記錄，但這次（或上次）建立失敗 → 顯示原因
+                                                            if (booking.meeting_creation_error) {
+                                                                const isPastTime = booking.meeting_creation_error.includes('過去時段')
+                                                                if (isPastTime) {
+                                                                    return (
+                                                                        <span
+                                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"
+                                                                            title={booking.meeting_creation_error}
+                                                                        >
+                                                                            📅 過去時段
+                                                                        </span>
+                                                                    )
+                                                                }
+                                                                return (
+                                                                    <div className="flex flex-col items-center gap-1">
+                                                                        <span
+                                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 max-w-[140px] truncate"
+                                                                            title={booking.meeting_creation_error}
+                                                                        >
+                                                                            ⚠ {booking.meeting_creation_error}
+                                                                        </span>
+                                                                        {isStaff && (
+                                                                            <button
+                                                                                onClick={() => handleCreateZoomMeeting(booking.id)}
+                                                                                disabled={creatingZoomFor === booking.id}
+                                                                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50"
+                                                                            >
+                                                                                {creatingZoomFor === booking.id ? (
+                                                                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                                                                                ) : (
+                                                                                    <Video className="w-3 h-3" />
+                                                                                )}
+                                                                                重試
+                                                                            </button>
+                                                                        )}
                                                                     </div>
                                                                 )
                                                             }
