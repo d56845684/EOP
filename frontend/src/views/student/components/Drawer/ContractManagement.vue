@@ -75,7 +75,7 @@
         <el-row :gutter="60">
           <el-col :span="12">
             <el-form-item :label="$t('contract.contractStatus')">
-              <el-select v-model="contractForm.contract_status" class="w-150px contract-select" disabled>
+              <el-select v-model="contractForm.contract_status" class="w-150px contract-select" :disabled="isCreatingContract">
                 <el-option :label="$t('display.contractStatus.pending')" value="pending"></el-option>
                 <el-option :label="$t('display.contractStatus.active')" value="active"></el-option>
                 <el-option :label="$t('display.contractStatus.suspended')" value="suspended"></el-option>
@@ -159,8 +159,14 @@
           <el-col v-if="activeContract" :span="12">
             <el-form-item :label="$t('myContracts.emergencyLeaveQuota')">
               <span class="block w-130px h-30px line-height-30px px-2 bg-gray-100 rounded">
-                {{ activeContract?.emergency_leave_quota || 0 }}
+                {{ activeContract?.used_leave_count }}
               </span>
+              <el-input-number
+                v-model="contractForm.emergency_leave_quota"
+                :min="0"
+                :value-on-clear="null"
+                class="w-150px h-30px!"
+              />
             </el-form-item>
           </el-col>
           <el-col v-if="activeContract" :span="12">
@@ -476,6 +482,7 @@ type ContractForm = {
   total_lessons: number | null;
   total_amount: number | null;
   total_leave_allowed: number | null;
+  emergency_leave_quota: number | null;
   notes: string;
 }
 
@@ -511,6 +518,7 @@ const createEmptyContractForm = (): ContractForm => ({
   total_lessons: null,
   total_amount: null,
   total_leave_allowed: null,
+  emergency_leave_quota: null,
   notes: ''
 });
 
@@ -529,6 +537,7 @@ const fillContractForm = (contract: StudentContract) => {
     total_lessons: contract.total_lessons,
     total_amount: contract.total_amount,
     total_leave_allowed: contract.total_leave_allowed,
+    emergency_leave_quota: contract.emergency_leave_quota ?? null,
     notes: contract.notes || ''
   }
   resetContractFormSnapshot();
