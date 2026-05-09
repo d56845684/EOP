@@ -36,6 +36,20 @@ router = APIRouter(prefix="/student-contracts", tags=["學生合約管理"])
 CONTRACT_SELECT = "id,contract_no,student_id,contract_status,start_date,end_date,total_lessons,remaining_lessons,total_amount,total_leave_allowed,used_leave_count,used_emergency_leave_count,is_recurring,notes,created_at,updated_at,contract_file_path,contract_file_name,contract_file_uploaded_at"
 
 
+def compute_emergency_leave_quota(total_lessons: Optional[int], details: List[dict]) -> int:
+    """學生合約的緊急請假總額度 = ceil((total_lessons + 補償堂數) * 0.2)。
+    補償堂數從 student_contract_details 中 detail_type='compensation' 的 amount 加總。
+    leave_records / 合約 enrich 共用此公式以避免不一致。
+    """
+    compensation = sum(
+        int(d.get("amount", 0) or 0)
+        for d in details
+        if d.get("detail_type") == "compensation"
+    )
+    effective = (total_lessons or 0) + compensation
+    return math.ceil(effective * 0.2) if effective else 0
+
+
 async def generate_contract_no() -> str:
     """生成合約編號: SC{YYYYMMDD}{序號}"""
     today = datetime.utcnow().strftime("%Y%m%d")
@@ -136,15 +150,10 @@ async def enrich_contract_with_relations(contract: dict) -> dict:
     )
     contract["leave_records"] = leave_records
 
-    # 計算緊急請假額度（堂數 = total_lessons + 補償堂數）
-    total_lessons = contract.get("total_lessons", 0) or 0
-    compensation_total = sum(
-        int(d.get("amount", 0) or 0)
-        for d in enriched_details
-        if d.get("detail_type") == "compensation"
+    # 計算緊急請假額度（含補償堂數）
+    contract["emergency_leave_quota"] = compute_emergency_leave_quota(
+        contract.get("total_lessons", 0), enriched_details
     )
-    effective_lessons = total_lessons + compensation_total
-    contract["emergency_leave_quota"] = math.ceil(effective_lessons * 0.2) if effective_lessons else 0
     used_em = contract.get("used_emergency_leave_count", 0) or 0
     contract["remaining_emergency_leave_count"] = max(0, contract["emergency_leave_quota"] - used_em)
 
@@ -411,14 +420,9 @@ async def list_student_contracts(
             contract["student_id_number"] = student.get("id_number") if student else None
             contract["details"] = detail_map.get(str(cid), [])
             contract["leave_records"] = leave_map.get(str(cid), [])
-            total_lessons = contract.get("total_lessons", 0) or 0
-            compensation_total = sum(
-                int(d.get("amount", 0) or 0)
-                for d in contract["details"]
-                if d.get("detail_type") == "compensation"
+            contract["emergency_leave_quota"] = compute_emergency_leave_quota(
+                contract.get("total_lessons", 0), contract["details"]
             )
-            effective_lessons = total_lessons + compensation_total
-            contract["emergency_leave_quota"] = math.ceil(effective_lessons * 0.2) if effective_lessons else 0
             used_em = contract.get("used_emergency_leave_count", 0) or 0
             contract["remaining_emergency_leave_count"] = max(0, contract["emergency_leave_quota"] - used_em)
             addendums = addendum_map.get(str(cid), [])
