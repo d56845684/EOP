@@ -204,29 +204,52 @@ async def create_leave_record(
             used_emergency_count = None
         else:
             leave_type = "emergency"
-            # 查合約額度
-            student_id_for_quota = booking[0].get("student_id")
-            contract_for_quota = await supabase_service.table_select(
-                table="student_contracts",
-                select="id,total_lessons,used_emergency_leave_count",
-                filters={
-                    "student_id": f"eq.{student_id_for_quota}",
-                    "is_deleted": "eq.false",
-                    "contract_status": "eq.active",
-                },
-            )
-            if contract_for_quota:
-                total_lessons = contract_for_quota[0].get("total_lessons", 0)
-                emergency_quota = math.ceil(total_lessons * 0.2) if total_lessons else 0
-                used_emergency_count = contract_for_quota[0].get("used_emergency_leave_count", 0)
-                if used_emergency_count >= emergency_quota:
+            deduct_lesson = False
+            # 緊急請假額度綁在學生合約上：
+            # - 老師發起：不消耗學生額度，跳過合約檢查
+            # - 學生 / 員工代申請：須檢查該預約對應的學生合約額度
+            if current_user.is_teacher():
+                emergency_quota = None
+                used_emergency_count = None
+            else:
+                # 優先用 booking 已綁定的 student_contract_id，與 contract_status 解耦——
+                # 避免合約轉為 expired/terminated 後，既有預約的緊急請假被誤擋
+                contract_id_for_quota = booking[0].get("student_contract_id")
+                if contract_id_for_quota:
+                    contract_for_quota = await supabase_service.table_select(
+                        table="student_contracts",
+                        select="id,total_lessons,used_emergency_leave_count",
+                        filters={
+                            "id": f"eq.{contract_id_for_quota}",
+                            "is_deleted": "eq.false",
+                        },
+                    )
+                else:
+                    # fallback：舊資料 booking 未綁合約時，仍用 student_id 撈 active 合約
+                    student_id_for_quota = booking[0].get("student_id")
+                    contract_for_quota = await supabase_service.table_select(
+                        table="student_contracts",
+                        select="id,total_lessons,used_emergency_leave_count",
+                        filters={
+                            "student_id": f"eq.{student_id_for_quota}",
+                            "is_deleted": "eq.false",
+                            "contract_status": "eq.active",
+                        },
+                    )
+                if contract_for_quota:
+                    total_lessons = contract_for_quota[0].get("total_lessons", 0)
+                    emergency_quota = math.ceil(total_lessons * 0.2) if total_lessons else 0
+                    used_emergency_count = contract_for_quota[0].get("used_emergency_leave_count", 0)
+                    if used_emergency_count >= emergency_quota:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"緊急請假額度已用完（{used_emergency_count}/{emergency_quota}），無法請假",
+                        )
+                else:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"緊急請假額度已用完（{used_emergency_count}/{emergency_quota}），無法請假",
+                        detail="此預約查無對應的學生合約，無法申請緊急請假",
                     )
-            else:
-                raise HTTPException(status_code=400, detail="查無有效合約，無法申請緊急請假")
-            deduct_lesson = False
 
         # 判斷發起者類型
         if current_user.is_student():
@@ -369,7 +392,7 @@ async def approve_leave_record(
         # 取得請假紀錄
         record = await supabase_service.table_select(
             table="leave_records",
-            select="id,leave_status,booking_id,leave_date,reason,leave_type,deduct_lesson",
+            select="id,leave_status,booking_id,leave_date,reason,leave_type,deduct_lesson,initiator_type",
             filters={"id": leave_id, "is_deleted": "eq.false"},
         )
         if not record:
@@ -418,9 +441,12 @@ async def approve_leave_record(
             from app.api.v1.bookings import cancel_booking_side_effects
             await cancel_booking_side_effects(booking[0])
 
-            # 4. 寫入 student_contract_leave_records
+            # 4-6. 老師發起的請假不計入學生合約：不寫合約請假紀錄、
+            # 不增 used_leave_count、不增 used_emergency_leave_count。
+            # 堂數由 cancel_booking_side_effects 退還，學生不該被老師請假扣額度。
+            rec_initiator_type = record[0].get("initiator_type")
             student_contract_id = booking[0].get("student_contract_id")
-            if student_contract_id:
+            if student_contract_id and rec_initiator_type != "teacher":
                 await supabase_service.table_insert(
                     table="student_contract_leave_records",
                     data={
@@ -443,7 +469,6 @@ async def approve_leave_record(
 
                     # 6. 緊急請假：更新 used_emergency_leave_count
                     rec_leave_type = record[0].get("leave_type", "normal")
-
                     if rec_leave_type == "emergency":
                         current_emergency = contract[0].get("used_emergency_leave_count", 0) or 0
                         update_data["used_emergency_leave_count"] = current_emergency + 1
