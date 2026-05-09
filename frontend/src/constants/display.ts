@@ -12,6 +12,9 @@ export const EMPLOYEE_TYPE_TAG_MAP: Partial<Record<EmployeeType, DisplayTagType>
 };
 
 export const STUDENT_STATUS_TAG_MAP: Record<string, DisplayTagType> = {
+  [STUDENT_STATUS.PENDING]: 'warning',
+  Pending: 'warning',
+  PENDING: 'warning',
   [STUDENT_STATUS.ACTIVE]: 'success',
   [STUDENT_STATUS.TERMINATED]: 'info',
   [STUDENT_STATUS.TRIAL]: 'warning',

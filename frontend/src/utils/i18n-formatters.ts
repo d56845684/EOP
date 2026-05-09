@@ -25,7 +25,8 @@ const translateByMap = (
 ) => {
   if (!value) return fallback;
 
-  const key = keyMap[value];
+  const normalizedValue = value.toLowerCase();
+  const key = keyMap[value] || keyMap[normalizedValue];
   if (!key) return value;
 
   return t(key);
@@ -39,6 +40,7 @@ const EMPLOYEE_TYPE_LABEL_KEY_MAP: Record<EmployeeType, string> = {
 };
 
 const STUDENT_STATUS_LABEL_KEY_MAP: Record<string, string> = {
+  [STUDENT_STATUS.PENDING]: 'display.studentStatus.pending',
   [STUDENT_STATUS.ACTIVE]: 'display.studentStatus.active',
   [STUDENT_STATUS.TERMINATED]: 'display.studentStatus.terminated',
   [STUDENT_STATUS.TRIAL]: 'display.studentStatus.trial',

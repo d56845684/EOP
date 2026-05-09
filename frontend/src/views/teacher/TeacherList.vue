@@ -181,16 +181,6 @@
                   </template>
                   {{ $t('common.basicInfo') }}
                 </el-button>
-                <el-button 
-                  v-permission="'teachers.delete'" 
-                  type="danger" 
-                  link 
-                  size="small" 
-                  @click="handleDelete(teacher)"
-                >
-                  <div class="i-hugeicons:delete-02 mr-2px" />
-                  {{ $t('common.delete') }}
-                </el-button>
               </div>
             </div>
           </el-card>
@@ -415,19 +405,6 @@ const handleToggleStatus = (teacher: TeacherResponse): Promise<boolean> => {
       reject(false);
     });
   });
-};
-
-const handleDelete = async (teacher: TeacherResponse) => {
-  try {
-    await ElMessageBox.confirm(t('teacher.deleteConfirm', { name: teacher.name }), 'Warning', {
-      type: 'warning'
-    });
-    const res = assertApiSuccess(await deleteTeacher(teacher.id), t('teacher.deleteFailed'));
-    ElMessage.success(res.message || t('common.deleteSuccess'));
-    fetchTeachersList();
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e, t('common.deleteFailed')));
-  }
 };
 
 const handleVerify = async (teacher: TeacherResponse) => {

@@ -75,13 +75,9 @@
         <el-table-column prop="course_name" :label="$t('course.courseName')" width="200px" />
         <el-table-column prop="description" :label="$t('course.description')" min-width="200px" />
         <el-table-column prop="duration_minutes" :label="$t('course.duration')" width="110px" align="center" />
-        <el-table-column :label="$t('common.actions')" fixed="right" min-width="140px" align="center">
+        <el-table-column :label="$t('common.actions')" fixed="right" min-width="100px" align="center">
           <template #default="{ row }">
              <el-button v-if="hasPermission('courses.edit')" type="primary" link size="small" @click="openDrawer(row, 'edit')">{{ $t('common.edit') }}</el-button>
-             <el-button v-if="hasPermission('courses.delete')" type="danger" link size="small" @click="handleDelete(row)">
-              <div class="i-hugeicons:delete-02 mr-2px" />
-              {{ $t('common.delete') }}
-            </el-button>
           </template>
         </el-table-column>
         <el-table-column prop="is_active" :label="$t('common.status')" width="72px" align="center" fixed="right">
@@ -287,20 +283,6 @@ const handleStatusChange = async (row: CourseResponseData) => {
     next.delete(row.id);
     statusChangingIds.value = next;
   }
-};
-
-const handleDelete = (c: CourseResponseData) => {
-    ElMessageBox.confirm(t('common.deleteConfirm') || 'Delete this course?', 'Warning', { type: 'warning' })
-    .then(async () => {
-        try {
-            const res = assertApiSuccess(await deleteCourse(c.id), t('course.deleteFailed'));
-            ElMessage.success(res.message || t('common.done') || 'Deleted');
-            fetchData();
-        } catch (error: any) {
-            console.error(error);
-            showApiError(error, t('course.deleteFailed'));
-        }
-    }).catch(() => {});
 };
 </script>
 

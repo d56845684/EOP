@@ -171,6 +171,9 @@
                 {{ formatCurrency(contract.total_amount) }}
               </el-descriptions-item>
               <el-descriptions-item :label="$t('myContracts.colLeave')" :span="2">
+                {{ formatEmergencyLeaveQuota(contract) }}
+              </el-descriptions-item>
+              <el-descriptions-item :label="$t('myContracts.regularLeaveQuota')" :span="2">
                 {{ contract.used_leave_count || 0 }} / {{ contract.total_leave_allowed || 0 }}
               </el-descriptions-item>
               <el-descriptions-item :label="$t('common.note')" :span="4">
@@ -317,7 +320,19 @@
 
         <el-table-column :label="$t('myContracts.colLeave')" width="100" align="center">
           <template #default="{ row }">
+            {{ formatEmergencyLeaveQuota(row) }}
+          </template>
+        </el-table-column>
+
+        <el-table-column :label="$t('myContracts.regularLeaveQuota')" width="100" align="center">
+          <template #default="{ row }">
             {{ row.used_leave_count || 0 }} / {{ row.total_leave_allowed || 0 }}
+          </template>
+        </el-table-column>
+
+        <el-table-column :label="$t('myContracts.usedEmergencyLeaveCount')" width="120" align="center">
+          <template #default="{ row }">
+            {{ row.used_emergency_leave_count || 0 }}
           </template>
         </el-table-column>
 
@@ -547,6 +562,29 @@ const formatDetailAmount = (detail: StudentContractDetail) => {
     return t('studentBooking.remainingLessons', { count: detail.amount });
   }
   return formatCurrency(detail.amount);
+};
+
+const getCompensationLessons = (contract: StudentContract) => {
+  return contract.details
+    ?.filter((detail) => detail.detail_type === 'compensation')
+    .reduce((total, detail) => total + Number(detail.amount || 0), 0) || 0;
+};
+
+const getEmergencyLeaveQuota = (contract: StudentContract) => {
+  const calculatedQuota = Math.ceil(((contract.total_lessons || 0) + getCompensationLessons(contract)) * 0.2);
+  return Math.max(Number(contract.emergency_leave_quota || 0), calculatedQuota);
+};
+
+const getRemainingEmergencyLeaveCount = (contract: StudentContract) => {
+  if (contract.remaining_emergency_leave_count !== undefined && contract.remaining_emergency_leave_count !== null) {
+    return Math.max(0, Number(contract.remaining_emergency_leave_count || 0));
+  }
+
+  return Math.max(0, getEmergencyLeaveQuota(contract) - Number(contract.used_emergency_leave_count || 0));
+};
+
+const formatEmergencyLeaveQuota = (contract: StudentContract) => {
+  return `${getRemainingEmergencyLeaveCount(contract)} / ${getEmergencyLeaveQuota(contract)}`;
 };
 
 const fetchContracts = async () => {

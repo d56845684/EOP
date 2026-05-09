@@ -12,6 +12,7 @@ const i18n = createI18n({
     globalInjection: true,
     messages: {
         en,
+        zh: zhTW,
         'zh-TW': zhTW,
     },
 });

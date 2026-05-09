@@ -82,8 +82,6 @@
         :studentList="studentList"
         :loading="loading"
         @openDrawer="openDrawer"
-        @openConvertToFormalDialog="openConvertToFormalDialog"
-        @handleDelete="handleDelete"
         @handleStatusChange="handleStatusChange"
         @handleVerify="handleVerify"
         @copyEmail="copyEmail"
@@ -105,10 +103,26 @@
     <!-- Manage / Details Drawer -->
     <el-drawer
       v-model="drawerVisible"
-      :title="drawerType !== drawerTypeMap.CREATE ? (currentStudent.student_no + ' - ' + currentStudent.name || $t('student.detailsTitle')) : $t('student.addTitle')"
       :size="drawerType === drawerTypeMap.CREATE ? '480px' : '620px'"
       class="student-drawer"
     >
+      <template #header>
+        <div class="drawer-header">
+          <span>{{ drawerTitle }}</span>
+          <el-button
+            v-if="shouldShowDrawerConvertButton"
+            v-permission="'students.contracts'"
+            type="primary"
+            round
+            size="small"
+            :disabled="!canConvertCurrentStudent"
+            class="mr-4"
+            @click="openConvertToFormalDialog(currentStudent as StudentResponse)"
+          >
+            {{ $t('student.convertToFormal') }}
+          </el-button>
+        </div>
+      </template>
       <template v-if="drawerType === drawerTypeMap.MANAGE">
         <el-tabs v-model="activeTab"  @tab-change="loadContent">
           <!-- Tab 1: Basic Info -->
@@ -142,6 +156,18 @@
           </el-tab-pane>
           
         </el-tabs>
+        <div v-if="shouldShowNoContractAddButton" class="skeleton-content">
+          <p class="text-[#909399] mb-5">{{ $t('studentAdmin.noContractRecords') }}</p>
+          <el-button
+            v-if="canShowContractCreateButton"
+            type="primary"
+            round
+            @click="openContractCreateForm"
+          >
+            <template #icon><div class="i-hugeicons:add-square" /></template>
+            {{ $t('contract.addContract') }}
+          </el-button>
+        </div>
       </template>
       <template v-if="drawerType === drawerTypeMap.CREATE">
         <CreateStudent
@@ -151,7 +177,7 @@
       </template>
       <template v-else-if="drawerType === drawerTypeMap.CONTRACT">
         <ContractManagement
-          v-if="contracts.length > 0"
+          ref="contractManagementRef"
           :contracts="contracts" 
           :contractLoading="contractLoading"
           :hasActive="(currentStudent.active_contracts || 0) > 0"
@@ -160,15 +186,7 @@
           @updateContractDetails="fetchContractDependencies"
           @saveContractData="saveContractData"
           @updateContent="loadContent"
-          @openAddContractDialog="openConvertToFormalDialog(currentStudent as StudentResponse)"
         />
-        <div v-else class="skeleton-content">
-          <p class="text-[#909399]" v-if="!contractLoading">{{ $t('studentAdmin.noContractRecords') }}</p>
-          <el-button v-if="hasPermission('contracts.create')" type="primary" @click="openConvertToFormalDialog(currentStudent as StudentResponse)">
-            <template #icon><div class="i-hugeicons:add-square" /></template>
-            {{ $t('contract.addContract') }}
-          </el-button>
-        </div>
       </template>
     </el-drawer>
 
@@ -176,8 +194,9 @@
      <CreateContractDialog
        v-model:convertVisible="convertVisible"
        :currentStudent="currentConvertStudent"
+       :contractOptions="pendingContractOptions"
        :bookingOptions="bookingOptions"
-       :teacherOptions="teacherOptions"
+       @submit-finish="handleConvertSubmitFinish"
      />
 
      <VerifyInviteDialog
@@ -191,7 +210,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { computed, nextTick, ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormRules } from 'element-plus';
 import { 
@@ -206,14 +225,16 @@ import {
   type StudentOverviewResponse,
   type StudentCreate,
   type StudentUpdate,
+  type ConvertToFormalResponse,
 } from '@/api/student';
 import {
+  createStudentContract,
   getStudentContracts,
   updateStudentContract,
   getContractDetails,
   getContractLeaveRecords,
-  getContractTeacherOptions,
   type StudentContract,
+  type StudentContractCreate,
   type StudentContractUpdate,
   type StudentContractDetail,
   type StudentContractLeaveRecord,
@@ -231,6 +252,8 @@ import { generateInviteLinkApi } from '@/api/auth';
 import { assertApiSuccess, getApiErrorMessage } from '@/api/response';
 import { usePermissionStore } from '@/stores/permission';
 import { copyToClipboardUtil } from '@/utils/clipboard';
+import { ENDED_STUDENT_CONTRACT_STATUSES } from '@/constants/contract';
+import { STUDENT_STATUS, STUDENT_TYPE } from '@/constants/student';
 
 const OPTION_MAP = {
  ALL: 'all' 
@@ -313,6 +336,7 @@ const savingContract = ref(false);
 
 const contractDetails = ref<StudentContractDetail[]>([]);
 const leaveRecords = ref<StudentContractLeaveRecord[]>([]);
+const contractManagementRef = ref<InstanceType<typeof ContractManagement> | null>(null);
 
 // --- Booking Feature State ---
 const booking = ref<BookingItem | null>(null);
@@ -325,10 +349,74 @@ const convertVisible = ref(false);
 const currentConvertStudent = ref<StudentResponse | null>(null);
 
 const bookingOptions = ref<any[]>([]);
-const teacherOptions = ref<any[]>([]);
+const pendingContractOptions = ref<StudentContract[]>([]);
 
 const verifyInviteVisible = ref(false);
 const inviteUrl = ref('');
+
+const drawerTitle = computed(() => {
+  if (drawerType.value === drawerTypeMap.CREATE) return t('student.addTitle');
+  if (!currentStudent.value?.id) return t('student.detailsTitle');
+  return `${currentStudent.value.student_no} - ${currentStudent.value.name}`;
+});
+
+const hasPendingContract = computed(() => {
+  return contracts.value.some((contract) => contract.contract_status === 'pending');
+});
+
+const shouldShowDrawerConvertButton = computed(() => {
+  const learningStatus = (currentStudent.value as any)?.student_status;
+  return drawerType.value !== drawerTypeMap.CREATE
+    && learningStatus !== STUDENT_STATUS.ACTIVE
+    && (learningStatus === STUDENT_STATUS.PENDING || learningStatus === STUDENT_STATUS.TRIAL);
+});
+
+const canConvertCurrentStudent = computed(() => {
+  const studentType = (currentStudent.value as any)?.student_type;
+
+  return shouldShowDrawerConvertButton.value
+    && studentType === STUDENT_TYPE.TRIAL
+    && hasPendingContract.value;
+});
+
+const canShowContractCreateButton = computed(() => {
+  return hasPermission('students.contracts') || hasPermission('contracts.create');
+});
+
+const shouldShowNoContractAddButton = computed(() => {
+  return drawerType.value === drawerTypeMap.MANAGE
+    && Boolean(currentStudent.value?.id)
+    && !contractLoading.value
+    && contracts.value.length === 0;
+});
+
+const endedContractStatusSet = new Set<string>(ENDED_STUDENT_CONTRACT_STATUSES);
+
+const isEndedContract = (contract: StudentContract) => {
+  return endedContractStatusSet.has(contract.contract_status.toLowerCase());
+};
+
+const getContractTimestamp = (contract: StudentContract) => {
+  const dateValue = contract.updated_at || contract.created_at || contract.start_date || contract.end_date;
+  const timestamp = Date.parse(dateValue);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const getCurrentDisplayContract = (studentContracts: StudentContract[]) => {
+  return [...studentContracts]
+    .sort((a, b) => getContractTimestamp(b) - getContractTimestamp(a))
+    .find((contract) => !isEndedContract(contract)) || null;
+};
+
+type ContractFormData = {
+  contract_status: StudentContract['contract_status'];
+  is_recurring?: boolean;
+  dateRange?: string[];
+  total_lessons?: number | null;
+  total_amount?: number | null;
+  total_leave_allowed?: number | null;
+  notes?: string | null;
+};
 
 // --- Methods ---
 
@@ -412,7 +500,7 @@ const openDrawer = async (row: StudentOverviewListResponse | null, type: string)
 
   if (type === drawerTypeMap.MANAGE && row) {
     activeTab.value = TAB_MAP.BASIC;
-    await loadContent(TAB_MAP.BASIC);
+    await Promise.all([loadContent(TAB_MAP.BASIC), loadContract()]);
   }
 
   if (type === drawerTypeMap.CONTRACT && row) {
@@ -452,45 +540,60 @@ const handleSaveBasicInfo = async () => {
   }
 };
 
-const handleDelete = (row: StudentResponse) => {
-  ElMessageBox.confirm(
-    t('common.deleteConfirm', { name: `${row.student_no}-${row.name}` }),
-    t('studentAdmin.warning'),
-    {
-      confirmButtonText: t('common.delete'),
-      cancelButtonText: t('common.cancel'),
-      confirmButtonClass: 'el-button--danger',
-      type: 'warning',
-      roundButton: true,
-      buttonSize: 'small',
-    }
-  ).then(async () => {
-    try {
-      const res = assertApiSuccess(await deleteStudent(row.id), t('common.deleteFailed'));
-      ElMessage.success(res.message || t('common.deleteSuccess'));
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      ElMessage.error(getApiErrorMessage(err, t('common.deleteFailed')));
-    }
-  }).catch(() => {});
-};
-
 // --- Convert To Formal API ---
 const openConvertToFormalDialog = async (row: StudentResponse) => {
   currentConvertStudent.value = row;
   convertVisible.value = true;
   
   try {
-    const [bookRes, teacherRes] = await Promise.all([
+    const [bookRes, contractRes] = await Promise.all([
       getBookingList({ student_id: row.id, booking_status: 'completed' }),
-      getContractTeacherOptions()
+      getStudentContracts({ student_id: row.id, contract_status: 'pending', page: 1, per_page: 100 }),
     ]);
     bookingOptions.value = assertApiSuccess(bookRes).data || [];
-    teacherOptions.value = assertApiSuccess(teacherRes).data || [];
+    pendingContractOptions.value = assertApiSuccess(contractRes).data || [];
   } catch (err) {
     console.error(err);
+    pendingContractOptions.value = [];
   }
+};
+
+const openContractCreateForm = async () => {
+  activeTab.value = TAB_MAP.CONTRACT;
+  await nextTick();
+  contractManagementRef.value?.openAddContractDialog();
+};
+
+const handleConvertSubmitFinish = async (result: ConvertToFormalResponse) => {
+  const convertedContract = result.contract;
+  const student = result.student;
+
+  if (currentStudent.value?.id === student.id) {
+    currentStudent.value = {
+      ...currentStudent.value,
+      student_type: student.student_type,
+    };
+  }
+
+  pendingContractOptions.value = pendingContractOptions.value.filter((contract) => contract.id !== convertedContract.id);
+  contracts.value = contracts.value.map((contract) => (
+    contract.id === convertedContract.id
+      ? {
+          ...contract,
+          contract_status: convertedContract.contract_status as StudentContract['contract_status'],
+          remaining_lessons: convertedContract.remaining_lessons,
+          start_date: convertedContract.start_date,
+          end_date: convertedContract.end_date,
+          total_lessons: convertedContract.total_lessons,
+          notes: convertedContract.notes ?? contract.notes,
+        }
+      : contract
+  ));
+
+  await Promise.all([
+    fetchData(),
+    currentStudent.value?.id === student.id ? loadContract() : Promise.resolve(),
+  ]);
 };
 
 // --- Contract Tab API ---
@@ -539,11 +642,13 @@ const loadContract = async () => {
   try {
     const res = assertApiSuccess(await getStudentContracts({ student_id: currentStudent.value.id }), t('studentAdmin.loadContractsFailed'));
     const fetchedContracts = res.data || [];
-    if (fetchedContracts.length > 0) {
-      contracts.value = fetchedContracts;
-      await fetchContractDependencies(contracts.value[0]!.id as string);
+    contracts.value = fetchedContracts;
+    const currentContract = getCurrentDisplayContract(fetchedContracts);
+    if (currentContract) {
+      await fetchContractDependencies(currentContract.id);
     } else {
-      contracts.value = [];
+      contractDetails.value = [];
+      leaveRecords.value = [];
     }
   } catch (err) {
     console.error(err);
@@ -587,27 +692,64 @@ const fetchContractDependencies = async (contractId: string) => {
   }
 };
 
-const saveContractData = async (data: StudentContractUpdate) => {
-   if(!contracts.value.length) return;
+const saveContractData = async (data: ContractFormData, isCreatingContract = false) => {
+   if (!currentStudent.value?.id) return;
+   if (!isCreatingContract && !contracts.value.length) return;
+
+   const startDate = data.dateRange?.[0];
+   const endDate = data.dateRange?.[1];
+   if (!startDate || !endDate) {
+     ElMessage.warning(t('studentAdmin.createContractDialog.dateRangeRequired'));
+     return;
+   }
+   if (!data.total_lessons) {
+     ElMessage.warning(t('studentAdmin.createContractDialog.totalLessonsRequired'));
+     return;
+   }
+   if (data.total_amount === null || data.total_amount === undefined) {
+     ElMessage.warning(t('studentAdmin.createContractDialog.totalAmountRequired'));
+     return;
+   }
+
    savingContract.value = true;
    try {
+     if (isCreatingContract) {
+       const payload: StudentContractCreate = {
+         student_id: currentStudent.value.id,
+         contract_status: 'pending',
+         is_recurring: data.is_recurring,
+         start_date: startDate,
+         end_date: endDate,
+         total_lessons: data.total_lessons,
+         remaining_lessons: data.total_lessons,
+         total_amount: data.total_amount,
+         total_leave_allowed: data.total_leave_allowed,
+         notes: data.notes || null,
+       };
+       const res = assertApiSuccess(await createStudentContract(payload), t('studentAdmin.createContractFailed'));
+       ElMessage.success(res.message || t('studentAdmin.createContractSuccess'));
+       await loadContent(TAB_MAP.CONTRACT);
+       await fetchData();
+       return;
+     }
+
      const payload: StudentContractUpdate = {
        contract_status: data.contract_status,
        is_recurring: data.is_recurring,
-       start_date: data.start_date,
-       end_date: data.end_date,
+       start_date: startDate,
+       end_date: endDate,
        total_lessons: data.total_lessons,
        total_amount: data.total_amount,
-       total_leave_allowed: data.total_leave_allowed,
+       total_leave_allowed: data.total_leave_allowed ?? undefined,
        notes: data.notes
      };
-     const contractId = contracts.value[0]?.id;
+     const contractId = getCurrentDisplayContract(contracts.value)?.id;
      if (!contractId) throw new Error('Contract ID string is undefined');
      const res = assertApiSuccess(await updateStudentContract(contractId, payload), t('studentAdmin.updateContractFailed'));
      ElMessage.success(res.message || t('studentAdmin.updateContractSuccess'));
      
      // Refresh exactly the loaded tab state to see updated leave limits, etc
-     await loadContent('contracts');
+     await loadContent(TAB_MAP.CONTRACT);
    } catch(err) {
      ElMessage.error(getApiErrorMessage(err, t('studentAdmin.updateContractFailed')));
    } finally {
@@ -625,6 +767,14 @@ onMounted(() => {
   display: flex; 
   justify-content: flex-end; 
   margin-top: 20px;
+}
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 .filter-row {
   display: flex;

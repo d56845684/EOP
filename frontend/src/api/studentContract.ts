@@ -41,17 +41,31 @@ export interface StudentContract {
   leave_records: StudentContractLeaveRecord[];
   emergency_leave_quota: number;
   used_emergency_leave_count: number;
+  remaining_emergency_leave_count?: number | null;
   addendums: StudentContractAddendum[];
 }
 
 export interface StudentContractUpdate {
-  contract_status: 'pending' | 'active' | 'expired' | 'terminated';
+  contract_status: StudentContractStatus;
   is_recurring?: boolean;
   start_date: string;
   end_date: string;
   total_lessons: number;
   total_amount: number;
   total_leave_allowed?: number;
+  notes?: string | null;
+}
+
+export interface StudentContractCreate {
+  student_id: string;
+  contract_status: StudentContractStatus;
+  is_recurring?: boolean;
+  start_date: string;
+  end_date: string;
+  total_lessons: number;
+  remaining_lessons: number;
+  total_amount: number;
+  total_leave_allowed?: number | null;
   notes?: string | null;
 }
 
@@ -136,7 +150,7 @@ export interface GetStudentContractsParams {
   contract_status?: StudentContractStatus | '';
 }
 
-export type StudentContractStatus = 'pending' | 'active' | 'expired' | 'terminated' | 'suspended';
+export type StudentContractStatus = 'pending' | 'active' | 'suspended' | 'expired' | 'terminated';
 
 // ========================
 // API Functions
@@ -152,6 +166,10 @@ export function getContractCourseOptions(studentId: string) {
 
 export function getStudentContracts(params: GetStudentContractsParams) {
   return request.get<any, ListResponse<StudentContract>>('/v1/student-contracts', { params });
+}
+
+export function createStudentContract(data: StudentContractCreate) {
+  return request.post<any, ResData<StudentContract>>('/v1/student-contracts', data);
 }
 
 export function updateStudentContract(contractId: string, data: StudentContractUpdate) {

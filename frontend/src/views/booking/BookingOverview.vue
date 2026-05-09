@@ -114,8 +114,26 @@
           </div>
         </div>
       </template>
-
-      <div v-loading="loading" class="qcalendar-shell">
+      
+      <div v-loading="loading" class="qcalendar-shell relative">
+        <div class="flex gap-5 absolute color-info top-0 right-4 translate-y--80%">
+          <div class="text-10px flex items-center gap-1">
+            <div class="w-8px h-8px rounded-full bg-[var(--el-color-warning)] opacity-90"></div>
+            {{ t('bookingOverview.status.pending') }}
+          </div>
+          <div class="text-10px flex items-center gap-1">
+            <div class="w-8px h-8px rounded-full bg-[var(--el-color-primary)] opacity-90"></div>
+            {{ t('bookingOverview.status.confirmed') }}
+          </div>
+          <div class="text-10px flex items-center gap-1">
+            <div class="w-8px h-8px rounded-full bg-[var(--el-color-success)] opacity-90"></div>
+            {{ t('bookingOverview.status.completed') }}
+          </div>
+          <div class="text-10px flex items-center gap-1">
+            <div class="w-8px h-8px rounded-full bg-[var(--el-color-info)] opacity-90"></div>
+            {{ t('bookingOverview.status.cancelled') }}
+          </div>
+        </div>
         <QCalendarMonth
           v-model="calendarDate"
           :locale="calendarLocale"
@@ -237,8 +255,8 @@ const calendarEvents = computed<CalendarBookingEvent[]>(() => bookings.value
     date: booking.booking_date,
     timeLabel: `${formatTime(booking.start_time)}-${formatTime(booking.end_time)}`,
     title: [
-      booking.teacher_name || t('bookingOverview.unspecifiedTeacher'),
       booking.student_name || t('bookingOverview.unspecifiedStudent'),
+      booking.teacher_name || t('bookingOverview.unspecifiedTeacher'),
       booking.course_name || t('bookingOverview.unspecifiedCourse'),
     ].join(' / '),
     booking,

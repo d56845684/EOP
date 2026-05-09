@@ -16,8 +16,10 @@
       <el-descriptions-item :label="$t('contract.contractTotalLessons')">
         <div class="text-sm">{{ contract?.total_lessons }}</div>
       </el-descriptions-item>
-      <el-descriptions-item :label="$t('studentAdmin.totalLeaveAllowed')">{{ contract?.total_leave_allowed }}</el-descriptions-item>
-      <el-descriptions-item :label="$t('myContracts.usedLeaveCount')">{{ contract?.used_leave_count }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('studentAdmin.totalLeaveAllowed')">{{ contract?.total_leave_allowed || 0 }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('myContracts.usedLeaveCount')">{{ contract?.used_leave_count || 0 }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('myContracts.emergencyLeaveQuota')">{{ contract?.emergency_leave_quota || 0 }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('myContracts.usedEmergencyLeaveCount')">{{ contract?.used_emergency_leave_count || 0 }}</el-descriptions-item>
       <el-descriptions-item :label="$t('myContracts.remainingLessons')">{{ contract?.remaining_lessons }}</el-descriptions-item>
       <el-descriptions-item :label="$t('common.note')" :span="4">{{ contract?.notes || $t('studentAdmin.none') }}</el-descriptions-item>
       <el-descriptions-item :label="$t('contract.contractDetails')" :span="4">

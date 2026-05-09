@@ -95,7 +95,7 @@
                   {{ $t('common.edit') }}
                 </el-button>
               </div>
-              <el-popconfirm
+              <!-- <el-popconfirm
                 :title="$t('common.confirm') + $t('common.delete') + '?'"
                 @confirm="handleDelete(row)"
               >
@@ -110,7 +110,7 @@
                     {{ $t('common.delete') }}
                   </el-button>
                 </template>
-              </el-popconfirm>
+              </el-popconfirm> -->
             </el-space>
             <div v-else class="flex items-center justify-center gap-1">
               <div class="i-hugeicons:square-lock-01 text-md text-gray-400" />
@@ -291,16 +291,16 @@ const handleEdit = (row: RoleInfo) => {
   dialogVisible.value = true;
 };
 
-const handleDelete = async (row: RoleInfo) => {
-  try {
-    const res = assertApiSuccess(await deleteRoleApi(row.id), t('role.deleteFailed'));
-    ElMessage.success(res.message || t('common.done'));
-    fetchRoles();
-  } catch (error) {
-    console.error('Failed to delete role:', error);
-    ElMessage.error(getApiErrorMessage(error, t('role.deleteFailed')));
-  }
-};
+// const handleDelete = async (row: RoleInfo) => {
+//   try {
+//     const res = assertApiSuccess(await deleteRoleApi(row.id), t('role.deleteFailed'));
+//     ElMessage.success(res.message || t('common.done'));
+//     fetchRoles();
+//   } catch (error) {
+//     console.error('Failed to delete role:', error);
+//     ElMessage.error(getApiErrorMessage(error, t('role.deleteFailed')));
+//   }
+// };
 
 const resetForm = () => {
   if (formRef.value) formRef.value.resetFields();

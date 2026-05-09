@@ -143,7 +143,7 @@
             {{ formatDate(row.hire_date) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.actions')" width="160" fixed="right" align="center">
+        <el-table-column :label="$t('common.actions')" width="100" fixed="right" align="center">
           <template #default="{ row }">
             <el-button
               v-if="hasPermission('employees.edit')"
@@ -153,16 +153,6 @@
               @click="openEditDrawer(row)"
             >
               {{ $t('common.edit') }}
-            </el-button>
-            <el-button
-              v-if="hasPermission('employees.delete')"
-              type="danger"
-              link
-              size="small"
-              @click="handleDelete(row)"
-            >
-              <div class="i-hugeicons:delete-02 mr-2px" />
-              {{ $t('common.delete') }}
             </el-button>
           </template>
         </el-table-column>
@@ -681,27 +671,6 @@ const handleToggleStatus = async (employee: Employee) => {
     return false;
   } finally {
     statusChangingIds.value.delete(employee.id);
-  }
-};
-
-const handleDelete = async (employee: Employee) => {
-  try {
-    await ElMessageBox.confirm(
-      t('common.deleteConfirm', { name: employee.name }),
-      t('common.delete'),
-      { type: 'warning' },
-    );
-
-    const res = assertApiSuccess(await deleteEmployeeApi(employee.id), t('employee.deleteFailed'));
-    ElMessage.success(res.message || t('common.deleteSuccess'));
-
-    if (employees.value.length === 1 && queryParams.page > 1) {
-      queryParams.page -= 1;
-    }
-    fetchEmployees();
-  } catch (error) {
-    if (error === 'cancel' || error === 'close') return;
-    ElMessage.error(getApiErrorMessage(error, t('employee.deleteFailed')));
   }
 };
 
