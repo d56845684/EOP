@@ -161,12 +161,12 @@
               <span class="block w-130px h-30px line-height-30px px-2 bg-gray-100 rounded">
                 {{ activeContract?.used_leave_count }}
               </span>
-              <el-input-number
+              <!-- <el-input-number
                 v-model="contractForm.emergency_leave_quota"
                 :min="0"
                 :value-on-clear="null"
                 class="w-150px h-30px!"
-              />
+              /> -->
             </el-form-item>
           </el-col>
           <el-col v-if="activeContract" :span="12">
