@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Path, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.services.preference_service import preference_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
@@ -6,7 +6,8 @@ from app.schemas.booking import (
     BookingCreate, BookingUpdate, BookingResponse, BookingListResponse, BookingStatus,
     BookingBatchUpdateByIds, BookingBatchUpdateResult,
     BookingBatchDeleteByIds, BookingBatchUpdate, BookingBatchDelete,
-    BookingBatchCreate, TimeBlock, SlotAvailabilityResponse
+    BookingBatchCreate, BookingCancelPendingResponse,
+    TimeBlock, SlotAvailabilityResponse
 )
 from app.schemas.response import BaseResponse, DataResponse, StudentOption, TeacherOption, CourseOption, ContractOption, TeacherContractOption, SlotOption
 from typing import Optional, List
@@ -2049,14 +2050,36 @@ async def delete_booking(
         raise HTTPException(status_code=500, detail=f"刪除預約失敗: {str(e)}")
 
 
-@router.post("/{booking_id}/cancel-pending", response_model=BaseResponse)
+@router.post(
+    "/{booking_id}/cancel-pending",
+    response_model=BookingCancelPendingResponse,
+    summary="取消待確認的預約",
+)
 async def cancel_pending_booking(
-    booking_id: str,
+    booking_id: str = Path(
+        ...,
+        description="要取消的預約 ID（UUID）",
+        examples=["a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+    ),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """取消待確認的預約（員工 / 老師本人 / 學生本人）。
+    """取消待確認的預約。
 
-    confirmed 預約的取消請走請假流程；本端點只處理 pending → cancelled。
+    **權限**：
+    - 員工 (`is_staff`)：可取消任何 pending booking
+    - 老師 (`is_teacher`)：只能取消 `booking.teacher_id == self.teacher_id` 的 pending booking
+    - 學生 (`is_student`)：只能取消 `booking.student_id == self.student_id` 的 pending booking
+
+    **行為**：
+    - 將 `booking_status` 從 `pending` 改為 `cancelled`
+    - 觸發 `cancel_booking_side_effects`：堂數退回 + slot 釋放 + Zoom 取消（pending 通常無 Zoom，silent skip）
+
+    **僅處理** `pending → cancelled`。confirmed 預約的取消請走請假流程（`POST /leave-records`）。
+
+    **錯誤**：
+    - `404 預約不存在`
+    - `400 只有待確認的預約可以取消（已確認的請走請假流程）`
+    - `403 只能取消自己的預約`（非員工且不是該預約的學生 / 老師本人）
     """
     try:
         booking = await supabase_service.table_select(
@@ -2094,7 +2117,7 @@ async def cancel_pending_booking(
         # 共用副作用：堂數退回 + slot 釋放 + Zoom 取消（pending 通常無 Zoom，silent skip）
         await cancel_booking_side_effects(b)
 
-        return BaseResponse(message="預約已取消")
+        return BookingCancelPendingResponse(message="預約已取消")
 
     except HTTPException:
         raise
