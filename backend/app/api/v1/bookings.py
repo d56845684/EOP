@@ -2049,6 +2049,59 @@ async def delete_booking(
         raise HTTPException(status_code=500, detail=f"刪除預約失敗: {str(e)}")
 
 
+@router.post("/{booking_id}/cancel-pending", response_model=BaseResponse)
+async def cancel_pending_booking(
+    booking_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """取消待確認的預約（員工 / 老師本人 / 學生本人）。
+
+    confirmed 預約的取消請走請假流程；本端點只處理 pending → cancelled。
+    """
+    try:
+        booking = await supabase_service.table_select(
+            table="bookings",
+            select="id,booking_status,student_id,teacher_id,student_contract_id,teacher_slot_id,lessons_used,booking_date,start_time",
+            filters={"id": booking_id, "is_deleted": "eq.false"},
+        )
+        if not booking:
+            raise HTTPException(status_code=404, detail="預約不存在")
+        b = booking[0]
+
+        if b.get("booking_status") != "pending":
+            raise HTTPException(
+                status_code=400,
+                detail="只有待確認的預約可以取消（已確認的請走請假流程）",
+            )
+
+        # role-aware 授權：staff 全可；老師 / 學生只能取消自己參與的
+        if not current_user.is_staff():
+            booking_student_id = str(b.get("student_id")) if b.get("student_id") else None
+            booking_teacher_id = str(b.get("teacher_id")) if b.get("teacher_id") else None
+            is_owner = (
+                (current_user.is_teacher() and current_user.teacher_id == booking_teacher_id)
+                or (current_user.is_student() and current_user.student_id == booking_student_id)
+            )
+            if not is_owner:
+                raise HTTPException(status_code=403, detail="只能取消自己的預約")
+
+        await supabase_service.table_update(
+            table="bookings",
+            data={"booking_status": "cancelled"},
+            filters={"id": booking_id},
+        )
+
+        # 共用副作用：堂數退回 + slot 釋放 + Zoom 取消（pending 通常無 Zoom，silent skip）
+        await cancel_booking_side_effects(b)
+
+        return BaseResponse(message="預約已取消")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取消預約失敗: {str(e)}")
+
+
 # ============================================
 # 批次操作 API
 # ============================================
