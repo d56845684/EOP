@@ -331,6 +331,26 @@ export default function BookingsPage() {
         }
     }
 
+    const handleWithdrawLeave = async (bookingId: string) => {
+        if (!confirm('確定撤回此請假申請？撤回後不影響預約。')) return
+        const { data } = await leaveRecordsApi.list({ leave_status: 'pending', per_page: 100 })
+        if (!data?.data) {
+            setError('查詢請假紀錄失敗')
+            return
+        }
+        const record = data.data.find(r => r.booking_id === bookingId)
+        if (!record) {
+            setError('找不到此預約的待審核請假紀錄')
+            return
+        }
+        const { error: apiError } = await leaveRecordsApi.cancel(record.id)
+        if (apiError) {
+            setError(apiError.message)
+        } else {
+            fetchBookings()
+        }
+    }
+
     const handleCancelSubstitute = async (booking: Booking) => {
         if (!booking.substitute_detail_id) return
         if (!confirm(`確定要取消「${booking.booking_no}」的代課嗎？取消後預約狀態將改為待確認。`)) return
@@ -1532,15 +1552,31 @@ export default function BookingsPage() {
                                                             const colors = isTeacherLeave
                                                                 ? 'bg-purple-100 text-purple-800 hover:bg-purple-200'
                                                                 : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                                                            return isStaff ? (
-                                                                <button
-                                                                    onClick={() => handleReviewLeave(booking.id)}
-                                                                    className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${colors} cursor-pointer`}
-                                                                    title="點擊審核請假"
-                                                                >
-                                                                    {label}
-                                                                </button>
-                                                            ) : (
+                                                            // 員工 → 審核；發起者本人 → 撤回；其他人 → 靜態 badge
+                                                            const isOwnLeave = (isStudent && !isTeacherLeave) || (isTeacher && isTeacherLeave)
+                                                            if (isStaff) {
+                                                                return (
+                                                                    <button
+                                                                        onClick={() => handleReviewLeave(booking.id)}
+                                                                        className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${colors} cursor-pointer`}
+                                                                        title="點擊審核請假"
+                                                                    >
+                                                                        {label}
+                                                                    </button>
+                                                                )
+                                                            }
+                                                            if (isOwnLeave) {
+                                                                return (
+                                                                    <button
+                                                                        onClick={() => handleWithdrawLeave(booking.id)}
+                                                                        className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${colors} cursor-pointer`}
+                                                                        title="點擊撤回請假"
+                                                                    >
+                                                                        {label}（撤回）
+                                                                    </button>
+                                                                )
+                                                            }
+                                                            return (
                                                                 <span className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.split(' hover')[0]}`}>
                                                                     請假中
                                                                 </span>
