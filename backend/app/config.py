@@ -93,6 +93,8 @@ class Settings(BaseSettings):
     ZOOM_WEBHOOK_SECRET_TOKEN: str = ""
     # Feature toggle
     ZOOM_ENABLED: bool = False
+    # Zoom 過期會議清理 sweep：N 天前已結束且未清理的會議會被刪除
+    ZOOM_CLEANUP_GRACE_DAYS: int = 14
 
     # Google Drive OAuth（個人 Gmail 上傳錄影用）
     GOOGLE_DRIVE_OAUTH_CLIENT_ID: str = ""

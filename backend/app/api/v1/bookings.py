@@ -1754,6 +1754,27 @@ async def update_booking(
                         zoom_service.cancel_meeting_for_booking(booking_id)
                     )
 
+        # 預約完成 → 刪除 Zoom 會議（非同步、失敗不擋）
+        if new_status == "completed" and old_status != "completed":
+            try:
+                from app.services.zoom_service import zoom_service
+                from app.config import settings as app_settings
+                if app_settings.zoom_enabled:
+                    asyncio.create_task(
+                        zoom_service.delete_meeting_for_booking(booking_id)
+                    )
+            except Exception as e:
+                logger.error(f"啟動 Zoom 會議刪除任務失敗（不影響預約完成）: {e}")
+                await alert_service.create(
+                    alert_type="zoom_delete_failed",
+                    title=f"預約 completed 後刪除 Zoom 會議失敗",
+                    message=str(e),
+                    metadata={
+                        "booking_id": str(booking_id),
+                        "trigger": "booking_completed",
+                    },
+                )
+
         # 試上課完成：自動寫入「試上完成」獎金紀錄
         if new_status == "completed" and old_status != "completed":
             if existing[0].get("booking_type") == "trial":

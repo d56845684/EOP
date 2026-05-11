@@ -1062,6 +1062,113 @@ class ZoomService:
             logger.error(f"取消 Zoom 會議失敗: {e}")
             return False
 
+    async def delete_meeting_for_booking(self, booking_id: str) -> bool:
+        """刪除 booking 對應的 Zoom 會議（不限 meeting_status）。
+
+        與 cancel_meeting_for_booking 差別：cancel 僅處理 scheduled 狀態的會議
+        （用於 booking 取消/退回），此方法處理所有非 cancelled 的 log
+        （用於 booking completed 後清理 + 過期 sweep）。
+        """
+        try:
+            logs = await supabase_service.table_select(
+                table="zoom_meeting_logs",
+                select="id,zoom_meeting_id,zoom_account_id,teacher_id",
+                filters={
+                    "booking_id": booking_id,
+                    "is_deleted": "eq.false",
+                    "meeting_status": "neq.cancelled",
+                },
+            )
+
+            for log in (logs or []):
+                zoom_meeting_id = log.get("zoom_meeting_id")
+                if zoom_meeting_id:
+                    token = await self._get_token_for_log(log)
+                    if token:
+                        await self.delete_zoom_meeting(token, zoom_meeting_id)
+                    else:
+                        logger.warning(f"Booking {booking_id}: 無法取得 token 刪除 Zoom 會議 {zoom_meeting_id}")
+
+            await supabase_service.table_update(
+                table="zoom_meeting_logs",
+                data={"meeting_status": "cancelled"},
+                filters={
+                    "booking_id": booking_id,
+                    "is_deleted": "eq.false",
+                    "meeting_status": "neq.cancelled",
+                },
+            )
+
+            logger.info(f"Booking {booking_id}: Zoom 會議已清理（completed/sweep）")
+            return True
+        except Exception as e:
+            logger.error(f"清理 Zoom 會議失敗: {e}")
+            return False
+
+    async def auto_delete_stale_meetings(self, days: int = 14) -> int:
+        """過期會議 sweep：刪除 N 天前已結束、但未被清理的 Zoom 會議。
+
+        篩選條件：
+        - zoom_meeting_logs.is_deleted = false
+        - meeting_status != 'cancelled'
+        - zoom_meeting_id 不為空
+        - 對應 booking 的 booking_status != 'cancelled'（取消的由 cancel 流程處理）
+        - meeting_date + end_time < NOW() - N days
+        """
+        try:
+            cutoff_dt = datetime.now() - timedelta(days=days)
+            cutoff_date = cutoff_dt.date()
+            cutoff_time = cutoff_dt.time()
+
+            sql = """
+                SELECT zml.id, zml.zoom_meeting_id, zml.zoom_account_id,
+                       zml.teacher_id, zml.booking_id
+                FROM zoom_meeting_logs zml
+                JOIN bookings b ON b.id = zml.booking_id
+                WHERE zml.is_deleted = FALSE
+                  AND zml.meeting_status <> 'cancelled'
+                  AND zml.zoom_meeting_id IS NOT NULL
+                  AND b.booking_status <> 'cancelled'
+                  AND (
+                      zml.meeting_date < $1
+                      OR (zml.meeting_date = $1 AND zml.end_time <= $2)
+                  )
+            """
+            rows = await supabase_service.pool.fetch(sql, cutoff_date, cutoff_time)
+
+            deleted_count = 0
+            for row in rows:
+                log = dict(row)
+                zoom_meeting_id = log.get("zoom_meeting_id")
+                if not zoom_meeting_id:
+                    continue
+
+                token = await self._get_token_for_log(log)
+                if not token:
+                    logger.warning(f"sweep: 無法取得 token 刪除過期會議 {zoom_meeting_id}")
+                    continue
+
+                success = await self.delete_zoom_meeting(token, zoom_meeting_id)
+                if success:
+                    await supabase_service.table_update(
+                        table="zoom_meeting_logs",
+                        data={"meeting_status": "cancelled"},
+                        filters={"id": log["id"]},
+                    )
+                    deleted_count += 1
+                    logger.info(
+                        f"sweep: 已刪除過期會議 {zoom_meeting_id} "
+                        f"(booking={log.get('booking_id')})"
+                    )
+
+            if deleted_count > 0:
+                logger.info(f"sweep: 本次共刪除 {deleted_count} 場過期會議")
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"auto_delete_stale_meetings 失敗: {e}")
+            return 0
+
 
 # Module-level singleton
 zoom_service = ZoomService()

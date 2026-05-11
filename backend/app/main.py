@@ -155,6 +155,25 @@ async def lifespan(app: FastAPI):
     notification_task = asyncio.create_task(notification_worker_loop())
     logger.info("Notification queue worker 已啟動（每 5 秒）")
 
+    # 啟動 Zoom 過期會議清理排程（每 24 小時）
+    zoom_cleanup_task = None
+    if settings.zoom_enabled:
+        async def zoom_cleanup_loop():
+            from app.services.zoom_service import zoom_service
+            while True:
+                try:
+                    await zoom_service.auto_delete_stale_meetings(
+                        days=settings.ZOOM_CLEANUP_GRACE_DAYS
+                    )
+                except Exception as e:
+                    logger.error(f"Zoom 過期會議清理排程錯誤: {e}")
+                await asyncio.sleep(86400)  # 每 24 小時執行一次
+
+        zoom_cleanup_task = asyncio.create_task(zoom_cleanup_loop())
+        logger.info(
+            f"Zoom 過期會議清理排程已啟動（每 24 小時，grace={settings.ZOOM_CLEANUP_GRACE_DAYS} 天）"
+        )
+
     yield
 
     # 關閉時
@@ -163,6 +182,12 @@ async def lifespan(app: FastAPI):
         await notification_task
     except asyncio.CancelledError:
         pass
+    if zoom_cleanup_task:
+        zoom_cleanup_task.cancel()
+        try:
+            await zoom_cleanup_task
+        except asyncio.CancelledError:
+            pass
     if zoom_task:
         zoom_task.cancel()
         try:
