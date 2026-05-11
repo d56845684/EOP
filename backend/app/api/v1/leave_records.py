@@ -184,6 +184,36 @@ async def create_leave_record(
         if existing_leave:
             raise HTTPException(status_code=400, detail="此預約已有待審核的請假申請")
 
+        # === 先決定 initiator_type（緊急請假豁免邏輯依賴它）===
+        if current_user.is_student():
+            if booking[0].get("student_id") != current_user.student_id:
+                raise HTTPException(status_code=403, detail="學生只能為自己的預約請假")
+            initiator_type = "student"
+            initiator_student_id = current_user.student_id
+            initiator_teacher_id = None
+        elif current_user.is_teacher():
+            if booking[0].get("teacher_id") != current_user.teacher_id:
+                raise HTTPException(status_code=403, detail="教師只能為自己的預約請假")
+            initiator_type = "teacher"
+            initiator_student_id = None
+            initiator_teacher_id = current_user.teacher_id
+        elif current_user.is_staff():
+            # 員工代申請：必須指定 initiator_type=student 或 teacher
+            if data.initiator_type not in ("student", "teacher"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="員工代申請請假時須指定 initiator_type=student 或 teacher",
+                )
+            initiator_type = data.initiator_type
+            if initiator_type == "student":
+                initiator_student_id = booking[0].get("student_id")
+                initiator_teacher_id = None
+            else:
+                initiator_student_id = None
+                initiator_teacher_id = booking[0].get("teacher_id")
+        else:
+            raise HTTPException(status_code=403, detail="無權建立請假申請")
+
         # === 時間判定：正常 / 緊急 / 禁止 ===
         booking_date_str = booking[0].get("booking_date")  # "2026-03-20" or date obj
         booking_start_str = booking[0].get("start_time")    # "14:00:00" or time obj
@@ -208,9 +238,9 @@ async def create_leave_record(
             leave_type = "emergency"
             deduct_lesson = False
             # 緊急請假額度綁在學生合約上：
-            # - 老師發起：不消耗學生額度，跳過合約檢查
-            # - 學生 / 員工代申請：須檢查該預約對應的學生合約額度
-            if current_user.is_teacher():
+            # - 老師發起（含員工代老師申請）：不消耗學生額度，跳過合約檢查
+            # - 學生發起 / 員工代學生申請：須檢查該預約對應的學生合約額度
+            if initiator_type == "teacher":
                 emergency_quota = None
                 used_emergency_count = None
             else:
@@ -287,27 +317,6 @@ async def create_leave_record(
                         status_code=400,
                         detail="此預約查無對應的學生合約，無法申請緊急請假",
                     )
-
-        # 判斷發起者類型
-        if current_user.is_student():
-            if booking[0].get("student_id") != current_user.student_id:
-                raise HTTPException(status_code=403, detail="學生只能為自己的預約請假")
-            initiator_type = "student"
-            initiator_student_id = current_user.student_id
-            initiator_teacher_id = None
-        elif current_user.is_teacher():
-            if booking[0].get("teacher_id") != current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="教師只能為自己的預約請假")
-            initiator_type = "teacher"
-            initiator_student_id = None
-            initiator_teacher_id = current_user.teacher_id
-        elif current_user.is_staff():
-            # 員工代為申請，預設以學生身份
-            initiator_type = "student"
-            initiator_student_id = booking[0].get("student_id")
-            initiator_teacher_id = None
-        else:
-            raise HTTPException(status_code=403, detail="無權建立請假申請")
 
         leave_no = await generate_leave_no()
         employee_id = await get_user_employee_id(current_user.user_id)

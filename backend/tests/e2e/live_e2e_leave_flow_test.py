@@ -166,6 +166,7 @@ class LeaveFlowTester:
             print("  " + "-" * 40)
             await self._test("緊急請假超額 → 400 拒絕", self._reject_over_quota)
             await self._test("課前 <30min → 400 禁止請假", self._reject_blocked)
+            await self._test("員工沒帶 initiator_type → 400", self._reject_staff_no_initiator_type)
 
             # Phase 4: 查詢驗證
             print(f"\n  Phase 4: 查詢驗證")
@@ -174,6 +175,12 @@ class LeaveFlowTester:
             await self._test("單筆查詢欄位正確", self._verify_single)
             await self._test("合約 emergency_leave_quota 正確", self._verify_contract_quota)
             await self._test("補償堂數計入 emergency_leave_quota", self._verify_quota_with_compensation)
+
+            # Phase 5: 員工代老師申請（豁免學生額度）
+            print(f"\n  Phase 5: 員工代老師申請緊急請假（豁免學生額度）")
+            print("  " + "-" * 40)
+            await self._test("員工帶 initiator_type=teacher 緊急請假（quota 已滿）", self._create_staff_as_teacher_emergency)
+            await self._test("核准員工代老師申請 → 不消耗學生額度", self._approve_staff_as_teacher_emergency)
 
             # Cleanup
             print(f"\n  Cleanup")
@@ -309,6 +316,7 @@ class LeaveFlowTester:
     async def _create_normal_leave(self):
         resp = await self._post("/api/v1/leave-records", {
             "booking_id": self.booking_a_id, "reason": f"{TEST_PREFIX} 正常請假",
+            "initiator_type": "student",
         })
         if resp.status_code != 200:
             return f"{resp.status_code} {resp.text[:200]}"
@@ -339,6 +347,7 @@ class LeaveFlowTester:
     async def _create_emergency_within_quota(self):
         resp = await self._post("/api/v1/leave-records", {
             "booking_id": self.booking_b_id, "reason": f"{TEST_PREFIX} 緊急請假",
+            "initiator_type": "student",
         })
         if resp.status_code != 200:
             return f"{resp.status_code} {resp.text[:200]}"
@@ -371,6 +380,7 @@ class LeaveFlowTester:
     async def _reject_over_quota(self):
         resp = await self._post("/api/v1/leave-records", {
             "booking_id": self.booking_c_id, "reason": f"{TEST_PREFIX} 超額",
+            "initiator_type": "student",
         })
         if resp.status_code != 400:
             return f"expected 400, got {resp.status_code}: {resp.text[:200]}"
@@ -382,11 +392,25 @@ class LeaveFlowTester:
     async def _reject_blocked(self):
         resp = await self._post("/api/v1/leave-records", {
             "booking_id": self.booking_d_id, "reason": f"{TEST_PREFIX} 太晚",
+            "initiator_type": "student",
         })
         if resp.status_code != 400:
             return f"expected 400, got {resp.status_code}: {resp.text[:200]}"
         msg = self._err_msg(resp)
         if "30" not in msg and "分鐘" not in msg:
+            return f"wrong message: {msg}"
+        return True
+
+    async def _reject_staff_no_initiator_type(self):
+        """員工 POST 不帶 initiator_type → 400（檢查順序：在時間/額度檢查前）"""
+        resp = await self._post("/api/v1/leave-records", {
+            "booking_id": self.booking_d_id, "reason": f"{TEST_PREFIX} no type",
+            # 不帶 initiator_type
+        })
+        if resp.status_code != 400:
+            return f"expected 400, got {resp.status_code}: {resp.text[:200]}"
+        msg = self._err_msg(resp)
+        if "initiator_type" not in msg:
             return f"wrong message: {msg}"
         return True
 
@@ -484,6 +508,53 @@ class LeaveFlowTester:
         d = r.json()["data"]
         if d.get("emergency_leave_quota") != 1:
             return f"after delete: quota={d.get('emergency_leave_quota')}, expected 1"
+        return True
+
+    # ── Phase 5: 員工代老師申請 ──
+
+    async def _create_staff_as_teacher_emergency(self):
+        """booking_c 學生 quota 已用完（_reject_over_quota 已驗證），
+        但員工帶 initiator_type=teacher 應豁免合約檢查，直接成功"""
+        resp = await self._post("/api/v1/leave-records", {
+            "booking_id": self.booking_c_id, "reason": f"{TEST_PREFIX} 員工代老師申請",
+            "initiator_type": "teacher",
+        })
+        if resp.status_code != 200:
+            return f"{resp.status_code} {resp.text[:200]}"
+        data = resp.json().get("data", {})
+        self.leave_staff_teacher_id = data.get("id")
+        if data.get("initiator_type") != "teacher":
+            return f"initiator_type={data.get('initiator_type')}, expected teacher"
+        if data.get("initiator_teacher_id") != self.teacher_id:
+            return f"initiator_teacher_id={data.get('initiator_teacher_id')}, expected {self.teacher_id}"
+        if data.get("initiator_student_id") is not None:
+            return f"initiator_student_id should be None, got {data.get('initiator_student_id')}"
+        if data.get("leave_type") != "emergency":
+            return f"leave_type={data.get('leave_type')}, expected emergency"
+        return True
+
+    async def _approve_staff_as_teacher_emergency(self):
+        """核准員工代老師申請的緊急請假 → 學生額度不消耗、不寫 student_contract_leave_records"""
+        before = get_contract_state(self.student_contract_id)
+        sclr_before = int(db_value(
+            f"SELECT COUNT(*) FROM student_contract_leave_records "
+            f"WHERE student_contract_id = '{self.student_contract_id}' AND is_deleted = FALSE"
+        ) or 0)
+        resp = await self._post(f"/api/v1/leave-records/{self.leave_staff_teacher_id}/approve")
+        if resp.status_code != 200:
+            return f"approve failed: {resp.status_code} {resp.text[:200]}"
+        after = get_contract_state(self.student_contract_id)
+        if after["used_emergency_leave_count"] != before["used_emergency_leave_count"]:
+            return (
+                f"used_emergency_leave_count changed: "
+                f"{before['used_emergency_leave_count']}→{after['used_emergency_leave_count']}（teacher initiator 應豁免）"
+            )
+        sclr_after = int(db_value(
+            f"SELECT COUNT(*) FROM student_contract_leave_records "
+            f"WHERE student_contract_id = '{self.student_contract_id}' AND is_deleted = FALSE"
+        ) or 0)
+        if sclr_after != sclr_before:
+            return f"student_contract_leave_records 不應新增（teacher initiator）: {sclr_before}→{sclr_after}"
         return True
 
     # ── Cleanup ──
