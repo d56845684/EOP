@@ -22,7 +22,7 @@ import {
     SlotAvailabilityResponse,
     TimeBlock
 } from '@/lib/api/bookings'
-import { Plus, Pencil, Trash2, Search, X, Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, GraduationCap, Settings, List, Star, Video, ExternalLink, Film, UserMinus, UserPlus, Ban } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, Calendar, Clock, CheckCircle, XCircle, AlertCircle, User, GraduationCap, Settings, List, Star, Video, ExternalLink, Film, UserMinus, UserPlus, Ban, FileText } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { studentTeacherPreferencesApi, StudentTeacherPreference, CreatePreferenceData, UpdatePreferenceData } from '@/lib/api/studentTeacherPreferences'
 import { zoomApi, ZoomMeetingLog } from '@/lib/api/zoom'
@@ -30,6 +30,7 @@ import LeaveModal from '@/components/booking/LeaveModal'
 import SubstituteModal from '@/components/booking/SubstituteModal'
 import CancelModal from '@/components/booking/CancelModal'
 import LeaveReviewModal from '@/components/booking/LeaveReviewModal'
+import LessonNoteModal from '@/components/booking/LessonNoteModal'
 import { leaveRecordsApi, LeaveRecord } from '@/lib/api/leaveRecords'
 import { substituteDetailsApi } from '@/lib/api/substituteDetails'
 
@@ -174,6 +175,7 @@ export default function BookingsPage() {
     const [cancelPendingConfirm, setCancelPendingConfirm] = useState<Booking | null>(null)
     const [cancelingPending, setCancelingPending] = useState(false)
     const [reviewLeaveRecord, setReviewLeaveRecord] = useState<LeaveRecord | null>(null)
+    const [lessonNoteBooking, setLessonNoteBooking] = useState<Booking | null>(null)
 
     // Zoom meeting info
     const [zoomMeetings, setZoomMeetings] = useState<Record<string, ZoomMeetingLog>>({})
@@ -1754,6 +1756,16 @@ export default function BookingsPage() {
                                                                         </button>
                                                                     </>
                                                                 )}
+                                                                {(booking.booking_status === 'confirmed' || booking.booking_status === 'completed') && (
+                                                                    <button
+                                                                        onClick={() => setLessonNoteBooking(booking)}
+                                                                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded"
+                                                                        title="課後筆記"
+                                                                    >
+                                                                        <FileText className="w-3.5 h-3.5 mr-0.5" />
+                                                                        筆記
+                                                                    </button>
+                                                                )}
                                                                 {booking.booking_status === 'pending' && (
                                                                     <button
                                                                         onClick={() => setCancelPendingConfirm(booking)}
@@ -1794,6 +1806,16 @@ export default function BookingsPage() {
                                                                         請假
                                                                     </button>
                                                                 )}
+                                                                {(booking.booking_status === 'confirmed' || booking.booking_status === 'completed') && (
+                                                                    <button
+                                                                        onClick={() => setLessonNoteBooking(booking)}
+                                                                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded"
+                                                                        title="課後筆記"
+                                                                    >
+                                                                        <FileText className="w-3.5 h-3.5 mr-0.5" />
+                                                                        筆記
+                                                                    </button>
+                                                                )}
                                                                 {booking.booking_status === 'pending' && (
                                                                     <>
                                                                         <button
@@ -1814,7 +1836,7 @@ export default function BookingsPage() {
                                                                         </button>
                                                                     </>
                                                                 )}
-                                                                {booking.booking_status !== 'pending' && booking.booking_status !== 'confirmed' && (
+                                                                {booking.booking_status === 'cancelled' && (
                                                                     <span className="text-sm text-gray-400">-</span>
                                                                 )}
                                                             </div>
@@ -1833,6 +1855,16 @@ export default function BookingsPage() {
                                                                         請假
                                                                     </button>
                                                                 )}
+                                                                {(booking.booking_status === 'confirmed' || booking.booking_status === 'completed') && (
+                                                                    <button
+                                                                        onClick={() => setLessonNoteBooking(booking)}
+                                                                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded"
+                                                                        title="課後筆記"
+                                                                    >
+                                                                        <FileText className="w-3.5 h-3.5 mr-0.5" />
+                                                                        筆記
+                                                                    </button>
+                                                                )}
                                                                 {booking.booking_status === 'pending' && (
                                                                     <button
                                                                         onClick={() => setCancelPendingConfirm(booking)}
@@ -1843,7 +1875,7 @@ export default function BookingsPage() {
                                                                         取消
                                                                     </button>
                                                                 )}
-                                                                {booking.booking_status !== 'confirmed' && booking.booking_status !== 'pending' && (
+                                                                {booking.booking_status !== 'confirmed' && booking.booking_status !== 'pending' && booking.booking_status !== 'completed' && (
                                                                     <span className="text-sm text-gray-400">-</span>
                                                                 )}
                                                             </div>
@@ -2315,6 +2347,17 @@ export default function BookingsPage() {
                         originalTeacherId={substituteBooking.teacher_id}
                         onClose={() => setSubstituteBooking(null)}
                         onSuccess={() => { setSubstituteBooking(null); fetchBookings() }}
+                    />
+                )}
+
+                {/* 課後筆記 Modal */}
+                {lessonNoteBooking && (
+                    <LessonNoteModal
+                        bookingId={lessonNoteBooking.id}
+                        bookingNo={lessonNoteBooking.booking_no}
+                        viewerRole={isTeacher ? 'teacher' : isStudent ? 'student' : 'staff'}
+                        onClose={() => setLessonNoteBooking(null)}
+                        onSuccess={() => { fetchBookings() }}
                     />
                 )}
 

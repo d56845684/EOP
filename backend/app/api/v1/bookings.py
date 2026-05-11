@@ -25,6 +25,102 @@ router = APIRouter(prefix="/bookings", tags=["預約管理"])
 logger = logging.getLogger(__name__)
 
 
+async def apply_booking_completed_side_effects(
+    booking: dict,
+    booking_id: str,
+    current_user: "CurrentUser",
+) -> None:
+    """Booking 轉成 completed 後的副作用：Zoom 清理 + 試上獎金。
+
+    由 update_booking endpoint 與 lesson_notes 確認 endpoint 共用。
+    呼叫前 bookings.booking_status 必須已被更新為 completed。
+    """
+    # 預約完成 → 刪除 Zoom 會議（非同步、失敗不擋）
+    try:
+        from app.services.zoom_service import zoom_service
+        from app.config import settings as app_settings
+        if app_settings.zoom_enabled:
+            asyncio.create_task(
+                zoom_service.delete_meeting_for_booking(booking_id)
+            )
+    except Exception as e:
+        logger.error(f"啟動 Zoom 會議刪除任務失敗（不影響預約完成）: {e}")
+        await alert_service.create(
+            alert_type="zoom_delete_failed",
+            title=f"預約 completed 後刪除 Zoom 會議失敗",
+            message=str(e),
+            metadata={
+                "booking_id": str(booking_id),
+                "trigger": "booking_completed",
+            },
+        )
+
+    # 試上課完成：自動寫入「試上完成」獎金紀錄
+    if booking.get("booking_type") == "trial":
+        try:
+            teacher_id_val = booking.get("teacher_id")
+            tc_id = booking.get("teacher_contract_id")
+            bonus_amount = 0
+            if tc_id:
+                tc_rows = await supabase_service.table_select(
+                    table="teacher_contracts",
+                    select="trial_completed_bonus",
+                    filters={"id": tc_id, "is_deleted": "eq.false"},
+                )
+                if tc_rows:
+                    bonus_amount = float(tc_rows[0].get("trial_completed_bonus", 0) or 0)
+            else:
+                tc_rows = await supabase_service.table_select(
+                    table="teacher_contracts",
+                    select="trial_completed_bonus",
+                    filters={
+                        "teacher_id": teacher_id_val,
+                        "contract_status": "eq.active",
+                        "is_deleted": "eq.false",
+                    },
+                )
+                if tc_rows:
+                    bonus_amount = float(tc_rows[0].get("trial_completed_bonus", 0) or 0)
+
+            employee_id_val = await get_user_employee_id(current_user.user_id)
+            student_name = ""
+            student_rows = await supabase_service.table_select(
+                table="students", select="name",
+                filters={"id": booking.get("student_id")},
+            )
+            if student_rows:
+                student_name = student_rows[0].get("name", "")
+
+            bonus_data = {
+                "teacher_id": teacher_id_val,
+                "bonus_type": "trial_completed",
+                "amount": bonus_amount,
+                "bonus_date": date.today().isoformat(),
+                "description": f"學生 {student_name} 試上完成獎金",
+                "related_student_id": booking.get("student_id"),
+                "related_booking_id": booking_id,
+            }
+            if employee_id_val:
+                bonus_data["created_by"] = employee_id_val
+            await supabase_service.table_insert(
+                table="teacher_bonus_records", data=bonus_data,
+            )
+            logger.info(f"Booking {booking_id}: 試上完成獎金已記錄 (金額={bonus_amount})")
+        except Exception as trial_bonus_err:
+            logger.warning(f"Booking {booking_id}: 試上完成獎金記錄失敗: {trial_bonus_err}")
+            await alert_service.create(
+                alert_type="trial_bonus_record_failed",
+                title=f"試上完成獎金記錄失敗",
+                message=str(trial_bonus_err),
+                metadata={
+                    "booking_id": str(booking_id),
+                    "teacher_id": str(booking.get("teacher_id") or ""),
+                    "student_id": str(booking.get("student_id") or ""),
+                    "trigger": "booking_completed",
+                },
+            )
+
+
 async def _sync_calendar_create(booking: dict):
     """非阻塞：建立 Calendar 事件"""
     try:
@@ -1754,84 +1850,11 @@ async def update_booking(
                         zoom_service.cancel_meeting_for_booking(booking_id)
                     )
 
-        # 預約完成 → 刪除 Zoom 會議（非同步、失敗不擋）
+        # 預約完成 → 觸發共用副作用（Zoom 清理 + 試上獎金）
         if new_status == "completed" and old_status != "completed":
-            try:
-                from app.services.zoom_service import zoom_service
-                from app.config import settings as app_settings
-                if app_settings.zoom_enabled:
-                    asyncio.create_task(
-                        zoom_service.delete_meeting_for_booking(booking_id)
-                    )
-            except Exception as e:
-                logger.error(f"啟動 Zoom 會議刪除任務失敗（不影響預約完成）: {e}")
-                await alert_service.create(
-                    alert_type="zoom_delete_failed",
-                    title=f"預約 completed 後刪除 Zoom 會議失敗",
-                    message=str(e),
-                    metadata={
-                        "booking_id": str(booking_id),
-                        "trigger": "booking_completed",
-                    },
-                )
-
-        # 試上課完成：自動寫入「試上完成」獎金紀錄
-        if new_status == "completed" and old_status != "completed":
-            if existing[0].get("booking_type") == "trial":
-                try:
-                    teacher_id_val = existing[0].get("teacher_id")
-                    tc_id = existing[0].get("teacher_contract_id")
-                    # 從教師合約取得試上完成獎金金額
-                    bonus_amount = 0
-                    if tc_id:
-                        tc_rows = await supabase_service.table_select(
-                            table="teacher_contracts",
-                            select="trial_completed_bonus",
-                            filters={"id": tc_id, "is_deleted": "eq.false"},
-                        )
-                        if tc_rows:
-                            bonus_amount = float(tc_rows[0].get("trial_completed_bonus", 0) or 0)
-                    else:
-                        # 未指定合約時，找教師的 active 合約
-                        tc_rows = await supabase_service.table_select(
-                            table="teacher_contracts",
-                            select="trial_completed_bonus",
-                            filters={
-                                "teacher_id": teacher_id_val,
-                                "contract_status": "eq.active",
-                                "is_deleted": "eq.false",
-                            },
-                        )
-                        if tc_rows:
-                            bonus_amount = float(tc_rows[0].get("trial_completed_bonus", 0) or 0)
-
-                    employee_id_val = await get_user_employee_id(current_user.user_id)
-                    # 查學生名稱
-                    student_name = ""
-                    student_rows = await supabase_service.table_select(
-                        table="students", select="name",
-                        filters={"id": existing[0].get("student_id")},
-                    )
-                    if student_rows:
-                        student_name = student_rows[0].get("name", "")
-
-                    bonus_data = {
-                        "teacher_id": teacher_id_val,
-                        "bonus_type": "trial_completed",
-                        "amount": bonus_amount,
-                        "bonus_date": date.today().isoformat(),
-                        "description": f"學生 {student_name} 試上完成獎金",
-                        "related_student_id": existing[0].get("student_id"),
-                        "related_booking_id": booking_id,
-                    }
-                    if employee_id_val:
-                        bonus_data["created_by"] = employee_id_val
-                    await supabase_service.table_insert(
-                        table="teacher_bonus_records", data=bonus_data,
-                    )
-                    logging.getLogger(__name__).info(f"Booking {booking_id}: 試上完成獎金已記錄 (金額={bonus_amount})")
-                except Exception as trial_bonus_err:
-                    logging.getLogger(__name__).warning(f"Booking {booking_id}: 試上完成獎金記錄失敗: {trial_bonus_err}")
+            await apply_booking_completed_side_effects(
+                existing[0], booking_id, current_user
+            )
 
         # 如果狀態變更為取消，觸發取消副作用
         if new_status == "cancelled" and old_status != "cancelled":
