@@ -7,12 +7,14 @@ import { leaveRecordsApi, LeaveRecord } from '@/lib/api/leaveRecords'
 interface LeaveModalProps {
     bookingId: string
     bookingNo: string
+    isStaff?: boolean
     onClose: () => void
     onSuccess: () => void
 }
 
-export default function LeaveModal({ bookingId, bookingNo, onClose, onSuccess }: LeaveModalProps) {
+export default function LeaveModal({ bookingId, bookingNo, isStaff = false, onClose, onSuccess }: LeaveModalProps) {
     const [reason, setReason] = useState('')
+    const [initiatorType, setInitiatorType] = useState<'student' | 'teacher' | ''>('')
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [result, setResult] = useState<LeaveRecord | null>(null)
@@ -22,12 +24,17 @@ export default function LeaveModal({ bookingId, bookingNo, onClose, onSuccess }:
             setError('請填寫請假原因')
             return
         }
+        if (isStaff && !initiatorType) {
+            setError('請選擇代申請對象（幫學生 / 幫老師）')
+            return
+        }
         setSubmitting(true)
         setError(null)
 
         const { data, error: apiError } = await leaveRecordsApi.create({
             booking_id: bookingId,
             reason: reason.trim(),
+            ...(isStaff && initiatorType ? { initiator_type: initiatorType } : {}),
         })
 
         if (apiError) {
@@ -62,6 +69,40 @@ export default function LeaveModal({ bookingId, bookingNo, onClose, onSuccess }:
                                 <label className="block text-sm font-medium text-gray-700 mb-1">預約編號</label>
                                 <p className="text-sm text-gray-900 font-mono bg-gray-100 px-3 py-2 rounded">{bookingNo}</p>
                             </div>
+                            {isStaff && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        代申請對象 <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="flex gap-4">
+                                        <label className="inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="initiator_type"
+                                                value="student"
+                                                checked={initiatorType === 'student'}
+                                                onChange={() => setInitiatorType('student')}
+                                                className="mr-2"
+                                            />
+                                            <span className="text-sm text-gray-700">幫學生請假</span>
+                                        </label>
+                                        <label className="inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="initiator_type"
+                                                value="teacher"
+                                                checked={initiatorType === 'teacher'}
+                                                onChange={() => setInitiatorType('teacher')}
+                                                className="mr-2"
+                                            />
+                                            <span className="text-sm text-gray-700">幫老師請假</span>
+                                        </label>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        幫老師請假時，緊急請假不會消耗學生合約額度。
+                                    </p>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     請假原因 <span className="text-red-500">*</span>

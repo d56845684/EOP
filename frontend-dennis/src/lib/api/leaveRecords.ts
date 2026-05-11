@@ -40,7 +40,7 @@ export interface LeaveRecordListResponse {
 }
 
 export const leaveRecordsApi = {
-    create: (data: { booking_id: string; reason: string }) =>
+    create: (data: { booking_id: string; reason: string; initiator_type?: 'student' | 'teacher' }) =>
         apiPost<LeaveRecord>('/api/v1/leave-records', data, '建立請假申請失敗'),
 
     list: (params?: { page?: number; per_page?: number; leave_status?: LeaveStatus }) =>

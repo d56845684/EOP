@@ -2264,6 +2264,7 @@ export default function BookingsPage() {
                     <LeaveModal
                         bookingId={leaveBooking.id}
                         bookingNo={leaveBooking.booking_no}
+                        isStaff={isStaff}
                         onClose={() => setLeaveBooking(null)}
                         onSuccess={() => { setLeaveBooking(null); fetchBookings() }}
                     />
