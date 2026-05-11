@@ -1,9 +1,11 @@
 """
 課後筆記未上傳提醒服務
 
-- 課程結束（booking_date + end_time）+ 12h 後尚未上傳筆記 → LINE 推老師
-- 12-24h 之間每 3h 一次、最多 4 次（12 / 15 / 18 / 21h）
-- 超過 24h 還沒上傳 → LINE 推 admin 一次
+排程節奏由 settings 控制（預設值在 config.py，可由 env 覆寫）：
+- LESSON_NOTE_REMINDER_GRACE_HOURS（預設 12）：課程結束多久後開始推老師
+- LESSON_NOTE_REMINDER_INTERVAL_HOURS（預設 3）：老師推播間隔
+- LESSON_NOTE_REMINDER_TEACHER_MAX（預設 4）：老師最多推幾次
+- LESSON_NOTE_REMINDER_ADMIN_THRESHOLD_HOURS（預設 24）：admin 推播門檻
 
 通知狀態追蹤在 lesson_note_reminders 表。
 老師上傳筆記時 upload_lesson_note 會把 resolved_at 寫入，cron 自動跳過。
@@ -12,17 +14,11 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from app.config import settings
 from app.services.supabase_service import supabase_service
 from app.services.line_message_service import line_message_service
 
 logger = logging.getLogger(__name__)
-
-
-# 排程常數
-COURSE_END_GRACE_HOURS = 12
-TEACHER_NOTIFY_INTERVAL_HOURS = 3
-TEACHER_NOTIFY_MAX = 4
-ADMIN_NOTIFY_THRESHOLD_HOURS = 24
 
 
 class LessonNoteReminderService:
@@ -36,9 +32,14 @@ class LessonNoteReminderService:
         欄位比較。
         """
         try:
+            grace_hours = settings.LESSON_NOTE_REMINDER_GRACE_HOURS
+            interval_hours = settings.LESSON_NOTE_REMINDER_INTERVAL_HOURS
+            teacher_max = settings.LESSON_NOTE_REMINDER_TEACHER_MAX
+            admin_threshold_hours = settings.LESSON_NOTE_REMINDER_ADMIN_THRESHOLD_HOURS
+
             now_naive = datetime.now()                  # naive Taipei，用於 naive 欄位比較
             now_utc = datetime.now(timezone.utc)        # aware UTC，用於 TIMESTAMPTZ 比較
-            cutoff_12h_naive = now_naive - timedelta(hours=COURSE_END_GRACE_HOURS)
+            cutoff_naive = now_naive - timedelta(hours=grace_hours)
 
             sql = """
                 SELECT
@@ -62,7 +63,7 @@ class LessonNoteReminderService:
                   AND (b.booking_date + b.end_time) <= $2
                   AND (r.resolved_at IS NULL)
             """
-            rows = await supabase_service.pool.fetch(sql, now_naive, cutoff_12h_naive)
+            rows = await supabase_service.pool.fetch(sql, now_naive, cutoff_naive)
 
             teacher_notified = 0
             admin_notified = 0
@@ -72,18 +73,18 @@ class LessonNoteReminderService:
                 hours_since = float(d["hours_since_end"])
                 booking_id = str(d["booking_id"])
 
-                if 12 <= hours_since < 24:
+                if grace_hours <= hours_since < admin_threshold_hours:
                     count = d.get("teacher_notified_count") or 0
                     last = d.get("last_teacher_notified_at")
-                    if count < TEACHER_NOTIFY_MAX and (
+                    if count < teacher_max and (
                         last is None
-                        or (now_utc - last) >= timedelta(hours=TEACHER_NOTIFY_INTERVAL_HOURS)
+                        or (now_utc - last) >= timedelta(hours=interval_hours)
                     ):
                         await self._upsert_reminder_teacher(booking_id, count + 1, now_utc)
                         if await self._notify_teacher(d):
                             teacher_notified += 1
 
-                if hours_since >= 24 and d.get("admin_notified_at") is None:
+                if hours_since >= admin_threshold_hours and d.get("admin_notified_at") is None:
                     await self._upsert_reminder_admin(booking_id, now_utc)
                     if await self._notify_admins(d):
                         admin_notified += 1

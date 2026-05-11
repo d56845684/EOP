@@ -96,6 +96,16 @@ class Settings(BaseSettings):
     # Zoom 過期會議清理 sweep：N 天前已結束且未清理的會議會被刪除
     ZOOM_CLEANUP_GRACE_DAYS: int = 14
 
+    # 課後筆記未上傳通知排程（lesson_note_reminder_service）
+    # 課程結束（booking_date + end_time）+ N 小時後仍未上傳 → 開始推老師
+    LESSON_NOTE_REMINDER_GRACE_HOURS: int = 12
+    # 老師每幾小時推一次
+    LESSON_NOTE_REMINDER_INTERVAL_HOURS: int = 3
+    # 老師最多推幾次
+    LESSON_NOTE_REMINDER_TEACHER_MAX: int = 4
+    # 課程結束 + N 小時還沒上傳 → 推 admin 一次
+    LESSON_NOTE_REMINDER_ADMIN_THRESHOLD_HOURS: int = 24
+
     # Google Drive OAuth（個人 Gmail 上傳錄影用）
     GOOGLE_DRIVE_OAUTH_CLIENT_ID: str = ""
     GOOGLE_DRIVE_OAUTH_CLIENT_SECRET: str = ""
