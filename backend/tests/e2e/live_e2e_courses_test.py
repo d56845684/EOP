@@ -82,6 +82,8 @@ class CoursesEnrollmentTester:
             await self._test("修改課程（改名）", self._update_course)
             await self._test("驗證修改結果", self._verify_course_update)
             await self._test("重複建立同 code（應拒絕）", self._reject_duplicate)
+            await self._test("無效 duration（90）→ 422", self._reject_invalid_duration)
+            await self._test("有效 duration 30 → 200", self._create_30min_course)
 
             # Prereq: 建立學生
             print(f"\n  Prereq: 建立學生")
@@ -171,6 +173,28 @@ class CoursesEnrollmentTester:
         })
         if resp.status_code == 400: return True
         return f"expected 400, got {resp.status_code}"
+
+    async def _reject_invalid_duration(self):
+        resp = await self._post("/api/v1/courses", {
+            "course_code": f"{TEST_PREFIX}C90",
+            "course_name": f"{TEST_PREFIX}invalid duration",
+            "duration_minutes": 90,
+        })
+        if resp.status_code != 422:
+            return f"expected 422, got {resp.status_code}: {resp.text[:200]}"
+        return True
+
+    async def _create_30min_course(self):
+        resp = await self._post("/api/v1/courses", {
+            "course_code": f"{TEST_PREFIX}C30",
+            "course_name": f"{TEST_PREFIX}短堂",
+            "duration_minutes": 30,
+        })
+        if resp.status_code != 200:
+            return f"{resp.status_code} {resp.text[:200]}"
+        if resp.json()["data"].get("duration_minutes") != 30:
+            return f"duration={resp.json()['data'].get('duration_minutes')}"
+        return True
 
     # ── Student ──
 

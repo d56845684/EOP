@@ -171,6 +171,8 @@ export default function BookingsPage() {
     const [leaveBooking, setLeaveBooking] = useState<Booking | null>(null)
     const [substituteBooking, setSubstituteBooking] = useState<Booking | null>(null)
     const [cancelBooking, setCancelBooking] = useState<Booking | null>(null)
+    const [cancelPendingConfirm, setCancelPendingConfirm] = useState<Booking | null>(null)
+    const [cancelingPending, setCancelingPending] = useState(false)
     const [reviewLeaveRecord, setReviewLeaveRecord] = useState<LeaveRecord | null>(null)
 
     // Zoom meeting info
@@ -584,6 +586,19 @@ export default function BookingsPage() {
         if (error) {
             setError(error.message)
         } else {
+            fetchBookings()
+        }
+    }
+
+    const handleCancelPending = async () => {
+        if (!cancelPendingConfirm) return
+        setCancelingPending(true)
+        const { error } = await bookingsApi.cancelPending(cancelPendingConfirm.id)
+        setCancelingPending(false)
+        if (error) {
+            setError(error.message)
+        } else {
+            setCancelPendingConfirm(null)
             fetchBookings()
         }
     }
@@ -1703,6 +1718,16 @@ export default function BookingsPage() {
                                                                         </button>
                                                                     </>
                                                                 )}
+                                                                {booking.booking_status === 'pending' && (
+                                                                    <button
+                                                                        onClick={() => setCancelPendingConfirm(booking)}
+                                                                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded"
+                                                                        title="取消待確認預約"
+                                                                    >
+                                                                        <Ban className="w-3.5 h-3.5 mr-0.5" />
+                                                                        取消
+                                                                    </button>
+                                                                )}
                                                                 <button
                                                                     onClick={() => openEditModal(booking)}
                                                                     className="text-blue-600 hover:text-blue-900 p-1"
@@ -1734,14 +1759,24 @@ export default function BookingsPage() {
                                                                     </button>
                                                                 )}
                                                                 {booking.booking_status === 'pending' && (
-                                                                    <button
-                                                                        onClick={() => handleTeacherConfirm(booking)}
-                                                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
-                                                                        title="確認預約"
-                                                                    >
-                                                                        <CheckCircle className="w-4 h-4 mr-1" />
-                                                                        確認
-                                                                    </button>
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => handleTeacherConfirm(booking)}
+                                                                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
+                                                                            title="確認預約"
+                                                                        >
+                                                                            <CheckCircle className="w-4 h-4 mr-1" />
+                                                                            確認
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => setCancelPendingConfirm(booking)}
+                                                                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded"
+                                                                            title="取消待確認預約"
+                                                                        >
+                                                                            <Ban className="w-3.5 h-3.5 mr-0.5" />
+                                                                            取消
+                                                                        </button>
+                                                                    </>
                                                                 )}
                                                                 {booking.booking_status !== 'pending' && booking.booking_status !== 'confirmed' && (
                                                                     <span className="text-sm text-gray-400">-</span>
@@ -1751,18 +1786,31 @@ export default function BookingsPage() {
                                                     )}
                                                     {isStudent && (
                                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                            {booking.booking_status === 'confirmed' ? (
-                                                                <button
-                                                                    onClick={() => setLeaveBooking(booking)}
-                                                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 rounded"
-                                                                    title="請假"
-                                                                >
-                                                                    <UserMinus className="w-3.5 h-3.5 mr-0.5" />
-                                                                    請假
-                                                                </button>
-                                                            ) : (
-                                                                <span className="text-sm text-gray-400">-</span>
-                                                            )}
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                {booking.booking_status === 'confirmed' && (
+                                                                    <button
+                                                                        onClick={() => setLeaveBooking(booking)}
+                                                                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 rounded"
+                                                                        title="請假"
+                                                                    >
+                                                                        <UserMinus className="w-3.5 h-3.5 mr-0.5" />
+                                                                        請假
+                                                                    </button>
+                                                                )}
+                                                                {booking.booking_status === 'pending' && (
+                                                                    <button
+                                                                        onClick={() => setCancelPendingConfirm(booking)}
+                                                                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded"
+                                                                        title="取消待確認預約"
+                                                                    >
+                                                                        <Ban className="w-3.5 h-3.5 mr-0.5" />
+                                                                        取消
+                                                                    </button>
+                                                                )}
+                                                                {booking.booking_status !== 'confirmed' && booking.booking_status !== 'pending' && (
+                                                                    <span className="text-sm text-gray-400">-</span>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                     )}
                                                 </tr>
@@ -2216,6 +2264,7 @@ export default function BookingsPage() {
                     <LeaveModal
                         bookingId={leaveBooking.id}
                         bookingNo={leaveBooking.booking_no}
+                        isStaff={isStaff}
                         onClose={() => setLeaveBooking(null)}
                         onSuccess={() => { setLeaveBooking(null); fetchBookings() }}
                     />
@@ -2241,6 +2290,35 @@ export default function BookingsPage() {
                         onClose={() => setCancelBooking(null)}
                         onSuccess={() => { setCancelBooking(null); fetchBookings() }}
                     />
+                )}
+
+                {/* 取消待確認預約 confirm */}
+                {cancelPendingConfirm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">取消待確認預約</h3>
+                            <p className="text-sm text-gray-600 mb-2">預約編號：<span className="font-mono">{cancelPendingConfirm.booking_no}</span></p>
+                            <div className="bg-red-50 border border-red-200 rounded-md p-3 my-3">
+                                <p className="text-sm text-red-700">將取消這筆待確認預約，堂數會退回、時段會釋放，此操作無法復原。</p>
+                            </div>
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    onClick={() => setCancelPendingConfirm(null)}
+                                    disabled={cancelingPending}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md disabled:opacity-50"
+                                >
+                                    返回
+                                </button>
+                                <button
+                                    onClick={handleCancelPending}
+                                    disabled={cancelingPending}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
+                                >
+                                    {cancelingPending ? '取消中...' : '確認取消'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
 
                 {/* 請假審核 Modal */}

@@ -443,14 +443,14 @@ export default function CoursesPage() {
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
                                             課程時長（分鐘）
                                         </label>
-                                        <input
-                                            type="number"
+                                        <select
                                             value={formData.duration_minutes}
-                                            onChange={(e) => setFormData({ ...formData, duration_minutes: parseInt(e.target.value) || 60 })}
+                                            onChange={(e) => setFormData({ ...formData, duration_minutes: parseInt(e.target.value) })}
                                             className="input-field"
-                                            min={15}
-                                            max={480}
-                                        />
+                                        >
+                                            <option value={30}>30 分鐘</option>
+                                            <option value={60}>60 分鐘</option>
+                                        </select>
                                     </div>
 
                                     <div className="flex items-center">

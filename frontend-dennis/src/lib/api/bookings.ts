@@ -224,6 +224,9 @@ export const bookingsApi = {
     delete: (bookingId: string) =>
         apiDelete(`/api/v1/bookings/${bookingId}`, '刪除預約失敗'),
 
+    cancelPending: (bookingId: string) =>
+        apiPost(`/api/v1/bookings/${bookingId}/cancel-pending`, undefined, '取消待確認預約失敗'),
+
     // 批次操作 API
     createBatch: (data: BatchCreateData) =>
         apiAction('POST', '/api/v1/bookings/batch', data, '批次建立預約失敗'),

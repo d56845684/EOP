@@ -182,6 +182,21 @@ class BookingListResponse(BaseModel):
     total_pages: int = 0
 
 
+class BookingCancelPendingResponse(BaseModel):
+    """取消待確認預約的回應（POST /bookings/{id}/cancel-pending）"""
+    success: bool = True
+    message: str = "預約已取消"
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "success": True,
+                "message": "預約已取消",
+            }]
+        }
+    }
+
+
 class BookingBatchUpdateByIds(BaseModel):
     """根據 ID 批次更新預約狀態"""
     booking_ids: List[str] = Field(..., description="預約 ID 列表")

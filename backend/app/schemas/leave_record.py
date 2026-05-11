@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime, date, time
 from enum import Enum
 
@@ -19,12 +19,17 @@ class LeaveInitiatorType(str, Enum):
 class LeaveRecordCreate(BaseModel):
     booking_id: str = Field(..., description="預約 ID")
     reason: str = Field(..., min_length=1, description="請假原因")
+    initiator_type: Optional[Literal["student", "teacher"]] = Field(
+        None,
+        description="代申請對象（僅員工呼叫時必填，學生 / 老師呼叫時自動由角色推斷，忽略此欄位）",
+    )
 
     model_config = {
         "json_schema_extra": {
             "examples": [{
                 "booking_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                 "reason": "身體不適，需要請假一次",
+                "initiator_type": "student",
             }]
         }
     }
