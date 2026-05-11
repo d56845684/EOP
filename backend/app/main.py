@@ -174,12 +174,30 @@ async def lifespan(app: FastAPI):
             f"Zoom 過期會議清理排程已啟動（每 24 小時，grace={settings.ZOOM_CLEANUP_GRACE_DAYS} 天）"
         )
 
+    # 啟動課後筆記未上傳提醒排程（每 60 分鐘）
+    async def lesson_note_reminder_loop():
+        from app.services.lesson_note_reminder_service import lesson_note_reminder_service
+        while True:
+            try:
+                await lesson_note_reminder_service.scan_and_notify()
+            except Exception as e:
+                logger.error(f"課後筆記提醒排程錯誤: {e}")
+            await asyncio.sleep(3600)  # 每 60 分鐘檢查一次
+
+    lesson_note_reminder_task = asyncio.create_task(lesson_note_reminder_loop())
+    logger.info("課後筆記未上傳提醒排程已啟動（每 60 分鐘）")
+
     yield
 
     # 關閉時
     notification_task.cancel()
     try:
         await notification_task
+    except asyncio.CancelledError:
+        pass
+    lesson_note_reminder_task.cancel()
+    try:
+        await lesson_note_reminder_task
     except asyncio.CancelledError:
         pass
     if zoom_cleanup_task:

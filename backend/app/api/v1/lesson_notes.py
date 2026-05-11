@@ -153,6 +153,19 @@ async def upload_lesson_note(
         },
     )
 
+    # 若已有未上傳提醒紀錄 → 標記為 resolved，讓 cron 跳過
+    try:
+        await supabase_service.pool.execute(
+            """
+            UPDATE lesson_note_reminders
+               SET resolved_at = NOW()
+             WHERE booking_id = $1 AND resolved_at IS NULL
+            """,
+            booking_id,
+        )
+    except Exception as e:
+        logger.warning(f"標記 lesson_note_reminders.resolved_at 失敗: {e}")
+
     # 非同步推 LINE 給學生
     asyncio.create_task(_notify_student_note_uploaded(booking, data.google_doc_url))
 
