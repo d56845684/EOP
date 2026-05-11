@@ -1,13 +1,16 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime
+
+# 業務上課程只有 30 分鐘 / 60 分鐘兩種；其他值 schema + DB CHECK 雙重擋掉
+CourseDuration = Literal[30, 60]
 
 
 class CourseBase(BaseModel):
     course_code: str = Field(..., min_length=1, max_length=50, description="課程代碼")
     course_name: str = Field(..., min_length=1, max_length=200, description="課程名稱")
     description: Optional[str] = Field(None, description="課程描述")
-    duration_minutes: int = Field(60, ge=15, le=480, description="課程時長（分鐘）")
+    duration_minutes: CourseDuration = Field(60, description="課程時長（分鐘，只允許 30 或 60）")
     is_active: bool = Field(True, description="是否啟用")
 
 
@@ -31,14 +34,14 @@ class CourseUpdate(BaseModel):
     course_code: Optional[str] = Field(None, min_length=1, max_length=50)
     course_name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
-    duration_minutes: Optional[int] = Field(None, ge=15, le=480)
+    duration_minutes: Optional[CourseDuration] = Field(None, description="課程時長（分鐘，只允許 30 或 60）")
     is_active: Optional[bool] = None
 
     model_config = {
         "json_schema_extra": {
             "examples": [{
                 "course_name": "英語日常會話（進階）",
-                "duration_minutes": 90,
+                "duration_minutes": 30,
             }]
         }
     }
