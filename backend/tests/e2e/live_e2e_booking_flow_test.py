@@ -892,9 +892,11 @@ class E2EBookingFlowTester:
     # ────────────────── Phase 5: 請假 ──────────────────
 
     async def _test_create_leave_request(self, ctx: E2EContext):
+        # employee 代申請須指定 initiator_type（後端 commit 07a222b 起強制要求）
         resp = await self._post("/api/v1/leave-records", {
             "booking_id": ctx.booking_id,
             "reason": f"{TEST_PREFIX}E2E 測試請假",
+            "initiator_type": "student",
         })
         if resp.status_code != 200:
             return f"Create leave failed: {resp.status_code} {resp.text[:200]}"
