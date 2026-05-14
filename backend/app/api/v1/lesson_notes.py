@@ -9,6 +9,8 @@ from app.services.supabase_service import supabase_service
 from app.services.line_message_service import line_message_service
 from app.config import ChannelType
 from app.core.dependencies import get_current_user, CurrentUser
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import AppException, bad_request, forbidden, not_found, conflict
 from app.schemas.lesson_note import LessonNoteUploadRequest, LessonNoteResponse
 from app.schemas.response import DataResponse
 from app.api.v1.bookings import apply_booking_completed_side_effects
@@ -24,7 +26,7 @@ async def _fetch_booking(booking_id: str) -> dict:
         filters={"id": booking_id, "is_deleted": "eq.false"},
     )
     if not rows:
-        raise HTTPException(status_code=404, detail="預約不存在")
+        raise not_found("預約", ErrorCode.BOOKING_NOT_FOUND)
     return rows[0]
 
 
@@ -128,18 +130,15 @@ async def upload_lesson_note(
 
     # 權限：只有該 booking 的老師
     if not current_user.teacher_id or current_user.teacher_id != booking["teacher_id"]:
-        raise HTTPException(status_code=403, detail="只有該預約的老師可以上傳課後筆記")
+        raise forbidden("只有該預約的老師可以上傳課後筆記", ErrorCode.BOOKING_NOTE_FORBIDDEN_UPLOAD)
 
     # booking 必須是 confirmed
     if booking["booking_status"] != "confirmed":
-        raise HTTPException(
-            status_code=400,
-            detail=f"預約狀態為 {booking['booking_status']}，無法上傳筆記（須為 confirmed）",
-        )
+        raise bad_request(f"預約狀態為 {booking['booking_status']}，無法上傳筆記（須為 confirmed）", ErrorCode.BOOKING_NOTE_INVALID_STATUS_UPLOAD)
 
     # 不允許重複上傳（MVP）
     if await _fetch_lesson_note(booking_id):
-        raise HTTPException(status_code=409, detail="此預約已上傳過筆記")
+        raise conflict("此預約已上傳過筆記", ErrorCode.BOOKING_NOTE_ALREADY_UPLOADED)
 
     new_id = str(uuid.uuid4())
     await supabase_service.table_insert(
@@ -183,13 +182,13 @@ async def update_lesson_note(
     booking = await _fetch_booking(booking_id)
 
     if not current_user.teacher_id or current_user.teacher_id != booking["teacher_id"]:
-        raise HTTPException(status_code=403, detail="只有該預約的老師可以修改筆記")
+        raise forbidden("只有該預約的老師可以修改筆記", ErrorCode.BOOKING_NOTE_FORBIDDEN_UPDATE)
 
     note = await _fetch_lesson_note(booking_id)
     if not note:
-        raise HTTPException(status_code=404, detail="尚未上傳課後筆記，無法修改")
+        raise AppException(404, "尚未上傳課後筆記，無法修改", ErrorCode.BOOKING_NOTE_NOT_UPLOADED_FOR_UPDATE)
     if note["status"] == "confirmed":
-        raise HTTPException(status_code=409, detail="筆記已被確認，無法修改")
+        raise conflict("筆記已被確認，無法修改", ErrorCode.BOOKING_NOTE_CONFIRMED_NOT_EDITABLE)
 
     await supabase_service.table_update(
         table="lesson_notes",
@@ -215,7 +214,7 @@ async def get_lesson_note(
         current_user.is_staff()
     )
     if not is_authorized:
-        raise HTTPException(status_code=403, detail="無權限查看此筆記")
+        raise forbidden("無權限查看此筆記", ErrorCode.BOOKING_NOTE_FORBIDDEN_VIEW)
 
     note = await _fetch_lesson_note(booking_id)
     return DataResponse(data=_to_response(note) if note else None)
@@ -234,21 +233,18 @@ async def confirm_lesson_note(
     )
     is_employee = current_user.is_staff()
     if not (is_student_of_booking or is_employee):
-        raise HTTPException(status_code=403, detail="只有該預約的學生或員工可以確認")
+        raise forbidden("只有該預約的學生或員工可以確認", ErrorCode.BOOKING_NOTE_FORBIDDEN_CONFIRM)
 
     # 只允許從 confirmed / completed 兩種狀態確認筆記
     # cancelled / pending 都不該被「確認筆記」這個動作復活或跳過正常流程
     if booking["booking_status"] not in ("confirmed", "completed"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"預約狀態為 {booking['booking_status']}，無法確認筆記",
-        )
+        raise bad_request(f"預約狀態為 {booking['booking_status']}，無法確認筆記", ErrorCode.BOOKING_NOTE_INVALID_STATUS_CONFIRM)
 
     note = await _fetch_lesson_note(booking_id)
     if not note:
-        raise HTTPException(status_code=404, detail="尚未上傳課後筆記")
+        raise AppException(404, "尚未上傳課後筆記", ErrorCode.BOOKING_NOTE_NOT_UPLOADED)
     if note["status"] == "confirmed":
-        raise HTTPException(status_code=409, detail="筆記已被確認過")
+        raise conflict("筆記已被確認過", ErrorCode.BOOKING_NOTE_ALREADY_CONFIRMED)
 
     confirmed_by_role = "student" if is_student_of_booking else "employee"
 

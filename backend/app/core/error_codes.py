@@ -162,6 +162,53 @@ class ErrorCode(IntEnum):
     BOOKING_LEAVE_APPROVE_FAILED = 500115             # 核准請假失敗
     BOOKING_LEAVE_REJECT_FAILED = 500116              # 駁回請假失敗
 
+    # --- 400 Lesson note validation (lesson_notes.py) ---
+    BOOKING_NOTE_INVALID_STATUS_UPLOAD = 400141       # 預約狀態 X 無法上傳筆記
+    BOOKING_NOTE_INVALID_STATUS_CONFIRM = 400142      # 預約狀態 X 無法確認筆記
+
+    # --- 403 Lesson note forbidden ---
+    BOOKING_NOTE_FORBIDDEN_CONFIRM = 403117           # 只有該預約的學生或員工可以確認
+    BOOKING_NOTE_FORBIDDEN_UPLOAD = 403118            # 只有該預約的老師可以上傳
+    BOOKING_NOTE_FORBIDDEN_UPDATE = 403119            # 只有該預約的老師可以修改
+    BOOKING_NOTE_FORBIDDEN_VIEW = 403120              # 無權限查看此筆記
+
+    # --- 404 Lesson note not found ---
+    BOOKING_NOTE_NOT_UPLOADED = 404104                # 尚未上傳課後筆記
+    BOOKING_NOTE_NOT_UPLOADED_FOR_UPDATE = 404105     # 尚未上傳課後筆記，無法修改
+
+    # --- 409 Lesson note conflict ---
+    BOOKING_NOTE_ALREADY_UPLOADED = 409103            # 此預約已上傳過筆記
+    BOOKING_NOTE_ALREADY_CONFIRMED = 409104           # 筆記已被確認過
+    BOOKING_NOTE_CONFIRMED_NOT_EDITABLE = 409105      # 筆記已被確認，無法修改
+
+    # --- 400 Substitute validation (substitute_details.py) ---
+    BOOKING_SUB_TEACHER_SELF_NOT_ALLOWED = 400143     # 不能指派原教師自己為代課
+    BOOKING_SUB_TEACHER_NOT_FOUND = 400144            # 代課教師不存在或未啟用
+    BOOKING_SUB_TEACHER_CONTRACT_INVALID = 400145     # 代課教師合約不存在或非有效狀態
+    BOOKING_SUB_TEACHER_CONTRACT_NO_COURSE = 400146   # 代課教師合約未包含此課程
+    BOOKING_SUB_TEACHER_NO_SLOT = 400147              # 代課教師沒有可用的預約時段
+    BOOKING_SUB_BOOKING_NOT_CONFIRMED = 400148        # 只有已確認的預約可以指派代課
+    BOOKING_SUB_ALREADY_ASSIGNED = 400149             # 此預約已有代課紀錄
+
+    # --- 403 Substitute forbidden ---
+    BOOKING_SUB_FORBIDDEN_CANCEL = 403121             # 僅限員工取消代課
+    BOOKING_SUB_FORBIDDEN_ASSIGN = 403122             # 僅限員工指派代課
+    BOOKING_SUB_FORBIDDEN_VIEW = 403123               # 僅限教師查看
+
+    # --- 404 Substitute not found ---
+    BOOKING_SUB_NOT_FOUND = 404106                    # 代課紀錄不存在
+
+    # --- 409 Substitute conflict ---
+    BOOKING_SUB_TIME_CONFLICT_OTHER_SUB = 409106      # 代課教師已有代課安排
+    BOOKING_SUB_TIME_CONFLICT_OWN_BOOKING = 409107    # 代課教師已有預約
+
+    # --- 500 Substitute internal ---
+    BOOKING_SUB_LIST_FAILED = 500117                  # 取得代課紀錄失敗
+    BOOKING_SUB_MY_LIST_FAILED = 500118               # 取得我的代課紀錄失敗
+    BOOKING_SUB_CANCEL_FAILED = 500119                # 取消代課失敗
+    BOOKING_SUB_CREATE_FAILED = 500120                # 建立代課紀錄失敗
+    BOOKING_SUB_ASSIGN_FAILED = 500121                # 指派代課失敗
+
 
 def infer_error_code(status_code: int, detail: str) -> ErrorCode:
     """從 HTTP status code 和中文錯誤訊息自動推斷 error_code。
