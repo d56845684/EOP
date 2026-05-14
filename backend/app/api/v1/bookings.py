@@ -19,6 +19,11 @@ import uuid
 
 from app.services.google_service import google_calendar_service
 from app.services.alert_service import alert_service
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import (
+    bad_request, forbidden, not_found, conflict,
+    internal_error, bad_gateway,
+)
 
 router = APIRouter(prefix="/bookings", tags=["預約管理"])
 
@@ -950,7 +955,7 @@ async def list_bookings(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得預約列表失敗: {str(e)}")
+        raise internal_error(f"取得預約列表失敗: {str(e)}", ErrorCode.BOOKING_LIST_FAILED)
 
 
 @router.get("/slot-availability/{teacher_slot_id}", response_model=DataResponse[SlotAvailabilityResponse])
@@ -968,7 +973,7 @@ async def get_slot_availability(
         )
 
         if not slot:
-            raise HTTPException(status_code=404, detail="教師時段不存在")
+            raise not_found("教師時段", ErrorCode.BOOKING_SLOT_NOT_FOUND_404)
 
         slot_data = slot[0]
         slot_start = slot_data.get("start_time", "")
@@ -1031,7 +1036,7 @@ async def get_slot_availability(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得時段可用狀態失敗: {str(e)}")
+        raise internal_error(f"取得時段可用狀態失敗: {str(e)}", ErrorCode.BOOKING_SLOT_AVAILABILITY_FAILED)
 
 
 @router.get("/my-student-info", tags=["預約管理"], response_model=DataResponse[Optional[StudentOption]])
@@ -1056,7 +1061,7 @@ async def get_my_student_info(
 
         return {"success": True, "message": "操作成功", "data": student[0]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.BOOKING_INTERNAL)
 
 
 @router.get("/my-contracts", tags=["預約管理"], response_model=DataResponse[List[ContractOption]])
@@ -1113,7 +1118,7 @@ async def get_my_contracts(
 
         return {"success": True, "message": "操作成功", "data": enriched}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.BOOKING_INTERNAL)
 
 
 @router.get("/{booking_id}", response_model=DataResponse[BookingResponse])
@@ -1130,12 +1135,12 @@ async def get_booking(
         )
 
         if not result:
-            raise HTTPException(status_code=404, detail="預約不存在")
+            raise not_found("預約", ErrorCode.BOOKING_NOT_FOUND)
 
         # Ownership check: 學生/教師只能查自己的預約（含代課教師）
         if current_user.is_student():
             if result[0].get("student_id") != current_user.student_id:
-                raise HTTPException(status_code=403, detail="無權查看此預約")
+                raise forbidden("無權查看此預約", ErrorCode.BOOKING_FORBIDDEN_NO_VIEW)
         elif current_user.is_teacher():
             is_original = result[0].get("teacher_id") == current_user.teacher_id
             is_substitute = False
@@ -1146,7 +1151,7 @@ async def get_booking(
                 )
                 is_substitute = bool(sd and sd[0].get("substitute_teacher_id") == current_user.teacher_id)
             if not (is_original or is_substitute):
-                raise HTTPException(status_code=403, detail="無權查看此預約")
+                raise forbidden("無權查看此預約", ErrorCode.BOOKING_FORBIDDEN_NO_VIEW)
 
         booking = await enrich_booking_with_relations(result[0])
         return DataResponse(data=BookingResponse(**booking))
@@ -1154,7 +1159,7 @@ async def get_booking(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得預約失敗: {str(e)}")
+        raise internal_error(f"取得預約失敗: {str(e)}", ErrorCode.BOOKING_GET_FAILED)
 
 
 @router.post("", response_model=DataResponse[BookingResponse])
@@ -1168,12 +1173,12 @@ async def create_booking(
         if current_user.is_student():
             # 學生只能為自己預約
             if not current_user.student_id:
-                raise HTTPException(status_code=403, detail="無法取得學生資料")
+                raise forbidden("無法取得學生資料", ErrorCode.BOOKING_FORBIDDEN_NO_STUDENT_INFO)
             if data.student_id != current_user.student_id:
-                raise HTTPException(status_code=403, detail="學生只能為自己預約")
+                raise forbidden("學生只能為自己預約", ErrorCode.BOOKING_FORBIDDEN_STUDENT_NOT_OWN)
         elif not current_user.is_staff():
             # 教師和其他角色不能建立預約
-            raise HTTPException(status_code=403, detail="無權建立預約")
+            raise forbidden("無權建立預約", ErrorCode.BOOKING_FORBIDDEN_NO_CREATE)
 
         # 驗證學生存在且未停用
         student = await supabase_service.table_select(
@@ -1182,7 +1187,7 @@ async def create_booking(
             filters={"id": data.student_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not student:
-            raise HTTPException(status_code=400, detail="學生不存在或已停用")
+            raise bad_request("學生不存在或已停用", ErrorCode.BOOKING_STUDENT_NOT_FOUND_OR_DISABLED)
 
         is_trial = student[0].get("student_type") == "trial"
 
@@ -1193,7 +1198,7 @@ async def create_booking(
             filters={"id": data.teacher_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在或已停用")
+            raise bad_request("教師不存在或已停用", ErrorCode.BOOKING_TEACHER_NOT_FOUND_OR_DISABLED)
 
         # 驗證課程存在且未停用（跟 student_teacher_preferences / teacher_contracts options 對齊，補 enforcement gap）
         course = await supabase_service.table_select(
@@ -1206,7 +1211,7 @@ async def create_booking(
             },
         )
         if not course:
-            raise HTTPException(status_code=400, detail="課程不存在或已停用")
+            raise bad_request("課程不存在或已停用", ErrorCode.BOOKING_COURSE_NOT_FOUND_OR_DISABLED)
 
         # 驗證預約時長是課程時長的倍數
         course_duration = course[0].get("duration_minutes", 60)
@@ -1214,10 +1219,7 @@ async def create_booking(
         end_minutes = data.end_time.hour * 60 + data.end_time.minute
         booking_minutes = end_minutes - start_minutes
         if booking_minutes % course_duration != 0:
-            raise HTTPException(
-                status_code=400,
-                detail=f"預約時長 ({booking_minutes}分鐘) 必須是課程時長 ({course_duration}分鐘) 的倍數"
-            )
+            raise bad_request(f"預約時長 ({booking_minutes}分鐘) 必須是課程時長 ({course_duration}分鐘) 的倍數", ErrorCode.BOOKING_DURATION_NOT_COURSE_MULTIPLE)
         lessons_used = calculate_lessons_used(data.start_time, data.end_time, course_duration)
 
         # 驗證課程交集合法性：學生選課 ∩ 教師可教課程
@@ -1233,7 +1235,7 @@ async def create_booking(
                 },
             )
             if not sc_check:
-                raise HTTPException(status_code=400, detail="學生未選修此課程")
+                raise bad_request("學生未選修此課程", ErrorCode.BOOKING_STUDENT_COURSE_NOT_ENROLLED)
 
         # (b) 所有情況：驗證老師有此課程的 course_rate
         teacher_active_contracts = await supabase_service.table_select(
@@ -1261,15 +1263,12 @@ async def create_booking(
                 has_course_rate = True
                 break
         if not has_course_rate:
-            raise HTTPException(status_code=400, detail="教師無此課程的授課資格")
+            raise bad_request("教師無此課程的授課資格", ErrorCode.BOOKING_TEACHER_NOT_QUALIFIED)
 
         # 驗證教師是否在學生偏好的可預約教師白名單內
         allowed_set, _ = await preference_service.get_student_allowed_teachers(data.student_id)
         if data.teacher_id not in allowed_set:
-            raise HTTPException(
-                status_code=400,
-                detail="此教師不在學生的偏好可預約教師範圍內，請先設定教師偏好"
-            )
+            raise bad_request("此教師不在學生的偏好可預約教師範圍內，請先設定教師偏好", ErrorCode.BOOKING_TEACHER_NOT_IN_STUDENT_PREFERENCES)
 
         # 驗證學生合約存在且有效（試上學生可不提供合約）
         student_contract = None
@@ -1280,11 +1279,11 @@ async def create_booking(
                 filters={"id": data.student_contract_id, "is_deleted": "eq.false"},
             )
             if not student_contract:
-                raise HTTPException(status_code=400, detail="學生合約不存在")
+                raise bad_request("學生合約不存在", ErrorCode.BOOKING_STUDENT_CONTRACT_NOT_FOUND)
             if student_contract[0].get("remaining_lessons", 0) < lessons_used:
-                raise HTTPException(status_code=400, detail=f"學生合約剩餘堂數不足（需要 {lessons_used} 堂）")
+                raise bad_request(f"學生合約剩餘堂數不足（需要 {lessons_used} 堂）", ErrorCode.BOOKING_STUDENT_CONTRACT_LESSONS_INSUFFICIENT)
         elif not is_trial:
-            raise HTTPException(status_code=400, detail="正式學生必須提供學生合約")
+            raise bad_request("正式學生必須提供學生合約", ErrorCode.BOOKING_FORMAL_STUDENT_REQUIRES_CONTRACT)
 
         # 驗證教師合約存在且取得時薪（如果有提供）
         teacher_contract_id = data.teacher_contract_id
@@ -1298,7 +1297,7 @@ async def create_booking(
                 filters={"id": teacher_contract_id, "is_deleted": "eq.false"},
             )
             if not teacher_contract:
-                raise HTTPException(status_code=400, detail="教師合約不存在")
+                raise bad_request("教師合約不存在", ErrorCode.BOOKING_TEACHER_CONTRACT_NOT_FOUND)
 
             # 取得教師時薪（從 teacher_contract_details）
             teacher_rate = await supabase_service.table_select(
@@ -1327,9 +1326,9 @@ async def create_booking(
                 filters={"id": teacher_slot_id, "is_deleted": "eq.false"},
             )
             if not teacher_slot:
-                raise HTTPException(status_code=400, detail="教師時段不存在")
+                raise bad_request("教師時段不存在", ErrorCode.BOOKING_TEACHER_SLOT_NOT_FOUND)
             if not teacher_slot[0].get("is_available"):
-                raise HTTPException(status_code=400, detail="教師時段不可用")
+                raise bad_request("教師時段不可用", ErrorCode.BOOKING_TEACHER_SLOT_UNAVAILABLE)
 
             # 驗證預約時間落在時段區間內
             slot_date = teacher_slot[0].get("slot_date", "")
@@ -1337,20 +1336,14 @@ async def create_booking(
             slot_end = teacher_slot[0].get("end_time", "")[:5]
 
             if slot_date != data.booking_date.isoformat():
-                raise HTTPException(status_code=400, detail="預約日期與時段日期不符")
+                raise bad_request("預約日期與時段日期不符", ErrorCode.BOOKING_DATE_SLOT_MISMATCH)
             if booking_start < slot_start or booking_end > slot_end:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"預約時間 ({booking_start}-{booking_end}) 超出時段範圍 ({slot_start}-{slot_end})"
-                )
+                raise bad_request(f"預約時間 ({booking_start}-{booking_end}) 超出時段範圍 ({slot_start}-{slot_end})", ErrorCode.BOOKING_TIME_OUT_OF_SLOT_RANGE)
 
             # 檢查時間重疊
             overlapping = await check_booking_overlap(teacher_slot_id, booking_start, booking_end)
             if overlapping:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"預約時間 ({booking_start}-{booking_end}) 與現有預約衝突"
-                )
+                raise conflict(f"預約時間 ({booking_start}-{booking_end}) 與現有預約衝突", ErrorCode.BOOKING_TIME_CONFLICT)
 
             # 使用時段的教師合約（如果沒有指定）
             if not teacher_contract_id and teacher_slot[0].get("teacher_contract_id"):
@@ -1384,10 +1377,7 @@ async def create_booking(
                         break
 
             if not matching_slot:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"找不到包含預約時間 ({booking_start}-{booking_end}) 的可用時段，或時段內該時間已被預約"
-                )
+                raise bad_request(f"找不到包含預約時間 ({booking_start}-{booking_end}) 的可用時段，或時段內該時間已被預約", ErrorCode.BOOKING_TIME_OUT_OF_SLOT_RANGE)
 
             teacher_slot_id = matching_slot["id"]
 
@@ -1398,10 +1388,7 @@ async def create_booking(
         # bookings.teacher_contract_id 是 NOT NULL；舊資料殘留可能有 slot
         # 沒綁合約，遇到時直接擋並提示重建時段。
         if not teacher_contract_id:
-            raise HTTPException(
-                status_code=400,
-                detail="此時段無有效教師有效合約，請重新建立時段",
-            )
+            raise bad_request("此時段無有效教師有效合約，請重新建立時段", ErrorCode.BOOKING_SLOT_NO_VALID_CONTRACT)
 
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -1424,7 +1411,7 @@ async def create_booking(
                     uuid.UUID(teacher_slot_id)
                 )
                 if not slot_lock:
-                    raise HTTPException(status_code=400, detail="教師時段不存在")
+                    raise bad_request("教師時段不存在", ErrorCode.BOOKING_TEACHER_SLOT_NOT_FOUND)
 
                 # 在交易內重新檢查時間衝突（確保無 race condition）
                 overlap_rows = await conn.fetch(
@@ -1439,10 +1426,7 @@ async def create_booking(
                     data.end_time
                 )
                 if overlap_rows:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=f"預約時間 ({booking_start}-{booking_end}) 與現有預約衝突"
-                    )
+                    raise conflict(f"預約時間 ({booking_start}-{booking_end}) 與現有預約衝突", ErrorCode.BOOKING_TIME_CONFLICT)
 
                 # 在交易內生成預約編號（防止序號衝突）
                 today = datetime.utcnow().strftime("%Y%m%d")
@@ -1494,7 +1478,7 @@ async def create_booking(
                 )
 
                 if not result_row:
-                    raise HTTPException(status_code=500, detail="建立預約失敗")
+                    raise internal_error("建立預約失敗", ErrorCode.BOOKING_CREATE_FAILED)
 
                 # 扣除學生合約剩餘堂數
                 if student_contract and data.student_contract_id:
@@ -1549,7 +1533,7 @@ async def create_booking(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立預約失敗: {str(e)}")
+        raise internal_error(f"建立預約失敗: {str(e)}", ErrorCode.BOOKING_CREATE_FAILED)
 
 
 @router.put("/batch", response_model=BaseResponse)
@@ -1658,7 +1642,7 @@ async def batch_update_bookings(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次更新預約失敗: {str(e)}")
+        raise internal_error(f"批次更新預約失敗: {str(e)}", ErrorCode.BOOKING_BATCH_UPDATE_FAILED)
 
 
 @router.put("/{booking_id}", response_model=DataResponse[BookingResponse])
@@ -1677,35 +1661,35 @@ async def update_booking(
         )
 
         if not existing:
-            raise HTTPException(status_code=404, detail="預約不存在")
+            raise not_found("預約", ErrorCode.BOOKING_NOT_FOUND)
 
         old_status = existing[0].get("booking_status")
 
         # 教師權限：僅能將自己的預約狀態改為 confirmed
         if current_user.is_teacher():
             if existing[0].get("teacher_id") != current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="教師只能更新自己的預約")
+                raise forbidden("教師只能更新自己的預約", ErrorCode.BOOKING_FORBIDDEN_TEACHER_OWN_ONLY)
             if not data.booking_status or data.booking_status.value != "confirmed":
-                raise HTTPException(status_code=403, detail="教師僅可將預約狀態更新為已確認")
+                raise forbidden("教師僅可將預約狀態更新為已確認", ErrorCode.BOOKING_FORBIDDEN_TEACHER_CONFIRM_ONLY)
             if old_status != "pending":
-                raise HTTPException(status_code=400, detail="只有待確認的預約可以確認")
+                raise bad_request("只有待確認的預約可以確認", ErrorCode.BOOKING_ONLY_PENDING_CAN_CONFIRM)
         elif current_user.is_student():
-            raise HTTPException(status_code=403, detail="學生無權更新預約")
+            raise forbidden("學生無權更新預約", ErrorCode.BOOKING_FORBIDDEN_STUDENT_NO_UPDATE)
 
         # 非管理員：已完成的預約不可修改
         if old_status == "completed" and not current_user.is_admin():
-            raise HTTPException(status_code=400, detail="已完成的預約無法修改，僅管理員可變更")
+            raise bad_request("已完成的預約無法修改，僅管理員可變更", ErrorCode.BOOKING_COMPLETED_NOT_EDITABLE)
 
         # 已取消的預約不可修改（管理員除外）
         if old_status == "cancelled" and not current_user.is_admin():
-            raise HTTPException(status_code=400, detail="已取消的預約無法修改，僅管理員可變更")
+            raise bad_request("已取消的預約無法修改，僅管理員可變更", ErrorCode.BOOKING_CANCELLED_NOT_EDITABLE)
 
         # 處理 end_time 縮短預約
         end_time_delta = 0  # 要退回的堂數差額
         if data.end_time is not None:
             # 驗證 30 分鐘邊界
             if data.end_time.minute not in (0, 30) or data.end_time.second != 0:
-                raise HTTPException(status_code=400, detail="結束時間必須在 30 分鐘邊界上")
+                raise bad_request("結束時間必須在 30 分鐘邊界上", ErrorCode.BOOKING_END_TIME_NOT_30MIN_BOUNDARY)
 
             orig_start_str = existing[0].get("start_time", "")
             orig_end_str = existing[0].get("end_time", "")
@@ -1713,9 +1697,9 @@ async def update_booking(
             orig_end = time.fromisoformat(orig_end_str) if isinstance(orig_end_str, str) else orig_end_str
 
             if data.end_time <= orig_start:
-                raise HTTPException(status_code=400, detail="新結束時間必須晚於開始時間")
+                raise bad_request("新結束時間必須晚於開始時間", ErrorCode.BOOKING_END_TIME_BEFORE_START)
             if data.end_time > orig_end:
-                raise HTTPException(status_code=400, detail="只允許縮短預約（新結束時間不可晚於原結束時間）")
+                raise bad_request("只允許縮短預約（新結束時間不可晚於原結束時間）", ErrorCode.BOOKING_SHORTEN_ONLY)
 
             # 查詢課程時長
             course_result = await supabase_service.table_select(
@@ -1727,10 +1711,7 @@ async def update_booking(
 
             new_booking_minutes = (data.end_time.hour * 60 + data.end_time.minute) - (orig_start.hour * 60 + orig_start.minute)
             if new_booking_minutes % course_duration != 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"縮短後時長 ({new_booking_minutes}分鐘) 必須是課程時長 ({course_duration}分鐘) 的倍數"
-                )
+                raise bad_request(f"縮短後時長 ({new_booking_minutes}分鐘) 必須是課程時長 ({course_duration}分鐘) 的倍數", ErrorCode.BOOKING_SHORTENED_DURATION_NOT_MULTIPLE)
 
             old_lessons_used = existing[0].get("lessons_used", 1)
             new_lessons_used = calculate_lessons_used(orig_start, data.end_time, course_duration)
@@ -1749,7 +1730,7 @@ async def update_booking(
             update_data["lessons_used"] = new_lessons_used
 
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.BOOKING_NO_UPDATE_DATA)
 
         result = await supabase_service.table_update(
             table="bookings",
@@ -1758,7 +1739,7 @@ async def update_booking(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="更新預約失敗")
+            raise internal_error("更新預約失敗", ErrorCode.BOOKING_UPDATE_FAILED)
 
         # 縮短預約：退回差額堂數到合約
         if end_time_delta > 0 and existing[0].get("student_contract_id"):
@@ -1826,17 +1807,11 @@ async def update_booking(
                             logging.getLogger(__name__).error(
                                 f"確認預約 → Zoom 建立例外，已 rollback: booking_id={booking_id} err={zoom_err}"
                             )
-                            raise HTTPException(
-                                status_code=502,
-                                detail="Zoom 服務目前無法建立會議，請稍後再試。預約狀態保留為原狀態。",
-                            )
+                            raise bad_gateway("Zoom 服務目前無法建立會議，請稍後再試。預約狀態保留為原狀態。", ErrorCode.BOOKING_ZOOM_SERVICE_UNAVAILABLE)
                         logging.getLogger(__name__).warning(
                             f"確認預約 → Zoom 帳號池無可用帳號，已 rollback: booking_id={booking_id}"
                         )
-                        raise HTTPException(
-                            status_code=409,
-                            detail="該時段所有 Zoom 帳號皆被佔用，無法建立會議。請改選其他時段或先釋放衝突的時段，預約狀態保留為原狀態。",
-                        )
+                        raise conflict("該時段所有 Zoom 帳號皆被佔用，無法建立會議。請改選其他時段或先釋放衝突的時段，預約狀態保留為原狀態。", ErrorCode.BOOKING_ZOOM_POOL_EXHAUSTED)
 
                     # Zoom 建立成功 → 清除上次的 meeting_creation_error
                     await supabase_service.table_update(
@@ -1874,7 +1849,7 @@ async def update_booking(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新預約失敗: {str(e)}")
+        raise internal_error(f"更新預約失敗: {str(e)}", ErrorCode.BOOKING_UPDATE_FAILED)
 
 
 @router.delete("/batch", response_model=BaseResponse)
@@ -2006,7 +1981,7 @@ async def batch_delete_bookings(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次刪除預約失敗: {str(e)}")
+        raise internal_error(f"批次刪除預約失敗: {str(e)}", ErrorCode.BOOKING_DELETE_FAILED)
 
 
 @router.delete("/{booking_id}", response_model=BaseResponse)
@@ -2024,13 +1999,13 @@ async def delete_booking(
         )
 
         if not existing:
-            raise HTTPException(status_code=404, detail="預約不存在")
+            raise not_found("預約", ErrorCode.BOOKING_NOT_FOUND)
 
         old_status = existing[0].get("booking_status")
 
         # 只有待確認或已取消的預約才可刪除
         if old_status not in ("pending", "cancelled"):
-            raise HTTPException(status_code=400, detail="只有待確認或已取消狀態的預約才可刪除")
+            raise bad_request("只有待確認或已取消狀態的預約才可刪除", ErrorCode.BOOKING_ONLY_PENDING_OR_CANCELLED_CAN_DELETE)
 
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -2050,7 +2025,7 @@ async def delete_booking(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="刪除預約失敗")
+            raise internal_error("刪除預約失敗", ErrorCode.BOOKING_DELETE_FAILED)
 
         # 如果預約尚未取消或完成，恢復堂數
         if old_status not in ["cancelled", "completed"]:
@@ -2091,7 +2066,7 @@ async def delete_booking(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除預約失敗: {str(e)}")
+        raise internal_error(f"刪除預約失敗: {str(e)}", ErrorCode.BOOKING_DELETE_FAILED)
 
 
 @router.post(
@@ -2132,14 +2107,11 @@ async def cancel_pending_booking(
             filters={"id": booking_id, "is_deleted": "eq.false"},
         )
         if not booking:
-            raise HTTPException(status_code=404, detail="預約不存在")
+            raise not_found("預約", ErrorCode.BOOKING_NOT_FOUND)
         b = booking[0]
 
         if b.get("booking_status") != "pending":
-            raise HTTPException(
-                status_code=400,
-                detail="只有待確認的預約可以取消（已確認的請走請假流程）",
-            )
+            raise bad_request("只有待確認的預約可以取消（已確認的請走請假流程）", ErrorCode.BOOKING_ONLY_PENDING_CAN_CANCEL)
 
         # role-aware 授權：staff 全可；老師 / 學生只能取消自己參與的
         if not current_user.is_staff():
@@ -2150,7 +2122,7 @@ async def cancel_pending_booking(
                 or (current_user.is_student() and current_user.student_id == booking_student_id)
             )
             if not is_owner:
-                raise HTTPException(status_code=403, detail="只能取消自己的預約")
+                raise forbidden("只能取消自己的預約", ErrorCode.BOOKING_FORBIDDEN_NOT_OWN_CANCEL)
 
         await supabase_service.table_update(
             table="bookings",
@@ -2166,7 +2138,7 @@ async def cancel_pending_booking(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取消預約失敗: {str(e)}")
+        raise internal_error(f"取消預約失敗: {str(e)}", ErrorCode.BOOKING_CANCEL_FAILED)
 
 
 # ============================================
@@ -2184,11 +2156,11 @@ async def batch_create_bookings(
         if current_user.is_student():
             # 學生只能為自己預約
             if not current_user.student_id:
-                raise HTTPException(status_code=403, detail="無法取得學生資料")
+                raise forbidden("無法取得學生資料", ErrorCode.BOOKING_FORBIDDEN_NO_STUDENT_INFO)
             if data.student_id != current_user.student_id:
-                raise HTTPException(status_code=403, detail="學生只能為自己預約")
+                raise forbidden("學生只能為自己預約", ErrorCode.BOOKING_FORBIDDEN_STUDENT_NOT_OWN)
         elif not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="無權建立預約")
+            raise forbidden("無權建立預約", ErrorCode.BOOKING_FORBIDDEN_NO_CREATE)
 
         # 驗證學生存在且未停用
         student = await supabase_service.table_select(
@@ -2197,7 +2169,7 @@ async def batch_create_bookings(
             filters={"id": data.student_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not student:
-            raise HTTPException(status_code=400, detail="學生不存在或已停用")
+            raise bad_request("學生不存在或已停用", ErrorCode.BOOKING_STUDENT_NOT_FOUND_OR_DISABLED)
 
         is_trial = student[0].get("student_type") == "trial"
 
@@ -2208,12 +2180,12 @@ async def batch_create_bookings(
             filters={"id": data.teacher_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在或已停用")
+            raise bad_request("教師不存在或已停用", ErrorCode.BOOKING_TEACHER_NOT_FOUND_OR_DISABLED)
 
         # 課程 ID：優先使用前端傳入的 course_id
         course_id = data.course_id
         if not course_id:
-            raise HTTPException(status_code=400, detail="請提供課程 ID")
+            raise bad_request("請提供課程 ID", ErrorCode.BOOKING_COURSE_ID_REQUIRED)
 
         # 查詢課程取得 duration_minutes（is_active filter）
         batch_course = await supabase_service.table_select(
@@ -2226,7 +2198,7 @@ async def batch_create_bookings(
             },
         )
         if not batch_course:
-            raise HTTPException(status_code=400, detail="課程不存在或已停用")
+            raise bad_request("課程不存在或已停用", ErrorCode.BOOKING_COURSE_NOT_FOUND_OR_DISABLED)
         batch_course_duration = batch_course[0].get("duration_minutes", 60)
 
         # 驗證學生合約存在且有效（試上學生可不提供合約）
@@ -2240,11 +2212,11 @@ async def batch_create_bookings(
                 filters={"id": data.student_contract_id, "is_deleted": "eq.false"},
             )
             if not student_contract:
-                raise HTTPException(status_code=400, detail="學生合約不存在")
+                raise bad_request("學生合約不存在", ErrorCode.BOOKING_STUDENT_CONTRACT_NOT_FOUND)
 
             remaining_lessons = student_contract[0].get("remaining_lessons", 0)
         elif not is_trial:
-            raise HTTPException(status_code=400, detail="正式學生必須提供學生合約")
+            raise bad_request("正式學生必須提供學生合約", ErrorCode.BOOKING_FORMAL_STUDENT_REQUIRES_CONTRACT)
 
         # 驗證課程交集合法性：學生選課 ∩ 教師可教課程
         if course_id:
@@ -2260,7 +2232,7 @@ async def batch_create_bookings(
                     },
                 )
                 if not sc_check:
-                    raise HTTPException(status_code=400, detail="學生未選修此課程")
+                    raise bad_request("學生未選修此課程", ErrorCode.BOOKING_STUDENT_COURSE_NOT_ENROLLED)
 
             # (b) 所有情況：驗證老師有此課程的 course_rate
             batch_teacher_contracts = await supabase_service.table_select(
@@ -2288,15 +2260,12 @@ async def batch_create_bookings(
                     has_course_rate = True
                     break
             if not has_course_rate:
-                raise HTTPException(status_code=400, detail="教師無此課程的授課資格")
+                raise bad_request("教師無此課程的授課資格", ErrorCode.BOOKING_TEACHER_NOT_QUALIFIED)
 
         # 驗證教師是否在學生偏好白名單內
         allowed_set, _ = await preference_service.get_student_allowed_teachers(data.student_id)
         if data.teacher_id not in allowed_set:
-            raise HTTPException(
-                status_code=400,
-                detail="此教師不在學生的偏好可預約教師範圍內，請先設定教師偏好"
-            )
+            raise bad_request("此教師不在學生的偏好可預約教師範圍內，請先設定教師偏好", ErrorCode.BOOKING_TEACHER_NOT_IN_STUDENT_PREFERENCES)
 
         # 驗證教師合約存在（如果有提供）
         teacher_contract_id = data.teacher_contract_id
@@ -2307,7 +2276,7 @@ async def batch_create_bookings(
                 filters={"id": teacher_contract_id, "is_deleted": "eq.false"},
             )
             if not teacher_contract:
-                raise HTTPException(status_code=400, detail="教師合約不存在")
+                raise bad_request("教師合約不存在", ErrorCode.BOOKING_TEACHER_CONTRACT_NOT_FOUND)
 
         # 查詢教師在指定日期範圍內的可用時段（不再過濾 is_booked）
         slot_filters = {
@@ -2486,7 +2455,7 @@ async def batch_create_bookings(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次建立預約失敗: {str(e)}")
+        raise internal_error(f"批次建立預約失敗: {str(e)}", ErrorCode.BOOKING_CREATE_FAILED)
 
 
 _BATCH_CONFIRM_CONCURRENCY = 10
@@ -2608,7 +2577,7 @@ async def batch_update_bookings_by_ids(
     """
     try:
         if not data.booking_ids:
-            raise HTTPException(status_code=400, detail="請提供預約 ID")
+            raise bad_request("請提供預約 ID", ErrorCode.BOOKING_BOOKING_ID_REQUIRED)
 
         target_status = data.booking_status.value
 
@@ -2746,7 +2715,7 @@ async def batch_update_bookings_by_ids(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次更新預約失敗: {str(e)}")
+        raise internal_error(f"批次更新預約失敗: {str(e)}", ErrorCode.BOOKING_BATCH_UPDATE_FAILED)
 
 
 @router.post("/batch-by-ids/delete", response_model=BaseResponse)
@@ -2757,7 +2726,7 @@ async def batch_delete_bookings_by_ids(
     """根據 ID 批次刪除預約（僅限員工）"""
     try:
         if not data.booking_ids:
-            raise HTTPException(status_code=400, detail="請提供預約 ID")
+            raise bad_request("請提供預約 ID", ErrorCode.BOOKING_BOOKING_ID_REQUIRED)
 
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -2849,7 +2818,7 @@ async def batch_delete_bookings_by_ids(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次刪除預約失敗: {str(e)}")
+        raise internal_error(f"批次刪除預約失敗: {str(e)}", ErrorCode.BOOKING_DELETE_FAILED)
 
 
 # ============================================
@@ -2869,7 +2838,7 @@ async def get_student_options(
         )
         return {"success": True, "message": "操作成功", "data": students}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.BOOKING_INTERNAL)
 
 
 @router.get("/options/teachers", tags=["預約管理"], response_model=DataResponse[List[TeacherOption]])
@@ -2900,7 +2869,7 @@ async def get_teacher_options(
 
         return {"success": True, "message": "操作成功", "data": teachers}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.BOOKING_INTERNAL)
 
 
 @router.get("/options/overlapping-courses", tags=["預約管理"], response_model=DataResponse[List[CourseOption]])
@@ -2922,7 +2891,7 @@ async def get_overlapping_course_options(
             filters={"id": student_id, "is_deleted": "eq.false"},
         )
         if not student:
-            raise HTTPException(status_code=400, detail="學生不存在")
+            raise bad_request("學生不存在", ErrorCode.BOOKING_STUDENT_NOT_EXIST)
 
         is_trial = student[0].get("student_type") == "trial"
 
@@ -2990,7 +2959,7 @@ async def get_overlapping_course_options(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.BOOKING_INTERNAL)
 
 
 @router.get("/options/courses", tags=["預約管理"], response_model=DataResponse[List[CourseOption]])
@@ -3006,7 +2975,7 @@ async def get_course_options(
         )
         return {"success": True, "message": "操作成功", "data": courses}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.BOOKING_INTERNAL)
 
 
 @router.get("/options/student-contracts/{student_id}", tags=["預約管理"], response_model=DataResponse[List[ContractOption]])
@@ -3059,7 +3028,7 @@ async def get_student_contract_options(
 
         return {"success": True, "message": "操作成功", "data": enriched}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.BOOKING_INTERNAL)
 
 
 @router.get("/options/substitute-teachers", tags=["預約管理"], response_model=DataResponse[List[TeacherOption]])
@@ -3076,7 +3045,7 @@ async def get_substitute_teacher_options(
             filters={"id": booking_id, "is_deleted": "eq.false"},
         )
         if not booking:
-            raise HTTPException(status_code=404, detail="預約不存在")
+            raise not_found("預約", ErrorCode.BOOKING_NOT_FOUND)
         b = booking[0]
         booking_date = b["booking_date"]
         booking_start = b.get("start_time", "")[:5]
@@ -3218,7 +3187,7 @@ async def get_substitute_teacher_options(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.BOOKING_INTERNAL)
 
 
 @router.get("/options/teacher-contracts/{teacher_id}", tags=["預約管理"], response_model=DataResponse[List[TeacherContractOption]])
@@ -3239,7 +3208,7 @@ async def get_teacher_contract_options(
         )
         return {"success": True, "message": "操作成功", "data": contracts}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.BOOKING_INTERNAL)
 
 
 @router.get("/options/teacher-slots/{teacher_id}", tags=["預約管理"], response_model=DataResponse[List[SlotOption]])
@@ -3275,6 +3244,6 @@ async def get_teacher_slot_options(
 
         return {"success": True, "message": "操作成功", "data": slots}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.BOOKING_INTERNAL)
 
 

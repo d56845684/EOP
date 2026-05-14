@@ -57,6 +57,78 @@ class ErrorCode(IntEnum):
     # === Server (500xxx) ===
     INTERNAL_ERROR = 500001
 
+    # ================================================================
+    # Domain 1 — BOOKING (bookings.py / leave_records.py / lesson_notes.py / substitute_details.py)
+    # 6 位數 code 規則：<3-status><1-domain=1><2-seq>
+    # ================================================================
+
+    # --- 400 Booking validation ---
+    BOOKING_INVALID = 400100                          # generic booking 400
+    BOOKING_STUDENT_NOT_FOUND_OR_DISABLED = 400101    # 學生不存在或已停用
+    BOOKING_TEACHER_NOT_FOUND_OR_DISABLED = 400102    # 教師不存在或已停用
+    BOOKING_COURSE_NOT_FOUND_OR_DISABLED = 400103     # 課程不存在或已停用
+    BOOKING_STUDENT_COURSE_NOT_ENROLLED = 400104      # 學生未選修此課程
+    BOOKING_TEACHER_NOT_QUALIFIED = 400105            # 教師無此課程的授課資格
+    BOOKING_STUDENT_CONTRACT_NOT_FOUND = 400106       # 學生合約不存在
+    BOOKING_STUDENT_CONTRACT_LESSONS_INSUFFICIENT = 400107  # 學生合約剩餘堂數不足
+    BOOKING_FORMAL_STUDENT_REQUIRES_CONTRACT = 400108  # 正式學生必須提供學生合約
+    BOOKING_TEACHER_CONTRACT_NOT_FOUND = 400109       # 教師合約不存在
+    BOOKING_TEACHER_SLOT_NOT_FOUND = 400110           # 教師時段不存在 (400 路徑)
+    BOOKING_TEACHER_SLOT_UNAVAILABLE = 400111         # 教師時段不可用
+    BOOKING_DATE_SLOT_MISMATCH = 400112               # 預約日期與時段日期不符
+    BOOKING_DURATION_NOT_COURSE_MULTIPLE = 400113     # 預約時長必須是課程時長倍數
+    BOOKING_TIME_OUT_OF_SLOT_RANGE = 400114           # 預約時間超出時段範圍
+    BOOKING_END_TIME_NOT_30MIN_BOUNDARY = 400115      # 結束時間必須在 30 分鐘邊界上
+    BOOKING_END_TIME_BEFORE_START = 400116            # 新結束時間必須晚於開始時間
+    BOOKING_SHORTEN_ONLY = 400117                     # 只允許縮短預約
+    BOOKING_SHORTENED_DURATION_NOT_MULTIPLE = 400118  # 縮短後時長必須是課程時長倍數
+    BOOKING_TEACHER_NOT_IN_STUDENT_PREFERENCES = 400119  # 此教師不在學生的偏好可預約教師範圍內
+    BOOKING_SLOT_NO_VALID_CONTRACT = 400120           # 此時段無有效教師有效合約
+    BOOKING_TIME_NO_AVAILABLE_SLOT = 400121           # 找不到包含預約時間的可用時段
+    BOOKING_NO_UPDATE_DATA = 400122                   # 沒有要更新的資料
+    BOOKING_COMPLETED_NOT_EDITABLE = 400123           # 已完成的預約無法修改
+    BOOKING_CANCELLED_NOT_EDITABLE = 400124           # 已取消的預約無法修改
+    BOOKING_ONLY_PENDING_CAN_CONFIRM = 400125         # 只有待確認的預約可以確認
+    BOOKING_ONLY_PENDING_CAN_CANCEL = 400126          # 只有待確認的預約可以取消（已確認走請假）
+    BOOKING_ONLY_PENDING_OR_CANCELLED_CAN_DELETE = 400127  # 只有待確認或已取消可刪
+    BOOKING_COURSE_ID_REQUIRED = 400128               # 請提供課程 ID
+    BOOKING_BOOKING_ID_REQUIRED = 400129              # 請提供預約 ID
+    BOOKING_STUDENT_NOT_EXIST = 400130                # 學生不存在 (不同於上面的"或已停用")
+
+    # --- 403 Booking forbidden ---
+    BOOKING_FORBIDDEN_NOT_OWN_CANCEL = 403101         # 只能取消自己的預約
+    BOOKING_FORBIDDEN_STUDENT_NOT_OWN = 403102        # 學生只能為自己預約
+    BOOKING_FORBIDDEN_NO_VIEW = 403103                # 無權查看此預約
+    BOOKING_FORBIDDEN_NO_CREATE = 403104              # 無權建立預約
+    BOOKING_FORBIDDEN_STUDENT_NO_UPDATE = 403105      # 學生無權更新預約
+    BOOKING_FORBIDDEN_TEACHER_CONFIRM_ONLY = 403106   # 教師僅可將預約狀態更新為已確認
+    BOOKING_FORBIDDEN_TEACHER_OWN_ONLY = 403107       # 教師只能更新自己的預約
+    BOOKING_FORBIDDEN_NO_STUDENT_INFO = 403108        # 無法取得學生資料
+
+    # --- 404 Booking not found ---
+    BOOKING_NOT_FOUND = 404101                        # 預約不存在
+    BOOKING_SLOT_NOT_FOUND_404 = 404102               # 教師時段不存在 (404 路徑)
+
+    # --- 409 Booking conflict ---
+    BOOKING_TIME_CONFLICT = 409101                    # 預約時間衝突
+    BOOKING_ZOOM_POOL_EXHAUSTED = 409102              # Zoom 帳號池當下無可用
+
+    # --- 500 Booking internal ---
+    BOOKING_INTERNAL = 500101                         # generic booking 500
+    BOOKING_CREATE_FAILED = 500102                    # 建立預約失敗
+    BOOKING_UPDATE_FAILED = 500103                    # 更新預約失敗
+    BOOKING_DELETE_FAILED = 500104                    # 刪除預約失敗
+    BOOKING_CANCEL_FAILED = 500105                    # 取消預約失敗
+    BOOKING_BATCH_CREATE_FAILED = 500106              # 批次建立失敗
+    BOOKING_BATCH_UPDATE_FAILED = 500107              # 批次更新失敗
+    BOOKING_BATCH_DELETE_FAILED = 500108              # 批次刪除失敗
+    BOOKING_LIST_FAILED = 500109                      # 取得預約列表失敗
+    BOOKING_GET_FAILED = 500110                       # 取得預約失敗
+    BOOKING_SLOT_AVAILABILITY_FAILED = 500111         # 取得時段可用狀態失敗
+
+    # --- 502 Booking external service ---
+    BOOKING_ZOOM_SERVICE_UNAVAILABLE = 502101         # Zoom 服務目前無法建立會議
+
 
 def infer_error_code(status_code: int, detail: str) -> ErrorCode:
     """從 HTTP status code 和中文錯誤訊息自動推斷 error_code。

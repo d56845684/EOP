@@ -87,13 +87,16 @@ class UserNotFoundException(AppException):
 # 便利工廠函式 — 讓新 code 可以簡潔地拋出標準化錯誤
 # ============================================================
 
-def not_found(resource: str = "資源") -> AppException:
+def not_found(
+    resource: str = "資源",
+    error_code: int | ErrorCode = ErrorCode.NOT_FOUND,
+) -> AppException:
     """404 — 資源不存在"""
-    return AppException(404, f"{resource}不存在", ErrorCode.NOT_FOUND)
+    return AppException(404, f"{resource}不存在", error_code)
 
-def duplicate(field: str) -> AppException:
+def duplicate(field: str, error_code: int | ErrorCode = ErrorCode.DUPLICATE_ENTRY) -> AppException:
     """400 — 資料已存在"""
-    return AppException(400, f"{field}已存在", ErrorCode.DUPLICATE_ENTRY)
+    return AppException(400, f"{field}已存在", error_code)
 
 def forbidden(detail: str = "權限不足", error_code: int | ErrorCode = ErrorCode.FORBIDDEN) -> AppException:
     """403 — 權限不足"""
@@ -103,6 +106,24 @@ def bad_request(detail: str, error_code: int | ErrorCode = ErrorCode.VALIDATION_
     """400 — 通用驗證/業務邏輯錯誤"""
     return AppException(400, detail, error_code)
 
-def conflict(detail: str) -> AppException:
+def conflict(detail: str, error_code: int | ErrorCode = ErrorCode.CONFLICT) -> AppException:
     """409 — 資源衝突"""
-    return AppException(409, detail, ErrorCode.CONFLICT)
+    return AppException(409, detail, error_code)
+
+def internal_error(
+    detail: str = "伺服器內部錯誤",
+    error_code: int | ErrorCode = ErrorCode.INTERNAL_ERROR,
+) -> AppException:
+    """500 — 伺服器內部錯誤"""
+    return AppException(500, detail, error_code)
+
+def service_unavailable(
+    detail: str = "服務暫時無法使用",
+    error_code: int | ErrorCode = ErrorCode.SERVICE_UNAVAILABLE,
+) -> AppException:
+    """503 — 服務暫時無法使用"""
+    return AppException(503, detail, error_code)
+
+def bad_gateway(detail: str, error_code: int | ErrorCode = ErrorCode.INTERNAL_ERROR) -> AppException:
+    """502 — 上游服務錯誤"""
+    return AppException(502, detail, error_code)
