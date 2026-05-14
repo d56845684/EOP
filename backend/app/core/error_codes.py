@@ -209,6 +209,75 @@ class ErrorCode(IntEnum):
     BOOKING_SUB_CREATE_FAILED = 500120                # 建立代課紀錄失敗
     BOOKING_SUB_ASSIGN_FAILED = 500121                # 指派代課失敗
 
+    # ================================================================
+    # Domain 2 — CONTRACT (student_contracts.py / teacher_contracts.py /
+    #                       teacher_bonus.py / teacher_details.py)
+    # ================================================================
+
+    # --- 400 Student contract validation ---
+    STUDENT_CONTRACT_FILE_FORMAT_INVALID = 400201     # 不支援的檔案格式
+    STUDENT_CONTRACT_ADDENDUM_ONLY_PENDING_EDIT = 400202  # 只有待生效附約才可修改
+    STUDENT_CONTRACT_ADDENDUM_REQUIRES_ACTIVE = 400203 # 只有生效中合約才能建附約
+    STUDENT_CONTRACT_STUDENT_NOT_FOUND = 400204       # 學生不存在
+    STUDENT_CONTRACT_LEAVE_QUOTA_EXCEEDED = 400205    # 已達請假上限
+    STUDENT_CONTRACT_ADDENDUM_END_INVALID = 400206    # 新結束日期須 > 原結束
+    STUDENT_CONTRACT_ADDENDUM_END_BEFORE_PARENT = 400207  # 新結束日期須 > 母約結束
+    STUDENT_CONTRACT_FILE_NOT_UPLOADED = 400208       # 檔案尚未上傳至 S3
+    STUDENT_CONTRACT_COURSE_NOT_ENROLLED = 400209     # 此學生尚未選修此課程
+    STUDENT_CONTRACT_PARENT_NOT_ACTIVE = 400210       # 母約狀態不是生效中
+    STUDENT_CONTRACT_NO_UPDATE_DATA = 400211          # 沒有要更新的資料
+    STUDENT_CONTRACT_INVALID_FILE_PATH = 400212       # 無效的檔案路徑格式
+    STUDENT_CONTRACT_TRIAL_ONLY_VIA_CONVERT = 400213  # 試上合約只能透過轉正流程啟用
+    STUDENT_CONTRACT_DUPLICATE_ACTIVE = 400214        # 該學生已有生效中合約
+    STUDENT_CONTRACT_COURSE_NOT_FOUND = 400215        # 課程不存在
+
+    # --- 403 Student contract forbidden ---
+    STUDENT_CONTRACT_FORBIDDEN_TEACHER_DOWNLOAD = 403201      # 教師無權下載學生合約
+    STUDENT_CONTRACT_FORBIDDEN_TEACHER_VIEW = 403202          # 教師無權查看學生合約
+    STUDENT_CONTRACT_FORBIDDEN_TEACHER_VIEW_DETAIL = 403203   # 教師無權查看學生合約明細
+    STUDENT_CONTRACT_FORBIDDEN_TEACHER_VIEW_LEAVE = 403204    # 教師無權查看學生合約請假紀錄
+    STUDENT_CONTRACT_FORBIDDEN_DOWNLOAD = 403205              # 無權下載此合約
+    STUDENT_CONTRACT_FORBIDDEN_VIEW = 403206                  # 無權查看此合約
+    STUDENT_CONTRACT_FORBIDDEN_VIEW_DETAIL = 403207           # 無權查看此合約明細
+    STUDENT_CONTRACT_FORBIDDEN_VIEW_LEAVE = 403208            # 無權查看此合約請假紀錄
+
+    # --- 404 Student contract not found ---
+    STUDENT_CONTRACT_NOT_FOUND = 404201               # 學生合約不存在
+    STUDENT_CONTRACT_DETAIL_NOT_FOUND = 404202        # 合約明細不存在
+    STUDENT_CONTRACT_FILE_NOT_UPLOADED_404 = 404203   # 此合約尚未上傳檔案
+    STUDENT_CONTRACT_ADDENDUM_FILE_NOT_UPLOADED = 404204
+    STUDENT_CONTRACT_ADDENDUM_PDF_FAILED_404 = 404205 # 產生附約 PDF 失敗 (404 路徑)
+    STUDENT_CONTRACT_LEAVE_NOT_FOUND = 404206         # 請假紀錄不存在
+    STUDENT_CONTRACT_ADDENDUM_NOT_FOUND = 404207      # 附約不存在
+
+    # --- 500 Student contract internal ---
+    STUDENT_CONTRACT_INTERNAL = 500201                # 通用 str(e)
+    STUDENT_CONTRACT_DETAIL_DELETE_FAILED = 500202    # 刪除合約明細失敗
+    STUDENT_CONTRACT_DELETE_FAILED = 500203           # 刪除學生合約失敗
+    STUDENT_CONTRACT_LEAVE_DELETE_FAILED = 500204     # 刪除請假紀錄失敗
+    STUDENT_CONTRACT_ADDENDUM_DELETE_FAILED = 500205  # 刪除附約失敗
+    STUDENT_CONTRACT_DOWNLOAD_URL_FAILED = 500206     # 取得下載連結失敗
+    STUDENT_CONTRACT_DETAIL_LIST_FAILED = 500207      # 取得合約明細失敗
+    STUDENT_CONTRACT_LIST_FAILED = 500208             # 取得學生合約列表失敗
+    STUDENT_CONTRACT_GET_FAILED = 500209              # 取得學生合約失敗
+    STUDENT_CONTRACT_LEAVE_LIST_FAILED = 500210       # 取得請假紀錄失敗
+    STUDENT_CONTRACT_ADDENDUM_LIST_FAILED = 500211    # 取得附約列表失敗
+    STUDENT_CONTRACT_ADDENDUM_GET_FAILED = 500212     # 取得附約失敗
+    STUDENT_CONTRACT_CREATE_FAILED = 500213           # 建立學生合約失敗
+    STUDENT_CONTRACT_ADDENDUM_CREATE_FAILED = 500214  # 建立附約失敗
+    STUDENT_CONTRACT_DETAIL_CREATE_FAILED = 500215    # 新增合約明細失敗
+    STUDENT_CONTRACT_LEAVE_CREATE_FAILED = 500216     # 新增請假紀錄失敗
+    STUDENT_CONTRACT_DETAIL_UPDATE_FAILED = 500217    # 更新合約明細失敗
+    STUDENT_CONTRACT_UPDATE_INFO_FAILED = 500218      # 更新合約資訊失敗
+    STUDENT_CONTRACT_UPDATE_FAILED = 500219           # 更新學生合約失敗
+    STUDENT_CONTRACT_ADDENDUM_UPDATE_FAILED = 500220  # 更新附約失敗
+    STUDENT_CONTRACT_UPLOAD_URL_FAILED = 500221       # 產生上傳連結失敗
+    STUDENT_CONTRACT_GENERATE_DOWNLOAD_URL_FAILED = 500222  # 產生下載連結失敗
+    STUDENT_CONTRACT_DOCX_FAILED = 500223             # 產生合約 DOCX 失敗
+    STUDENT_CONTRACT_PDF_FAILED = 500224              # 產生合約 PDF 失敗
+    STUDENT_CONTRACT_ADDENDUM_PDF_FAILED_500 = 500225 # 產生附約 PDF 失敗
+    STUDENT_CONTRACT_UPLOAD_CONFIRM_FAILED = 500226   # 確認上傳失敗
+
 
 def infer_error_code(status_code: int, detail: str) -> ErrorCode:
     """從 HTTP status code 和中文錯誤訊息自動推斷 error_code。
