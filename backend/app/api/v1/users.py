@@ -4,6 +4,8 @@ from typing import Optional
 from app.core.dependencies import (
     get_current_user, require_staff, require_page_permission, CurrentUser
 )
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import bad_request, forbidden, not_found, internal_error
 from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.services.session_service import session_service
@@ -175,7 +177,7 @@ async def list_users(
         raise
     except Exception as e:
         logger.exception("列出帳號失敗")
-        raise HTTPException(status_code=500, detail=f"列出帳號失敗: {e}")
+        raise internal_error(f"列出帳號失敗: {e}", ErrorCode.USER_LIST_FAILED)
 
 
 @router.put("/{user_id}", response_model=DataResponse[AccountInfo])
@@ -194,13 +196,13 @@ async def update_user(
             uid,
         )
         if not profile:
-            raise HTTPException(status_code=404, detail="帳號不存在")
+            raise not_found("帳號", ErrorCode.USER_NOT_FOUND)
         if profile["is_protected"]:
-            raise HTTPException(status_code=403, detail="此帳號受保護，無法修改")
+            raise forbidden("此帳號受保護，無法修改", ErrorCode.USER_FORBIDDEN_PROTECTED_UPDATE)
 
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.USER_NO_UPDATE_DATA)
 
         # If employee_subtype changes, also update employees table
         # (DB trigger sync_employee_subtype reads from employees.employee_type)
@@ -267,7 +269,7 @@ async def update_user(
         raise
     except Exception as e:
         logger.exception("更新帳號失敗")
-        raise HTTPException(status_code=500, detail=f"更新帳號失敗: {e}")
+        raise internal_error(f"更新帳號失敗: {e}", ErrorCode.USER_UPDATE_FAILED)
 
 
 @router.delete("/{user_id}", response_model=BaseResponse)
@@ -284,9 +286,9 @@ async def deactivate_user(
             uid,
         )
         if not profile:
-            raise HTTPException(status_code=404, detail="帳號不存在")
+            raise not_found("帳號", ErrorCode.USER_NOT_FOUND)
         if profile["is_protected"]:
-            raise HTTPException(status_code=403, detail="此帳號受保護，無法停用")
+            raise forbidden("此帳號受保護，無法停用", ErrorCode.USER_FORBIDDEN_PROTECTED_DISABLE)
 
         await supabase_service.table_update(
             table="user_profiles",
@@ -305,4 +307,4 @@ async def deactivate_user(
         raise
     except Exception as e:
         logger.exception("停用帳號失敗")
-        raise HTTPException(status_code=500, detail=f"停用帳號失敗: {e}")
+        raise internal_error(f"停用帳號失敗: {e}", ErrorCode.USER_DISABLE_FAILED)

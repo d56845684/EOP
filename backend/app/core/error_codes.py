@@ -514,6 +514,98 @@ class ErrorCode(IntEnum):
     STUDENT_PREF_CREATE_FAILED = 500416                 # 建立偏好失敗
     STUDENT_PREF_UPDATE_FAILED = 500417                 # 更新偏好失敗
 
+    # ================================================================
+    # Domain 5 — EMPLOYEE / PERMISSION (employees.py / page_permissions.py /
+    #                                     invites.py / users.py)
+    # ================================================================
+
+    # --- 400 Employee validation (employees.py) ---
+    EMPLOYEE_NO_DUPLICATE = 400501                      # 員工編號已存在
+    EMPLOYEE_EMAIL_USED_BY_EMPLOYEE = 400502            # Email 已被其他員工使用
+    EMPLOYEE_EMAIL_USED_BY_STUDENT = 400503             # Email 已被學生使用
+    EMPLOYEE_EMAIL_USED_BY_TEACHER = 400504             # Email 已被教師使用
+    EMPLOYEE_NO_ACCOUNT_FOR_ROLE = 400505               # 此員工尚未建立帳號
+    EMPLOYEE_NO_UPDATE_DATA = 400506                    # 沒有要更新的資料
+
+    # --- 403 Employee forbidden ---
+    EMPLOYEE_FORBIDDEN_STAFF_ONLY = 403501               # 僅限員工存取
+    EMPLOYEE_FORBIDDEN_ADMIN_ONLY = 403502               # 僅限管理員操作
+
+    # --- 404 Employee not found ---
+    EMPLOYEE_NOT_FOUND = 404501                          # 員工不存在
+
+    # --- 500 Employee internal ---
+    EMPLOYEE_DELETE_FAILED = 500501                      # 刪除員工失敗
+    EMPLOYEE_LIST_FAILED = 500502                        # 取得員工列表失敗
+    EMPLOYEE_GET_FAILED = 500503                         # 取得員工失敗
+    EMPLOYEE_ROLES_LIST_FAILED = 500504                  # 取得角色列表失敗
+    EMPLOYEE_CREATE_FAILED = 500505                      # 建立員工失敗
+    EMPLOYEE_UPDATE_FAILED = 500506                      # 更新員工失敗
+
+    # --- 400 Permission management (page_permissions.py) ---
+    PERM_ROLE_IN_USE = 400507                            # 角色使用中無法刪除
+    PERM_NO_UPDATE_FIELDS = 400508                       # 沒有可更新的欄位
+    PERM_NO_UPDATE_DATA = 400509                         # 沒有要更新的資料
+    PERM_ROLE_KEY_DUPLICATE = 400510                     # 角色 key 已存在
+    PERM_PAGE_KEY_DUPLICATE = 400511                     # 頁面 key 已存在 (create)
+    PERM_PAGE_KEY_DUPLICATE_UPDATE = 400512              # 頁面 key 已存在 (update)
+
+    # --- 403 Permission forbidden ---
+    PERM_SYSTEM_ROLE_PROTECTED = 403503                  # 系統內建角色無法刪除
+
+    # --- 404 Permission not found ---
+    PERM_ROLE_NOT_FOUND = 404502                         # 角色不存在
+    PERM_PAGE_NOT_FOUND = 404503                         # 頁面不存在
+
+    # --- 500 Permission internal ---
+    PERM_DISABLE_FAILED = 500507                         # 停用失敗
+    PERM_DISABLE_PAGE_FAILED = 500508                    # 停用頁面失敗
+    PERM_DELETE_ROLE_FAILED = 500509                     # 刪除角色失敗
+    PERM_GET_FAILED = 500510                             # 取得權限失敗
+    PERM_GET_USER_OVERRIDES_FAILED = 500511               # 取得用戶覆寫失敗
+    PERM_ROLES_LIST_FAILED = 500512                      # 取得角色列表失敗
+    PERM_ROLE_PAGES_FAILED = 500513                      # 取得角色頁面失敗
+    PERM_PAGES_LIST_FAILED = 500514                      # 取得頁面列表失敗
+    PERM_CREATE_ROLE_FAILED = 500515                     # 建立角色失敗
+    PERM_CREATE_PAGE_FAILED = 500516                     # 建立頁面失敗
+    PERM_UPDATE_FAILED = 500517                          # 更新失敗 (generic)
+    PERM_UPDATE_ROLE_FAILED = 500518                     # 更新角色失敗
+    PERM_UPDATE_PAGE_FAILED = 500519                     # 更新頁面失敗
+    PERM_SET_USER_OVERRIDES_FAILED = 500520              # 設定用戶覆寫失敗
+    PERM_SET_ROLE_PAGES_FAILED = 500521                  # 設定角色頁面失敗
+
+    # --- 400 Invite (invites.py) ---
+    INVITE_ENTITY_TYPE_INVALID = 400513                  # 不支援的實體類型
+    INVITE_EMAIL_HAS_ACCOUNT = 400514                    # email 已有登入帳號
+    INVITE_ACCOUNT_VERIFIED = 400515                     # 此帳號已驗證
+    INVITE_ACCOUNT_VERIFIED_RESEND = 400516              # 此帳號已驗證，無需重新邀請
+    INVITE_NO_EMAIL = 400517                             # 該筆資料沒有 email
+    INVITE_DATA_NOT_FOUND = 400518                       # 資料不存在或已被刪除
+    INVITE_LINK_INVALID = 400519                         # 邀請連結無效或已過期
+
+    # --- 404 Invite not found ---
+    INVITE_ENTITY_NOT_FOUND = 404504                     # entity 不存在
+
+    # --- 500 Invite internal ---
+    INVITE_CREATE_ACCOUNT_FAILED = 500522                # 建立帳號失敗
+    INVITE_LINK_GENERATE_FAILED = 500523                 # 產生邀請連結失敗
+    INVITE_ROLE_NOT_FOUND = 500524                       # 角色不存在 (500 路徑)
+
+    # --- 400 User account (users.py) ---
+    USER_NO_UPDATE_DATA = 400520                         # 沒有要更新的資料
+
+    # --- 403 User forbidden ---
+    USER_FORBIDDEN_PROTECTED_UPDATE = 403504             # 受保護無法修改
+    USER_FORBIDDEN_PROTECTED_DISABLE = 403505            # 受保護無法停用
+
+    # --- 404 User not found ---
+    USER_NOT_FOUND = 404505                              # 帳號不存在
+
+    # --- 500 User internal ---
+    USER_DISABLE_FAILED = 500525                         # 停用帳號失敗
+    USER_LIST_FAILED = 500526                            # 列出帳號失敗
+    USER_UPDATE_FAILED = 500527                          # 更新帳號失敗
+
 
 def infer_error_code(status_code: int, detail: str) -> ErrorCode:
     """從 HTTP status code 和中文錯誤訊息自動推斷 error_code。

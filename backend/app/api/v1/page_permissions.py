@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import Optional
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, require_staff, require_page_permission, CurrentUser
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import bad_request, forbidden, not_found, internal_error
 from app.services.permission_service import permission_service
 from app.schemas.response import BaseResponse, DataResponse
 from app.schemas.page_permission import (
@@ -62,7 +64,7 @@ async def list_pages(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得頁面列表失敗: {e}")
+        raise internal_error(f"取得頁面列表失敗: {e}", ErrorCode.PERM_PAGES_LIST_FAILED)
 
 
 @router.post("/pages", response_model=DataResponse[PageResponse])
@@ -76,7 +78,7 @@ async def create_page(
             table="pages", select="id", filters={"key": data.key}
         )
         if existing:
-            raise HTTPException(status_code=400, detail=f"頁面 key '{data.key}' 已存在")
+            raise bad_request(f"頁面 key '{data.key}' 已存在", ErrorCode.PERM_PAGE_KEY_DUPLICATE)
 
         result = await supabase_service.table_insert(
             table="pages", data=data.model_dump()
@@ -85,7 +87,7 @@ async def create_page(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立頁面失敗: {e}")
+        raise internal_error(f"建立頁面失敗: {e}", ErrorCode.PERM_CREATE_PAGE_FAILED)
 
 
 @router.put("/pages/{page_id}", response_model=DataResponse[PageResponse])
@@ -100,11 +102,11 @@ async def update_page(
             table="pages", select="id,key", filters={"id": page_id}
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="頁面不存在")
+            raise not_found("頁面", ErrorCode.PERM_PAGE_NOT_FOUND)
 
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.PERM_NO_UPDATE_DATA)
 
         # check key uniqueness if changing
         if "key" in update_data and update_data["key"] != existing[0]["key"]:
@@ -112,19 +114,19 @@ async def update_page(
                 table="pages", select="id", filters={"key": update_data["key"]}
             )
             if dup:
-                raise HTTPException(status_code=400, detail=f"頁面 key '{update_data['key']}' 已存在")
+                raise bad_request(f"頁面 key '{update_data['key']}' 已存在", ErrorCode.PERM_PAGE_KEY_DUPLICATE)
 
         result = await supabase_service.table_update(
             table="pages", data=update_data, filters={"id": page_id}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="更新失敗")
+            raise internal_error("更新失敗", ErrorCode.PERM_UPDATE_FAILED)
 
         return DataResponse(message="頁面更新成功", data=PageResponse(**result))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新頁面失敗: {e}")
+        raise internal_error(f"更新頁面失敗: {e}", ErrorCode.PERM_UPDATE_PAGE_FAILED)
 
 
 @router.delete("/pages/{page_id}", response_model=BaseResponse)
@@ -138,7 +140,7 @@ async def delete_page(
             table="pages", select="id", filters={"id": page_id}
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="頁面不存在")
+            raise not_found("頁面", ErrorCode.PERM_PAGE_NOT_FOUND)
 
         result = await supabase_service.table_update(
             table="pages",
@@ -146,13 +148,13 @@ async def delete_page(
             filters={"id": page_id},
         )
         if not result:
-            raise HTTPException(status_code=500, detail="停用失敗")
+            raise internal_error("停用失敗", ErrorCode.PERM_DISABLE_FAILED)
 
         return BaseResponse(message="頁面已停用")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"停用頁面失敗: {e}")
+        raise internal_error(f"停用頁面失敗: {e}", ErrorCode.PERM_DISABLE_PAGE_FAILED)
 
 
 # ============================================================
@@ -187,7 +189,7 @@ async def list_roles(
         ]
         return RoleListResponse(data=data)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得角色列表失敗: {e}")
+        raise internal_error(f"取得角色列表失敗: {e}", ErrorCode.PERM_ROLES_LIST_FAILED)
 
 
 @router.post("/roles", response_model=DataResponse[RoleInfo])
@@ -201,7 +203,7 @@ async def create_role(
             "SELECT id FROM roles WHERE key = $1", data.key
         )
         if existing:
-            raise HTTPException(status_code=400, detail=f"角色 '{data.key}' 已存在")
+            raise bad_request(f"角色 '{data.key}' 已存在", ErrorCode.PERM_ROLE_KEY_DUPLICATE)
 
         new_id = uuid.uuid4()
         await supabase_service.pool.execute(
@@ -216,7 +218,7 @@ async def create_role(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立角色失敗: {e}")
+        raise internal_error(f"建立角色失敗: {e}", ErrorCode.PERM_CREATE_ROLE_FAILED)
 
 
 @router.put("/roles/{role_id}", response_model=DataResponse[RoleInfo])
@@ -232,11 +234,11 @@ async def update_role(
             "SELECT id, key, name, description, is_system FROM roles WHERE id = $1", rid
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="角色不存在")
+            raise not_found("角色", ErrorCode.PERM_ROLE_NOT_FOUND)
 
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.PERM_NO_UPDATE_DATA)
 
         # Build SET clause
         ALLOWED_COLUMNS = {"key", "name", "description"}
@@ -250,14 +252,14 @@ async def update_role(
             sets.append(f'"{safe_col}" = ${len(params)}')
 
         if not sets:
-            raise HTTPException(status_code=400, detail="沒有可更新的欄位")
+            raise bad_request("沒有可更新的欄位", ErrorCode.PERM_NO_UPDATE_FIELDS)
 
         row = await supabase_service.pool.fetchrow(
             f"UPDATE roles SET {', '.join(sets)} WHERE id = $1 RETURNING id, key, name, description, is_system",
             *params,
         )
         if not row:
-            raise HTTPException(status_code=500, detail="更新失敗")
+            raise internal_error("更新失敗", ErrorCode.PERM_UPDATE_FAILED)
 
         # Get page count
         count_row = await supabase_service.pool.fetchrow(
@@ -279,7 +281,7 @@ async def update_role(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新角色失敗: {e}")
+        raise internal_error(f"更新角色失敗: {e}", ErrorCode.PERM_UPDATE_ROLE_FAILED)
 
 
 @router.delete("/roles/{role_id}", response_model=BaseResponse)
@@ -294,16 +296,16 @@ async def delete_role(
             "SELECT id, key, is_system FROM roles WHERE id = $1", rid
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="角色不存在")
+            raise not_found("角色", ErrorCode.PERM_ROLE_NOT_FOUND)
         if existing["is_system"]:
-            raise HTTPException(status_code=403, detail="系統內建角色無法刪除")
+            raise forbidden("系統內建角色無法刪除", ErrorCode.PERM_SYSTEM_ROLE_PROTECTED)
 
         # Check if any user is using this role
         users_count = await supabase_service.pool.fetchval(
             "SELECT COUNT(*) FROM user_profiles WHERE role_id = $1", rid
         )
         if users_count and users_count > 0:
-            raise HTTPException(status_code=400, detail=f"仍有 {users_count} 個帳號使用此角色，無法刪除")
+            raise bad_request(f"仍有 {users_count} 個帳號使用此角色，無法刪除", ErrorCode.PERM_ROLE_IN_USE)
 
         # Delete role_pages first, then role
         async with supabase_service.pool.acquire() as conn:
@@ -315,7 +317,7 @@ async def delete_role(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除角色失敗: {e}")
+        raise internal_error(f"刪除角色失敗: {e}", ErrorCode.PERM_DELETE_ROLE_FAILED)
 
 
 # ============================================================
@@ -344,7 +346,7 @@ async def get_role_pages(
         pages = [PageResponse(**supabase_service._row_to_dict(r)) for r in rows]
         return RolePagesResponse(role_id=role_id, pages=pages)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得角色頁面失敗: {e}")
+        raise internal_error(f"取得角色頁面失敗: {e}", ErrorCode.PERM_ROLE_PAGES_FAILED)
 
 
 @router.put("/role-pages", response_model=RolePagesResponse)
@@ -377,7 +379,7 @@ async def set_role_pages(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"設定角色頁面失敗: {e}")
+        raise internal_error(f"設定角色頁面失敗: {e}", ErrorCode.PERM_SET_ROLE_PAGES_FAILED)
 
 
 # ============================================================
@@ -407,7 +409,7 @@ async def get_user_page_overrides(
         ]
         return UserPageOverridesResponse(user_id=user_id, overrides=overrides)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得用戶覆寫失敗: {e}")
+        raise internal_error(f"取得用戶覆寫失敗: {e}", ErrorCode.PERM_GET_USER_OVERRIDES_FAILED)
 
 
 @router.put("/user-pages/{user_id}", response_model=UserPageOverridesResponse)
@@ -441,7 +443,7 @@ async def set_user_page_overrides(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"設定用戶覆寫失敗: {e}")
+        raise internal_error(f"設定用戶覆寫失敗: {e}", ErrorCode.PERM_SET_USER_OVERRIDES_FAILED)
 
 
 # ============================================================
@@ -524,4 +526,4 @@ async def get_my_permissions(
         )
     except Exception as e:
         logger.exception("取得權限失敗")
-        raise HTTPException(status_code=500, detail=f"取得權限失敗: {e}")
+        raise internal_error(f"取得權限失敗: {e}", ErrorCode.PERM_GET_FAILED)
