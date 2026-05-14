@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import bad_request, forbidden, not_found, internal_error
 from app.schemas.student import (
     StudentCreate, StudentUpdate, StudentResponse, StudentListResponse,
     ConvertToFormalRequest, ConvertToFormalResponse, ConvertToFormalContractInfo,
@@ -60,7 +62,7 @@ async def list_students(
             total=total, page=page, per_page=per_page, total_pages=total_pages
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得學生列表失敗: {str(e)}")
+        raise internal_error(f"取得學生列表失敗: {str(e)}", ErrorCode.STUDENT_LIST_FAILED)
 
 
 @router.get("/{student_id}", response_model=DataResponse[StudentResponse])
@@ -75,12 +77,12 @@ async def get_student(
             filters={"id": student_id, "is_deleted": "eq.false"}
         )
         if not result:
-            raise HTTPException(status_code=404, detail="學生不存在")
+            raise not_found("學生", ErrorCode.STUDENT_NOT_FOUND)
         return DataResponse(data=StudentResponse(**result[0]))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得學生失敗: {str(e)}")
+        raise internal_error(f"取得學生失敗: {str(e)}", ErrorCode.STUDENT_GET_FAILED)
 
 
 @router.post("", response_model=DataResponse[StudentResponse])
@@ -101,14 +103,14 @@ async def create_student(
             filters={"student_no": data.student_no, "is_deleted": "eq.false"}
         )
         if existing:
-            raise HTTPException(status_code=400, detail="學生編號已存在")
+            raise bad_request("學生編號已存在", ErrorCode.STUDENT_NO_DUPLICATE)
 
         existing_email = await supabase_service.table_select(
             table="students", select="id",
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if existing_email:
-            raise HTTPException(status_code=400, detail="此 Email 已被其他學生使用")
+            raise bad_request("此 Email 已被其他學生使用", ErrorCode.STUDENT_EMAIL_USED_BY_STUDENT)
 
         # 跨表檢查：email 全域不可重複
         dup_teacher = await supabase_service.table_select(
@@ -116,14 +118,14 @@ async def create_student(
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if dup_teacher:
-            raise HTTPException(status_code=400, detail="此 Email 已被教師使用")
+            raise bad_request("此 Email 已被教師使用", ErrorCode.STUDENT_EMAIL_USED_BY_TEACHER)
 
         dup_employee = await supabase_service.table_select(
             table="employees", select="id",
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if dup_employee:
-            raise HTTPException(status_code=400, detail="此 Email 已被員工使用")
+            raise bad_request("此 Email 已被員工使用", ErrorCode.STUDENT_EMAIL_USED_BY_EMPLOYEE)
 
         student_data = data.model_dump()
         if student_data.get("birth_date"):
@@ -137,13 +139,13 @@ async def create_student(
             table="students", data=student_data
         )
         if not result:
-            raise HTTPException(status_code=500, detail="建立學生失敗")
+            raise internal_error("建立學生失敗", ErrorCode.STUDENT_CREATE_FAILED)
 
         return DataResponse(message="學生建立成功", data=StudentResponse(**result))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立學生失敗: {str(e)}")
+        raise internal_error(f"建立學生失敗: {str(e)}", ErrorCode.STUDENT_CREATE_FAILED)
 
 
 @router.put("/{student_id}", response_model=DataResponse[StudentResponse])
@@ -159,7 +161,7 @@ async def update_student(
             filters={"id": student_id, "is_deleted": "eq.false"}
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="學生不存在")
+            raise not_found("學生", ErrorCode.STUDENT_NOT_FOUND)
 
         if data.email and data.email != existing[0]["email"]:
             dup = await supabase_service.table_select(
@@ -167,40 +169,40 @@ async def update_student(
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup:
-                raise HTTPException(status_code=400, detail="此 Email 已被其他學生使用")
+                raise bad_request("此 Email 已被其他學生使用", ErrorCode.STUDENT_EMAIL_USED_BY_STUDENT)
 
             dup_teacher = await supabase_service.table_select(
                 table="teachers", select="id",
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup_teacher:
-                raise HTTPException(status_code=400, detail="此 Email 已被教師使用")
+                raise bad_request("此 Email 已被教師使用", ErrorCode.STUDENT_EMAIL_USED_BY_TEACHER)
 
             dup_employee = await supabase_service.table_select(
                 table="employees", select="id",
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup_employee:
-                raise HTTPException(status_code=400, detail="此 Email 已被員工使用")
+                raise bad_request("此 Email 已被員工使用", ErrorCode.STUDENT_EMAIL_USED_BY_EMPLOYEE)
 
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
         if "birth_date" in update_data and update_data["birth_date"]:
             update_data["birth_date"] = update_data["birth_date"].isoformat()
 
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.STUDENT_NO_UPDATE_DATA)
 
         result = await supabase_service.table_update(
             table="students", data=update_data, filters={"id": student_id}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="更新學生失敗")
+            raise internal_error("更新學生失敗", ErrorCode.STUDENT_UPDATE_FAILED)
 
         return DataResponse(message="學生更新成功", data=StudentResponse(**result))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新學生失敗: {str(e)}")
+        raise internal_error(f"更新學生失敗: {str(e)}", ErrorCode.STUDENT_UPDATE_FAILED)
 
 
 @router.delete("/{student_id}", response_model=BaseResponse)
@@ -215,7 +217,7 @@ async def delete_student(
             filters={"id": student_id, "is_deleted": "eq.false"}
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="學生不存在")
+            raise not_found("學生", ErrorCode.STUDENT_NOT_FOUND)
 
         result = await supabase_service.table_update(
             table="students",
@@ -223,13 +225,13 @@ async def delete_student(
             filters={"id": student_id}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="刪除學生失敗")
+            raise internal_error("刪除學生失敗", ErrorCode.STUDENT_DELETE_FAILED)
 
         return BaseResponse(message="學生刪除成功")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除學生失敗: {str(e)}")
+        raise internal_error(f"刪除學生失敗: {str(e)}", ErrorCode.STUDENT_DELETE_FAILED)
 
 
 @router.post("/{student_id}/convert-to-formal", response_model=ConvertToFormalResponse)
@@ -256,17 +258,17 @@ async def convert_to_formal(
             filters={"id": student_id, "is_deleted": "eq.false"},
         )
         if not students:
-            raise HTTPException(status_code=404, detail="學生不存在")
+            raise not_found("學生", ErrorCode.STUDENT_NOT_FOUND)
 
         student = students[0]
         if student.get("student_type") != "trial":
-            raise HTTPException(status_code=400, detail="此學生非試上學生，無法執行轉正")
+            raise bad_request("此學生非試上學生，無法執行轉正", ErrorCode.STUDENT_NOT_TRIAL)
 
         # 2. 驗證合約
         try:
             sc_uuid = uuid.UUID(data.student_contract_id)
         except ValueError:
-            raise HTTPException(status_code=400, detail="合約 ID 格式錯誤")
+            raise bad_request("合約 ID 格式錯誤", ErrorCode.STUDENT_CONTRACT_ID_INVALID)
 
         contract_rows = await pool.fetch(
             """
@@ -279,13 +281,13 @@ async def convert_to_formal(
             sc_uuid,
         )
         if not contract_rows:
-            raise HTTPException(status_code=404, detail="找不到 pending 合約（合約不存在、已生效或已刪除）")
+            raise not_found("pending 合約", ErrorCode.STUDENT_PENDING_CONTRACT_NOT_FOUND)
 
         contract = dict(contract_rows[0])
         if str(contract["student_id"]) != student_id:
-            raise HTTPException(status_code=400, detail="合約不屬於此學生")
+            raise bad_request("合約不屬於此學生", ErrorCode.STUDENT_CONTRACT_NOT_OWNED)
         if not contract.get("contract_file_path"):
-            raise HTTPException(status_code=400, detail="合約必須先上傳 PDF 才能轉正")
+            raise bad_request("合約必須先上傳 PDF 才能轉正", ErrorCode.STUDENT_CONTRACT_NEEDS_PDF)
 
         # 3. 驗證 booking
         if data.booking_id:
@@ -298,14 +300,14 @@ async def convert_to_formal(
                 uuid.UUID(data.booking_id),
             )
             if not booking_rows:
-                raise HTTPException(status_code=404, detail="預約不存在")
+                raise not_found("預約", ErrorCode.STUDENT_BOOKING_NOT_FOUND)
             bk = booking_rows[0]
             if bk["booking_type"] != "trial":
-                raise HTTPException(status_code=400, detail="只能選擇試上類型的預約")
+                raise bad_request("只能選擇試上類型的預約", ErrorCode.STUDENT_TRIAL_BOOKING_TYPE_REQUIRED)
             if bk["booking_status"] != "completed":
-                raise HTTPException(status_code=400, detail="預約狀態必須為已完成")
+                raise bad_request("預約狀態必須為已完成", ErrorCode.STUDENT_BOOKING_NOT_COMPLETED)
             if bk["is_trial_to_formal"]:
-                raise HTTPException(status_code=400, detail="此預約已被標記為轉正")
+                raise bad_request("此預約已被標記為轉正", ErrorCode.STUDENT_BOOKING_ALREADY_CONVERTED)
 
         employee_id = await get_user_employee_id(current_user.user_id)
 
@@ -405,7 +407,7 @@ async def convert_to_formal(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"試上轉正失敗: {str(e)}")
+        raise internal_error(f"試上轉正失敗: {str(e)}", ErrorCode.STUDENT_CONVERT_FAILED)
 
 
 # ============================================
@@ -573,7 +575,7 @@ async def list_students_overview(
         raise
     except Exception as e:
         logger.exception(f"取得學生總覽失敗: {e}")
-        raise HTTPException(status_code=500, detail=f"取得學生總覽失敗: {str(e)}")
+        raise internal_error(f"取得學生總覽失敗: {str(e)}", ErrorCode.STUDENT_OVERVIEW_FAILED)
 
 
 # ============================================
@@ -610,7 +612,7 @@ async def get_student_view(
             sid,
         )
         if not student_row:
-            raise HTTPException(status_code=404, detail="學生不存在")
+            raise not_found("學生", ErrorCode.STUDENT_NOT_FOUND)
 
         student = {
             "id": str(student_row["id"]),
@@ -803,4 +805,4 @@ async def get_student_view(
         raise
     except Exception as e:
         logger.exception(f"取得學生綜合檢視失敗: {e}")
-        raise HTTPException(status_code=500, detail=f"取得學生綜合檢視失敗: {str(e)}")
+        raise internal_error(f"取得學生綜合檢視失敗: {str(e)}", ErrorCode.STUDENT_OVERVIEW_LIST_FAILED)

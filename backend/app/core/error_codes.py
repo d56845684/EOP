@@ -442,6 +442,78 @@ class ErrorCode(IntEnum):
     TEACHER_UPLOAD_URL_FAILED = 500319                 # 產生上傳連結失敗
     TEACHER_AVATAR_CONFIRM_FAILED = 500320             # 確認頭像上傳失敗
 
+    # ================================================================
+    # Domain 4 — STUDENT (students.py / student_courses.py / student_teacher_preferences.py)
+    # ================================================================
+
+    # --- 400 Student validation (students.py) ---
+    STUDENT_TRIAL_BOOKING_TYPE_REQUIRED = 400401       # 只能選擇試上類型的預約
+    STUDENT_CONTRACT_ID_INVALID = 400402               # 合約 ID 格式錯誤
+    STUDENT_CONTRACT_NOT_OWNED = 400403                # 合約不屬於此學生
+    STUDENT_CONTRACT_NEEDS_PDF = 400404                # 合約必須先上傳 PDF 才能轉正
+    STUDENT_NO_DUPLICATE = 400405                      # 學生編號已存在
+    STUDENT_EMAIL_USED_BY_STUDENT = 400406             # Email 已被其他學生使用
+    STUDENT_EMAIL_USED_BY_EMPLOYEE = 400407             # Email 已被員工使用
+    STUDENT_EMAIL_USED_BY_TEACHER = 400408             # Email 已被教師使用
+    STUDENT_NOT_TRIAL = 400409                         # 此學生非試上學生，無法執行轉正
+    STUDENT_BOOKING_ALREADY_CONVERTED = 400410         # 此預約已被標記為轉正
+    STUDENT_NO_UPDATE_DATA = 400411                    # 沒有要更新的資料
+    STUDENT_BOOKING_NOT_COMPLETED = 400412             # 預約狀態必須為已完成
+
+    # --- 404 Student not found ---
+    STUDENT_NOT_FOUND = 404401                         # 學生不存在
+    STUDENT_PENDING_CONTRACT_NOT_FOUND = 404402        # 找不到 pending 合約
+    STUDENT_BOOKING_NOT_FOUND = 404403                 # 預約不存在 (students.py 路徑)
+
+    # --- 500 Student internal ---
+    STUDENT_DELETE_FAILED = 500401                     # 刪除學生失敗
+    STUDENT_LIST_FAILED = 500402                       # 取得學生列表失敗
+    STUDENT_GET_FAILED = 500403                        # 取得學生失敗
+    STUDENT_OVERVIEW_LIST_FAILED = 500404              # 取得學生綜合檢視失敗
+    STUDENT_OVERVIEW_FAILED = 500405                   # 取得學生總覽失敗
+    STUDENT_CREATE_FAILED = 500406                     # 建立學生失敗
+    STUDENT_UPDATE_FAILED = 500407                     # 更新學生失敗
+    STUDENT_CONVERT_FAILED = 500408                    # 試上轉正失敗
+
+    # --- 400 Student courses (student_courses.py) ---
+    STUDENT_COURSE_STUDENT_NOT_FOUND = 400413          # 學生不存在
+    STUDENT_COURSE_ALREADY_ENROLLED = 400414           # 此學生已選修此課程
+    STUDENT_COURSE_COURSE_NOT_FOUND = 400415           # 課程不存在
+
+    # --- 403 Student courses forbidden ---
+    STUDENT_COURSE_FORBIDDEN_VIEW_OTHER = 403401       # 無權查看其他學生的選課
+
+    # --- 404 Student course not found ---
+    STUDENT_COURSE_NOT_FOUND = 404404                  # 選課紀錄不存在
+
+    # --- 500 Student courses internal ---
+    STUDENT_COURSE_INTERNAL = 500409                   # 通用 str(e)
+    STUDENT_COURSE_LIST_FAILED = 500410                # 取得學生選課列表失敗
+    STUDENT_COURSE_GET_FAILED = 500411                 # 取得學生選課失敗
+    STUDENT_COURSE_CREATE_FAILED = 500412              # 新增學生選課失敗
+    STUDENT_COURSE_DELETE_FAILED = 500413              # 移除學生選課失敗
+
+    # --- 400 Student-teacher preferences ---
+    STUDENT_PREF_TEACHER_PRIMARY_NOT_FOUND = 400416    # 主要教師不存在
+    STUDENT_PREF_TEACHERS_NOT_FOUND = 400417            # 以下教師不存在
+    STUDENT_PREF_STUDENT_NOT_FOUND = 400418             # 學生不存在
+    STUDENT_PREF_ALL_TEACHERS_DUPLICATE = 400419        # 所有選擇的教師已存在於偏好中
+    STUDENT_PREF_TEACHER_DUPLICATE = 400420             # 此學生已指定該教師
+    STUDENT_PREF_SCOPE_DUPLICATE = 400421               # 此學生已有 N 等級偏好設定
+    STUDENT_PREF_TEACHER_DUPLICATE_UPDATE = 400422      # 此學生已有該教師的偏好設定
+    STUDENT_PREF_NO_UPDATE_DATA = 400423                # 沒有需要更新的欄位
+    STUDENT_PREF_LEVEL_MODE_REQUIRES_MIN = 400424       # 等級模式必須提供 min_teacher_level
+    STUDENT_PREF_COURSE_NOT_FOUND = 400425              # 課程不存在
+
+    # --- 404 Preference not found ---
+    STUDENT_PREF_NOT_FOUND = 404405                     # 偏好設定不存在
+
+    # --- 500 Preference internal ---
+    STUDENT_PREF_INTERNAL = 500414                      # 通用 str(e)
+    STUDENT_PREF_DELETE_FAILED = 500415                 # 刪除偏好失敗
+    STUDENT_PREF_CREATE_FAILED = 500416                 # 建立偏好失敗
+    STUDENT_PREF_UPDATE_FAILED = 500417                 # 更新偏好失敗
+
 
 def infer_error_code(status_code: int, detail: str) -> ErrorCode:
     """從 HTTP status code 和中文錯誤訊息自動推斷 error_code。
