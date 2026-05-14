@@ -15,11 +15,12 @@ class AppException(HTTPException):
         self,
         status_code: int,
         detail: str,
-        error_code: str | ErrorCode,
+        error_code: int | ErrorCode,
         headers: dict | None = None,
     ):
         super().__init__(status_code=status_code, detail=detail, headers=headers)
-        self.error_code = str(error_code)
+        # 統一存成 int，JSON serializer 直接輸出數字
+        self.error_code: int = int(error_code)
 
 
 # ============================================================
@@ -27,7 +28,7 @@ class AppException(HTTPException):
 # ============================================================
 
 class AuthException(AppException):
-    def __init__(self, detail: str = "認證失敗", error_code: str | ErrorCode = ErrorCode.AUTH_ERROR):
+    def __init__(self, detail: str = "認證失敗", error_code: int | ErrorCode = ErrorCode.AUTH_ERROR):
         super().__init__(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=detail,
@@ -61,7 +62,7 @@ class SessionReplacedException(AuthException):
 # ============================================================
 
 class PermissionDeniedException(AppException):
-    def __init__(self, detail: str = "權限不足", error_code: str | ErrorCode = ErrorCode.FORBIDDEN):
+    def __init__(self, detail: str = "權限不足", error_code: int | ErrorCode = ErrorCode.FORBIDDEN):
         super().__init__(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=detail,
@@ -94,11 +95,11 @@ def duplicate(field: str) -> AppException:
     """400 — 資料已存在"""
     return AppException(400, f"{field}已存在", ErrorCode.DUPLICATE_ENTRY)
 
-def forbidden(detail: str = "權限不足", error_code: str | ErrorCode = ErrorCode.FORBIDDEN) -> AppException:
+def forbidden(detail: str = "權限不足", error_code: int | ErrorCode = ErrorCode.FORBIDDEN) -> AppException:
     """403 — 權限不足"""
     return AppException(403, detail, error_code)
 
-def bad_request(detail: str, error_code: str | ErrorCode = ErrorCode.VALIDATION_ERROR) -> AppException:
+def bad_request(detail: str, error_code: int | ErrorCode = ErrorCode.VALIDATION_ERROR) -> AppException:
     """400 — 通用驗證/業務邏輯錯誤"""
     return AppException(400, detail, error_code)
 

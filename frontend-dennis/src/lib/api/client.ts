@@ -16,14 +16,16 @@ function parseErrorDetail(detail: unknown): string {
 }
 
 function toApiError(status: number, body: Record<string, unknown>, fallback: string): ApiError {
+  const rawCode = body.error_code
+  const code = typeof rawCode === 'number' ? rawCode : 0  // 0 = unknown
   return {
     message: parseErrorDetail(body.detail) || (body.message as string) || fallback,
-    code: (body.error_code as string) || 'UNKNOWN',
+    code,
     status,
   }
 }
 
-const NETWORK_ERROR: ApiError = { message: '網路錯誤，請稍後再試', code: 'NETWORK_ERROR', status: 0 }
+const NETWORK_ERROR: ApiError = { message: '網路錯誤，請稍後再試', code: 0, status: 0 }
 
 // ============================================================
 // Core helpers

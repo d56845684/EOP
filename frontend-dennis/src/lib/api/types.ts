@@ -3,13 +3,13 @@ export interface ApiErrorBody {
   success: false
   message: string
   detail: string
-  error_code: string
+  error_code: number  // 6 位數：<3-status><3-seq>，例 401005=IDLE_TIMEOUT
 }
 
 /** 前端 API 函式統一錯誤物件 */
 export interface ApiError {
   message: string   // 給使用者看的中文訊息
-  code: string      // 後端 error_code (e.g. "NOT_FOUND", "FORBIDDEN_PAGE")
+  code: number      // 後端 error_code（6 位數）
   status: number    // HTTP status code
 }
 

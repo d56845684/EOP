@@ -1,61 +1,70 @@
 """
-統一錯誤碼定義
+統一錯誤碼定義（PR A：基礎轉成 IntEnum + 6 位數）
 
-所有 API 錯誤回傳都包含 error_code，方便前端程式化處理。
-error_code 為英文 UPPER_SNAKE_CASE，message 維持中文給使用者看。
+格式：<3-digit HTTP status><3-digit seq>
+  401001 = 401 Auth 第 1 號
+  403001 = 403 Forbidden 第 1 號
+  400001 = 400 Validation 第 1 號
+  ...
+
+PR B 會在每個 status 內依 domain 切 sub-range 並補上具體 code（#63 Phase 2b）。
+
+API 回傳時 error_code 序列化為 int。前端 type 也是 number。
 """
 
-from enum import StrEnum
+from enum import IntEnum
 
 
-class ErrorCode(StrEnum):
-    # === Auth (401) ===
-    AUTH_ERROR = "AUTH_ERROR"
-    AUTH_TOKEN_EXPIRED = "AUTH_TOKEN_EXPIRED"
-    AUTH_TOKEN_INVALID = "AUTH_TOKEN_INVALID"
-    AUTH_SESSION_EXPIRED = "AUTH_SESSION_EXPIRED"
-    AUTH_IDLE_TIMEOUT = "AUTH_IDLE_TIMEOUT"
-    AUTH_SESSION_REPLACED = "AUTH_SESSION_REPLACED"
-    AUTH_LOGIN_FAILED = "AUTH_LOGIN_FAILED"
-    AUTH_API_KEY_INVALID = "AUTH_API_KEY_INVALID"
+class ErrorCode(IntEnum):
+    # === Auth (401xxx) ===
+    AUTH_ERROR = 401001
+    AUTH_TOKEN_EXPIRED = 401002
+    AUTH_TOKEN_INVALID = 401003
+    AUTH_SESSION_EXPIRED = 401004
+    AUTH_IDLE_TIMEOUT = 401005
+    AUTH_SESSION_REPLACED = 401006
+    AUTH_LOGIN_FAILED = 401007
+    AUTH_API_KEY_INVALID = 401008
 
-    # === Forbidden (403) ===
-    FORBIDDEN = "FORBIDDEN"
-    FORBIDDEN_ROLE = "FORBIDDEN_ROLE"
-    FORBIDDEN_OWNER = "FORBIDDEN_OWNER"
-    FORBIDDEN_PROTECTED = "FORBIDDEN_PROTECTED"
-    FORBIDDEN_PAGE = "FORBIDDEN_PAGE"
+    # === Forbidden (403xxx) ===
+    FORBIDDEN = 403001
+    FORBIDDEN_ROLE = 403002
+    FORBIDDEN_OWNER = 403003
+    FORBIDDEN_PROTECTED = 403004
+    FORBIDDEN_PAGE = 403005
 
-    # === Not Found (404) ===
-    NOT_FOUND = "NOT_FOUND"
+    # === Not Found (404xxx) ===
+    NOT_FOUND = 404001
 
-    # === Validation / Bad Request (400) ===
-    VALIDATION_ERROR = "VALIDATION_ERROR"
-    DUPLICATE_ENTRY = "DUPLICATE_ENTRY"
-    NO_UPDATE_DATA = "NO_UPDATE_DATA"
-    INVALID_STATE = "INVALID_STATE"
-    INVALID_FILE = "INVALID_FILE"
-    QUOTA_EXCEEDED = "QUOTA_EXCEEDED"
-    WRONG_PASSWORD = "WRONG_PASSWORD"
+    # === Validation / Bad Request (400xxx) ===
+    VALIDATION_ERROR = 400001
+    DUPLICATE_ENTRY = 400002
+    NO_UPDATE_DATA = 400003
+    INVALID_STATE = 400004
+    INVALID_FILE = 400005
+    QUOTA_EXCEEDED = 400006
+    WRONG_PASSWORD = 400007
 
-    # === Conflict (409) ===
-    CONFLICT = "CONFLICT"
+    # === Conflict (409xxx) ===
+    CONFLICT = 409001
 
-    # === Rate Limit (429) ===
-    RATE_LIMITED = "RATE_LIMITED"
+    # === Rate Limit (429xxx) ===
+    RATE_LIMITED = 429001
 
-    # === Service (503) ===
-    SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+    # === Service Unavailable (503xxx) ===
+    SERVICE_UNAVAILABLE = 503001
 
-    # === Server (500) ===
-    INTERNAL_ERROR = "INTERNAL_ERROR"
+    # === Server (500xxx) ===
+    INTERNAL_ERROR = 500001
 
 
-def infer_error_code(status_code: int, detail: str) -> str:
+def infer_error_code(status_code: int, detail: str) -> ErrorCode:
     """從 HTTP status code 和中文錯誤訊息自動推斷 error_code。
 
     用於全域 exception handler，讓現有的 raise HTTPException(...)
     不需修改也能自動帶上 error_code。
+
+    PR B 之後每個 raise 都會明確指定 code，這個函式會逐步退役。
     """
     if status_code == 401:
         if "閒置超時" in detail:

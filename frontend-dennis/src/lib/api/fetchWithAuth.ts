@@ -10,11 +10,17 @@ async function refreshTokens(): Promise<boolean> {
     return response.ok
 }
 
-/** 從 401 response body 判斷登出原因（優先用 error_code，fallback 到中文字串比對） */
+/** 從 401 response body 判斷登出原因（優先用 error_code，fallback 到中文字串比對）
+ *
+ * error_code 對應參考 backend/app/core/error_codes.py：
+ *   401005 = AUTH_IDLE_TIMEOUT  (閒置超時)
+ *   401006 = AUTH_SESSION_REPLACED  (其他裝置登入)
+ *   其餘 401 → expired
+ */
 function detectLogoutReason(body: Record<string, unknown>): string {
-    const code = body.error_code as string | undefined
-    if (code === 'AUTH_IDLE_TIMEOUT') return 'idle'
-    if (code === 'AUTH_SESSION_REPLACED') return 'replaced'
+    const code = typeof body.error_code === 'number' ? body.error_code : undefined
+    if (code === 401005) return 'idle'
+    if (code === 401006) return 'replaced'
     if (code) return 'expired'
     // fallback: 舊格式相容
     const detail = (body.detail || body.message || '') as string
