@@ -129,6 +129,39 @@ class ErrorCode(IntEnum):
     # --- 502 Booking external service ---
     BOOKING_ZOOM_SERVICE_UNAVAILABLE = 502101         # Zoom 服務目前無法建立會議
 
+    # --- 400 Leave records (leave_records.py) ---
+    BOOKING_LEAVE_INITIATOR_TYPE_REQUIRED = 400131    # 員工代申請須指定 initiator_type
+    BOOKING_LEAVE_PENDING_ALREADY_EXISTS = 400132     # 此預約已有待審核的請假申請
+    BOOKING_LEAVE_BOOKING_NOT_CONFIRMED = 400133      # 只有已確認的預約可以請假
+    BOOKING_LEAVE_ONLY_PENDING_CAN_WITHDRAW = 400134  # 只有待審核的請假可以撤回
+    BOOKING_LEAVE_ONLY_PENDING_CAN_APPROVE = 400135   # 只有待審核的請假可以核准
+    BOOKING_LEAVE_ONLY_PENDING_CAN_REJECT = 400136    # 只有待審核的請假可以駁回
+    BOOKING_LEAVE_NO_STUDENT_CONTRACT = 400137        # 此預約查無對應的學生合約
+    BOOKING_LEAVE_EMERGENCY_QUOTA_EXCEEDED = 400138   # 緊急請假額度已用完
+    BOOKING_LEAVE_TOO_LATE = 400139                   # 課程開始前 30 分鐘內無法請假
+    BOOKING_LEAVE_RELATED_BOOKING_NOT_EXIST = 400140  # 關聯的預約不存在（與 BOOKING_NOT_FOUND 不同情境）
+
+    # --- 403 Leave forbidden ---
+    BOOKING_LEAVE_FORBIDDEN_APPROVE = 403109          # 僅限員工核准請假
+    BOOKING_LEAVE_FORBIDDEN_REJECT = 403110           # 僅限員工駁回請假
+    BOOKING_LEAVE_FORBIDDEN_NOT_INITIATOR = 403111    # 只有發起者可以撤回請假
+    BOOKING_LEAVE_FORBIDDEN_STUDENT_NOT_OWN = 403112  # 學生只能為自己的預約請假
+    BOOKING_LEAVE_FORBIDDEN_TEACHER_NOT_OWN = 403113  # 教師只能為自己的預約請假
+    BOOKING_LEAVE_FORBIDDEN_CREATE = 403114           # 無權建立請假申請
+    BOOKING_LEAVE_FORBIDDEN_WITHDRAW = 403115         # 無權撤回請假
+    BOOKING_LEAVE_FORBIDDEN_VIEW = 403116             # 無權查看此請假紀錄
+
+    # --- 404 Leave not found ---
+    BOOKING_LEAVE_NOT_FOUND = 404103                  # 請假紀錄不存在
+    # 注意：leave_records.py 中的「預約不存在」(404) 沿用 BOOKING_NOT_FOUND = 404101
+
+    # --- 500 Leave internal ---
+    BOOKING_LEAVE_LIST_FAILED = 500112                # 取得請假紀錄失敗
+    BOOKING_LEAVE_CREATE_FAILED = 500113              # 建立請假申請失敗
+    BOOKING_LEAVE_WITHDRAW_FAILED = 500114            # 撤回請假失敗
+    BOOKING_LEAVE_APPROVE_FAILED = 500115             # 核准請假失敗
+    BOOKING_LEAVE_REJECT_FAILED = 500116              # 駁回請假失敗
+
 
 def infer_error_code(status_code: int, detail: str) -> ErrorCode:
     """從 HTTP status code 和中文錯誤訊息自動推斷 error_code。
