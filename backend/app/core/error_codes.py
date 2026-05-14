@@ -338,6 +338,36 @@ class ErrorCode(IntEnum):
     TEACHER_CONTRACT_ADDENDUM_PDF_FAILED_500 = 500250        # 產生附約 PDF 失敗
     TEACHER_CONTRACT_UPLOAD_CONFIRM_FAILED = 500251          # 確認上傳失敗
 
+    # --- Teacher bonus (teacher_bonus.py) ---
+    TEACHER_BONUS_NO_UPDATE_DATA = 400229                    # 沒有要更新的資料
+    TEACHER_BONUS_FORBIDDEN_VIEW = 403217                    # 無權查看此獎金紀錄
+    TEACHER_BONUS_NOT_FOUND = 404214                         # 獎金紀錄不存在
+    TEACHER_BONUS_TEACHER_NOT_FOUND = 404215                 # 教師不存在
+    TEACHER_BONUS_DELETE_FAILED = 500252                     # 刪除教師獎金失敗
+    TEACHER_BONUS_LIST_FAILED = 500253                       # 取得教師獎金列表失敗
+    TEACHER_BONUS_GET_FAILED = 500254                        # 取得教師獎金失敗
+    TEACHER_BONUS_TEACHER_OPTIONS_FAILED = 500255            # 取得教師選項失敗
+    TEACHER_BONUS_CREATE_FAILED = 500256                     # 新增教師獎金失敗
+    TEACHER_BONUS_UPDATE_FAILED = 500257                     # 更新教師獎金失敗
+
+    # --- Teacher details (teacher_details.py) ---
+    TEACHER_DETAIL_FILE_FORMAT_INVALID = 400230              # 不支援的檔案格式
+    TEACHER_DETAIL_FILE_NOT_UPLOADED = 400231                # 檔案尚未上傳至 S3
+    TEACHER_DETAIL_NO_UPDATE_DATA = 400232                   # 沒有要更新的資料
+    TEACHER_DETAIL_FORBIDDEN_DOWNLOAD = 403218               # 無權下載此文件
+    TEACHER_DETAIL_FORBIDDEN_VIEW_OTHER = 403219             # 無權查看其他教師的明細
+    TEACHER_DETAIL_TEACHER_NOT_FOUND = 404216                # 教師不存在
+    TEACHER_DETAIL_NOT_FOUND = 404217                        # 教師明細不存在
+    TEACHER_DETAIL_FILE_NOT_UPLOADED_404 = 404218            # 此明細尚無上傳檔案
+    TEACHER_DETAIL_DELETE_FAILED = 500258                    # 刪除教師明細失敗
+    TEACHER_DETAIL_GET_FAILED = 500259                       # 取得教師明細失敗
+    TEACHER_DETAIL_CREATE_FAILED = 500260                    # 新增教師明細失敗
+    TEACHER_DETAIL_UPDATE_FAILED = 500261                    # 更新教師明細失敗
+    TEACHER_DETAIL_FILE_INFO_UPDATE_FAILED = 500262          # 更新檔案資訊失敗
+    TEACHER_DETAIL_UPLOAD_URL_FAILED = 500263                # 產生上傳連結失敗
+    TEACHER_DETAIL_DOWNLOAD_URL_FAILED = 500264              # 產生下載連結失敗
+    TEACHER_DETAIL_UPLOAD_CONFIRM_FAILED = 500265            # 確認上傳失敗
+
 
 def infer_error_code(status_code: int, detail: str) -> ErrorCode:
     """從 HTTP status code 和中文錯誤訊息自動推斷 error_code。

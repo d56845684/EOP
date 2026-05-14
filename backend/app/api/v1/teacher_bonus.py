@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import bad_request, forbidden, not_found, internal_error
 from app.schemas.teacher_bonus import (
     TeacherBonusCreate, TeacherBonusUpdate,
     TeacherBonusResponse, TeacherBonusListResponse,
@@ -129,7 +131,7 @@ async def list_teacher_bonus(
             total=total, page=page, per_page=per_page, total_pages=total_pages
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得教師獎金列表失敗: {str(e)}")
+        raise internal_error(f"取得教師獎金列表失敗: {str(e)}", ErrorCode.TEACHER_BONUS_LIST_FAILED)
 
 
 @router.get("/{bonus_id}", response_model=DataResponse[TeacherBonusResponse])
@@ -144,19 +146,19 @@ async def get_teacher_bonus(
             filters={"id": bonus_id, "is_deleted": "eq.false"},
         )
         if not result:
-            raise HTTPException(status_code=404, detail="獎金紀錄不存在")
+            raise not_found("獎金紀錄", ErrorCode.TEACHER_BONUS_NOT_FOUND)
 
         # Ownership check: 教師只能查自己的獎金
         if current_user.is_teacher():
             if result[0].get("teacher_id") != current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="無權查看此獎金紀錄")
+                raise forbidden("無權查看此獎金紀錄", ErrorCode.TEACHER_BONUS_FORBIDDEN_VIEW)
 
         enriched = await enrich_bonus(result[0])
         return DataResponse(data=TeacherBonusResponse(**enriched))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得教師獎金失敗: {str(e)}")
+        raise internal_error(f"取得教師獎金失敗: {str(e)}", ErrorCode.TEACHER_BONUS_GET_FAILED)
 
 
 @router.post("", response_model=DataResponse[TeacherBonusResponse])
@@ -172,7 +174,7 @@ async def create_teacher_bonus(
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
         )
         if not teachers:
-            raise HTTPException(status_code=404, detail="教師不存在")
+            raise not_found("教師", ErrorCode.TEACHER_BONUS_TEACHER_NOT_FOUND)
 
         bonus_data: dict = {
             "teacher_id": data.teacher_id,
@@ -197,14 +199,14 @@ async def create_teacher_bonus(
             table="teacher_bonus_records", data=bonus_data
         )
         if not result:
-            raise HTTPException(status_code=500, detail="新增教師獎金失敗")
+            raise internal_error("新增教師獎金失敗", ErrorCode.TEACHER_BONUS_CREATE_FAILED)
 
         enriched = await enrich_bonus(result)
         return DataResponse(message="教師獎金新增成功", data=TeacherBonusResponse(**enriched))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"新增教師獎金失敗: {str(e)}")
+        raise internal_error(f"新增教師獎金失敗: {str(e)}", ErrorCode.TEACHER_BONUS_CREATE_FAILED)
 
 
 @router.put("/{bonus_id}", response_model=DataResponse[TeacherBonusResponse])
@@ -220,7 +222,7 @@ async def update_teacher_bonus(
             filters={"id": bonus_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="獎金紀錄不存在")
+            raise not_found("獎金紀錄", ErrorCode.TEACHER_BONUS_NOT_FOUND)
 
         update_data: dict = {}
         if data.bonus_type is not None:
@@ -239,7 +241,7 @@ async def update_teacher_bonus(
             update_data["notes"] = data.notes
 
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.TEACHER_BONUS_NO_UPDATE_DATA)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         if employee_id:
@@ -250,14 +252,14 @@ async def update_teacher_bonus(
             filters={"id": bonus_id}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="更新教師獎金失敗")
+            raise internal_error("更新教師獎金失敗", ErrorCode.TEACHER_BONUS_UPDATE_FAILED)
 
         enriched = await enrich_bonus(result)
         return DataResponse(message="教師獎金更新成功", data=TeacherBonusResponse(**enriched))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新教師獎金失敗: {str(e)}")
+        raise internal_error(f"更新教師獎金失敗: {str(e)}", ErrorCode.TEACHER_BONUS_UPDATE_FAILED)
 
 
 @router.delete("/{bonus_id}", response_model=BaseResponse)
@@ -272,7 +274,7 @@ async def delete_teacher_bonus(
             filters={"id": bonus_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="獎金紀錄不存在")
+            raise not_found("獎金紀錄", ErrorCode.TEACHER_BONUS_NOT_FOUND)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         delete_data: dict = {
@@ -287,13 +289,13 @@ async def delete_teacher_bonus(
             filters={"id": bonus_id}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="刪除教師獎金失敗")
+            raise internal_error("刪除教師獎金失敗", ErrorCode.TEACHER_BONUS_DELETE_FAILED)
 
         return BaseResponse(message="教師獎金刪除成功")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除教師獎金失敗: {str(e)}")
+        raise internal_error(f"刪除教師獎金失敗: {str(e)}", ErrorCode.TEACHER_BONUS_DELETE_FAILED)
 
 
 # ========== Options ==========
@@ -310,4 +312,4 @@ async def get_teacher_options(
         )
         return {"success": True, "message": "操作成功", "data": teachers}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得教師選項失敗: {str(e)}")
+        raise internal_error(f"取得教師選項失敗: {str(e)}", ErrorCode.TEACHER_BONUS_TEACHER_OPTIONS_FAILED)
