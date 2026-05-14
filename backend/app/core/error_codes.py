@@ -278,6 +278,66 @@ class ErrorCode(IntEnum):
     STUDENT_CONTRACT_ADDENDUM_PDF_FAILED_500 = 500225 # 產生附約 PDF 失敗
     STUDENT_CONTRACT_UPLOAD_CONFIRM_FAILED = 500226   # 確認上傳失敗
 
+    # --- 400 Teacher contract validation ---
+    TEACHER_CONTRACT_WORK_SCHEDULE_OVERLAP = 400216         # 工作時段有重疊
+    TEACHER_CONTRACT_ADDENDUM_ONLY_PENDING_EDIT = 400217    # 只有待生效附約可修改
+    TEACHER_CONTRACT_ADDENDUM_REQUIRES_ACTIVE = 400218      # 只有生效中合約才能建附約
+    TEACHER_CONTRACT_TEACHER_NOT_FOUND = 400219             # 教師不存在
+    TEACHER_CONTRACT_ADDENDUM_END_INVALID = 400220          # 新結束日期須 > 原結束
+    TEACHER_CONTRACT_ADDENDUM_END_BEFORE_PARENT = 400221    # 新結束日期須 > 母約結束
+    TEACHER_CONTRACT_FILE_NOT_UPLOADED = 400222             # 檔案尚未上傳至 S3
+    TEACHER_CONTRACT_PARENT_NOT_ACTIVE = 400223             # 母約狀態不是生效中
+    TEACHER_CONTRACT_OVERTIME_DUPLICATE = 400224            # 每份合約只能設一筆加班費
+    TEACHER_CONTRACT_NO_UPDATE_DATA = 400225                # 沒有要更新的資料
+    TEACHER_CONTRACT_INVALID_FILE_PATH = 400226             # 無效的檔案路徑格式
+    TEACHER_CONTRACT_DUPLICATE_ACTIVE = 400227              # 該教師已有生效中合約
+    TEACHER_CONTRACT_COURSE_NOT_FOUND = 400228              # 課程不存在
+
+    # --- 403 Teacher contract forbidden ---
+    TEACHER_CONTRACT_FORBIDDEN_STUDENT_DOWNLOAD = 403209       # 學生無權下載教師合約
+    TEACHER_CONTRACT_FORBIDDEN_STUDENT_VIEW = 403210           # 學生無權查看教師合約
+    TEACHER_CONTRACT_FORBIDDEN_STUDENT_VIEW_SCHEDULE = 403211  # 學生無權查看教師合約工作時段
+    TEACHER_CONTRACT_FORBIDDEN_STUDENT_VIEW_DETAIL = 403212    # 學生無權查看教師合約明細
+    TEACHER_CONTRACT_FORBIDDEN_DOWNLOAD = 403213               # 無權下載此合約
+    TEACHER_CONTRACT_FORBIDDEN_VIEW = 403214                   # 無權查看此合約
+    TEACHER_CONTRACT_FORBIDDEN_VIEW_SCHEDULE = 403215          # 無權查看此合約工作時段
+    TEACHER_CONTRACT_FORBIDDEN_VIEW_DETAIL = 403216            # 無權查看此合約明細
+
+    # --- 404 Teacher contract not found ---
+    TEACHER_CONTRACT_NOT_FOUND = 404208                      # 教師合約不存在
+    TEACHER_CONTRACT_DETAIL_NOT_FOUND = 404209               # 合約明細不存在
+    TEACHER_CONTRACT_FILE_NOT_UPLOADED_404 = 404210          # 此合約尚未上傳檔案
+    TEACHER_CONTRACT_ADDENDUM_FILE_NOT_UPLOADED = 404211     # 此附約尚未上傳檔案
+    TEACHER_CONTRACT_ADDENDUM_PDF_FAILED_404 = 404212        # 產生附約 PDF 失敗 (404 路徑)
+    TEACHER_CONTRACT_ADDENDUM_NOT_FOUND = 404213             # 附約不存在
+
+    # --- 500 Teacher contract internal ---
+    TEACHER_CONTRACT_INTERNAL = 500227                       # 通用 str(e)
+    TEACHER_CONTRACT_DETAIL_DELETE_FAILED = 500228           # 刪除合約明細失敗
+    TEACHER_CONTRACT_DELETE_FAILED = 500229                  # 刪除教師合約失敗
+    TEACHER_CONTRACT_ADDENDUM_DELETE_FAILED = 500230         # 刪除附約失敗
+    TEACHER_CONTRACT_DOWNLOAD_URL_FAILED = 500231            # 取得下載連結失敗
+    TEACHER_CONTRACT_DETAIL_LIST_FAILED = 500232             # 取得合約明細失敗
+    TEACHER_CONTRACT_WORK_SCHEDULE_GET_FAILED = 500233       # 取得工作時段失敗
+    TEACHER_CONTRACT_LIST_FAILED = 500234                    # 取得教師合約列表失敗
+    TEACHER_CONTRACT_GET_FAILED = 500235                     # 取得教師合約失敗
+    TEACHER_CONTRACT_ADDENDUM_LIST_FAILED = 500236           # 取得附約列表失敗
+    TEACHER_CONTRACT_ADDENDUM_GET_FAILED = 500237            # 取得附約失敗
+    TEACHER_CONTRACT_CREATE_FAILED = 500238                  # 建立教師合約失敗
+    TEACHER_CONTRACT_ADDENDUM_CREATE_FAILED = 500239         # 建立附約失敗
+    TEACHER_CONTRACT_DETAIL_CREATE_FAILED = 500240           # 新增合約明細失敗
+    TEACHER_CONTRACT_DETAIL_UPDATE_FAILED = 500241           # 更新合約明細失敗
+    TEACHER_CONTRACT_UPDATE_INFO_FAILED = 500242             # 更新合約資訊失敗
+    TEACHER_CONTRACT_WORK_SCHEDULE_UPDATE_FAILED = 500243    # 更新工作時段失敗
+    TEACHER_CONTRACT_UPDATE_FAILED = 500244                  # 更新教師合約失敗
+    TEACHER_CONTRACT_ADDENDUM_UPDATE_FAILED = 500245         # 更新附約失敗
+    TEACHER_CONTRACT_WORK_SCHEDULE_CLEAR_FAILED = 500246     # 清除工作時段失敗
+    TEACHER_CONTRACT_UPLOAD_URL_FAILED = 500247              # 產生上傳連結失敗
+    TEACHER_CONTRACT_GENERATE_DOWNLOAD_URL_FAILED = 500248   # 產生下載連結失敗
+    TEACHER_CONTRACT_PDF_FAILED = 500249                     # 產生合約 PDF 失敗
+    TEACHER_CONTRACT_ADDENDUM_PDF_FAILED_500 = 500250        # 產生附約 PDF 失敗
+    TEACHER_CONTRACT_UPLOAD_CONFIRM_FAILED = 500251          # 確認上傳失敗
+
 
 def infer_error_code(status_code: int, detail: str) -> ErrorCode:
     """從 HTTP status code 和中文錯誤訊息自動推斷 error_code。
