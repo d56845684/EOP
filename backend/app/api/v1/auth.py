@@ -3,6 +3,8 @@ from app.services.auth_service import auth_service
 from app.services.session_service import session_service
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import bad_request, internal_error
 from app.schemas.auth import (
     LoginRequest, LoginResponse,
     LogoutRequest, RefreshResponse, PasswordResetRequest,
@@ -166,7 +168,7 @@ async def change_password(
             password=data.current_password
         )
     except Exception:
-        raise HTTPException(status_code=400, detail="當前密碼錯誤")
+        raise bad_request("當前密碼錯誤", ErrorCode.AUTH_CURRENT_PASSWORD_WRONG)
 
     # 2. 更新密碼
     try:
@@ -175,11 +177,11 @@ async def change_password(
             attributes={"password": data.new_password}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="密碼更新失敗")
+            raise internal_error("密碼更新失敗", ErrorCode.AUTH_PASSWORD_UPDATE_FAILED)
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"密碼更新失敗: {str(e)}")
+        raise internal_error(f"密碼更新失敗: {str(e)}", ErrorCode.AUTH_PASSWORD_UPDATE_FAILED)
 
     # 3. 將 must_change_password 設為 False
     try:

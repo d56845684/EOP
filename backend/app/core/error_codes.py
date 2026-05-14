@@ -606,6 +606,89 @@ class ErrorCode(IntEnum):
     USER_LIST_FAILED = 500526                            # 列出帳號失敗
     USER_UPDATE_FAILED = 500527                          # 更新帳號失敗
 
+    # ================================================================
+    # Domain 6 — COURSE (courses.py)
+    # ================================================================
+    COURSE_DUPLICATE_CODE = 400601                       # 課程代碼已存在
+    COURSE_NO_UPDATE_DATA = 400602                       # 沒有要更新的資料
+    COURSE_INTERNAL_400 = 400603                         # generic 400 (multi-line detail 抓不到)
+    COURSE_NOT_FOUND = 404601                            # 課程不存在
+    COURSE_DELETE_FAILED = 500601                        # 刪除課程失敗
+    COURSE_LIST_FAILED = 500602                          # 取得課程列表失敗
+    COURSE_GET_FAILED = 500603                           # 取得課程失敗
+    COURSE_CREATE_FAILED = 500604                        # 建立課程失敗
+    COURSE_UPDATE_FAILED = 500605                        # 更新課程失敗
+
+    # ================================================================
+    # Domain 7 — EXTERNAL (zoom.py / google_drive.py / line_auth.py)
+    # ================================================================
+
+    # --- 400 Zoom ---
+    ZOOM_OAUTH_TOKEN_FAILED = 400701                     # OAuth token 換取失敗
+    ZOOM_OAUTH_NOT_CONFIGURED = 400702                   # OAuth 尚未設定
+    ZOOM_S2S_CONNECTION_FAILED = 400703                  # S2S 連線失敗
+    ZOOM_BATCH_SIZE_INVALID = 400704                     # booking_ids 必須 1~100 筆
+    ZOOM_BOOKING_STATUS_INVALID = 400705                 # 只有待確認/已確認可建會議
+    ZOOM_NO_UPDATE_DATA = 400706                         # 沒有要更新的資料
+    ZOOM_BOOKING_IN_PAST = 400707                        # 無法為過去的預約建立
+    ZOOM_OAUTH_STATE_MISSING = 400708                    # 缺少 state 參數
+
+    # --- 403 Zoom ---
+    ZOOM_INVALID_SECRET = 403701                         # Invalid secret (webhook)
+    ZOOM_FORBIDDEN_VIEW_BOOKING = 403702                 # 無權查看此預約的 Zoom
+
+    # --- 404 Zoom ---
+    ZOOM_MEETING_NOT_FOUND = 404701                      # Meeting not found
+    ZOOM_ACCOUNT_NOT_FOUND = 404702                      # Zoom 帳號不存在
+    ZOOM_RECORDING_NOT_READY = 404703                    # 尚無可用的錄影
+    ZOOM_TEACHER_NOT_FOUND_OAUTH = 404704                # 找不到對應的教師紀錄 (OAuth callback)
+    ZOOM_TEACHER_NOT_FOUND = 404705                      # 找不到教師紀錄
+    ZOOM_NO_MEETING_FOR_BOOKING = 404706                 # 此預約尚無 Zoom 會議
+    ZOOM_NO_RECORDING_FILE = 404707                      # 無可用錄影檔案
+    ZOOM_BOOKING_NOT_FOUND = 404708                      # 預約不存在 (zoom.py 路徑)
+
+    # --- 500 Zoom ---
+    ZOOM_ACCOUNT_DELETE_FAILED = 500701                  # 刪除 Zoom 帳號失敗
+    ZOOM_ACCOUNT_LIST_FAILED = 500702                    # 取得 Zoom 帳號列表失敗
+    ZOOM_DOWNLOAD_TOKEN_FAILED = 500703                  # 取得下載 token 失敗
+    ZOOM_MEETING_LIST_FAILED = 500704                    # 取得會議紀錄失敗
+    ZOOM_RECORDING_GET_FAILED = 500705                   # 取得錄影失敗
+    ZOOM_MEETING_CREATE_FAILED = 500706                  # 建立 Zoom 會議失敗
+    ZOOM_BATCH_QUERY_FAILED = 500707                     # 批次查詢失敗
+    ZOOM_ACCOUNT_CREATE_FAILED = 500708                  # 新增 Zoom 帳號失敗
+    ZOOM_ACCOUNT_UPDATE_FAILED = 500709                  # 更新 Zoom 帳號失敗
+    ZOOM_MEETING_QUERY_FAILED = 500710                   # 查詢 Zoom 會議失敗
+    ZOOM_TEST_CONNECTION_FAILED = 500711                 # 測試 Zoom 連線失敗
+    ZOOM_TOKEN_FAILED = 500712                           # 無法取得 Zoom token
+    ZOOM_RECORDING_UPDATE_FAILED = 500713                # 錄影資訊更新失敗
+
+    # --- 400 Google Drive ---
+    GDRIVE_OAUTH_NOT_CONFIGURED = 400709                 # OAuth 尚未設定
+    GDRIVE_OAUTH_NO_CLIENT_ID = 400710                   # 缺少 CLIENT_ID
+    GDRIVE_NO_REFRESH_TOKEN = 400711                     # 未取得 refresh_token
+
+    # --- 404 Google Drive ---
+    GDRIVE_NOT_BOUND = 404709                            # 未綁定 Google Drive
+    GDRIVE_BIND_REQUIRED = 404710                        # 請先綁定 Google Drive
+
+    # --- 500 Google Drive ---
+    GDRIVE_TOKEN_EXCHANGE_FAILED = 500714                # token exchange 失敗
+
+    # --- 503 LINE ---
+    LINE_CHANNEL_DISABLED = 503701                       # 頻道功能未啟用
+    LINE_LOGIN_DISABLED = 503702                         # Line 登入功能未啟用
+
+    # ================================================================
+    # Domain 9 — SYSTEM (alerts.py / auth.py)
+    # ================================================================
+    ALERT_NOT_FOUND = 404901                             # 告警不存在
+    ALERT_LIST_FAILED = 500901                           # 取得告警列表失敗
+    ALERT_UNREAD_COUNT_FAILED = 500902                   # 取得未讀數量失敗
+    ALERT_MARK_FAILED = 500903                           # 標記失敗
+
+    AUTH_CURRENT_PASSWORD_WRONG = 400901                 # 當前密碼錯誤
+    AUTH_PASSWORD_UPDATE_FAILED = 500904                 # 密碼更新失敗
+
 
 def infer_error_code(status_code: int, detail: str) -> ErrorCode:
     """從 HTTP status code 和中文錯誤訊息自動推斷 error_code。
