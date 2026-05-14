@@ -1,0 +1,53 @@
+:root {
+  /* Brand Colors */
+  --stitch-color-primary: #0f52ba; /* Sapphire Blue */
+  --stitch-color-secondary: #0a3d91; /* Deep Navy */
+  --stitch-color-background: #faf8ff;
+  --stitch-color-surface: #ffffff;
+
+  /* Semantic Colors */
+  --stitch-color-success: #48a111;
+  --stitch-color-warning: #ff9b2f;
+  --stitch-color-error: #ba1a1a;
+  --stitch-color-danger: #fb4141;
+
+  /* Surface Hierarchy (Ambient Shadows Fallback) */
+  --stitch-color-surface-lowest: #ffffff;
+  --stitch-color-surface-low: #f3f3fc;
+  --stitch-color-surface-container: #ededf6;
+  --stitch-color-surface-high: #e7e7f1;
+  --stitch-color-surface-highest: #e1e2eb;
+  --stitch-color-surface-dim: #d9d9e2;
+
+  /* On-Surface Colors */
+  --stitch-color-on-surface: #191b22;
+  --stitch-color-on-surface-variant: #434653;
+  --stitch-color-outline: #737784;
+  --stitch-color-outline-variant: #c3c6d5;
+
+  /* Spacing (4px baseline rhythm) */
+  --stitch-spacing-base: 4px;
+  --stitch-spacing-xs: 4px;
+  --stitch-spacing-sm: 8px;
+  --stitch-spacing-md: 16px;
+  --stitch-spacing-lg: 24px;
+  --stitch-spacing-xl: 32px;
+  --stitch-spacing-gutter: 16px;
+  --stitch-spacing-margin: 24px;
+
+  /* Corner Radius (Shapes) */
+  --stitch-radius-sm: 2px;
+  --stitch-radius-default: 4px;
+  --stitch-radius-md: 6px;
+  --stitch-radius-lg: 8px;
+  --stitch-radius-xl: 12px;
+  --stitch-radius-full: 9999px;
+
+  /* Elevation (Shadows) */
+  --stitch-shadow-l1: 0 2px 4px rgba(0, 0, 0, 0.04);
+  --stitch-shadow-l2: 0 4px 8px rgba(0, 0, 0, 0.08);
+  --stitch-shadow-l3: 0 10px 20px rgba(0, 0, 0, 0.12);
+
+  /* Typography Presets (for reference) */
+  --stitch-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}

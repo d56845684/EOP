@@ -1,0 +1,23 @@
+/* Mapping Element Plus variables to Stitch Design Tokens */
+:root {
+  /* Colors */
+  --el-color-primary: var(--stitch-color-primary);
+  --el-color-success: var(--stitch-color-success);
+  --el-color-warning: var(--stitch-color-warning);
+  --el-color-danger: var(--stitch-color-danger);
+  --el-color-error: var(--stitch-color-error);
+
+  /* Border Radius */
+  --el-border-radius-base: var(--stitch-radius-default);
+  --el-border-radius-small: var(--stitch-radius-sm);
+  --el-border-radius-round: var(--stitch-radius-full);
+
+  /* Shadows */
+  --el-box-shadow: var(--stitch-shadow-l2);
+  --el-box-shadow-light: var(--stitch-shadow-l1);
+  --el-box-shadow-lighter: var(--stitch-shadow-l1);
+  --el-box-shadow-dark: var(--stitch-shadow-l3);
+
+  /* Typography */
+  --el-font-family: var(--stitch-font-family);
+}
