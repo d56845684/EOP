@@ -4,6 +4,10 @@ from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.config import settings
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_teacher, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import (
+    bad_request, forbidden, not_found, internal_error,
+)
 from app.schemas.teacher import TeacherCreate, TeacherUpdate, TeacherSelfUpdate, TeacherResponse, TeacherListResponse
 from app.schemas.teacher_view import TeacherViewResponse
 from app.schemas.response import BaseResponse, DataResponse, PaginatedResponse, UploadUrlResponse
@@ -69,7 +73,7 @@ async def list_teachers(
             total=total, page=page, per_page=per_page, total_pages=total_pages
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得教師列表失敗: {str(e)}")
+        raise internal_error(f"取得教師列表失敗: {str(e)}", ErrorCode.TEACHER_LIST_FAILED)
 
 
 # ========== 教師自我更新（必須在 /{teacher_id} 之前定義）==========
@@ -88,26 +92,26 @@ async def update_teacher_self(
             filters={"id": current_user.user_id},
         )
         if not profiles or not profiles[0].get("teacher_id"):
-            raise HTTPException(status_code=403, detail="找不到對應的教師資料")
+            raise forbidden("找不到對應的教師資料", ErrorCode.TEACHER_FORBIDDEN_NO_TEACHER_DATA)
 
         teacher_id = profiles[0]["teacher_id"]
 
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.TEACHER_NO_UPDATE_DATA)
 
         result = await supabase_service.table_update(
             table="teachers", data=update_data,
             filters={"id": teacher_id, "is_deleted": "eq.false"},
         )
         if not result:
-            raise HTTPException(status_code=500, detail="更新教師資料失敗")
+            raise internal_error("更新教師資料失敗", ErrorCode.TEACHER_INFO_UPDATE_FAILED)
 
         return DataResponse(message="教師資料更新成功", data=TeacherResponse(**result))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新教師資料失敗: {str(e)}")
+        raise internal_error(f"更新教師資料失敗: {str(e)}", ErrorCode.TEACHER_INFO_UPDATE_FAILED)
 
 
 # ============================================
@@ -129,7 +133,7 @@ async def list_teachers_overview(
 ):
     """教師總覽列表：每位教師一行，附帶合約/預約/帳號/獎金摘要"""
     if employment_type is not None and employment_type not in ("hourly", "full_time"):
-        raise HTTPException(status_code=400, detail="employment_type 只能是 'hourly' 或 'full_time'")
+        raise bad_request("employment_type 只能是 'hourly' 或 'full_time'", ErrorCode.TEACHER_EMPLOYMENT_TYPE_INVALID)
     try:
         pool = supabase_service.pool
 
@@ -296,7 +300,7 @@ async def list_teachers_overview(
         raise
     except Exception as e:
         logger.exception(f"取得教師總覽失敗: {e}")
-        raise HTTPException(status_code=500, detail=f"取得教師總覽失敗: {str(e)}")
+        raise internal_error(f"取得教師總覽失敗: {str(e)}", ErrorCode.TEACHER_OVERVIEW_FAILED)
 
 
 @router.get("/{teacher_id}", response_model=DataResponse[TeacherResponse])
@@ -311,13 +315,13 @@ async def get_teacher(
             filters={"id": teacher_id, "is_deleted": "eq.false"}
         )
         if not result:
-            raise HTTPException(status_code=404, detail="教師不存在")
+            raise not_found("教師", ErrorCode.TEACHER_NOT_FOUND)
         result[0]["avatar_url"] = await _sign_avatar(result[0].get("avatar_url"))
         return DataResponse(data=TeacherResponse(**result[0]))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得教師失敗: {str(e)}")
+        raise internal_error(f"取得教師失敗: {str(e)}", ErrorCode.TEACHER_GET_FAILED)
 
 
 @router.post("", response_model=DataResponse[TeacherResponse])
@@ -338,14 +342,14 @@ async def create_teacher(
             filters={"teacher_no": data.teacher_no, "is_deleted": "eq.false"}
         )
         if existing:
-            raise HTTPException(status_code=400, detail="教師編號已存在")
+            raise bad_request("教師編號已存在", ErrorCode.TEACHER_NO_DUPLICATE)
 
         existing_email = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if existing_email:
-            raise HTTPException(status_code=400, detail="此 Email 已被其他教師使用")
+            raise bad_request("此 Email 已被其他教師使用", ErrorCode.TEACHER_EMAIL_USED_BY_TEACHER)
 
         # 跨表檢查：email 全域不可重複
         dup_student = await supabase_service.table_select(
@@ -353,14 +357,14 @@ async def create_teacher(
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if dup_student:
-            raise HTTPException(status_code=400, detail="此 Email 已被學生使用")
+            raise bad_request("此 Email 已被學生使用", ErrorCode.TEACHER_EMAIL_USED_BY_STUDENT)
 
         dup_employee = await supabase_service.table_select(
             table="employees", select="id",
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if dup_employee:
-            raise HTTPException(status_code=400, detail="此 Email 已被員工使用")
+            raise bad_request("此 Email 已被員工使用", ErrorCode.TEACHER_EMAIL_USED_BY_EMPLOYEE)
 
         teacher_data = data.model_dump()
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -371,13 +375,13 @@ async def create_teacher(
             table="teachers", data=teacher_data
         )
         if not result:
-            raise HTTPException(status_code=500, detail="建立教師失敗")
+            raise internal_error("建立教師失敗", ErrorCode.TEACHER_CREATE_FAILED)
 
         return DataResponse(message="教師建立成功", data=TeacherResponse(**result))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立教師失敗: {str(e)}")
+        raise internal_error(f"建立教師失敗: {str(e)}", ErrorCode.TEACHER_CREATE_FAILED)
 
 
 @router.put("/{teacher_id}", response_model=DataResponse[TeacherResponse])
@@ -393,7 +397,7 @@ async def update_teacher(
             filters={"id": teacher_id, "is_deleted": "eq.false"}
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="教師不存在")
+            raise not_found("教師", ErrorCode.TEACHER_NOT_FOUND)
 
         if data.email and data.email != existing[0]["email"]:
             dup = await supabase_service.table_select(
@@ -401,37 +405,37 @@ async def update_teacher(
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup:
-                raise HTTPException(status_code=400, detail="此 Email 已被其他教師使用")
+                raise bad_request("此 Email 已被其他教師使用", ErrorCode.TEACHER_EMAIL_USED_BY_TEACHER)
 
             dup_student = await supabase_service.table_select(
                 table="students", select="id",
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup_student:
-                raise HTTPException(status_code=400, detail="此 Email 已被學生使用")
+                raise bad_request("此 Email 已被學生使用", ErrorCode.TEACHER_EMAIL_USED_BY_STUDENT)
 
             dup_employee = await supabase_service.table_select(
                 table="employees", select="id",
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup_employee:
-                raise HTTPException(status_code=400, detail="此 Email 已被員工使用")
+                raise bad_request("此 Email 已被員工使用", ErrorCode.TEACHER_EMAIL_USED_BY_EMPLOYEE)
 
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.TEACHER_NO_UPDATE_DATA)
 
         result = await supabase_service.table_update(
             table="teachers", data=update_data, filters={"id": teacher_id}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="更新教師失敗")
+            raise internal_error("更新教師失敗", ErrorCode.TEACHER_UPDATE_FAILED)
 
         return DataResponse(message="教師更新成功", data=TeacherResponse(**result))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新教師失敗: {str(e)}")
+        raise internal_error(f"更新教師失敗: {str(e)}", ErrorCode.TEACHER_UPDATE_FAILED)
 
 
 @router.delete("/{teacher_id}", response_model=BaseResponse)
@@ -446,7 +450,7 @@ async def delete_teacher(
             filters={"id": teacher_id, "is_deleted": "eq.false"}
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="教師不存在")
+            raise not_found("教師", ErrorCode.TEACHER_NOT_FOUND)
 
         result = await supabase_service.table_update(
             table="teachers",
@@ -454,13 +458,13 @@ async def delete_teacher(
             filters={"id": teacher_id}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="刪除教師失敗")
+            raise internal_error("刪除教師失敗", ErrorCode.TEACHER_DELETE_FAILED)
 
         return BaseResponse(message="教師刪除成功")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除教師失敗: {str(e)}")
+        raise internal_error(f"刪除教師失敗: {str(e)}", ErrorCode.TEACHER_DELETE_FAILED)
 
 
 # ========== 教師頭像上傳 ==========
@@ -495,14 +499,14 @@ async def get_teacher_avatar_upload_url(
     try:
         ext = os.path.splitext(body.file_name)[1].lower().lstrip(".")
         if ext not in AVATAR_ALLOWED_TYPES:
-            raise HTTPException(status_code=400, detail=f"不支援的圖片格式: {ext}（允許 jpg/png/webp）")
+            raise bad_request(f"不支援的圖片格式: {ext}（允許 jpg/png/webp）", ErrorCode.TEACHER_AVATAR_FORMAT_INVALID)
 
         existing = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"id": teacher_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="教師不存在")
+            raise not_found("教師", ErrorCode.TEACHER_NOT_FOUND)
 
         await storage_service.ensure_bucket_exists(settings.AWS_S3_BUCKET)
 
@@ -516,7 +520,7 @@ async def get_teacher_avatar_upload_url(
             max_size_bytes=AVATAR_MAX_SIZE,
         )
         if not signed:
-            raise HTTPException(status_code=500, detail="產生上傳連結失敗")
+            raise internal_error("產生上傳連結失敗", ErrorCode.TEACHER_UPLOAD_URL_FAILED)
 
         return {
             "upload_url": signed["upload_url"],
@@ -527,7 +531,7 @@ async def get_teacher_avatar_upload_url(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"產生上傳連結失敗: {str(e)}")
+        raise internal_error(f"產生上傳連結失敗: {str(e)}", ErrorCode.TEACHER_UPLOAD_URL_FAILED)
 
 
 @router.post("/{teacher_id}/avatar/confirm-upload", response_model=DataResponse[TeacherResponse])
@@ -543,7 +547,7 @@ async def confirm_teacher_avatar_upload(
             filters={"id": teacher_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="教師不存在")
+            raise not_found("教師", ErrorCode.TEACHER_NOT_FOUND)
 
         # 驗證 S3 檔案存在
         file_exists = await storage_service.verify_file_exists(
@@ -551,7 +555,7 @@ async def confirm_teacher_avatar_upload(
             path=body.storage_path
         )
         if not file_exists:
-            raise HTTPException(status_code=400, detail="檔案尚未上傳至 S3")
+            raise bad_request("檔案尚未上傳至 S3", ErrorCode.TEACHER_FILE_NOT_UPLOADED)
 
         # 產生 avatar_url（使用 S3 path）
         result = await supabase_service.table_update(
@@ -560,14 +564,14 @@ async def confirm_teacher_avatar_upload(
             filters={"id": teacher_id},
         )
         if not result:
-            raise HTTPException(status_code=500, detail="更新頭像失敗")
+            raise internal_error("更新頭像失敗", ErrorCode.TEACHER_AVATAR_UPDATE_FAILED)
 
         result["avatar_url"] = await _sign_avatar(result.get("avatar_url"))
         return DataResponse(message="頭像上傳成功", data=TeacherResponse(**result))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"確認頭像上傳失敗: {str(e)}")
+        raise internal_error(f"確認頭像上傳失敗: {str(e)}", ErrorCode.TEACHER_AVATAR_CONFIRM_FAILED)
 
 
 # ============================================
@@ -604,7 +608,7 @@ async def get_teacher_view(
             tid,
         )
         if not teacher_row:
-            raise HTTPException(status_code=404, detail="教師不存在")
+            raise not_found("教師", ErrorCode.TEACHER_NOT_FOUND)
 
         r = teacher_row
         # avatar_url: S3 path → presigned URL
@@ -767,4 +771,4 @@ async def get_teacher_view(
         raise
     except Exception as e:
         logger.exception(f"取得教師綜合檢視失敗: {e}")
-        raise HTTPException(status_code=500, detail=f"取得教師綜合檢視失敗: {str(e)}")
+        raise internal_error(f"取得教師綜合檢視失敗: {str(e)}", ErrorCode.TEACHER_OVERVIEW_LIST_FAILED)

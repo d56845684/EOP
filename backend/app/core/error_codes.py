@@ -368,6 +368,80 @@ class ErrorCode(IntEnum):
     TEACHER_DETAIL_DOWNLOAD_URL_FAILED = 500264              # 產生下載連結失敗
     TEACHER_DETAIL_UPLOAD_CONFIRM_FAILED = 500265            # 確認上傳失敗
 
+    # ================================================================
+    # Domain 3 — TEACHER (teacher_slots.py / teachers.py)
+    # ================================================================
+
+    # --- 400 Teacher slot validation ---
+    SLOT_TEACHER_NOT_FOUND_OR_DISABLED = 400301        # 教師不存在或已停用
+    SLOT_TEACHER_NO_ACTIVE_CONTRACT = 400302           # 教師沒有 active 合約
+    SLOT_TEACHER_NO_VALID_CONTRACT_UPDATE = 400303     # 教師沒有有效合約，無法更新時段合約
+    SLOT_TEACHER_NO_VALID_CONTRACT_CREATE = 400304     # 教師無有效合約，無法建立時段
+    SLOT_HAS_BOOKING_CANNOT_EDIT = 400305              # 有預約的時段無法修改日期或時間
+    SLOT_HAS_BOOKING_CANNOT_DELETE = 400306            # 有預約的時段無法刪除
+    SLOT_NO_UPDATE_CONTENT = 400307                    # 沒有指定要更新的內容
+    SLOT_NO_UPDATE_DATA = 400308                       # 沒有要更新的資料
+    SLOT_UPDATE_CONTENT_REQUIRED = 400309              # 請指定要更新的內容
+    SLOT_SELECT_SLOTS_TO_DELETE = 400310               # 請選擇要刪除的時段
+    SLOT_SELECT_SLOTS_TO_UPDATE = 400311               # 請選擇要更新的時段
+    SLOT_NO_MATCHING_WEEKDAY = 400312                  # 選定日期範圍內沒有符合的星期
+
+    # --- 403 Teacher slot forbidden ---
+    SLOT_FORBIDDEN_NO_TEACHER_DATA = 403301            # 找不到教師資料
+    SLOT_FORBIDDEN_TEACHER_NOT_OWN_DELETE = 403302     # 教師只能刪除自己的時段
+    SLOT_FORBIDDEN_TEACHER_NOT_OWN_UPDATE = 403303     # 教師只能更新自己的時段
+    SLOT_FORBIDDEN_NOT_VIEWABLE = 403304               # 此時段不可查看
+    SLOT_FORBIDDEN_DELETE = 403305                     # 無權刪除教師時段
+    SLOT_FORBIDDEN_CREATE = 403306                     # 無權建立教師時段
+    SLOT_FORBIDDEN_UPDATE = 403307                     # 無權更新教師時段
+    SLOT_FORBIDDEN_VIEW = 403308                       # 無權查看此時段
+
+    # --- 404 Teacher slot not found ---
+    SLOT_NOT_FOUND = 404301                            # 教師時段不存在
+
+    # --- 409 Teacher slot conflict ---
+    SLOT_CONFLICT = 409301                             # slot 時間衝突（str(e) 內含詳細）
+
+    # --- 500 Teacher slot internal ---
+    SLOT_INTERNAL = 500301                             # 通用 str(e)
+    SLOT_DELETE_FAILED = 500302                        # 刪除教師時段失敗
+    SLOT_LIST_FAILED = 500303                          # 取得教師時段列表失敗
+    SLOT_GET_FAILED = 500304                           # 取得教師時段失敗
+    SLOT_CREATE_FAILED = 500305                        # 建立教師時段失敗
+    SLOT_BATCH_DELETE_FAILED = 500306                  # 批次刪除教師時段失敗
+    SLOT_BATCH_CREATE_FAILED = 500307                  # 批次建立教師時段失敗
+    SLOT_BATCH_UPDATE_FAILED = 500308                  # 批次更新教師時段失敗
+    SLOT_UPDATE_FAILED = 500309                        # 更新教師時段失敗
+
+    # --- 400 Teacher validation ---
+    TEACHER_EMPLOYMENT_TYPE_INVALID = 400313           # employment_type 只能 hourly / full_time
+    TEACHER_AVATAR_FORMAT_INVALID = 400314             # 不支援的圖片格式
+    TEACHER_NO_DUPLICATE = 400315                      # 教師編號已存在
+    TEACHER_FILE_NOT_UPLOADED = 400316                 # 檔案尚未上傳至 S3
+    TEACHER_EMAIL_USED_BY_TEACHER = 400317             # Email 已被其他教師使用
+    TEACHER_EMAIL_USED_BY_EMPLOYEE = 400318             # Email 已被員工使用
+    TEACHER_EMAIL_USED_BY_STUDENT = 400319             # Email 已被學生使用
+    TEACHER_NO_UPDATE_DATA = 400320                    # 沒有要更新的資料
+
+    # --- 403 Teacher forbidden ---
+    TEACHER_FORBIDDEN_NO_TEACHER_DATA = 403309         # 找不到對應的教師資料
+
+    # --- 404 Teacher not found ---
+    TEACHER_NOT_FOUND = 404302                         # 教師不存在
+
+    # --- 500 Teacher internal ---
+    TEACHER_DELETE_FAILED = 500310                     # 刪除教師失敗
+    TEACHER_LIST_FAILED = 500311                       # 取得教師列表失敗
+    TEACHER_GET_FAILED = 500312                        # 取得教師失敗
+    TEACHER_OVERVIEW_LIST_FAILED = 500313              # 取得教師綜合檢視失敗
+    TEACHER_OVERVIEW_FAILED = 500314                   # 取得教師總覽失敗
+    TEACHER_CREATE_FAILED = 500315                     # 建立教師失敗
+    TEACHER_UPDATE_FAILED = 500316                     # 更新教師失敗
+    TEACHER_INFO_UPDATE_FAILED = 500317                # 更新教師資料失敗
+    TEACHER_AVATAR_UPDATE_FAILED = 500318              # 更新頭像失敗
+    TEACHER_UPLOAD_URL_FAILED = 500319                 # 產生上傳連結失敗
+    TEACHER_AVATAR_CONFIRM_FAILED = 500320             # 確認頭像上傳失敗
+
 
 def infer_error_code(status_code: int, detail: str) -> ErrorCode:
     """從 HTTP status code 和中文錯誤訊息自動推斷 error_code。
