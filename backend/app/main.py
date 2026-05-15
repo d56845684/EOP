@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -328,6 +329,24 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return _error_response(
         exc.status_code, detail, error_code,
         log_detail=detail, request=request,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """FastAPI Pydantic 驗證錯誤 (422)：統一回成跟其他 error 一致的格式。"""
+    errors = exc.errors()
+    first = errors[0] if errors else {}
+    # loc 第 1 個通常是 'body' / 'query' / 'path'，跳過後組合欄位名
+    field = ".".join(str(x) for x in first.get("loc", [])[1:])
+    msg = first.get("msg", "請求資料格式錯誤")
+    detail = f"{field}: {msg}" if field else msg
+    return _error_response(
+        422,
+        detail,
+        ErrorCode.REQUEST_VALIDATION_ERROR,
+        log_detail=str(errors)[:300],
+        request=request,
     )
 
 

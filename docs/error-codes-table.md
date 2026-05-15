@@ -1,6 +1,6 @@
 # Error code 對照表
 
-共 **478** 個 error code（自動產生自 `backend/app/core/error_codes.py`）。
+共 **479** 個 error code（自動產生自 `backend/app/core/error_codes.py`）。
 
 ## 編碼規則
 
@@ -25,7 +25,7 @@
 
 ## Domain 0 — GENERIC
 
-共 25 個 code
+共 26 個 code
 
 ### 400 Bad Request
 
@@ -73,6 +73,12 @@
 | Code | Name | Description |
 |------|------|-------------|
 | `409001` | `CONFLICT` |  |
+
+### 422 Unprocessable Entity
+
+| Code | Name | Description |
+|------|------|-------------|
+| `422001` | `REQUEST_VALIDATION_ERROR` | Pydantic body/query/path 驗證失敗 |
 
 ### 429 Too Many Requests
 

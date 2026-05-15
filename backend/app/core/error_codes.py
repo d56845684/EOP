@@ -48,6 +48,9 @@ class ErrorCode(IntEnum):
     # === Conflict (409xxx) ===
     CONFLICT = 409001
 
+    # === Request Validation (422xxx) ===
+    REQUEST_VALIDATION_ERROR = 422001                 # Pydantic body/query/path 驗證失敗
+
     # === Rate Limit (429xxx) ===
     RATE_LIMITED = 429001
 
