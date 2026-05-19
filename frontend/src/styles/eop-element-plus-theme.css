@@ -1,0 +1,1046 @@
+/**
+ * ============================================================
+ *  EOP English Admin — Element Plus Theme Override
+ *  Based on primary color #0F52BA (Cobalt Blue)
+ *
+ *  Usage:
+ *    Import this file AFTER Element Plus's base CSS:
+ *
+ *    // main.ts / main.js
+ *    import 'element-plus/dist/index.css'
+ *    import './styles/eop-element-plus-theme.css'
+ *
+ *  Compatibility: Element Plus ^2.x  (CSS-variable architecture)
+ * ============================================================
+ */
+
+
+/* ============================================================
+   1. GLOBAL DESIGN TOKENS
+      Define EOP brand values first so component sections
+      can reference them consistently.
+   ============================================================ */
+:root {
+  /* ── Brand palette ── */
+  --eop-primary:          #0F52BA;
+  --eop-primary-light:    #1A6EE8;
+  --eop-primary-dark:     #0D3D8A;
+  --eop-primary-bg:       #EBF2FF;
+  --eop-accent:           #E8A020;
+  --eop-accent-bg:        #FFF4E0;
+  --eop-secondary:        #061D45;
+
+  /* ── Status ── */
+  --eop-success:          #22C08A;
+  --eop-success-bg:       #E4F9F3;
+  --eop-warning:          #F5A623;
+  --eop-warning-bg:       #FFF4E0;
+  --eop-danger:           #E84040;
+  --eop-danger-bg:        #FEECEC;
+  --eop-info:             #3BA8E0;
+  --eop-info-bg:          #E8F5FD;
+
+  /* ── Text tones ── */
+  --eop-text-default:     #1A1A1A;
+  --eop-text-secondary:   #4A4A4A;
+  --eop-text-light:       #6B6B6B;
+  --eop-text-hint:        #9B9B9B;
+  --eop-text-link:        #0F52BA;
+
+  /* ── Surfaces ── */
+  --eop-bg-page:          #F4F6FA;
+  --eop-bg-card:          #FFFFFF;
+  --eop-border:           #E2E8F4;
+  --eop-border-focus:     #0F52BA;
+
+  /* ── Shape ── */
+  --eop-radius-sm:        4px;
+  --eop-radius-md:        6px;
+  --eop-radius-lg:        10px;
+  --eop-radius-pill:      100px;
+
+  /* ── Typography ── */
+  --eop-font-family:      'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --eop-font-mono:        'DM Mono', 'SFMono-Regular', Consolas, monospace;
+
+  /* ── Shadow ── */
+  --eop-shadow-sm:        0 1px 3px rgba(15,82,186,.07), 0 1px 2px rgba(0,0,0,.04);
+  --eop-shadow-md:        0 4px 12px rgba(15,82,186,.10), 0 1px 4px rgba(0,0,0,.05);
+  --eop-shadow-lg:        0 8px 24px rgba(15,82,186,.13), 0 2px 8px rgba(0,0,0,.07);
+  --eop-shadow-popup:     0 6px 20px rgba(15,82,186,.14), 0 2px 6px rgba(0,0,0,.08);
+}
+
+
+/* ============================================================
+   2. ELEMENT PLUS CORE COLOUR TOKENS
+      Maps to el-* CSS variables used by every component.
+   ============================================================ */
+:root {
+  /* Primary */
+  --el-color-primary:              var(--eop-primary);
+  --el-color-primary-light-3:      #4C7FCC;   /* primary tinted  */
+  --el-color-primary-light-5:      #87A8DD;
+  --el-color-primary-light-7:      #C0CFEE;
+  --el-color-primary-light-8:      #D5E0F4;
+  --el-color-primary-light-9:      #EBF2FF;   /* = --eop-primary-bg */
+  --el-color-primary-dark-2:       var(--eop-primary-dark);
+
+  /* Success */
+  --el-color-success:              var(--eop-success);
+  --el-color-success-light-3:      #5DD4A8;
+  --el-color-success-light-5:      #90E2C4;
+  --el-color-success-light-7:      #C0F0DF;
+  --el-color-success-light-8:      #D5F6EC;
+  --el-color-success-light-9:      var(--eop-success-bg);
+  --el-color-success-dark-2:       #1A9068;
+
+  /* Warning */
+  --el-color-warning:              var(--eop-warning);
+  --el-color-warning-light-3:      #F7BC5B;
+  --el-color-warning-light-5:      #FAD18D;
+  --el-color-warning-light-7:      #FCE5BF;
+  --el-color-warning-light-8:      #FDEFCF;
+  --el-color-warning-light-9:      var(--eop-warning-bg);
+  --el-color-warning-dark-2:       #C07A10;
+
+  /* Danger */
+  --el-color-danger:               var(--eop-danger);
+  --el-color-danger-light-3:       #EE7070;
+  --el-color-danger-light-5:       #F3A0A0;
+  --el-color-danger-light-7:       #F7C8C8;
+  --el-color-danger-light-8:       #FAD9D9;
+  --el-color-danger-light-9:       var(--eop-danger-bg);
+  --el-color-danger-dark-2:        #B82E2E;
+
+  /* Info — maps to our brand info (sky blue), NOT grey */
+  --el-color-info:                 var(--eop-info);
+  --el-color-info-light-3:         #70C0E8;
+  --el-color-info-light-5:         #9DD4EF;
+  --el-color-info-light-7:         #C6E8F7;
+  --el-color-info-light-8:         #D8F0FA;
+  --el-color-info-light-9:         var(--eop-info-bg);
+  --el-color-info-dark-2:          #2882B4;
+
+  /* White / Black */
+  --el-color-white:                #FFFFFF;
+  --el-color-black:                #000000;
+}
+
+
+/* ============================================================
+   3. TYPOGRAPHY
+   ============================================================ */
+:root {
+  --el-font-family:                var(--eop-font-family);
+
+  --el-font-size-extra-large:      18px;
+  --el-font-size-large:            16px;
+  --el-font-size-medium:           14px;
+  --el-font-size-base:             13px;
+  --el-font-size-small:            12px;
+  --el-font-size-extra-small:      11px;
+
+  --el-font-weight-primary:        500;
+
+  --el-text-color-primary:         var(--eop-text-default);
+  --el-text-color-regular:         var(--eop-text-secondary);
+  --el-text-color-secondary:       var(--eop-text-light);
+  --el-text-color-placeholder:     var(--eop-text-hint);
+  --el-text-color-disabled:        var(--eop-text-hint);
+  --el-text-color-link:            var(--eop-text-link);
+}
+
+
+/* ============================================================
+   4. BORDERS & RADIUS
+   ============================================================ */
+:root {
+  --el-border-color:               var(--eop-border);
+  --el-border-color-light:         #EBF0F8;
+  --el-border-color-lighter:       #F1F4FB;
+  --el-border-color-extra-light:   #F7F9FD;
+  --el-border-color-dark:          #C8D4E8;
+  --el-border-color-darker:        #A8BAD4;
+
+  --el-border-radius-base:         var(--eop-radius-md);   /* 6px  */
+  --el-border-radius-small:        var(--eop-radius-sm);   /* 4px  */
+  --el-border-radius-large:        var(--eop-radius-lg);   /* 10px */
+  --el-border-radius-round:        var(--eop-radius-pill); /* 100px */
+}
+
+
+/* ============================================================
+   5. BACKGROUNDS & SURFACES
+   ============================================================ */
+:root {
+  --el-bg-color:                   var(--eop-bg-card);
+  --el-bg-color-page:              var(--eop-bg-page);
+  --el-bg-color-overlay:           var(--eop-bg-card);
+
+  --el-fill-color:                 #F4F6FA;
+  --el-fill-color-light:           #F8FAFD;
+  --el-fill-color-lighter:         #FAFCFF;
+  --el-fill-color-extra-light:     #FDFEFF;
+  --el-fill-color-dark:            #EBF0F8;
+  --el-fill-color-darker:          #DDE5F2;
+  --el-fill-color-blank:           #FFFFFF;
+}
+
+
+/* ============================================================
+   6. SHADOWS
+   ============================================================ */
+:root {
+  --el-box-shadow:                 var(--eop-shadow-md);
+  --el-box-shadow-light:           var(--eop-shadow-sm);
+  --el-box-shadow-lighter:         0 1px 2px rgba(15,82,186,.05);
+  --el-box-shadow-dark:            var(--eop-shadow-lg);
+}
+
+
+/* ============================================================
+   7. Z-INDEX STACK
+   ============================================================ */
+:root {
+  --el-index-normal:               1;
+  --el-index-top:                  1000;
+  --el-index-popper:               2000;
+}
+
+
+/* ============================================================
+   8. TRANSITIONS
+   ============================================================ */
+:root {
+  --el-transition-duration:        .18s;
+  --el-transition-duration-fast:   .12s;
+  --el-transition-function-ease-in-out-bezier: cubic-bezier(.645,.045,.355,1);
+  --el-transition-function-fast-bezier:        cubic-bezier(.23,1,.32,1);
+  --el-transition-all:             all var(--el-transition-duration) var(--el-transition-function-ease-in-out-bezier);
+  --el-transition-fade:            opacity var(--el-transition-duration) var(--el-transition-function-fast-bezier);
+  --el-transition-md-fade:         transform var(--el-transition-duration) var(--el-transition-function-fast-bezier),
+                                   opacity   var(--el-transition-duration) var(--el-transition-function-fast-bezier);
+  --el-transition-border:          border-color var(--el-transition-duration-fast) var(--el-transition-function-ease-in-out-bezier);
+  --el-transition-color:           color var(--el-transition-duration-fast) var(--el-transition-function-ease-in-out-bezier);
+}
+
+
+/* ============================================================
+   9. COMPONENT — BUTTON
+      Sizes: large / default / small
+   ============================================================ */
+:root {
+  /* Shape */
+  --el-button-border-radius:       var(--eop-radius-md);   /* 6px  */
+
+  /* Default (medium) */
+  --el-button-size:                34px;
+  --el-button-font-size:           13px;
+  --el-button-padding-vertical:    8px;
+  --el-button-padding-horizontal:  16px;
+
+  /* Large */
+  --el-button-large-font-size:     14px;
+  --el-button-large-size:          40px;
+  --el-button-large-padding-vertical:   10px;
+  --el-button-large-padding-horizontal: 20px;
+
+  /* Small */
+  --el-button-small-font-size:     12px;
+  --el-button-small-size:          28px;
+  --el-button-small-padding-vertical:   5px;
+  --el-button-small-padding-horizontal: 12px;
+
+  --el-button-font-weight:         500;
+}
+
+/* Button: default variant refinements */
+.el-button {
+  font-family:   var(--eop-font-family);
+  font-weight:   var(--el-button-font-weight);
+  letter-spacing: .01em;
+  transition:    background-color var(--el-transition-duration) ease,
+                 border-color     var(--el-transition-duration) ease,
+                 color            var(--el-transition-duration) ease,
+                 box-shadow       var(--el-transition-duration) ease;
+}
+
+/* Primary button hover / active */
+.el-button--primary:hover,
+.el-button--primary:focus {
+  background-color: var(--eop-primary-light) !important;
+  border-color:     var(--eop-primary-light) !important;
+}
+.el-button--primary:active {
+  background-color: var(--eop-primary-dark) !important;
+  border-color:     var(--eop-primary-dark) !important;
+}
+
+/* Default button hover */
+.el-button.is-plain:hover,
+.el-button--default:hover {
+  color:        var(--eop-primary) !important;
+  border-color: var(--eop-primary) !important;
+  background:   var(--eop-primary-bg) !important;
+}
+
+
+/* ============================================================
+   10. COMPONENT — INPUT / TEXTAREA / SELECT
+   ============================================================ */
+:root {
+  --el-input-height:               34px;
+  --el-input-large-height:         40px;
+  --el-input-small-height:         28px;
+
+  --el-input-font-size:            13px;
+  --el-input-large-font-size:      14px;
+  --el-input-small-font-size:      12px;
+
+  --el-input-border-radius:        var(--eop-radius-md);   /* 6px */
+  --el-input-border-color:         #D0D9EC;
+  --el-input-hover-border-color:   var(--eop-primary);
+  --el-input-focus-border-color:   var(--eop-primary);
+  --el-input-bg-color:             #FFFFFF;
+  --el-input-text-color:           var(--eop-text-default);
+  --el-input-placeholder-color:    var(--eop-text-hint);
+
+  --el-input-padding-horizontal:   12px;
+  --el-input-padding-large:        16px;
+  --el-input-padding-small:        8px;
+}
+
+/* Focus ring */
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 3px rgba(15, 82, 186, .12) !important;
+}
+
+
+/* ============================================================
+   11. COMPONENT — SEARCH INPUT (el-input with prefix icon)
+   ============================================================ */
+:root {
+  --eop-search-border-radius:      var(--eop-radius-md);   /* 6px  */
+  --eop-search-bg:                 #FFFFFF;
+  --eop-search-border:             #D0D9EC;
+  --eop-search-focus-border:       var(--eop-primary);
+  --eop-search-icon-color:         var(--eop-text-hint);
+  --eop-search-padding:            8px 12px;
+  --eop-search-height:             34px;
+  --eop-search-font-size:          13px;
+}
+
+/* When search box is rendered as a full-width bar (e.g. top-of-panel) */
+.eop-search.el-input .el-input__wrapper {
+  border-radius: var(--eop-search-border-radius);
+  background:    var(--eop-search-bg);
+  box-shadow:    0 0 0 1px var(--eop-search-border);
+  padding:       0 var(--el-input-padding-horizontal);
+}
+.eop-search.el-input .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--eop-primary) !important;
+}
+.eop-search.el-input .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--eop-primary),
+              0 0 0 3px rgba(15,82,186,.12) !important;
+}
+.eop-search.el-input .el-input__prefix-inner > svg,
+.eop-search.el-input .el-icon {
+  color: var(--eop-search-icon-color);
+}
+
+
+/* ============================================================
+   12. COMPONENT — SELECT / DROPDOWN
+   ============================================================ */
+:root {
+  --el-select-border-color-hover:  var(--eop-primary);
+  --el-select-input-font-size:     var(--el-input-font-size);
+  --el-select-option-height:       34px;
+  --el-select-option-hover-bg:     var(--eop-primary-bg);
+  --el-select-option-selected-font-weight: 500;
+  --el-select-close-hover-color:   var(--eop-danger);
+}
+
+.el-select-dropdown__item.is-selected {
+  color:       var(--eop-primary) !important;
+  font-weight: 500;
+}
+.el-select-dropdown__item:hover {
+  background: var(--eop-primary-bg) !important;
+  color:      var(--eop-primary);
+}
+
+
+/* ============================================================
+   13. COMPONENT — TABLE
+   ============================================================ */
+:root {
+  --el-table-bg-color:             var(--eop-bg-card);
+  --el-table-tr-bg-color:          var(--eop-bg-card);
+  --el-table-header-bg-color:      #F8FAFD;
+  --el-table-header-text-color:    var(--eop-text-hint);
+  --el-table-header-font-size:     11px;
+  --el-table-row-hover-bg-color:   #FAFCFF;
+  --el-table-current-row-bg-color: var(--eop-primary-bg);
+  --el-table-fixed-box-shadow:     var(--eop-shadow-sm);
+  --el-table-border-color:         var(--eop-border);
+  --el-table-border:               1px solid var(--eop-border);
+  --el-table-text-color:           var(--eop-text-secondary);
+  --el-table-font-size:            13px;
+}
+
+.el-table th.el-table__cell {
+  font-size:      11px;
+  font-weight:    600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color:          var(--eop-text-hint);
+}
+.el-table--striped .el-table__body tr.el-table__row--striped td {
+  background: #FAFCFF;
+}
+.el-table__body tr:hover > td {
+  background: #FAFCFF !important;
+}
+
+
+/* ============================================================
+   14. COMPONENT — PAGINATION
+   ============================================================ */
+:root {
+  --el-pagination-bg-color:        var(--eop-bg-card);
+  --el-pagination-text-color:      var(--eop-text-secondary);
+  --el-pagination-border-radius:   var(--eop-radius-md);
+  --el-pagination-button-color:    var(--eop-text-secondary);
+  --el-pagination-button-bg-color: var(--eop-bg-card);
+  --el-pagination-button-disabled-color:    var(--eop-text-hint);
+  --el-pagination-button-disabled-bg-color: var(--eop-bg-page);
+  --el-pagination-hover-color:     var(--eop-primary);
+  --el-pagination-font-size:       13px;
+  --el-pagination-font-size-small: 12px;
+  --el-pagination-height:          30px;
+  --el-pagination-height-small:    26px;
+  --el-pagination-item-gap:        6px;
+}
+
+.el-pagination .el-pager li.is-active {
+  background:   var(--eop-primary) !important;
+  border-color: var(--eop-primary) !important;
+  color:        #fff !important;
+}
+.el-pagination .el-pager li:hover {
+  color:      var(--eop-primary) !important;
+  background: var(--eop-primary-bg) !important;
+}
+
+
+/* ============================================================
+   15. COMPONENT — DIALOG / DRAWER
+   ============================================================ */
+:root {
+  --el-dialog-bg-color:            var(--eop-bg-card);
+  --el-dialog-box-shadow:          var(--eop-shadow-popup);
+  --el-dialog-title-font-size:     16px;
+  --el-dialog-title-font-weight:   600;
+  --el-dialog-content-font-size:   13px;
+  --el-dialog-font-line-height:    1.6;
+  --el-dialog-padding-primary:     24px;
+  --el-dialog-border-radius:       var(--eop-radius-xl, 14px);
+  --el-dialog-header-border-color: var(--eop-border);
+  --el-dialog-footer-border-color: var(--eop-border);
+  --el-overlay-color:              rgba(6, 29, 69, .40);
+  --el-overlay-color-light:        rgba(6, 29, 69, .25);
+  --el-overlay-color-lighter:      rgba(6, 29, 69, .10);
+
+  --el-drawer-bg-color:            var(--eop-bg-card);
+  --el-drawer-padding-primary:     24px;
+  --el-drawer-box-shadow:          -4px 0 24px rgba(15,82,186,.12);
+}
+
+.el-dialog__header {
+  border-bottom: 1px solid var(--eop-border);
+  padding-bottom: 16px;
+}
+.el-dialog__footer {
+  border-top:  1px solid var(--eop-border);
+  padding-top: 16px;
+}
+.el-drawer__header {
+  border-bottom: 1px solid var(--eop-border);
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  font-size:    16px;
+  font-weight:  600;
+  color:        var(--eop-text-default);
+}
+.el-drawer__footer {
+  border-top:  1px solid var(--eop-border);
+  padding-top: 16px;
+}
+
+
+/* ============================================================
+   16. COMPONENT — CARD
+   ============================================================ */
+:root {
+  --el-card-bg-color:              var(--eop-bg-card);
+  --el-card-border-color:          var(--eop-border);
+  --el-card-border-radius:         var(--eop-radius-lg);   /* 10px */
+  --el-card-padding:               20px;
+  --el-card-box-shadow:            var(--eop-shadow-sm);
+}
+
+
+/* ============================================================
+   17. COMPONENT — FORM
+   ============================================================ */
+:root {
+  --el-form-label-font-size:       12px;
+  --el-form-label-font-weight:     500;
+  --el-form-label-color:           var(--eop-text-secondary);
+  --el-form-inline-content-width:  220px;
+}
+
+.el-form-item__label {
+  font-weight: 500;
+  color:       var(--eop-text-secondary);
+  font-size:   12px;
+}
+
+
+/* ============================================================
+   18. COMPONENT — MENU (sidebar navigation)
+   ============================================================ */
+:root {
+  --el-menu-bg-color:              var(--eop-secondary);
+  --el-menu-text-color:            rgba(255,255,255,.65);
+  --el-menu-active-color:          #FFFFFF;
+  --el-menu-item-height:           44px;
+  --el-menu-item-font-size:        13px;
+  --el-menu-item-hover-fill:       rgba(255,255,255,.07);
+  --el-menu-border-color:          transparent;
+  --el-menu-sub-item-height:       38px;
+  --el-menu-icon-width:            16px;
+}
+
+.el-menu-item.is-active {
+  background-color: var(--eop-primary) !important;
+  color:            #FFFFFF !important;
+  border-radius:    var(--eop-radius-md);
+}
+.el-menu-item:hover {
+  background-color: rgba(255,255,255,.07) !important;
+  color:            #FFFFFF !important;
+  border-radius:    var(--eop-radius-md);
+}
+/* Group title */
+.el-menu-item-group__title {
+  font-size:      10px;
+  font-weight:    600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color:          rgba(255,255,255,.30);
+  padding:        16px 20px 4px;
+}
+
+
+/* ============================================================
+   19. COMPONENT — TABS
+   ============================================================ */
+:root {
+  --el-tabs-header-height:         40px;
+}
+
+.el-tabs__nav-wrap::after {
+  background-color: var(--eop-border) !important;
+}
+.el-tabs__item {
+  font-size:   13px;
+  font-weight: 500;
+  color:       var(--eop-text-light);
+  height:      40px;
+  line-height: 40px;
+  padding:     0 18px;
+}
+.el-tabs__item:hover {
+  color: var(--eop-primary) !important;
+}
+.el-tabs__item.is-active {
+  color: var(--eop-primary) !important;
+}
+.el-tabs__active-bar {
+  background-color: var(--eop-primary) !important;
+  height:           2px;
+}
+
+
+/* ============================================================
+   20. COMPONENT — BADGE
+   ============================================================ */
+:root {
+  --el-badge-bg-color:             var(--eop-danger);
+  --el-badge-radius:               var(--eop-radius-pill);
+  --el-badge-font-size:            11px;
+  --el-badge-padding:              2px 6px;
+  --el-badge-size:                 18px;
+}
+
+
+/* ============================================================
+   21. COMPONENT — TAG
+      Remapped to EOP semantic palette
+   ============================================================ */
+:root {
+  --el-tag-font-size:              11px;
+  --el-tag-border-radius:          var(--eop-radius-pill);
+  --el-tag-padding:                3px 8px;
+}
+
+/* Primary tag */
+.el-tag--primary {
+  background: var(--eop-primary-bg) !important;
+  color:      var(--eop-primary-dark) !important;
+  border-color: rgba(15,82,186,.18) !important;
+}
+/* Success tag */
+.el-tag--success {
+  background: var(--eop-success-bg) !important;
+  color:      #0d8c61 !important;
+  border-color: rgba(34,192,138,.2) !important;
+}
+/* Warning tag */
+.el-tag--warning {
+  background: var(--eop-warning-bg) !important;
+  color:      #8a5a00 !important;
+  border-color: rgba(245,166,35,.2) !important;
+}
+/* Danger tag */
+.el-tag--danger {
+  background: var(--eop-danger-bg) !important;
+  color:      #b02020 !important;
+  border-color: rgba(232,64,64,.2) !important;
+}
+/* Info tag */
+.el-tag--info {
+  background: var(--eop-info-bg) !important;
+  color:      #1a7aaa !important;
+  border-color: rgba(59,168,224,.2) !important;
+}
+
+
+/* ============================================================
+   22. COMPONENT — SWITCH (Toggle)
+   ============================================================ */
+:root {
+  --el-switch-on-color:            var(--eop-primary);
+  --el-switch-off-color:           #D8DDED;
+  --el-switch-border-color:        transparent;
+  --el-switch-width:               36px;
+  --el-switch-height:              20px;
+  --el-switch-button-size:         16px;
+  --el-switch-label-font-size:     12px;
+}
+.el-switch__core {
+  border-radius: var(--eop-radius-pill) !important;
+}
+.el-switch.is-checked .el-switch__core {
+  background-color: var(--eop-primary) !important;
+  border-color:     var(--eop-primary) !important;
+}
+
+
+/* ============================================================
+   23. COMPONENT — CHECKBOX & RADIO
+   ============================================================ */
+:root {
+  --el-checkbox-bg-color:              #FFFFFF;
+  --el-checkbox-input-border:          1.5px solid #D0D9EC;
+  --el-checkbox-checked-bg-color:      var(--eop-primary);
+  --el-checkbox-checked-input-border-color: var(--eop-primary);
+  --el-checkbox-checked-icon-color:    #FFFFFF;
+  --el-checkbox-input-border-color-hover: var(--eop-primary);
+  --el-checkbox-text-color:            var(--eop-text-secondary);
+  --el-checkbox-font-size:             13px;
+  --el-checkbox-border-radius:         var(--eop-radius-sm);
+
+  --el-radio-input-border-color:       #D0D9EC;
+  --el-radio-checked-bg-color:         var(--eop-primary);
+  --el-radio-checked-input-border-color: var(--eop-primary);
+  --el-radio-checked-icon-color:       #FFFFFF;
+  --el-radio-input-border-color-hover: var(--eop-primary);
+  --el-radio-text-color:               var(--eop-text-secondary);
+  --el-radio-font-size:                13px;
+}
+
+
+/* ============================================================
+   24. COMPONENT — DATE PICKER / TIME PICKER
+   ============================================================ */
+:root {
+  --el-datepicker-text-color:      var(--eop-text-secondary);
+  --el-datepicker-off-text-color:  var(--eop-text-hint);
+  --el-datepicker-header-text-color: var(--eop-text-default);
+  --el-datepicker-icon-color:      var(--eop-text-hint);
+  --el-datepicker-border-color:    var(--eop-border);
+  --el-datepicker-inner-border-color: var(--eop-border);
+  --el-datepicker-inrange-bg-color:   var(--eop-primary-bg);
+  --el-datepicker-inrange-hover-bg-color: #D5E8FF;
+  --el-datepicker-active-color:    var(--eop-primary);
+  --el-datepicker-hover-font-color: var(--eop-primary);
+}
+
+.el-picker-panel__footer .el-button--text {
+  color: var(--eop-primary);
+}
+/* Today highlight */
+.el-date-table td.today .el-date-table-cell__text {
+  background:   var(--eop-primary) !important;
+  color:        #fff !important;
+  border-radius: 50%;
+}
+/* Selected cell */
+.el-date-table td.current:not(.disabled) .el-date-table-cell__text {
+  background:   var(--eop-primary) !important;
+  color:        #fff !important;
+}
+
+
+/* ============================================================
+   25. COMPONENT — NOTIFICATION / ALERT / MESSAGE
+   ============================================================ */
+:root {
+  --el-notification-width:         320px;
+  --el-notification-padding:       16px 20px;
+  --el-notification-radius:        var(--eop-radius-lg);
+  --el-notification-shadow:        var(--eop-shadow-popup);
+  --el-notification-title-font-size: 14px;
+  --el-notification-content-font-size: 12px;
+  --el-notification-close-font-size: 12px;
+
+  --el-message-bg-color:           var(--eop-bg-card);
+  --el-message-border-color:       var(--eop-border);
+  --el-message-padding:            12px 18px;
+  --el-message-shadow:             var(--eop-shadow-md);
+  --el-message-close-size:         14px;
+  --el-message-border-radius:      var(--eop-radius-md);
+
+  --el-alert-padding:              12px 16px;
+  --el-alert-border-radius:        var(--eop-radius-md);
+  --el-alert-title-font-size:      13px;
+  --el-alert-description-font-size: 12px;
+}
+
+
+/* ============================================================
+   26. COMPONENT — TOOLTIP / POPOVER / POPPER
+   ============================================================ */
+:root {
+  --el-tooltip-font-size:          12px;
+  --el-tooltip-border-color:       var(--eop-secondary);
+  --el-tooltip-bg-color:           var(--eop-secondary);
+  --el-tooltip-text-color:         rgba(255,255,255,.9);
+
+  --el-popover-bg-color:           var(--eop-bg-card);
+  --el-popover-border-color:       var(--eop-border);
+  --el-popover-border-radius:      var(--eop-radius-lg);
+  --el-popover-padding:            16px 20px;
+  --el-popover-padding-large:      20px 24px;
+  --el-popover-title-font-size:    14px;
+  --el-popover-title-font-weight:  600;
+  --el-popover-title-text-color:   var(--eop-text-default);
+  --el-popover-font-size:          13px;
+  --el-popover-text-color:         var(--eop-text-secondary);
+  --el-popover-box-shadow:         var(--eop-shadow-popup);
+}
+
+
+/* ============================================================
+   27. COMPONENT — DROPDOWN MENU
+   ============================================================ */
+:root {
+  --el-dropdown-menu-box-shadow:   var(--eop-shadow-popup);
+  --el-dropdown-menuItem-hover-fill:  var(--eop-primary-bg);
+  --el-dropdown-menuItem-hover-color: var(--eop-primary);
+}
+
+.el-dropdown-menu {
+  border:        1px solid var(--eop-border) !important;
+  border-radius: var(--eop-radius-md) !important;
+  padding:       4px !important;
+  box-shadow:    var(--eop-shadow-popup) !important;
+}
+.el-dropdown-menu__item {
+  border-radius: var(--eop-radius-sm);
+  font-size:     13px;
+  padding:       7px 12px;
+}
+.el-dropdown-menu__item:hover,
+.el-dropdown-menu__item:focus {
+  background: var(--eop-primary-bg) !important;
+  color:      var(--eop-primary) !important;
+}
+
+
+/* ============================================================
+   28. COMPONENT — BREADCRUMB
+   ============================================================ */
+:root {
+  --el-breadcrumb-font-size:       13px;
+  --el-breadcrumb-icon-color:      var(--eop-text-hint);
+  --el-breadcrumb-text-color:      var(--eop-text-light);
+  --el-breadcrumb-separator-color: var(--eop-text-hint);
+  --el-breadcrumb-last-item-color: var(--eop-text-default);
+}
+
+
+/* ============================================================
+   29. COMPONENT — UPLOAD
+   ============================================================ */
+:root {
+  --el-upload-dragger-border-color:       var(--eop-border);
+  --el-upload-dragger-border-hover-color: var(--eop-primary);
+  --el-upload-list-icon-color:            var(--eop-text-hint);
+  --el-upload-list-icon-error-color:      var(--eop-danger);
+}
+.el-upload-dragger:hover {
+  border-color: var(--eop-primary) !important;
+  background:   var(--eop-primary-bg) !important;
+}
+
+
+/* ============================================================
+   30. COMPONENT — COLLAPSE
+   ============================================================ */
+:root {
+  --el-collapse-border-color:            var(--eop-border);
+  --el-collapse-header-height:           48px;
+  --el-collapse-header-bg-color:         var(--eop-bg-card);
+  --el-collapse-header-text-color:       var(--eop-text-default);
+  --el-collapse-header-font-size:        13px;
+  --el-collapse-content-bg-color:        var(--eop-bg-card);
+  --el-collapse-content-font-size:       13px;
+  --el-collapse-content-text-color:      var(--eop-text-secondary);
+}
+
+
+/* ============================================================
+   31. COMPONENT — STEPS
+   ============================================================ */
+:root {
+  --el-step-finish-icon-color:            #FFFFFF;
+  --el-step-finish-bg-color:              var(--eop-primary);
+  --el-step-finish-border-color:          var(--eop-primary);
+  --el-step-main-color:                   var(--eop-text-default);
+  --el-step-process-title-color:          var(--eop-text-default);
+  --el-step-process-description-color:    var(--eop-text-light);
+  --el-step-wait-color:                   var(--eop-text-hint);
+  --el-step-wait-description-color:       var(--eop-text-hint);
+  --el-step-icon-size:                    28px;
+  --el-step-icon-border-color:            var(--eop-border);
+  --el-step-head-font-size:               12px;
+  --el-step-line-color:                   var(--eop-border);
+}
+
+
+/* ============================================================
+   32. COMPONENT — PROGRESS
+   ============================================================ */
+:root {
+  --el-progress-bar-bg-color:      var(--eop-border);
+  --el-progress-bar-height:        8px;
+  --el-progress-border-radius:     var(--eop-radius-pill);
+  --el-progress-text-font-size:    12px;
+  --el-progress-text-color:        var(--eop-text-secondary);
+  --el-progress-fill-color:        var(--eop-primary);
+}
+
+
+/* ============================================================
+   33. COMPONENT — SKELETON
+   ============================================================ */
+:root {
+  --el-skeleton-color:             #E8EDF6;
+  --el-skeleton-to-color:          #F4F6FA;
+}
+
+
+/* ============================================================
+   34. COMPONENT — SCROLLBAR
+   ============================================================ */
+:root {
+  --el-scrollbar-bg-color:         rgba(208,217,236,.5);
+  --el-scrollbar-hover-bg-color:   rgba(168,184,216,.8);
+  --el-scrollbar-width:            6px;
+  --el-scrollbar-opacity:          1;
+  --el-scrollbar-border-radius:    3px;
+}
+
+
+/* ============================================================
+   35. COMPONENT — EMPTY STATE
+   ============================================================ */
+:root {
+  --el-empty-padding:              32px 0;
+  --el-empty-image-width:          100px;
+  --el-empty-description-margin-top: 16px;
+  --el-empty-bottom-margin-top:    16px;
+  --el-empty-fill-color-0:         #F8FAFD;
+  --el-empty-fill-color-1:         #EBF0F8;
+  --el-empty-fill-color-2:         #D8E2F2;
+  --el-empty-fill-color-3:         #C5D3EC;
+  --el-empty-fill-color-4:         #B2C4E6;
+  --el-empty-fill-color-5:         #9FB6E0;
+  --el-empty-fill-color-6:         #8CA8DA;
+  --el-empty-fill-color-7:         #7999D4;
+  --el-empty-fill-color-8:         #678BCE;
+  --el-empty-fill-color-9:         var(--eop-primary);
+}
+
+
+/* ============================================================
+   36. COMPONENT — AVATAR
+   ============================================================ */
+:root {
+  --el-avatar-bg-color:            var(--eop-primary-bg);
+  --el-avatar-text-color:          var(--eop-primary);
+  --el-avatar-font-size:           14px;
+  --el-avatar-border-radius:       var(--eop-radius-md);
+  --el-avatar-large-size:          40px;
+  --el-avatar-medium-size:         36px;
+  --el-avatar-small-size:          28px;
+}
+
+
+/* ============================================================
+   37. GLOBAL BODY / PAGE DEFAULTS
+   ============================================================ */
+body {
+  font-family:      var(--eop-font-family);
+  font-size:        13px;
+  color:            var(--eop-text-default);
+  background-color: var(--eop-bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Link */
+a {
+  color:           var(--eop-text-link);
+  text-decoration: none;
+  transition:      color var(--el-transition-duration) ease;
+}
+a:hover {
+  color:           var(--eop-primary-light);
+  text-decoration: underline;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  color:       var(--eop-text-default);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+
+/* ============================================================
+   38. UTILITY CLASSES
+       Prefix: eop-   (safe to use alongside Element Plus)
+   ============================================================ */
+
+/* ── Text tones ── */
+.eop-text-default   { color: var(--eop-text-default) !important; }
+.eop-text-secondary { color: var(--eop-text-secondary) !important; }
+.eop-text-light     { color: var(--eop-text-light) !important; }
+.eop-text-hint      { color: var(--eop-text-hint) !important; }
+.eop-text-link      { color: var(--eop-text-link) !important; }
+.eop-text-primary   { color: var(--eop-primary) !important; }
+.eop-text-success   { color: var(--eop-success) !important; }
+.eop-text-warning   { color: var(--eop-warning) !important; }
+.eop-text-danger    { color: var(--eop-danger) !important; }
+.eop-text-info      { color: var(--eop-info) !important; }
+.eop-text-accent    { color: var(--eop-accent) !important; }
+
+/* ── Background fills ── */
+.eop-bg-page        { background-color: var(--eop-bg-page) !important; }
+.eop-bg-card        { background-color: var(--eop-bg-card) !important; }
+.eop-bg-primary     { background-color: var(--eop-primary-bg) !important; }
+.eop-bg-success     { background-color: var(--eop-success-bg) !important; }
+.eop-bg-warning     { background-color: var(--eop-warning-bg) !important; }
+.eop-bg-danger      { background-color: var(--eop-danger-bg) !important; }
+.eop-bg-info        { background-color: var(--eop-info-bg) !important; }
+.eop-bg-accent      { background-color: var(--eop-accent-bg) !important; }
+.eop-bg-secondary   { background-color: var(--eop-secondary) !important; }
+
+/* ── Borders ── */
+.eop-border         { border: 1px solid var(--eop-border) !important; }
+.eop-border-primary { border-color: var(--eop-primary) !important; }
+.eop-border-success { border-color: var(--eop-success) !important; }
+.eop-border-warning { border-color: var(--eop-warning) !important; }
+.eop-border-danger  { border-color: var(--eop-danger) !important; }
+
+/* ── Radius helpers ── */
+.eop-rounded-sm     { border-radius: var(--eop-radius-sm) !important; }
+.eop-rounded        { border-radius: var(--eop-radius-md) !important; }
+.eop-rounded-lg     { border-radius: var(--eop-radius-lg) !important; }
+.eop-rounded-pill   { border-radius: var(--eop-radius-pill) !important; }
+
+/* ── Shadow helpers ── */
+.eop-shadow-sm      { box-shadow: var(--eop-shadow-sm) !important; }
+.eop-shadow         { box-shadow: var(--eop-shadow-md) !important; }
+.eop-shadow-lg      { box-shadow: var(--eop-shadow-lg) !important; }
+
+
+/* ============================================================
+   39. SIDEBAR LAYOUT HELPER
+       Apply to <el-menu :collapse="false"> wrapper
+   ============================================================ */
+.eop-sidebar {
+  width:            220px;
+  height:           100vh;
+  background-color: var(--eop-secondary);
+  display:          flex;
+  flex-direction:   column;
+  overflow-y:       auto;
+  flex-shrink:      0;
+}
+.eop-sidebar .el-menu {
+  border-right: none;
+  background:   transparent;
+}
+.eop-sidebar-logo {
+  height:          56px;
+  padding:         0 20px;
+  display:         flex;
+  align-items:     center;
+  gap:             10px;
+  border-bottom:   1px solid rgba(255,255,255,.07);
+  flex-shrink:     0;
+}
+.eop-sidebar-logo-icon {
+  width:           32px;
+  height:          32px;
+  border-radius:   var(--eop-radius-md);
+  background:      var(--eop-primary);
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  font-size:       15px;
+  font-weight:     600;
+  color:           #fff;
+}
+.eop-sidebar-logo-text {
+  font-size:   15px;
+  font-weight: 600;
+  color:       #fff;
+}
+.eop-sidebar-logo-text span {
+  color: var(--eop-accent);
+}
+
+/* ============================================================
+   END OF THEME FILE
+   Total tokens: 200+  ·  Component coverage: 30 components
+   Designed for EOP English Admin  ·  Element Plus ^2.x
+   ============================================================ */

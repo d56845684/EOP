@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EOP English — Element Plus Theme Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── paste the entire theme here so the preview is self-contained ── */
+:root {
+  --eop-primary:#0F52BA;--eop-primary-light:#1A6EE8;--eop-primary-dark:#0D3D8A;
+  --eop-primary-bg:#EBF2FF;--eop-accent:#E8A020;--eop-accent-bg:#FFF4E0;
+  --eop-secondary:#061D45;--eop-success:#22C08A;--eop-success-bg:#E4F9F3;
+  --eop-warning:#F5A623;--eop-warning-bg:#FFF4E0;--eop-danger:#E84040;
+  --eop-danger-bg:#FEECEC;--eop-info:#3BA8E0;--eop-info-bg:#E8F5FD;
+  --eop-text-default:#1A1A1A;--eop-text-secondary:#4A4A4A;
+  --eop-text-light:#6B6B6B;--eop-text-hint:#9B9B9B;--eop-text-link:#0F52BA;
+  --eop-bg-page:#F4F6FA;--eop-bg-card:#FFFFFF;--eop-border:#E2E8F4;
+  --eop-radius-sm:4px;--eop-radius-md:6px;--eop-radius-lg:10px;--eop-radius-pill:100px;
+  --eop-shadow-sm:0 1px 3px rgba(15,82,186,.07),0 1px 2px rgba(0,0,0,.04);
+  --eop-shadow-md:0 4px 12px rgba(15,82,186,.10),0 1px 4px rgba(0,0,0,.05);
+  --eop-shadow-popup:0 6px 20px rgba(15,82,186,.14),0 2px 6px rgba(0,0,0,.08);
+  --eop-font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --eop-font-mono:'DM Mono','SFMono-Regular',Consolas,monospace;
+
+  /* Element Plus re-exports */
+  --el-color-primary:var(--eop-primary);
+  --el-color-success:var(--eop-success);
+  --el-color-warning:var(--eop-warning);
+  --el-color-danger:var(--eop-danger);
+  --el-color-info:var(--eop-info);
+  --el-font-family:var(--eop-font-family);
+  --el-text-color-primary:var(--eop-text-default);
+  --el-text-color-regular:var(--eop-text-secondary);
+  --el-text-color-secondary:var(--eop-text-light);
+  --el-text-color-placeholder:var(--eop-text-hint);
+  --el-border-color:var(--eop-border);
+  --el-border-radius-base:var(--eop-radius-md);
+  --el-border-radius-small:var(--eop-radius-sm);
+  --el-border-radius-large:var(--eop-radius-lg);
+  --el-border-radius-round:var(--eop-radius-pill);
+  --el-bg-color:var(--eop-bg-card);
+  --el-bg-color-page:var(--eop-bg-page);
+  --el-box-shadow:var(--eop-shadow-md);
+  --el-box-shadow-light:var(--eop-shadow-sm);
+
+  /* Button */
+  --el-button-border-radius:var(--eop-radius-md);
+  --el-button-size:34px;--el-button-font-size:13px;
+  --el-button-padding-vertical:8px;--el-button-padding-horizontal:16px;
+  --el-button-large-size:40px;--el-button-large-font-size:14px;
+  --el-button-small-size:28px;--el-button-small-font-size:12px;
+  --el-button-font-weight:500;
+
+  /* Input */
+  --el-input-height:34px;--el-input-font-size:13px;
+  --el-input-border-radius:var(--eop-radius-md);
+  --el-input-border-color:#D0D9EC;
+  --el-input-hover-border-color:var(--eop-primary);
+  --el-input-focus-border-color:var(--eop-primary);
+
+  /* Card */
+  --el-card-border-radius:var(--eop-radius-lg);
+  --el-card-border-color:var(--eop-border);
+  --el-card-box-shadow:var(--eop-shadow-sm);
+  --el-card-padding:20px;
+
+  /* Tag */
+  --el-tag-font-size:11px;
+  --el-tag-border-radius:var(--eop-radius-pill);
+
+  /* Switch */
+  --el-switch-on-color:var(--eop-primary);
+  --el-switch-off-color:#D8DDED;
+  --el-switch-width:36px;--el-switch-height:20px;
+
+  /* Table */
+  --el-table-header-bg-color:#F8FAFD;
+  --el-table-header-text-color:var(--eop-text-hint);
+  --el-table-border-color:var(--eop-border);
+  --el-table-font-size:13px;
+
+  /* Pagination */
+  --el-pagination-font-size:13px;
+  --el-pagination-border-radius:var(--eop-radius-md);
+
+  /* Tooltip */
+  --el-tooltip-bg-color:var(--eop-secondary);
+  --el-tooltip-text-color:rgba(255,255,255,.9);
+
+  /* Dialog */
+  --el-dialog-border-radius:14px;
+  --el-dialog-padding-primary:24px;
+  --el-overlay-color:rgba(6,29,69,.4);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { font-family: var(--eop-font-family); font-size: 14px; background: var(--eop-bg-page); color: var(--eop-text-default); }
+body { padding: 0; }
+
+/* ── Layout ── */
+.ref-layout { display: flex; min-height: 100vh; }
+.ref-nav {
+  width: 220px; flex-shrink: 0; position: sticky; top: 0; height: 100vh;
+  overflow-y: auto; background: var(--eop-secondary); padding: 20px 0;
+}
+.ref-nav-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 12px; }
+.ref-nav-logo-mark { font-size: 15px; font-weight: 600; color: #fff; }
+.ref-nav-logo-mark span { color: var(--eop-accent); }
+.ref-nav-sub { font-size: 10px; color: rgba(255,255,255,.35); margin-top: 2px; }
+.ref-nav a { display: block; padding: 8px 20px; font-size: 12px; color: rgba(255,255,255,.6); text-decoration: none; border-radius: 0; transition: .15s; }
+.ref-nav a:hover { color: #fff; background: rgba(255,255,255,.07); }
+.ref-nav a.active { color: #fff; background: var(--eop-primary); border-radius: 0; }
+.ref-nav-group { padding: 14px 20px 4px; font-size: 9px; font-weight: 700; color: rgba(255,255,255,.25); text-transform: uppercase; letter-spacing: .1em; }
+
+.ref-content { flex: 1; overflow-x: hidden; }
+.ref-topbar {
+  position: sticky; top: 0; z-index: 10;
+  height: 56px; background: var(--eop-bg-card); border-bottom: 1px solid var(--eop-border);
+  display: flex; align-items: center; padding: 0 40px; gap: 14px;
+  box-shadow: var(--eop-shadow-sm);
+}
+.ref-topbar-title { font-size: 14px; font-weight: 600; color: var(--eop-text-default); }
+.ref-topbar-pill {
+  padding: 3px 10px; border-radius: var(--eop-radius-pill);
+  background: var(--eop-primary-bg); color: var(--eop-primary);
+  font-size: 11px; font-weight: 600;
+}
+.ref-topbar-file {
+  margin-left: auto; padding: 6px 14px; border-radius: var(--eop-radius-md);
+  background: var(--eop-primary); color: #fff; font-size: 12px; font-weight: 500;
+  cursor: pointer; border: none; font-family: inherit;
+  display: flex; align-items: center; gap: 6px;
+}
+
+.ref-body { padding: 40px; }
+.ref-section { margin-bottom: 60px; scroll-margin-top: 72px; }
+.ref-section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--eop-border); }
+.ref-section-title { font-size: 18px; font-weight: 600; color: var(--eop-text-default); }
+.ref-section-tag { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: var(--eop-radius-pill); background: var(--eop-primary-bg); color: var(--eop-primary); }
+.ref-section-note { font-size: 12px; color: var(--eop-text-light); margin-left: auto; font-family: var(--eop-font-mono); }
+.ref-subsection { font-size: 11px; font-weight: 600; color: var(--eop-text-hint); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 12px; }
+
+/* Token grid */
+.token-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+.token-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border: 1px solid var(--eop-border); border-radius: var(--eop-radius-md);
+  background: var(--eop-bg-card); font-size: 11px;
+}
+.token-swatch { width: 28px; height: 28px; border-radius: var(--eop-radius-sm); border: 1px solid rgba(0,0,0,.06); flex-shrink: 0; }
+.token-name { font-family: var(--eop-font-mono); color: var(--eop-text-default); font-weight: 500; flex: 1; font-size: 11px; }
+.token-val { font-family: var(--eop-font-mono); color: var(--eop-text-hint); font-size: 11px; }
+.token-el { font-family: var(--eop-font-mono); font-size: 10px; color: var(--eop-primary); background: var(--eop-primary-bg); padding: 1px 5px; border-radius: 3px; }
+
+/* Preview box */
+.preview-box {
+  background: var(--eop-bg-card); border: 1px solid var(--eop-border);
+  border-radius: var(--eop-radius-lg); padding: 24px; margin-bottom: 16px;
+}
+.preview-dark { background: var(--eop-secondary); }
+.preview-page { background: var(--eop-bg-page); }
+
+/* ── Colours ── */
+.palette-strip { display: flex; height: 52px; border-radius: var(--eop-radius-lg); overflow: hidden; border: 1px solid var(--eop-border); margin-bottom: 24px; }
+.palette-strip div { flex: 1; position: relative; cursor: pointer; transition: flex .2s; }
+.palette-strip div:hover { flex: 1.6; }
+
+.color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.color-card { border-radius: var(--eop-radius-lg); overflow: hidden; border: 1px solid var(--eop-border); }
+.color-card-swatch { height: 64px; }
+.color-card-body { padding: 8px 10px; background: var(--eop-bg-card); }
+.color-card-name { font-size: 11px; font-weight: 600; color: var(--eop-text-default); }
+.color-card-hex  { font-size: 10px; font-family: var(--eop-font-mono); color: var(--eop-text-hint); margin-top: 1px; }
+.color-card-var  { font-size: 10px; font-family: var(--eop-font-mono); color: var(--eop-primary); margin-top: 2px; }
+
+/* ── Text ── */
+.text-stack { display: flex; flex-direction: column; gap: 14px; }
+.text-row { display: flex; align-items: baseline; gap: 20px; }
+.text-sample { flex: 1; }
+.text-meta { font-size: 11px; font-family: var(--eop-font-mono); color: var(--eop-text-hint); text-align: right; min-width: 180px; }
+
+/* ── Buttons ── */
+.btn-group { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: var(--el-button-border-radius);
+  font-size: var(--el-button-font-size); font-weight: var(--el-button-font-weight);
+  font-family: var(--eop-font-family); cursor: pointer;
+  border: 1px solid transparent; transition: all .18s ease; white-space: nowrap;
+  line-height: 1; padding: var(--el-button-padding-vertical) var(--el-button-padding-horizontal);
+}
+.btn-lg { padding: 10px 20px; font-size: 14px; height: 40px; }
+.btn-sm { padding: 5px 12px; font-size: 12px; height: 28px; }
+.btn-primary { background: var(--eop-primary); color: #fff; border-color: var(--eop-primary); }
+.btn-primary:hover { background: var(--eop-primary-light); border-color: var(--eop-primary-light); }
+.btn-default { background: var(--eop-bg-card); color: var(--eop-text-default); border-color: var(--eop-border); }
+.btn-default:hover { background: var(--eop-primary-bg); color: var(--eop-primary); border-color: var(--eop-primary); }
+.btn-success { background: var(--eop-success-bg); color: #0d8c61; border-color: #b3edd8; }
+.btn-warning { background: var(--eop-warning-bg); color: #8a5a00; border-color: #fcd89a; }
+.btn-danger  { background: var(--eop-danger-bg);  color: #b02020; border-color: #fac8c8; }
+.btn-info    { background: var(--eop-info-bg);    color: #1a7aaa; border-color: #b3ddf4; }
+.btn-plain-primary { background: transparent; color: var(--eop-primary); border-color: var(--eop-primary); }
+.btn-plain-primary:hover { background: var(--eop-primary-bg); }
+
+/* ── Inputs ── */
+.input-demo { display: flex; flex-direction: column; gap: 12px; }
+.input-wrap { position: relative; display: inline-flex; align-items: center; }
+.input-wrap svg { position: absolute; left: 10px; width: 14px; height: 14px; color: var(--eop-text-hint); pointer-events: none; }
+input, select, textarea {
+  font-family: var(--eop-font-family); font-size: var(--el-input-font-size);
+  height: var(--el-input-height); padding: 0 12px;
+  border: 1px solid var(--el-input-border-color);
+  border-radius: var(--el-input-border-radius);
+  color: var(--eop-text-default); background: #fff;
+  outline: none; transition: all .18s ease;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--eop-primary);
+  box-shadow: 0 0 0 3px rgba(15,82,186,.12);
+}
+textarea { height: auto; padding: 8px 12px; resize: vertical; }
+select { appearance: none; padding-right: 28px; cursor: pointer; }
+.sel-wrap { position: relative; display: inline-flex; }
+.sel-wrap::after { content:''; position:absolute; right:10px; top:50%; transform:translateY(-50%); width:0; height:0; border-left:4px solid transparent; border-right:4px solid transparent; border-top:5px solid var(--eop-text-hint); pointer-events:none; }
+.input-wrap input { padding-left: 32px; }
+input:disabled { background: #F8FAFD; color: var(--eop-text-hint); cursor: not-allowed; }
+
+/* ── Tags ── */
+.tag-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: var(--eop-radius-pill);
+  font-size: 11px; font-weight: 500; border: 1px solid;
+}
+.tag::before { content:''; width:5px; height:5px; border-radius:50%; background:currentColor; }
+.tag-primary { background:var(--eop-primary-bg); color:var(--eop-primary-dark); border-color:rgba(15,82,186,.18); }
+.tag-success { background:var(--eop-success-bg); color:#0d8c61; border-color:rgba(34,192,138,.2); }
+.tag-warning { background:var(--eop-warning-bg); color:#8a5a00; border-color:rgba(245,166,35,.2); }
+.tag-danger  { background:var(--eop-danger-bg);  color:#b02020; border-color:rgba(232,64,64,.2); }
+.tag-info    { background:var(--eop-info-bg);    color:#1a7aaa; border-color:rgba(59,168,224,.2); }
+.tag-neutral { background:#F1F3F8; color:var(--eop-text-light); border-color:var(--eop-border); }
+
+/* ── Switch ── */
+.switch { position:relative; width:36px; height:20px; flex-shrink:0; cursor:pointer; }
+.switch input { opacity:0; width:0; height:0; position:absolute; }
+.switch-track { position:absolute; inset:0; border-radius:100px; background:#D8DDED; transition:.18s; }
+.switch-track::before { content:''; position:absolute; left:2px; top:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:.18s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+.switch input:checked ~ .switch-track { background:var(--eop-primary); }
+.switch input:checked ~ .switch-track::before { transform:translateX(16px); }
+
+/* ── Card demo ── */
+.card-demo {
+  background:var(--eop-bg-card); border:1px solid var(--eop-border);
+  border-radius:var(--eop-radius-lg); box-shadow:var(--eop-shadow-sm); overflow:hidden;
+}
+.card-head { padding:14px 20px; border-bottom:1px solid var(--eop-border); display:flex; align-items:center; justify-content:space-between; }
+.card-head-title { font-size:14px; font-weight:600; }
+.card-bod { padding:20px; }
+
+/* ── Table ── */
+table { width:100%; border-collapse:collapse; font-size:13px; }
+thead th {
+  padding:10px 14px; text-align:left; font-size:11px; font-weight:600;
+  color:var(--eop-text-hint); text-transform:uppercase; letter-spacing:.06em;
+  background:#F8FAFD; border-bottom:1px solid var(--eop-border);
+}
+tbody td { padding:11px 14px; border-bottom:1px solid var(--eop-border); color:var(--eop-text-secondary); vertical-align:middle; }
+tbody tr:last-child td { border-bottom:none; }
+tbody tr:hover td { background:#FAFCFF; }
+
+/* ── Pagination ── */
+.pagi { display:flex; align-items:center; gap:5px; padding:16px 0 0; }
+.page-btn { width:30px; height:30px; border-radius:var(--eop-radius-md); border:1px solid var(--eop-border); background:var(--eop-bg-card); font-size:12px; color:var(--eop-text-secondary); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.18s; }
+.page-btn:hover { border-color:var(--eop-primary); color:var(--eop-primary); background:var(--eop-primary-bg); }
+.page-btn.active { background:var(--eop-primary); border-color:var(--eop-primary); color:#fff; }
+.page-info { font-size:12px; color:var(--eop-text-hint); margin-left:8px; }
+
+/* ── Form ── */
+.form-row { margin-bottom:16px; }
+.form-label { font-size:12px; font-weight:500; color:var(--eop-text-secondary); margin-bottom:6px; display:block; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+/* ── Shadows ── */
+.shadow-demo { display:flex; gap:16px; flex-wrap:wrap; }
+.shadow-card { flex:1; min-width:130px; padding:20px 16px; background:var(--eop-bg-card); border-radius:var(--eop-radius-lg); text-align:center; font-size:12px; color:var(--eop-text-light); }
+
+/* ── Radius ── */
+.radius-demo { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+.radius-box { background:var(--eop-primary-bg); border:1px solid rgba(15,82,186,.2); width:64px; height:64px; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--eop-primary); font-weight:600; }
+
+/* ── Menu strip demo ── */
+.menu-strip { background:var(--eop-secondary); border-radius:var(--eop-radius-lg); padding:8px; display:flex; flex-direction:column; gap:2px; }
+.menu-strip-item { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:var(--eop-radius-md); font-size:13px; color:rgba(255,255,255,.65); cursor:pointer; transition:.18s; }
+.menu-strip-item:hover { background:rgba(255,255,255,.07); color:#fff; }
+.menu-strip-item.active { background:var(--eop-primary); color:#fff; }
+.menu-dot { width:8px; height:8px; border-radius:50%; background:currentColor; opacity:.6; flex-shrink:0; }
+
+/* ── Tooltip demo ── */
+.tooltip-demo { display:inline-flex; flex-direction:column; gap:6px; }
+.tooltip-bubble { background:var(--eop-secondary); color:rgba(255,255,255,.9); font-size:12px; padding:6px 12px; border-radius:var(--eop-radius-md); display:inline-block; }
+
+/* ── Progress ── */
+.progress-wrap { margin-bottom:10px; }
+.progress-label { display:flex; justify-content:space-between; font-size:12px; color:var(--eop-text-light); margin-bottom:5px; }
+.progress-track { height:8px; background:var(--eop-border); border-radius:100px; overflow:hidden; }
+.progress-fill { height:100%; border-radius:100px; }
+
+/* ── Alert ── */
+.alert { display:flex; align-items:flex-start; gap:12px; padding:12px 16px; border-radius:var(--eop-radius-md); border:1px solid; margin-bottom:8px; font-size:13px; }
+.alert-icon { width:18px; height:18px; flex-shrink:0; margin-top:1px; }
+.alert-title { font-weight:600; font-size:13px; }
+.alert-desc { font-size:12px; margin-top:2px; opacity:.8; }
+.alert-success { background:var(--eop-success-bg); border-color:rgba(34,192,138,.25); color:#0d6647; }
+.alert-warning { background:var(--eop-warning-bg); border-color:rgba(245,166,35,.25); color:#7a4a00; }
+.alert-danger  { background:var(--eop-danger-bg);  border-color:rgba(232,64,64,.25);  color:#8c1c1c; }
+.alert-info    { background:var(--eop-info-bg);    border-color:rgba(59,168,224,.25);  color:#1260a0; }
+
+/* ── Token key-value table ── */
+.kv-table { width:100%; border-collapse:collapse; font-size:12px; }
+.kv-table tr { border-bottom:1px solid var(--eop-border); }
+.kv-table tr:last-child { border-bottom:none; }
+.kv-table td { padding:8px 12px; vertical-align:middle; }
+.kv-table td:first-child { font-family:var(--eop-font-mono); color:var(--eop-primary); width:38%; }
+.kv-table td:nth-child(2) { font-family:var(--eop-font-mono); color:var(--eop-text-hint); }
+.kv-table td:last-child { width:28px; text-align:center; }
+.kv-swatch { width:20px; height:20px; border-radius:3px; border:1px solid rgba(0,0,0,.07); display:inline-block; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:#D0D9EC; border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:#A8B8D8; }
+</style>
+</head>
+<body>
+<div class="ref-layout">
+
+<!-- ── Sidebar nav ── -->
+<nav class="ref-nav">
+  <div class="ref-nav-logo">
+    <div class="ref-nav-logo-mark">EOP <span>English</span></div>
+    <div class="ref-nav-sub">Element Plus Theme Ref</div>
+  </div>
+  <div class="ref-nav-group">Tokens</div>
+  <a href="#colors" onclick="setActive(this)">Color Palette</a>
+  <a href="#text" onclick="setActive(this)">Text Tones</a>
+  <a href="#borders" onclick="setActive(this)">Borders & Radius</a>
+  <a href="#shadows" onclick="setActive(this)">Shadows</a>
+  <a href="#typography" onclick="setActive(this)">Typography Scale</a>
+  <div class="ref-nav-group">Components</div>
+  <a href="#buttons" onclick="setActive(this)">Buttons</a>
+  <a href="#inputs" onclick="setActive(this)">Inputs & Search</a>
+  <a href="#selects" onclick="setActive(this)">Select & Dropdown</a>
+  <a href="#tags" onclick="setActive(this)">Tags & Badges</a>
+  <a href="#switch" onclick="setActive(this)">Switch & Checkbox</a>
+  <a href="#table" onclick="setActive(this)">Table</a>
+  <a href="#pagination" onclick="setActive(this)">Pagination</a>
+  <a href="#card" onclick="setActive(this)">Card</a>
+  <a href="#form" onclick="setActive(this)">Form</a>
+  <a href="#menu" onclick="setActive(this)">Menu (Sidebar)</a>
+  <a href="#alerts" onclick="setActive(this)">Alerts & Feedback</a>
+  <a href="#progress" onclick="setActive(this)">Progress</a>
+  <a href="#tooltip" onclick="setActive(this)">Tooltip & Popover</a>
+  <div class="ref-nav-group">Reference</div>
+  <a href="#all-tokens" onclick="setActive(this)">All Tokens (Full List)</a>
+</nav>
+
+<!-- ── Content ── -->
+<div class="ref-content">
+  <div class="ref-topbar">
+    <span class="ref-topbar-title">EOP English — Element Plus Theme</span>
+    <span class="ref-topbar-pill">30 components · 200+ tokens</span>
+    <span style="font-size:12px;color:var(--eop-text-hint);">Based on primary #0F52BA</span>
+    <button class="ref-topbar-file" onclick="window.open('eop-element-plus-theme.css')">
+      <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Download .css
+    </button>
+  </div>
+
+  <div class="ref-body">
+
+    <!-- ══ COLORS ══ -->
+    <section class="ref-section" id="colors">
+      <div class="ref-section-head">
+        <span class="ref-section-title">Color Palette</span>
+        <span class="ref-section-tag">Tokens</span>
+        <span class="ref-section-note">--el-color-* + --eop-*</span>
+      </div>
+
+      <div class="palette-strip">
+        <div style="background:#0F52BA;" title="Primary"></div>
+        <div style="background:#1A6EE8;" title="Primary Light"></div>
+        <div style="background:#0D3D8A;" title="Primary Dark"></div>
+        <div style="background:#061D45;" title="Secondary"></div>
+        <div style="background:#E8A020;" title="Accent"></div>
+        <div style="background:#22C08A;" title="Success"></div>
+        <div style="background:#F5A623;" title="Warning"></div>
+        <div style="background:#E84040;" title="Danger"></div>
+        <div style="background:#3BA8E0;" title="Info"></div>
+      </div>
+
+      <div style="margin-bottom:14px;" class="ref-subsection">Brand</div>
+      <div class="color-grid" style="margin-bottom:24px;">
+        <div class="color-card"><div class="color-card-swatch" style="background:#0F52BA;"></div><div class="color-card-body"><div class="color-card-name">Primary</div><div class="color-card-hex">#0F52BA</div><div class="color-card-var">--eop-primary / --el-color-primary</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#1A6EE8;"></div><div class="color-card-body"><div class="color-card-name">Primary Light</div><div class="color-card-hex">#1A6EE8</div><div class="color-card-var">--eop-primary-light</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#0D3D8A;"></div><div class="color-card-body"><div class="color-card-name">Primary Dark</div><div class="color-card-hex">#0D3D8A</div><div class="color-card-var">--eop-primary-dark / --el-color-primary-dark-2</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#EBF2FF;border:1px solid #D0DCF4;"></div><div class="color-card-body"><div class="color-card-name">Primary Bg</div><div class="color-card-hex">#EBF2FF</div><div class="color-card-var">--eop-primary-bg / --el-color-primary-light-9</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#E8A020;"></div><div class="color-card-body"><div class="color-card-name">Accent</div><div class="color-card-hex">#E8A020</div><div class="color-card-var">--eop-accent</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#061D45;"></div><div class="color-card-body"><div class="color-card-name">Secondary</div><div class="color-card-hex">#061D45</div><div class="color-card-var">--eop-secondary</div></div></div>
+      </div>
+
+      <div class="ref-subsection">Status</div>
+      <div class="color-grid">
+        <div class="color-card"><div class="color-card-swatch" style="background:#22C08A;"></div><div class="color-card-body"><div class="color-card-name">Success</div><div class="color-card-hex">#22C08A</div><div class="color-card-var">--eop-success / --el-color-success</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#E4F9F3;border:1px solid #b3edd8;"></div><div class="color-card-body"><div class="color-card-name">Success Bg</div><div class="color-card-hex">#E4F9F3</div><div class="color-card-var">--eop-success-bg / --el-color-success-light-9</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#F5A623;"></div><div class="color-card-body"><div class="color-card-name">Warning</div><div class="color-card-hex">#F5A623</div><div class="color-card-var">--eop-warning / --el-color-warning</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#FFF4E0;border:1px solid #fcd89a;"></div><div class="color-card-body"><div class="color-card-name">Warning Bg</div><div class="color-card-hex">#FFF4E0</div><div class="color-card-var">--eop-warning-bg / --el-color-warning-light-9</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#E84040;"></div><div class="color-card-body"><div class="color-card-name">Danger</div><div class="color-card-hex">#E84040</div><div class="color-card-var">--eop-danger / --el-color-danger</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#FEECEC;border:1px solid #fac8c8;"></div><div class="color-card-body"><div class="color-card-name">Danger Bg</div><div class="color-card-hex">#FEECEC</div><div class="color-card-var">--eop-danger-bg / --el-color-danger-light-9</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#3BA8E0;"></div><div class="color-card-body"><div class="color-card-name">Info</div><div class="color-card-hex">#3BA8E0</div><div class="color-card-var">--eop-info / --el-color-info</div></div></div>
+        <div class="color-card"><div class="color-card-swatch" style="background:#E8F5FD;border:1px solid #b3ddf4;"></div><div class="color-card-body"><div class="color-card-name">Info Bg</div><div class="color-card-hex">#E8F5FD</div><div class="color-card-var">--eop-info-bg / --el-color-info-light-9</div></div></div>
+      </div>
+    </section>
+
+    <!-- ══ TEXT ══ -->
+    <section class="ref-section" id="text">
+      <div class="ref-section-head"><span class="ref-section-title">Text Tones</span><span class="ref-section-tag">Typography</span><span class="ref-section-note">--el-text-color-* / --eop-text-*</span></div>
+      <div class="preview-box">
+        <div class="text-stack">
+          <div class="text-row"><div class="text-sample" style="font-size:22px;font-weight:600;color:#1A1A1A;">Getting Started with EOP English</div><div class="text-meta">--eop-text-default · #1A1A1A · --el-text-color-primary</div></div>
+          <div class="text-row"><div class="text-sample" style="font-size:15px;font-weight:500;color:#4A4A4A;">Learn how to apply color and typography consistently.</div><div class="text-meta">--eop-text-secondary · #4A4A4A · --el-text-color-regular</div></div>
+          <div class="text-row"><div class="text-sample" style="font-size:14px;color:#6B6B6B;">This guide walks through the foundational tokens that keep interfaces coherent. Each decision is grounded in WCAG contrast requirements.</div><div class="text-meta">--eop-text-light · #6B6B6B · --el-text-color-secondary</div></div>
+          <div class="text-row"><div class="text-sample" style="font-size:12px;color:#9B9B9B;">Last updated May 18, 2026 · 5 min read</div><div class="text-meta">--eop-text-hint · #9B9B9B · --el-text-color-placeholder</div></div>
+          <div class="text-row"><div class="text-sample" style="font-size:14px;color:#0F52BA;text-decoration:underline;cursor:pointer;">Read the full documentation →</div><div class="text-meta">--eop-text-link · #0F52BA · --el-text-color-link</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ BORDERS & RADIUS ══ -->
+    <section class="ref-section" id="borders">
+      <div class="ref-section-head"><span class="ref-section-title">Borders & Radius</span><span class="ref-section-tag">Shape</span><span class="ref-section-note">--el-border-radius-*</span></div>
+      <div class="preview-box">
+        <div class="ref-subsection" style="margin-bottom:16px;">Border Radius</div>
+        <div class="radius-demo">
+          <div><div class="radius-box" style="border-radius:4px;">4px</div><div style="font-size:11px;color:var(--eop-text-hint);margin-top:6px;text-align:center;">sm<br>--el-border-radius-small</div></div>
+          <div><div class="radius-box" style="border-radius:6px;">6px</div><div style="font-size:11px;color:var(--eop-text-hint);margin-top:6px;text-align:center;">base<br>--el-border-radius-base</div></div>
+          <div><div class="radius-box" style="border-radius:10px;">10px</div><div style="font-size:11px;color:var(--eop-text-hint);margin-top:6px;text-align:center;">lg<br>--el-border-radius-large</div></div>
+          <div><div class="radius-box" style="border-radius:14px;">14px</div><div style="font-size:11px;color:var(--eop-text-hint);margin-top:6px;text-align:center;">xl<br>dialog / drawer</div></div>
+          <div><div class="radius-box" style="border-radius:100px;width:90px;">pill</div><div style="font-size:11px;color:var(--eop-text-hint);margin-top:6px;text-align:center;">round<br>--el-border-radius-round</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ SHADOWS ══ -->
+    <section class="ref-section" id="shadows">
+      <div class="ref-section-head"><span class="ref-section-title">Shadows</span><span class="ref-section-tag">Elevation</span><span class="ref-section-note">--el-box-shadow-*</span></div>
+      <div class="preview-page" style="padding:24px;border-radius:var(--eop-radius-lg);border:1px solid var(--eop-border);">
+        <div class="shadow-demo">
+          <div class="shadow-card" style="box-shadow:0 1px 3px rgba(15,82,186,.07),0 1px 2px rgba(0,0,0,.04);">sm<br><span style="font-size:10px;font-family:var(--eop-font-mono);color:var(--eop-text-hint);">--el-box-shadow-light</span></div>
+          <div class="shadow-card" style="box-shadow:0 4px 12px rgba(15,82,186,.10),0 1px 4px rgba(0,0,0,.05);">md<br><span style="font-size:10px;font-family:var(--eop-font-mono);color:var(--eop-text-hint);">--el-box-shadow</span></div>
+          <div class="shadow-card" style="box-shadow:0 8px 24px rgba(15,82,186,.13),0 2px 8px rgba(0,0,0,.07);">lg<br><span style="font-size:10px;font-family:var(--eop-font-mono);color:var(--eop-text-hint);">--el-box-shadow-dark</span></div>
+          <div class="shadow-card" style="box-shadow:0 6px 20px rgba(15,82,186,.14),0 2px 6px rgba(0,0,0,.08);">popup<br><span style="font-size:10px;font-family:var(--eop-font-mono);color:var(--eop-text-hint);">--eop-shadow-popup</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ TYPOGRAPHY ══ -->
+    <section class="ref-section" id="typography">
+      <div class="ref-section-head"><span class="ref-section-title">Typography Scale</span><span class="ref-section-tag">Font</span><span class="ref-section-note">--el-font-size-* · DM Sans</span></div>
+      <div class="preview-box">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:baseline;gap:20px;"><span style="font-size:18px;font-weight:600;">Extra Large — 18px</span><span style="font-size:11px;font-family:var(--eop-font-mono);color:var(--eop-text-hint);">--el-font-size-extra-large</span></div>
+          <div style="display:flex;align-items:baseline;gap:20px;"><span style="font-size:16px;font-weight:600;">Large — 16px</span><span style="font-size:11px;font-family:var(--eop-font-mono);color:var(--eop-text-hint);">--el-font-size-large</span></div>
+          <div style="display:flex;align-items:baseline;gap:20px;"><span style="font-size:14px;font-weight:500;">Medium — 14px</span><span style="font-size:11px;font-family:var(--eop-font-mono);color:var(--eop-text-hint);">--el-font-size-medium</span></div>
+          <div style="display:flex;align-items:baseline;gap:20px;"><span style="font-size:13px;">Base — 13px (default)</span><span style="font-size:11px;font-family:var(--eop-font-mono);color:var(--eop-text-hint);">--el-font-size-base</span></div>
+          <div style="display:flex;align-items:baseline;gap:20px;"><span style="font-size:12px;color:var(--eop-text-light);">Small — 12px</span><span style="font-size:11px;font-family:var(--eop-font-mono);color:var(--eop-text-hint);">--el-font-size-small</span></div>
+          <div style="display:flex;align-items:baseline;gap:20px;"><span style="font-size:11px;color:var(--eop-text-hint);">Extra Small — 11px (tags, labels)</span><span style="font-size:11px;font-family:var(--eop-font-mono);color:var(--eop-text-hint);">--el-font-size-extra-small</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ BUTTONS ══ -->
+    <section class="ref-section" id="buttons">
+      <div class="ref-section-head"><span class="ref-section-title">Buttons</span><span class="ref-section-tag">el-button</span><span class="ref-section-note">--el-button-*</span></div>
+      <div class="preview-box">
+        <div class="ref-subsection">Variants</div>
+        <div class="btn-group" style="margin-bottom:20px;">
+          <button class="btn btn-primary">Primary</button>
+          <button class="btn btn-plain-primary">Plain Primary</button>
+          <button class="btn btn-success">Success</button>
+          <button class="btn btn-warning">Warning</button>
+          <button class="btn btn-danger">Danger</button>
+          <button class="btn btn-info">Info</button>
+          <button class="btn btn-default">Default</button>
+          <button class="btn btn-default" disabled style="opacity:.4;cursor:not-allowed;">Disabled</button>
+        </div>
+        <div class="ref-subsection">Sizes</div>
+        <div class="btn-group" style="margin-bottom:20px;">
+          <button class="btn btn-primary btn-lg">Large · 40px · 14px</button>
+          <button class="btn btn-primary">Default · 34px · 13px</button>
+          <button class="btn btn-primary btn-sm">Small · 28px · 12px</button>
+        </div>
+        <div class="ref-subsection">Token Summary</div>
+        <div class="token-grid">
+          <div class="token-row"><span class="token-name">--el-button-border-radius</span><span class="token-val">6px</span></div>
+          <div class="token-row"><span class="token-name">--el-button-size</span><span class="token-val">34px</span></div>
+          <div class="token-row"><span class="token-name">--el-button-font-size</span><span class="token-val">13px</span></div>
+          <div class="token-row"><span class="token-name">--el-button-padding-vertical</span><span class="token-val">8px</span></div>
+          <div class="token-row"><span class="token-name">--el-button-padding-horizontal</span><span class="token-val">16px</span></div>
+          <div class="token-row"><span class="token-name">--el-button-font-weight</span><span class="token-val">500</span></div>
+          <div class="token-row"><span class="token-name">--el-button-large-size</span><span class="token-val">40px · 14px</span></div>
+          <div class="token-row"><span class="token-name">--el-button-small-size</span><span class="token-val">28px · 12px</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ INPUTS ══ -->
+    <section class="ref-section" id="inputs">
+      <div class="ref-section-head"><span class="ref-section-title">Inputs & Search</span><span class="ref-section-tag">el-input</span><span class="ref-section-note">--el-input-* / --eop-search-*</span></div>
+      <div class="preview-box">
+        <div class="input-demo">
+          <div>
+            <div class="ref-subsection" style="margin-bottom:10px;">Standard Input</div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <input type="text" placeholder="Default input · 34px · 13px · radius 6px" style="width:300px;">
+              <input type="text" value="With value" style="width:180px;">
+              <input type="text" placeholder="Disabled" disabled style="width:160px;">
+            </div>
+          </div>
+          <div>
+            <div class="ref-subsection" style="margin-bottom:10px;">Search Input (with icon prefix)</div>
+            <div class="input-wrap">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <input type="text" placeholder="Search teacher, student, course…" style="width:300px;padding-left:32px;">
+            </div>
+          </div>
+          <div>
+            <div class="ref-subsection" style="margin-bottom:10px;">Select</div>
+            <div class="sel-wrap"><select style="width:200px;"><option>All Status</option><option>Active</option><option>Inactive</option></select></div>
+          </div>
+          <div>
+            <div class="ref-subsection" style="margin-bottom:10px;">Textarea</div>
+            <textarea style="width:100%;height:80px;" placeholder="Notes or description…"></textarea>
+          </div>
+        </div>
+        <div style="margin-top:20px;" class="token-grid">
+          <div class="token-row"><span class="token-name">--el-input-height</span><span class="token-val">34px</span></div>
+          <div class="token-row"><span class="token-name">--el-input-font-size</span><span class="token-val">13px</span></div>
+          <div class="token-row"><span class="token-name">--el-input-border-radius</span><span class="token-val">6px</span></div>
+          <div class="token-row"><span class="token-name">--el-input-border-color</span><span class="token-val">#D0D9EC</span></div>
+          <div class="token-row"><span class="token-name">--el-input-hover-border-color</span><span class="token-val">#0F52BA</span></div>
+          <div class="token-row"><span class="token-name">--el-input-focus-border-color</span><span class="token-val">#0F52BA · ring 3px</span></div>
+          <div class="token-row"><span class="token-name">--eop-search-height</span><span class="token-val">34px</span></div>
+          <div class="token-row"><span class="token-name">--eop-search-border-radius</span><span class="token-val">6px (--eop-radius-md)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ TAGS ══ -->
+    <section class="ref-section" id="tags">
+      <div class="ref-section-head"><span class="ref-section-title">Tags & Badges</span><span class="ref-section-tag">el-tag</span><span class="ref-section-note">--el-tag-*</span></div>
+      <div class="preview-box">
+        <div class="tag-row">
+          <span class="tag tag-primary">Primary</span>
+          <span class="tag tag-success">Success</span>
+          <span class="tag tag-warning">Warning</span>
+          <span class="tag tag-danger">Danger</span>
+          <span class="tag tag-info">Info</span>
+          <span class="tag tag-neutral">Neutral</span>
+        </div>
+        <div style="margin-top:16px;" class="token-grid">
+          <div class="token-row"><span class="token-name">--el-tag-font-size</span><span class="token-val">11px</span></div>
+          <div class="token-row"><span class="token-name">--el-tag-border-radius</span><span class="token-val">100px (pill)</span></div>
+          <div class="token-row"><span class="token-name">--el-tag-padding</span><span class="token-val">3px 8px</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ SWITCH ══ -->
+    <section class="ref-section" id="switch">
+      <div class="ref-section-head"><span class="ref-section-title">Switch & Checkbox</span><span class="ref-section-tag">el-switch</span><span class="ref-section-note">--el-switch-* / --el-checkbox-*</span></div>
+      <div class="preview-box">
+        <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <label class="switch"><input type="checkbox" checked><span class="switch-track"></span></label>
+            <span style="font-size:13px;">Enabled (on)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <label class="switch"><input type="checkbox"><span class="switch-track"></span></label>
+            <span style="font-size:13px;">Disabled (off)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="checkbox" style="width:15px;height:15px;accent-color:var(--eop-primary);">
+            <span style="font-size:13px;">Checkbox</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="radio" style="width:15px;height:15px;accent-color:var(--eop-primary);" checked>
+            <span style="font-size:13px;">Radio</span>
+          </div>
+        </div>
+        <div style="margin-top:16px;" class="token-grid">
+          <div class="token-row"><span class="token-name">--el-switch-on-color</span><span class="token-val">#0F52BA</span></div>
+          <div class="token-row"><span class="token-name">--el-switch-off-color</span><span class="token-val">#D8DDED</span></div>
+          <div class="token-row"><span class="token-name">--el-switch-width / height</span><span class="token-val">36px / 20px</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ TABLE ══ -->
+    <section class="ref-section" id="table">
+      <div class="ref-section-head"><span class="ref-section-title">Table</span><span class="ref-section-tag">el-table</span><span class="ref-section-note">--el-table-*</span></div>
+      <div class="preview-box" style="padding:0;overflow:hidden;">
+        <table>
+          <thead><tr><th><input type="checkbox" style="width:13px;height:13px;"></th><th>Name</th><th>Type</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr><td><input type="checkbox" style="width:13px;height:13px;"></td><td style="font-weight:500;color:var(--eop-text-default);">Emily Chen</td><td><span class="tag tag-info" style="font-size:10px;">Adult</span></td><td><span class="tag tag-success" style="font-size:10px;">Active</span></td><td style="font-family:var(--eop-font-mono);font-size:12px;">2026-01-15</td><td><button class="btn btn-default btn-sm">Edit</button></td></tr>
+            <tr><td><input type="checkbox" style="width:13px;height:13px;"></td><td style="font-weight:500;color:var(--eop-text-default);">Michael Wang</td><td><span class="tag tag-primary" style="font-size:10px;">Youth</span></td><td><span class="tag tag-warning" style="font-size:10px;">Pending</span></td><td style="font-family:var(--eop-font-mono);font-size:12px;">2026-02-03</td><td><button class="btn btn-default btn-sm">Edit</button></td></tr>
+            <tr><td><input type="checkbox" style="width:13px;height:13px;"></td><td style="font-weight:500;color:var(--eop-text-default);">Sarah Liu</td><td><span class="tag tag-warning" style="font-size:10px;">Corporate</span></td><td><span class="tag tag-neutral" style="font-size:10px;">Inactive</span></td><td style="font-family:var(--eop-font-mono);font-size:12px;">2025-11-22</td><td><button class="btn btn-default btn-sm">Edit</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;" class="token-grid">
+        <div class="token-row"><span class="token-name">--el-table-header-bg-color</span><span class="token-val">#F8FAFD</span></div>
+        <div class="token-row"><span class="token-name">--el-table-header-text-color</span><span class="token-val">#9B9B9B (hint)</span></div>
+        <div class="token-row"><span class="token-name">--el-table-border-color</span><span class="token-val">#E2E8F4</span></div>
+        <div class="token-row"><span class="token-name">--el-table-font-size</span><span class="token-val">13px</span></div>
+        <div class="token-row"><span class="token-name">--el-table-row-hover-bg-color</span><span class="token-val">#FAFCFF</span></div>
+      </div>
+    </section>
+
+    <!-- ══ PAGINATION ══ -->
+    <section class="ref-section" id="pagination">
+      <div class="ref-section-head"><span class="ref-section-title">Pagination</span><span class="ref-section-tag">el-pagination</span><span class="ref-section-note">--el-pagination-*</span></div>
+      <div class="preview-box">
+        <div class="pagi">
+          <button class="page-btn">‹</button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn">3</button>
+          <button class="page-btn">...</button>
+          <button class="page-btn">12</button>
+          <button class="page-btn">›</button>
+          <span class="page-info">312 total records</span>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--eop-text-hint);">
+            Per page
+            <div class="sel-wrap"><select style="height:30px;font-size:12px;min-width:90px;"><option>20 / page</option><option>50 / page</option></select></div>
+          </div>
+        </div>
+        <div style="margin-top:16px;" class="token-grid">
+          <div class="token-row"><span class="token-name">--el-pagination-font-size</span><span class="token-val">13px</span></div>
+          <div class="token-row"><span class="token-name">--el-pagination-border-radius</span><span class="token-val">6px</span></div>
+          <div class="token-row"><span class="token-name">--el-pagination-height</span><span class="token-val">30px</span></div>
+          <div class="token-row"><span class="token-name">--el-pagination-hover-color</span><span class="token-val">#0F52BA</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ CARD ══ -->
+    <section class="ref-section" id="card">
+      <div class="ref-section-head"><span class="ref-section-title">Card</span><span class="ref-section-tag">el-card</span><span class="ref-section-note">--el-card-*</span></div>
+      <div class="preview-page" style="padding:24px;border-radius:var(--eop-radius-lg);border:1px solid var(--eop-border);">
+        <div class="card-demo">
+          <div class="card-head"><span class="card-head-title">Teacher Management</span><button class="btn btn-primary btn-sm">+ Add</button></div>
+          <div class="card-bod" style="color:var(--eop-text-light);font-size:13px;">Card body content with <strong style="color:var(--eop-text-default);">border-radius 10px</strong>, border <code style="font-family:var(--eop-font-mono);background:var(--eop-primary-bg);padding:1px 5px;border-radius:3px;font-size:11px;color:var(--eop-primary);">#E2E8F4</code>, and shadow elevation sm.</div>
+        </div>
+        <div style="margin-top:12px;" class="token-grid">
+          <div class="token-row"><span class="token-name">--el-card-border-radius</span><span class="token-val">10px</span></div>
+          <div class="token-row"><span class="token-name">--el-card-border-color</span><span class="token-val">#E2E8F4</span></div>
+          <div class="token-row"><span class="token-name">--el-card-box-shadow</span><span class="token-val">shadow-sm</span></div>
+          <div class="token-row"><span class="token-name">--el-card-padding</span><span class="token-val">20px</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ FORM ══ -->
+    <section class="ref-section" id="form">
+      <div class="ref-section-head"><span class="ref-section-title">Form</span><span class="ref-section-tag">el-form</span><span class="ref-section-note">--el-form-*</span></div>
+      <div class="preview-box" style="max-width:520px;">
+        <div class="form-grid">
+          <div class="form-row"><label class="form-label">First Name</label><input type="text" value="Emily" style="width:100%;"></div>
+          <div class="form-row"><label class="form-label">Last Name</label><input type="text" value="Chen" style="width:100%;"></div>
+        </div>
+        <div class="form-row"><label class="form-label">Email Address</label><input type="email" value="emily.chen@mail.com" style="width:100%;"></div>
+        <div class="form-row"><label class="form-label">Student Type</label><div class="sel-wrap" style="width:100%;"><select style="width:100%;"><option>Adult</option><option>Youth</option><option>Corporate</option></select></div></div>
+        <div style="display:flex;gap:10px;margin-top:6px;"><button class="btn btn-primary">Save</button><button class="btn btn-default">Cancel</button></div>
+      </div>
+    </section>
+
+    <!-- ══ MENU ══ -->
+    <section class="ref-section" id="menu">
+      <div class="ref-section-head"><span class="ref-section-title">Menu (Sidebar)</span><span class="ref-section-tag">el-menu</span><span class="ref-section-note">--el-menu-*</span></div>
+      <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;">
+        <div class="menu-strip">
+          <div style="padding:4px 12px 12px;font-size:9px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:.1em;">Management</div>
+          <div class="menu-strip-item active"><div class="menu-dot"></div>Teacher Management</div>
+          <div class="menu-strip-item"><div class="menu-dot"></div>Student Management</div>
+          <div class="menu-strip-item"><div class="menu-dot"></div>Appointments</div>
+          <div class="menu-strip-item"><div class="menu-dot"></div>Courses</div>
+        </div>
+        <div class="token-grid" style="align-content:start;">
+          <div class="token-row"><span class="token-name">--el-menu-bg-color</span><span class="token-val">#061D45</span></div>
+          <div class="token-row"><span class="token-name">--el-menu-text-color</span><span class="token-val">rgba(255,255,255,.65)</span></div>
+          <div class="token-row"><span class="token-name">--el-menu-active-color</span><span class="token-val">#FFFFFF</span></div>
+          <div class="token-row"><span class="token-name">--el-menu-item-height</span><span class="token-val">44px</span></div>
+          <div class="token-row"><span class="token-name">--el-menu-item-font-size</span><span class="token-val">13px</span></div>
+          <div class="token-row"><span class="token-name">Active item bg</span><span class="token-val">#0F52BA (primary)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ ALERTS ══ -->
+    <section class="ref-section" id="alerts">
+      <div class="ref-section-head"><span class="ref-section-title">Alerts & Feedback</span><span class="ref-section-tag">el-alert</span><span class="ref-section-note">--el-alert-*</span></div>
+      <div class="preview-box">
+        <div class="alert alert-success"><svg class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" stroke-width="1.8"/><polyline points="22,4 12,14.01 9,11.01" stroke-width="1.8"/></svg><div><div class="alert-title">Appointment confirmed</div><div class="alert-desc">Emily Chen · Business English B2 · May 19 at 10:00</div></div></div>
+        <div class="alert alert-warning"><svg class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke-width="1.8"/><line x1="12" y1="9" x2="12" y2="13" stroke-width="1.8"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="1.8"/></svg><div><div class="alert-title">Zoom token expiring soon</div><div class="alert-desc">EOP English Backup account expires in 7 days. Please renew.</div></div></div>
+        <div class="alert alert-danger"><svg class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.8"/><line x1="15" y1="9" x2="9" y2="15" stroke-width="1.8"/><line x1="9" y1="9" x2="15" y2="15" stroke-width="1.8"/></svg><div><div class="alert-title">Account verification failed</div><div class="alert-desc">Jason Ho · Email address could not be verified.</div></div></div>
+        <div class="alert alert-info"><svg class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.8"/><line x1="12" y1="8" x2="12" y2="12" stroke-width="1.8"/><line x1="12" y1="16" x2="12.01" y2="16" stroke-width="1.8"/></svg><div><div class="alert-title">System maintenance scheduled</div><div class="alert-desc">EOP English Admin will be unavailable from 02:00–03:00 UTC on May 25.</div></div></div>
+      </div>
+    </section>
+
+    <!-- ══ PROGRESS ══ -->
+    <section class="ref-section" id="progress">
+      <div class="ref-section-head"><span class="ref-section-title">Progress</span><span class="ref-section-tag">el-progress</span><span class="ref-section-note">--el-progress-*</span></div>
+      <div class="preview-box">
+        <div class="progress-wrap"><div class="progress-label"><span>Course completion · Emily Chen</span><span>72%</span></div><div class="progress-track"><div class="progress-fill" style="width:72%;background:var(--eop-primary);"></div></div></div>
+        <div class="progress-wrap"><div class="progress-label"><span>Contract hours used</span><span>45%</span></div><div class="progress-track"><div class="progress-fill" style="width:45%;background:var(--eop-success);"></div></div></div>
+        <div class="progress-wrap"><div class="progress-label"><span>Approval queue</span><span>88%</span></div><div class="progress-track"><div class="progress-fill" style="width:88%;background:var(--eop-warning);"></div></div></div>
+        <div class="token-grid" style="margin-top:16px;">
+          <div class="token-row"><span class="token-name">--el-progress-bar-height</span><span class="token-val">8px</span></div>
+          <div class="token-row"><span class="token-name">--el-progress-border-radius</span><span class="token-val">100px</span></div>
+          <div class="token-row"><span class="token-name">--el-progress-fill-color</span><span class="token-val">#0F52BA (primary)</span></div>
+          <div class="token-row"><span class="token-name">--el-progress-bar-bg-color</span><span class="token-val">#E2E8F4</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ TOOLTIP ══ -->
+    <section class="ref-section" id="tooltip">
+      <div class="ref-section-head"><span class="ref-section-title">Tooltip & Popover</span><span class="ref-section-tag">el-tooltip</span><span class="ref-section-note">--el-tooltip-* / --el-popover-*</span></div>
+      <div class="preview-box">
+        <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">
+          <div><div class="ref-subsection" style="margin-bottom:8px;">Tooltip</div><div class="tooltip-bubble">This is a tooltip · bg #061D45 · text rgba(255,255,255,.9)</div></div>
+          <div style="flex:1;min-width:220px;">
+            <div class="ref-subsection" style="margin-bottom:8px;">Popover Panel</div>
+            <div style="background:var(--eop-bg-card);border:1px solid var(--eop-border);border-radius:var(--eop-radius-lg);padding:16px 20px;box-shadow:var(--eop-shadow-popup);max-width:260px;">
+              <div style="font-size:14px;font-weight:600;margin-bottom:6px;color:var(--eop-text-default);">Appointment Detail</div>
+              <div style="font-size:13px;color:var(--eop-text-secondary);line-height:1.6;">Emily Chen · Business English B2<br>May 19 at 10:00 · Mr. Johnson</div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px;" class="token-grid">
+          <div class="token-row"><span class="token-name">--el-tooltip-bg-color</span><span class="token-val">#061D45</span></div>
+          <div class="token-row"><span class="token-name">--el-tooltip-font-size</span><span class="token-val">12px</span></div>
+          <div class="token-row"><span class="token-name">--el-popover-border-radius</span><span class="token-val">10px</span></div>
+          <div class="token-row"><span class="token-name">--el-popover-box-shadow</span><span class="token-val">eop-shadow-popup</span></div>
+          <div class="token-row"><span class="token-name">--el-overlay-color</span><span class="token-val">rgba(6,29,69,.40)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ ALL TOKENS ══ -->
+    <section class="ref-section" id="all-tokens">
+      <div class="ref-section-head"><span class="ref-section-title">All Tokens — Full Reference</span><span class="ref-section-tag">200+</span><span class="ref-section-note">eop-element-plus-theme.css</span></div>
+      <div class="preview-box" style="padding:0;overflow:hidden;">
+        <table class="kv-table">
+          <tbody id="token-table-body">
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div><!-- /ref-body -->
+</div><!-- /ref-content -->
+</div><!-- /ref-layout -->
+
+<script>
+/* Active nav */
+function setActive(el) {
+  document.querySelectorAll('.ref-nav a').forEach(a => a.classList.remove('active'));
+  el.classList.add('active');
+}
+
+/* Populate all-tokens table */
+const ALL_TOKENS = [
+  ['--eop-primary','#0F52BA',true],['--eop-primary-light','#1A6EE8',true],['--eop-primary-dark','#0D3D8A',true],
+  ['--eop-primary-bg','#EBF2FF',true],['--eop-accent','#E8A020',true],['--eop-accent-bg','#FFF4E0',true],
+  ['--eop-secondary','#061D45',true],['--eop-success','#22C08A',true],['--eop-success-bg','#E4F9F3',true],
+  ['--eop-warning','#F5A623',true],['--eop-warning-bg','#FFF4E0',true],['--eop-danger','#E84040',true],
+  ['--eop-danger-bg','#FEECEC',true],['--eop-info','#3BA8E0',true],['--eop-info-bg','#E8F5FD',true],
+  ['--eop-text-default','#1A1A1A',true],['--eop-text-secondary','#4A4A4A',true],
+  ['--eop-text-light','#6B6B6B',true],['--eop-text-hint','#9B9B9B',true],['--eop-text-link','#0F52BA',true],
+  ['--eop-bg-page','#F4F6FA',true],['--eop-bg-card','#FFFFFF',true],['--eop-border','#E2E8F4',true],
+  ['--eop-radius-sm','4px',false],['--eop-radius-md','6px',false],['--eop-radius-lg','10px',false],['--eop-radius-pill','100px',false],
+  ['--el-color-primary','#0F52BA',true],['--el-color-success','#22C08A',true],
+  ['--el-color-warning','#F5A623',true],['--el-color-danger','#E84040',true],['--el-color-info','#3BA8E0',true],
+  ['--el-font-family','DM Sans …',false],['--el-font-size-base','13px',false],['--el-font-size-small','12px',false],
+  ['--el-text-color-primary','#1A1A1A',true],['--el-text-color-regular','#4A4A4A',true],
+  ['--el-text-color-secondary','#6B6B6B',true],['--el-text-color-placeholder','#9B9B9B',true],
+  ['--el-border-color','#E2E8F4',true],['--el-border-color-light','#EBF0F8',true],
+  ['--el-border-radius-base','6px',false],['--el-border-radius-small','4px',false],
+  ['--el-border-radius-large','10px',false],['--el-border-radius-round','100px',false],
+  ['--el-bg-color','#FFFFFF',true],['--el-bg-color-page','#F4F6FA',true],
+  ['--el-button-border-radius','6px',false],['--el-button-size','34px',false],
+  ['--el-button-font-size','13px',false],['--el-button-padding-vertical','8px',false],
+  ['--el-button-padding-horizontal','16px',false],['--el-button-font-weight','500',false],
+  ['--el-button-large-size','40px',false],['--el-button-small-size','28px',false],
+  ['--el-input-height','34px',false],['--el-input-font-size','13px',false],
+  ['--el-input-border-radius','6px',false],['--el-input-border-color','#D0D9EC',true],
+  ['--el-input-hover-border-color','#0F52BA',true],['--el-input-focus-border-color','#0F52BA',true],
+  ['--eop-search-border-radius','6px',false],['--eop-search-bg','#FFFFFF',true],
+  ['--eop-search-height','34px',false],['--eop-search-font-size','13px',false],
+  ['--el-tag-font-size','11px',false],['--el-tag-border-radius','100px',false],
+  ['--el-tag-padding','3px 8px',false],
+  ['--el-switch-on-color','#0F52BA',true],['--el-switch-off-color','#D8DDED',true],
+  ['--el-switch-width','36px',false],['--el-switch-height','20px',false],
+  ['--el-table-header-bg-color','#F8FAFD',true],['--el-table-font-size','13px',false],
+  ['--el-table-border-color','#E2E8F4',true],['--el-table-row-hover-bg-color','#FAFCFF',true],
+  ['--el-pagination-font-size','13px',false],['--el-pagination-border-radius','6px',false],
+  ['--el-pagination-height','30px',false],['--el-pagination-hover-color','#0F52BA',true],
+  ['--el-card-border-radius','10px',false],['--el-card-border-color','#E2E8F4',true],
+  ['--el-card-padding','20px',false],
+  ['--el-dialog-border-radius','14px',false],['--el-dialog-padding-primary','24px',false],
+  ['--el-overlay-color','rgba(6,29,69,.40)',false],
+  ['--el-drawer-box-shadow','-4px 0 24px …',false],
+  ['--el-menu-bg-color','#061D45',true],['--el-menu-text-color','rgba(255,255,255,.65)',false],
+  ['--el-menu-active-color','#FFFFFF',false],['--el-menu-item-height','44px',false],
+  ['--el-menu-item-font-size','13px',false],
+  ['--el-tooltip-bg-color','#061D45',true],['--el-tooltip-font-size','12px',false],
+  ['--el-popover-border-radius','10px',false],['--el-popover-box-shadow','popup shadow',false],
+  ['--el-progress-bar-height','8px',false],['--el-progress-border-radius','100px',false],
+  ['--el-tabs-header-height','40px',false],
+  ['--el-badge-bg-color','#E84040',true],
+];
+
+const tbody = document.getElementById('token-table-body');
+ALL_TOKENS.forEach(([name, val, isColor]) => {
+  const tr = document.createElement('tr');
+  const swatch = isColor
+    ? `<span class="kv-swatch" style="background:${val.startsWith('rgba') ? val : val};"></span>`
+    : `<span style="font-size:10px;color:var(--eop-text-hint);">—</span>`;
+  tr.innerHTML = `<td>${name}</td><td>${val}</td><td>${swatch}</td>`;
+  tbody.appendChild(tr);
+});
+
+/* Highlight active nav on scroll */
+const sections = document.querySelectorAll('.ref-section');
+const navLinks = document.querySelectorAll('.ref-nav a');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => { if (window.scrollY + 80 >= s.offsetTop) current = s.id; });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+}, { passive: true });
+</script>
+</body>
+</html>

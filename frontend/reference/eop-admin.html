@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EOP English Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary:        #0F52BA;
+  --primary-light:  #1A6EE8;
+  --primary-dark:   #0D3D8A;
+  --primary-bg:     #EBF2FF;
+  --accent:         #E8A020;
+  --accent-bg:      #FFF4E0;
+  --secondary:      #061D45;
+  --success:        #22C08A;
+  --success-bg:     #E4F9F3;
+  --warning:        #F5A623;
+  --warning-bg:     #FFF4E0;
+  --danger:         #E84040;
+  --danger-bg:      #FEECEC;
+  --info:           #3BA8E0;
+  --info-bg:        #E8F5FD;
+
+  --text-default:   #1A1A1A;
+  --text-secondary: #4A4A4A;
+  --text-light:     #6B6B6B;
+  --text-hint:      #9B9B9B;
+  --text-link:      #0F52BA;
+
+  --bg-page:        #F4F6FA;
+  --bg-card:        #FFFFFF;
+  --bg-sidebar:     #061D45;
+  --bg-sidebar-sub: #0A2A5E;
+
+  --border:         #E2E8F4;
+  --border-focus:   #0F52BA;
+
+  --radius-sm:      4px;
+  --radius-md:      6px;
+  --radius-lg:      10px;
+  --radius-xl:      14px;
+  --radius-pill:    100px;
+
+  --btn-radius:     6px;
+  --btn-pad-y-md:   8px;
+  --btn-pad-x-md:   16px;
+  --btn-pad-y-sm:   5px;
+  --btn-pad-x-sm:   12px;
+  --btn-font-md:    13px;
+  --btn-font-sm:    12px;
+
+  --input-radius:   6px;
+  --input-bg:       #FFFFFF;
+  --input-border:   #D0D9EC;
+  --input-pad:      8px 12px;
+  --input-font:     13px;
+  --input-height:   34px;
+
+  --sidebar-w:      220px;
+  --header-h:       56px;
+
+  --shadow-sm: 0 1px 3px rgba(15,82,186,.07), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md: 0 4px 12px rgba(15,82,186,.10), 0 1px 4px rgba(0,0,0,.05);
+  --transition: .18s ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: 'DM Sans', sans-serif; font-size: 14px; background: var(--bg-page); color: var(--text-default); }
+
+/* ── Layout ── */
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w); flex-shrink: 0;
+  background: var(--bg-sidebar);
+  display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
+}
+.sidebar-logo {
+  height: var(--header-h); padding: 0 20px;
+  display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  flex-shrink: 0;
+}
+.logo-icon {
+  width: 32px; height: 32px; border-radius: var(--radius-md);
+  background: var(--primary); display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -.5px;
+}
+.logo-text { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -.2px; }
+.logo-text span { color: var(--accent); }
+
+.sidebar-section { padding: 16px 12px 4px; font-size: 10px; font-weight: 600; color: rgba(255,255,255,.3); letter-spacing: .08em; text-transform: uppercase; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; margin: 1px 8px; border-radius: var(--radius-md);
+  font-size: 13px; font-weight: 400; color: rgba(255,255,255,.65);
+  cursor: pointer; transition: var(--transition); position: relative;
+  text-decoration: none;
+}
+.nav-item:hover { background: rgba(255,255,255,.07); color: #fff; }
+.nav-item.active { background: var(--primary); color: #fff; font-weight: 500; }
+.nav-item.active .nav-icon { opacity: 1; }
+.nav-icon { width: 16px; height: 16px; opacity: .7; flex-shrink: 0; }
+.nav-item.active .nav-icon { opacity: 1; }
+.nav-badge { margin-left: auto; background: var(--accent); color: #fff; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: var(--radius-pill); }
+
+.nav-sub { margin-left: 36px; }
+.nav-sub .nav-item { font-size: 12px; padding: 7px 10px; margin: 1px 0; }
+
+.sidebar-footer {
+  margin-top: auto; padding: 12px 16px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+}
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary-light); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0; }
+.sidebar-user-name { font-size: 13px; color: rgba(255,255,255,.8); font-weight: 500; }
+.sidebar-user-role { font-size: 11px; color: rgba(255,255,255,.4); }
+
+/* ── Main ── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.topbar {
+  height: var(--header-h); background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 24px; gap: 16px; flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+.breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-light); }
+.breadcrumb .current { color: var(--text-default); font-weight: 500; }
+.breadcrumb svg { width: 12px; height: 12px; color: var(--text-hint); }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.topbar-btn {
+  width: 34px; height: 34px; border-radius: var(--radius-md); border: 1px solid var(--border);
+  background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer;
+  color: var(--text-light); transition: var(--transition);
+}
+.topbar-btn:hover { background: var(--primary-bg); color: var(--primary); border-color: var(--primary); }
+.notif-dot { position: relative; }
+.notif-dot::after { content: ''; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--danger); border: 1.5px solid #fff; }
+
+.page-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* ── Page header ── */
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.page-title { font-size: 20px; font-weight: 600; color: var(--text-default); }
+.page-subtitle { font-size: 13px; color: var(--text-light); margin-top: 2px; }
+
+/* ── Cards ── */
+.card { background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+.card-body { padding: 20px; }
+.card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-title { font-size: 14px; font-weight: 600; color: var(--text-default); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: var(--btn-pad-y-md) var(--btn-pad-x-md);
+  border-radius: var(--btn-radius); font-size: var(--btn-font-md); font-weight: 500;
+  cursor: pointer; border: 1px solid transparent; transition: var(--transition); white-space: nowrap;
+  font-family: inherit; line-height: 1;
+}
+.btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+.btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.btn-primary:hover { background: var(--primary-light); border-color: var(--primary-light); }
+.btn-secondary { background: var(--bg-card); color: var(--text-default); border-color: var(--border); }
+.btn-secondary:hover { background: var(--primary-bg); color: var(--primary); border-color: var(--primary); }
+.btn-danger { background: var(--danger-bg); color: var(--danger); border-color: #fac8c8; }
+.btn-danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-success { background: var(--success-bg); color: var(--success); border-color: #b3edd8; }
+.btn-warning { background: var(--warning-bg); color: #b37a00; border-color: #fcd89a; }
+.btn-sm { padding: var(--btn-pad-y-sm) var(--btn-pad-x-sm); font-size: var(--btn-font-sm); }
+.btn-icon { padding: 7px; border-radius: var(--radius-md); }
+
+/* ── Inputs ── */
+.input-wrap { position: relative; display: flex; align-items: center; }
+.input-wrap svg { position: absolute; left: 10px; width: 14px; height: 14px; color: var(--text-hint); pointer-events: none; }
+input, select {
+  height: var(--input-height); padding: var(--input-pad);
+  border: 1px solid var(--input-border); border-radius: var(--input-radius);
+  font-size: var(--input-font); font-family: inherit; color: var(--text-default);
+  background: var(--input-bg); transition: var(--transition); outline: none;
+}
+input:focus, select:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(15,82,186,.12); }
+.input-wrap input { padding-left: 32px; }
+select { appearance: none; padding-right: 28px; cursor: pointer; }
+.select-wrap { position: relative; display: inline-flex; align-items: center; }
+.select-wrap select { padding-left: 10px; }
+.select-wrap::after { content: ''; position: absolute; right: 10px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid var(--text-hint); pointer-events: none; }
+
+/* ── Filters bar ── */
+.filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.filter-bar input { width: 220px; }
+.filter-bar select { min-width: 130px; }
+
+/* ── Stat cards ── */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 20px; display: flex; align-items: flex-start; gap: 14px; }
+.stat-icon { width: 44px; height: 44px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.stat-icon svg { width: 22px; height: 22px; }
+.stat-value { font-size: 26px; font-weight: 600; line-height: 1.1; color: var(--text-default); font-family: 'DM Mono', monospace; }
+.stat-label { font-size: 12px; color: var(--text-light); margin-top: 3px; }
+.stat-delta { font-size: 11px; margin-top: 5px; }
+.delta-up { color: var(--success); }
+.delta-dn { color: var(--danger); }
+
+/* ── Table ── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text-hint); text-transform: uppercase; letter-spacing: .06em; background: #F8FAFD; border-bottom: 1px solid var(--border); white-space: nowrap; }
+tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: #FAFCFF; }
+.td-name { font-weight: 500; color: var(--text-default); }
+.td-mono { font-family: 'DM Mono', monospace; font-size: 12px; }
+
+/* ── Badges ── */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 500; }
+.badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.badge-success { background: var(--success-bg); color: #0d8c61; }
+.badge-warning { background: var(--warning-bg); color: #8a5a00; }
+.badge-danger  { background: var(--danger-bg);  color: #b02020; }
+.badge-info    { background: var(--info-bg);    color: #1a7aaa; }
+.badge-neutral { background: #F1F3F8; color: var(--text-light); }
+.badge-primary { background: var(--primary-bg); color: var(--primary-dark); }
+
+/* ── Toggle switch ── */
+.toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.toggle-slider { position: absolute; inset: 0; background: #D8DDED; border-radius: var(--radius-pill); cursor: pointer; transition: var(--transition); }
+.toggle-slider::before { content: ''; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: var(--transition); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.toggle input:checked + .toggle-slider { background: var(--primary); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+/* ── Pagination ── */
+.pagination { display: flex; align-items: center; gap: 6px; padding: 16px 0 0; }
+.page-btn { width: 30px; height: 30px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-card); font-size: 12px; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition); }
+.page-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-bg); }
+.page-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.page-info { font-size: 12px; color: var(--text-hint); margin-left: 8px; }
+.page-size-wrap { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-hint); }
+.page-size-wrap select { height: 30px; font-size: 12px; min-width: 90px; }
+
+/* ── Teacher cards ── */
+.teacher-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.teacher-card { background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 20px; transition: var(--transition); }
+.teacher-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md); }
+.tc-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.tc-avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--primary-bg); display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; color: var(--primary); flex-shrink: 0; }
+.tc-name { font-size: 15px; font-weight: 600; color: var(--text-default); }
+.tc-type { font-size: 11px; color: var(--text-light); margin-top: 2px; }
+.tc-info { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-light); margin-bottom: 14px; }
+.tc-info-row { display: flex; align-items: center; gap: 7px; }
+.tc-info-row svg { width: 13px; height: 13px; color: var(--text-hint); flex-shrink: 0; }
+.tc-actions { display: flex; gap: 8px; border-top: 1px solid var(--border); padding-top: 14px; align-items: center; }
+.tc-actions .toggle { margin-left: auto; }
+
+/* ── Course cards ── */
+.course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.course-card { background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border); overflow: hidden; transition: var(--transition); }
+.course-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.cc-top { height: 6px; }
+.cc-body { padding: 18px; }
+.cc-name { font-size: 14px; font-weight: 600; color: var(--text-default); margin-bottom: 6px; }
+.cc-level { font-size: 11px; margin-bottom: 12px; }
+.cc-meta { display: flex; gap: 12px; font-size: 12px; color: var(--text-light); margin-bottom: 12px; }
+.cc-price { font-size: 18px; font-weight: 600; color: var(--primary); font-family: 'DM Mono', monospace; }
+.cc-price span { font-size: 11px; font-weight: 400; color: var(--text-hint); margin-left: 2px; }
+
+/* ── Calendar ── */
+.cal-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.cal-title { font-size: 16px; font-weight: 600; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-card); }
+.cal-day-header { padding: 8px; text-align: center; font-size: 11px; font-weight: 600; color: var(--text-hint); text-transform: uppercase; background: #F8FAFD; border-bottom: 1px solid var(--border); }
+.cal-cell { min-height: 90px; padding: 6px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); vertical-align: top; }
+.cal-cell:nth-child(7n) { border-right: none; }
+.cal-date { font-size: 12px; font-weight: 500; color: var(--text-light); margin-bottom: 4px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.cal-date.today { background: var(--primary); color: #fff; }
+.cal-event { padding: 3px 6px; border-radius: var(--radius-sm); font-size: 11px; margin-bottom: 2px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-event-blue { background: var(--primary-bg); color: var(--primary-dark); }
+.cal-event-green { background: var(--success-bg); color: #0d8c61; }
+.cal-event-amber { background: var(--accent-bg); color: #8a5a00; }
+.cal-cell.other-month .cal-date { color: #D0D9EC; }
+.cal-cell.other-month .cal-event { opacity: .4; }
+
+/* ── Drawer overlay ── */
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(6,29,69,.35); z-index: 100; display: none; }
+.drawer-backdrop.open { display: block; }
+.drawer { position: fixed; right: 0; top: 0; height: 100%; width: 480px; background: var(--bg-card); z-index: 101; box-shadow: -4px 0 24px rgba(15,82,186,.12); display: flex; flex-direction: column; transform: translateX(100%); transition: transform .25s ease; }
+.drawer.open { transform: translateX(0); }
+.drawer-head { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.drawer-title { font-size: 16px; font-weight: 600; }
+.drawer-body { flex: 1; overflow-y: auto; padding: 24px; }
+.form-row { margin-bottom: 18px; }
+.form-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; display: block; }
+.form-row input, .form-row select { width: 100%; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.drawer-foot { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; flex-shrink: 0; }
+
+/* ── Tabs ── */
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.tab-item { padding: 10px 18px; font-size: 13px; font-weight: 500; color: var(--text-light); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: var(--transition); }
+.tab-item:hover { color: var(--primary); }
+.tab-item.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* ── View toggle ── */
+.view-toggle { display: flex; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.view-btn { padding: 6px 12px; font-size: 12px; cursor: pointer; background: var(--bg-card); color: var(--text-light); border: none; display: flex; align-items: center; gap: 5px; transition: var(--transition); }
+.view-btn:not(:last-child) { border-right: 1px solid var(--border); }
+.view-btn.active { background: var(--primary-bg); color: var(--primary); }
+
+/* ── Permission tree ── */
+.perm-group { border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 12px; overflow: hidden; }
+.perm-group-head { padding: 12px 16px; background: #F8FAFD; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.perm-group-body { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px; }
+.perm-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.checkbox { width: 15px; height: 15px; border-radius: 3px; border: 1.5px solid var(--input-border); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.checkbox.checked { background: var(--primary); border-color: var(--primary); }
+.checkbox.checked::after { content: ''; width: 8px; height: 5px; border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: rotate(-45deg) translateY(-1px); }
+
+/* ── Dashboard widgets ── */
+.welcome-banner { background: var(--secondary); border-radius: var(--radius-xl); padding: 28px 32px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; overflow: hidden; position: relative; }
+.welcome-banner::before { content: ''; position: absolute; right: -40px; top: -40px; width: 200px; height: 200px; border-radius: 50%; background: rgba(15,82,186,.35); }
+.welcome-banner::after { content: ''; position: absolute; right: 40px; bottom: -50px; width: 140px; height: 140px; border-radius: 50%; background: rgba(232,160,32,.2); }
+.wb-title { font-size: 22px; font-weight: 600; color: #fff; }
+.wb-sub { font-size: 14px; color: rgba(255,255,255,.6); margin-top: 4px; }
+.wb-date { font-size: 12px; color: rgba(255,255,255,.4); margin-top: 10px; font-family: 'DM Mono', monospace; }
+
+/* ── Section nav hidden by JS ── */
+.page-section { display: none; }
+.page-section.active { display: block; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D0D9EC; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #A8B8D8; }
+
+/* ── Zoom card ── */
+.zoom-card { display: flex; align-items: center; gap:16px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-card); margin-bottom: 12px; }
+.zoom-icon { width: 44px; height: 44px; border-radius: var(--radius-lg); background: var(--info-bg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.zoom-icon svg { width: 24px; height: 24px; color: var(--info); }
+.zoom-info { flex: 1; }
+.zoom-name { font-size: 14px; font-weight: 600; }
+.zoom-email { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+
+/* Responsive tweaks */
+@media (max-width: 1200px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══ SIDEBAR ══ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">E</div>
+    <div class="logo-text">EOP <span>English</span></div>
+  </div>
+
+  <div class="sidebar-section">Main</div>
+  <a class="nav-item active" onclick="show('dashboard')">
+    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" rx="1" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" rx="1" stroke-width="1.8"/><rect x="14" y="14" width="7" height="7" rx="1" stroke-width="1.8"/></svg>
+    Dashboard
+  </a>
+  <a class="nav-item" onclick="show('profile')">
+    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" stroke-width="1.8"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke-width="1.8" stroke-linecap="round"/></svg>
+    Personal Settings
+  </a>
+
+  <div class="sidebar-section">Management</div>
+  <a class="nav-item" onclick="show('teachers')">
+    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke-width="1.8"/><circle cx="9" cy="7" r="4" stroke-width="1.8"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke-width="1.8" stroke-linecap="round"/></svg>
+    Teacher Management
+  </a>
+  <a class="nav-item" onclick="show('students')">
+    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z" stroke-width="1.8" stroke-linejoin="round"/><path d="M6 12v5c3.33 2 8.67 2 12 0v-5" stroke-width="1.8" stroke-linecap="round"/></svg>
+    Student Management
+  </a>
+  <a class="nav-item" onclick="show('appointments')">
+    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke-width="1.8" stroke-linecap="round"/></svg>
+    Appointment Mgmt
+    <span class="nav-badge">12</span>
+  </a>
+  <a class="nav-item" onclick="show('courses')">
+    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke-width="1.8" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke-width="1.8"/></svg>
+    Course Management
+  </a>
+  <a class="nav-item" onclick="show('leaves')">
+    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke-width="1.8" stroke-linecap="round"/></svg>
+    Leave Management
+  </a>
+
+  <div class="sidebar-section">Portal</div>
+  <a class="nav-item" onclick="show('student-center')">
+    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.8"/><path d="M12 8v4l3 3" stroke-width="1.8" stroke-linecap="round"/></svg>
+    Student Reservation
+  </a>
+  <a class="nav-item" onclick="show('teacher-schedule')">
+    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.8"/><path d="M3 10h18M8 2v4M16 2v4M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" stroke-width="1.8" stroke-linecap="round"/></svg>
+    My Schedule
+  </a>
+
+  <div class="sidebar-section">System</div>
+  <a class="nav-item" onclick="show('system')">
+    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="1.8"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M4.93 19.07l1.41-1.41M19.07 19.07l-1.41-1.41M21 12h-2M5 12H3M12 3V1M12 23v-2" stroke-width="1.8" stroke-linecap="round"/></svg>
+    System Settings
+  </a>
+
+  <div class="sidebar-footer">
+    <div class="avatar">AD</div>
+    <div>
+      <div class="sidebar-user-name">Admin User</div>
+      <div class="sidebar-user-role">Super Administrator</div>
+    </div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ══ -->
+<div class="main">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="breadcrumb" id="breadcrumb">
+      <span>EOP</span>
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" stroke-width="2" stroke-linecap="round"/></svg>
+      <span class="current" id="bc-current">Dashboard</span>
+    </div>
+    <div class="topbar-right">
+      <button class="topbar-btn notif-dot" title="Notifications">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button class="topbar-btn" title="Settings" onclick="show('system')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="1.8"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M21 12h-2M5 12H3M12 21v-2M12 5V3M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <div class="avatar" style="width:34px;height:34px;font-size:12px;cursor:pointer;">AD</div>
+    </div>
+  </header>
+
+  <!-- Page Content -->
+  <div class="page-content">
+
+    <!-- ── DASHBOARD ── -->
+    <div id="pg-dashboard" class="page-section active">
+      <div class="welcome-banner">
+        <div style="position:relative;z-index:1;">
+          <div class="wb-title">Good morning, Admin 👋</div>
+          <div class="wb-sub">Here's what's happening at EOP English today.</div>
+          <div class="wb-date">Monday, May 18, 2026</div>
+        </div>
+        <div style="position:relative;z-index:1;">
+          <button class="btn btn-primary" style="background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.25);color:#fff;">View Reports</button>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--primary-bg);">
+            <svg fill="none" stroke="var(--primary)" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke-width="1.8"/><circle cx="9" cy="7" r="4" stroke-width="1.8"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke-width="1.8"/></svg>
+          </div>
+          <div>
+            <div class="stat-value">48</div>
+            <div class="stat-label">Active Teachers</div>
+            <div class="stat-delta delta-up">↑ 3 this month</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--success-bg);">
+            <svg fill="none" stroke="var(--success)" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z" stroke-width="1.8" stroke-linejoin="round"/><path d="M6 12v5c3.33 2 8.67 2 12 0v-5" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <div>
+            <div class="stat-value">312</div>
+            <div class="stat-label">Enrolled Students</div>
+            <div class="stat-delta delta-up">↑ 18 this week</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-bg);">
+            <svg fill="none" stroke="var(--accent)" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <div>
+            <div class="stat-value">94</div>
+            <div class="stat-label">Classes This Week</div>
+            <div class="stat-delta delta-dn">↓ 5 vs last week</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--danger-bg);">
+            <svg fill="none" stroke="var(--danger)" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke-width="1.8"/></svg>
+          </div>
+          <div>
+            <div class="stat-value">7</div>
+            <div class="stat-label">Pending Leaves</div>
+            <div class="stat-delta" style="color:var(--text-hint);">Needs review</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Upcoming Appointments</span>
+            <button class="btn btn-secondary btn-sm" onclick="show('appointments')">View All</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Student</th><th>Teacher</th><th>Course</th><th>Date / Time</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td class="td-name">Emily Chen</td><td>Mr. Johnson</td><td>Business English B2</td><td class="td-mono">May 19 · 10:00</td><td><span class="badge badge-success">Confirmed</span></td></tr>
+                <tr><td class="td-name">Michael Wang</td><td>Ms. Brown</td><td>IELTS Prep</td><td class="td-mono">May 19 · 14:00</td><td><span class="badge badge-warning">Pending</span></td></tr>
+                <tr><td class="td-name">Sarah Liu</td><td>Mr. Davis</td><td>Conversation A1</td><td class="td-mono">May 20 · 09:00</td><td><span class="badge badge-success">Confirmed</span></td></tr>
+                <tr><td class="td-name">Jason Ho</td><td>Ms. Wilson</td><td>TOEFL Advanced</td><td class="td-mono">May 20 · 16:00</td><td><span class="badge badge-info">Rescheduled</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Leave Requests</span><span class="badge badge-danger">7 pending</span></div>
+          <div class="card-body" style="padding:12px;">
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-md);border-left:3px solid var(--warning);">
+                <div style="font-size:13px;font-weight:500;">Emily Chen</div>
+                <div style="font-size:11px;color:var(--text-light);margin-top:2px;">May 22 · Period 2 · Illness</div>
+                <div style="display:flex;gap:6px;margin-top:8px;">
+                  <button class="btn btn-success btn-sm" style="flex:1;justify-content:center;">Approve</button>
+                  <button class="btn btn-danger btn-sm" style="flex:1;justify-content:center;">Reject</button>
+                </div>
+              </div>
+              <div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-md);border-left:3px solid var(--warning);">
+                <div style="font-size:13px;font-weight:500;">Jason Ho</div>
+                <div style="font-size:11px;color:var(--text-light);margin-top:2px;">May 23 · Period 1 · Travel</div>
+                <div style="display:flex;gap:6px;margin-top:8px;">
+                  <button class="btn btn-success btn-sm" style="flex:1;justify-content:center;">Approve</button>
+                  <button class="btn btn-danger btn-sm" style="flex:1;justify-content:center;">Reject</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PERSONAL SETTINGS ── -->
+    <div id="pg-profile" class="page-section">
+      <div class="page-header"><div><div class="page-title">Personal Settings</div><div class="page-subtitle">Manage your profile, LINE binding, and notification preferences</div></div></div>
+      <div class="tab-bar">
+        <div class="tab-item active">Profile</div>
+        <div class="tab-item">LINE Account</div>
+        <div class="tab-item">Notifications</div>
+        <div class="tab-item">LINE Instructions</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Basic Information</span></div>
+          <div class="card-body">
+            <div class="form-grid" style="margin-bottom:18px;">
+              <div class="form-row"><label class="form-label">First Name</label><input type="text" value="Admin"></div>
+              <div class="form-row"><label class="form-label">Last Name</label><input type="text" value="User"></div>
+            </div>
+            <div class="form-row"><label class="form-label">Email Address</label><input type="email" value="admin@eopenglish.com" style="width:100%;"></div>
+            <div class="form-row"><label class="form-label">Phone Number</label><input type="tel" value="+886 912 345 678" style="width:100%;"></div>
+            <div class="form-row"><label class="form-label">Role</label><input type="text" value="Super Administrator" disabled style="width:100%;background:#F8FAFD;color:var(--text-hint);"></div>
+            <button class="btn btn-primary">Save Changes</button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="card">
+            <div class="card-header"><span class="card-title">Avatar</span></div>
+            <div class="card-body" style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+              <div class="avatar" style="width:72px;height:72px;font-size:24px;">AD</div>
+              <button class="btn btn-secondary btn-sm">Upload Photo</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">LINE Binding</span></div>
+            <div class="card-body">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                <span class="badge badge-success">Connected</span>
+                <span style="font-size:12px;color:var(--text-light);">@admin_line</span>
+              </div>
+              <button class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;">Re-bind LINE</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TEACHER MANAGEMENT ── -->
+    <div id="pg-teachers" class="page-section">
+      <div class="page-header">
+        <div><div class="page-title">Teacher Management</div><div class="page-subtitle">48 teachers · 36 full-time · 12 part-time</div></div>
+        <button class="btn btn-primary" onclick="openDrawer('teacher')">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke-width="2" stroke-linecap="round"/></svg>
+          Add Teacher
+        </button>
+      </div>
+      <div class="filter-bar">
+        <div class="input-wrap"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-width="1.8" stroke-linecap="round"/></svg><input type="text" placeholder="Search teacher name..."></div>
+        <div class="select-wrap"><select><option>All Status</option><option>Active</option><option>Inactive</option></select></div>
+        <div class="select-wrap"><select><option>All Types</option><option>Full-time</option><option>Part-time</option></select></div>
+      </div>
+      <div class="teacher-grid">
+        <div class="teacher-card">
+          <div class="tc-header">
+            <div class="tc-avatar">MJ</div>
+            <div><div class="tc-name">Michael Johnson</div><div class="tc-type"><span class="badge badge-primary">Full-time</span></div></div>
+          </div>
+          <div class="tc-info">
+            <div class="tc-info-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2A19.79 19.79 0 013.08 4.18 2 2 0 015.07 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L9.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" stroke-width="1.8"/></svg>+886 912 001 001</div>
+            <div class="tc-info-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke-width="1.8"/><polyline points="22,6 12,13 2,6" stroke-width="1.8"/></svg>m.johnson@eop.com</div>
+          </div>
+          <div class="tc-actions">
+            <button class="btn btn-secondary btn-sm">Edit</button>
+            <button class="btn btn-secondary btn-sm">Contract</button>
+            <label class="toggle" style="margin-left:auto;"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+        <div class="teacher-card">
+          <div class="tc-header">
+            <div class="tc-avatar" style="background:var(--success-bg);color:var(--success);">SB</div>
+            <div><div class="tc-name">Sarah Brown</div><div class="tc-type"><span class="badge badge-neutral">Part-time</span></div></div>
+          </div>
+          <div class="tc-info">
+            <div class="tc-info-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2A19.79 19.79 0 013.08 4.18 2 2 0 015.07 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L9.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" stroke-width="1.8"/></svg>+886 912 002 002</div>
+            <div class="tc-info-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke-width="1.8"/><polyline points="22,6 12,13 2,6" stroke-width="1.8"/></svg>s.brown@eop.com</div>
+          </div>
+          <div class="tc-actions">
+            <button class="btn btn-secondary btn-sm">Edit</button>
+            <button class="btn btn-secondary btn-sm">Contract</button>
+            <label class="toggle" style="margin-left:auto;"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+        <div class="teacher-card">
+          <div class="tc-header">
+            <div class="tc-avatar" style="background:var(--accent-bg);color:var(--accent);">RD</div>
+            <div><div class="tc-name">Robert Davis</div><div class="tc-type"><span class="badge badge-primary">Full-time</span></div></div>
+          </div>
+          <div class="tc-info">
+            <div class="tc-info-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2A19.79 19.79 0 013.08 4.18 2 2 0 015.07 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L9.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" stroke-width="1.8"/></svg>+886 912 003 003</div>
+            <div class="tc-info-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke-width="1.8"/><polyline points="22,6 12,13 2,6" stroke-width="1.8"/></svg>r.davis@eop.com</div>
+          </div>
+          <div class="tc-actions">
+            <button class="btn btn-secondary btn-sm">Edit</button>
+            <button class="btn btn-secondary btn-sm">Contract</button>
+            <label class="toggle" style="margin-left:auto;"><input type="checkbox"><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+        <div class="teacher-card">
+          <div class="tc-header">
+            <div class="tc-avatar" style="background:#F3E8FD;color:#7B3FB0;">LW</div>
+            <div><div class="tc-name">Laura Wilson</div><div class="tc-type"><span class="badge badge-neutral">Part-time</span></div></div>
+          </div>
+          <div class="tc-info">
+            <div class="tc-info-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2A19.79 19.79 0 013.08 4.18 2 2 0 015.07 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L9.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" stroke-width="1.8"/></svg>+886 912 004 004</div>
+            <div class="tc-info-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke-width="1.8"/><polyline points="22,6 12,13 2,6" stroke-width="1.8"/></svg>l.wilson@eop.com</div>
+          </div>
+          <div class="tc-actions">
+            <button class="btn btn-secondary btn-sm">Edit</button>
+            <button class="btn btn-secondary btn-sm">Contract</button>
+            <label class="toggle" style="margin-left:auto;"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+      </div>
+      <div class="pagination">
+        <button class="page-btn">‹</button>
+        <button class="page-btn active">1</button>
+        <button class="page-btn">2</button>
+        <button class="page-btn">3</button>
+        <button class="page-btn">›</button>
+        <span class="page-info">48 records total</span>
+        <div class="page-size-wrap"><span>Per page</span><div class="select-wrap"><select><option>10 / page</option><option>20 / page</option><option>50 / page</option></select></div></div>
+      </div>
+    </div>
+
+    <!-- ── STUDENT MANAGEMENT ── -->
+    <div id="pg-students" class="page-section">
+      <div class="page-header">
+        <div><div class="page-title">Student Management</div><div class="page-subtitle">312 students enrolled</div></div>
+        <button class="btn btn-primary" onclick="openDrawer('student')">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke-width="2" stroke-linecap="round"/></svg>
+          Add Student
+        </button>
+      </div>
+      <div class="filter-bar">
+        <div class="input-wrap"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-width="1.8" stroke-linecap="round"/></svg><input type="text" placeholder="Search student name..."></div>
+        <div class="select-wrap"><select><option>All Status</option><option>Active</option><option>Inactive</option></select></div>
+        <div class="select-wrap"><select><option>All Identities</option><option>Adult</option><option>Youth</option><option>Corporate</option></select></div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th><input type="checkbox" style="width:15px;height:15px;"></th><th>Name</th><th>Identity</th><th>Phone</th><th>Email</th><th>Courses</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              <tr><td><input type="checkbox" style="width:15px;height:15px;"></td><td class="td-name">Emily Chen</td><td><span class="badge badge-info">Adult</span></td><td class="td-mono">0912-111-111</td><td>emily.chen@mail.com</td><td>3</td><td><span class="badge badge-success">Active</span></td><td><button class="btn btn-secondary btn-sm" onclick="openDrawer('student')">Edit</button></td></tr>
+              <tr><td><input type="checkbox" style="width:15px;height:15px;"></td><td class="td-name">Michael Wang</td><td><span class="badge badge-primary">Youth</span></td><td class="td-mono">0912-222-222</td><td>m.wang@mail.com</td><td>1</td><td><span class="badge badge-success">Active</span></td><td><button class="btn btn-secondary btn-sm" onclick="openDrawer('student')">Edit</button></td></tr>
+              <tr><td><input type="checkbox" style="width:15px;height:15px;"></td><td class="td-name">Sarah Liu</td><td><span class="badge badge-warning">Corporate</span></td><td class="td-mono">0912-333-333</td><td>s.liu@corp.com</td><td>2</td><td><span class="badge badge-neutral">Inactive</span></td><td><button class="btn btn-secondary btn-sm" onclick="openDrawer('student')">Edit</button></td></tr>
+              <tr><td><input type="checkbox" style="width:15px;height:15px;"></td><td class="td-name">Jason Ho</td><td><span class="badge badge-info">Adult</span></td><td class="td-mono">0912-444-444</td><td>jason.ho@mail.com</td><td>4</td><td><span class="badge badge-success">Active</span></td><td><button class="btn btn-secondary btn-sm" onclick="openDrawer('student')">Edit</button></td></tr>
+              <tr><td><input type="checkbox" style="width:15px;height:15px;"></td><td class="td-name">Amy Lin</td><td><span class="badge badge-primary">Youth</span></td><td class="td-mono">0912-555-555</td><td>amy.lin@mail.com</td><td>2</td><td><span class="badge badge-success">Active</span></td><td><button class="btn btn-secondary btn-sm" onclick="openDrawer('student')">Edit</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:0 16px 8px;">
+          <div class="pagination">
+            <button class="page-btn">‹</button>
+            <button class="page-btn active">1</button><button class="page-btn">2</button><button class="page-btn">3</button><button class="page-btn">...</button><button class="page-btn">16</button>
+            <button class="page-btn">›</button>
+            <span class="page-info">312 records</span>
+            <div class="page-size-wrap"><span>Per page</span><div class="select-wrap"><select><option>20 / page</option><option>50 / page</option></select></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── APPOINTMENT MANAGEMENT ── -->
+    <div id="pg-appointments" class="page-section">
+      <div class="page-header">
+        <div><div class="page-title">Appointment Management</div><div class="page-subtitle">May 2026</div></div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div class="view-toggle">
+            <button class="view-btn active" id="vt-cal">
+              <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.8"/><path d="M3 10h18" stroke-width="1.8"/></svg>Calendar
+            </button>
+            <button class="view-btn" id="vt-list">
+              <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke-width="1.8" stroke-linecap="round"/></svg>List
+            </button>
+          </div>
+          <button class="btn btn-primary">+ Add</button>
+        </div>
+      </div>
+      <div class="filter-bar">
+        <div class="input-wrap"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-width="1.8" stroke-linecap="round"/></svg><input type="text" placeholder="Search..."></div>
+        <div class="select-wrap"><select><option>All Status</option><option>Confirmed</option><option>Pending</option><option>Cancelled</option></select></div>
+        <div class="select-wrap"><select><option>All Students</option><option>Emily Chen</option><option>Michael Wang</option></select></div>
+        <div class="select-wrap"><select><option>All Teachers</option><option>Mr. Johnson</option><option>Ms. Brown</option></select></div>
+        <div class="select-wrap"><select><option>All Courses</option></select></div>
+      </div>
+      <div class="card" id="view-calendar">
+        <div class="card-body">
+          <div class="cal-header">
+            <button class="btn btn-secondary btn-sm">‹ Prev</button>
+            <span class="cal-title">May 2026</span>
+            <button class="btn btn-secondary btn-sm">Next ›</button>
+          </div>
+          <div class="cal-grid">
+            <div class="cal-day-header">Sun</div><div class="cal-day-header">Mon</div><div class="cal-day-header">Tue</div><div class="cal-day-header">Wed</div><div class="cal-day-header">Thu</div><div class="cal-day-header">Fri</div><div class="cal-day-header">Sat</div>
+            <div class="cal-cell other-month"><div class="cal-date">27</div></div>
+            <div class="cal-cell other-month"><div class="cal-date">28</div></div>
+            <div class="cal-cell other-month"><div class="cal-date">29</div></div>
+            <div class="cal-cell other-month"><div class="cal-date">30</div></div>
+            <div class="cal-cell"><div class="cal-date">1</div></div>
+            <div class="cal-cell"><div class="cal-date">2</div></div>
+            <div class="cal-cell"><div class="cal-date">3</div></div>
+            <div class="cal-cell"><div class="cal-date">4</div></div>
+            <div class="cal-cell"><div class="cal-date">5</div><div class="cal-event cal-event-blue" onclick="openDrawer('appt')">E.Chen · B.Eng</div></div>
+            <div class="cal-cell"><div class="cal-date">6</div><div class="cal-event cal-event-green">M.Wang · IELTS</div></div>
+            <div class="cal-cell"><div class="cal-date">7</div></div>
+            <div class="cal-cell"><div class="cal-date">8</div><div class="cal-event cal-event-amber">S.Liu · Conv</div></div>
+            <div class="cal-cell"><div class="cal-date">9</div></div>
+            <div class="cal-cell"><div class="cal-date">10</div></div>
+            <div class="cal-cell"><div class="cal-date">11</div></div>
+            <div class="cal-cell"><div class="cal-date">12</div><div class="cal-event cal-event-blue">J.Ho · TOEFL</div><div class="cal-event cal-event-green">A.Lin · Conv</div></div>
+            <div class="cal-cell"><div class="cal-date">13</div></div>
+            <div class="cal-cell"><div class="cal-date">14</div></div>
+            <div class="cal-cell"><div class="cal-date">15</div></div>
+            <div class="cal-cell"><div class="cal-date">16</div></div>
+            <div class="cal-cell"><div class="cal-date">17</div><div class="cal-event cal-event-blue">E.Chen · B.Eng</div></div>
+            <div class="cal-cell"><div class="cal-date today">18</div><div class="cal-event cal-event-green">M.Wang · IELTS</div><div class="cal-event cal-event-blue">J.Ho · Adv</div></div>
+            <div class="cal-cell"><div class="cal-date">19</div></div>
+            <div class="cal-cell"><div class="cal-date">20</div></div>
+            <div class="cal-cell"><div class="cal-date">21</div></div>
+            <div class="cal-cell"><div class="cal-date">22</div></div>
+            <div class="cal-cell"><div class="cal-date">23</div><div class="cal-event cal-event-amber">S.Liu · Corp</div></div>
+            <div class="cal-cell"><div class="cal-date">24</div></div>
+            <div class="cal-cell"><div class="cal-date">25</div></div>
+            <div class="cal-cell"><div class="cal-date">26</div></div>
+            <div class="cal-cell"><div class="cal-date">27</div><div class="cal-event cal-event-blue">A.Lin · B2</div></div>
+            <div class="cal-cell"><div class="cal-date">28</div></div>
+            <div class="cal-cell"><div class="cal-date">29</div></div>
+            <div class="cal-cell"><div class="cal-date">30</div></div>
+            <div class="cal-cell"><div class="cal-date">31</div><div class="cal-event cal-event-green">E.Chen · IELTS</div></div>
+            <div class="cal-cell other-month"><div class="cal-date">1</div></div>
+            <div class="cal-cell other-month"><div class="cal-date">2</div></div>
+            <div class="cal-cell other-month"><div class="cal-date">3</div></div>
+            <div class="cal-cell other-month"><div class="cal-date">4</div></div>
+            <div class="cal-cell other-month"><div class="cal-date">5</div></div>
+            <div class="cal-cell other-month"><div class="cal-date">6</div></div>
+            <div class="cal-cell other-month"><div class="cal-date">7</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── COURSE MANAGEMENT ── -->
+    <div id="pg-courses" class="page-section">
+      <div class="page-header">
+        <div><div class="page-title">Course Management</div><div class="page-subtitle">14 active courses</div></div>
+        <div style="display:flex;gap:10px;">
+          <div class="view-toggle"><button class="view-btn active">Cards</button><button class="view-btn">List</button></div>
+          <button class="btn btn-primary">+ Add Course</button>
+        </div>
+      </div>
+      <div class="filter-bar">
+        <div class="input-wrap"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-width="1.8" stroke-linecap="round"/></svg><input type="text" placeholder="Search course..."></div>
+        <div class="select-wrap"><select><option>All Status</option><option>Active</option><option>Draft</option></select></div>
+        <div class="select-wrap"><select><option>All Levels</option><option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option></select></div>
+      </div>
+      <div class="course-grid">
+        <div class="course-card"><div class="cc-top" style="background:var(--primary);"></div><div class="cc-body"><div class="cc-name">Business English B2</div><div class="cc-level"><span class="badge badge-primary">B2</span></div><div class="cc-meta"><span>24 hrs</span><span>·</span><span>Adults</span></div><div class="cc-price">NT$12,800 <span>/ contract</span></div><div style="margin-top:12px;display:flex;gap:6px;"><button class="btn btn-secondary btn-sm">Edit</button><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div></div></div>
+        <div class="course-card"><div class="cc-top" style="background:var(--success);"></div><div class="cc-body"><div class="cc-name">IELTS Preparation</div><div class="cc-level"><span class="badge badge-success">B2–C1</span></div><div class="cc-meta"><span>36 hrs</span><span>·</span><span>All ages</span></div><div class="cc-price">NT$18,000 <span>/ contract</span></div><div style="margin-top:12px;display:flex;gap:6px;"><button class="btn btn-secondary btn-sm">Edit</button><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div></div></div>
+        <div class="course-card"><div class="cc-top" style="background:var(--accent);"></div><div class="cc-body"><div class="cc-name">TOEFL Advanced</div><div class="cc-level"><span class="badge badge-warning">C1</span></div><div class="cc-meta"><span>40 hrs</span><span>·</span><span>Adults</span></div><div class="cc-price">NT$22,000 <span>/ contract</span></div><div style="margin-top:12px;display:flex;gap:6px;"><button class="btn btn-secondary btn-sm">Edit</button><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div></div></div>
+        <div class="course-card"><div class="cc-top" style="background:var(--info);"></div><div class="cc-body"><div class="cc-name">Everyday Conversation A1</div><div class="cc-level"><span class="badge badge-info">A1</span></div><div class="cc-meta"><span>12 hrs</span><span>·</span><span>Beginners</span></div><div class="cc-price">NT$6,400 <span>/ contract</span></div><div style="margin-top:12px;display:flex;gap:6px;"><button class="btn btn-secondary btn-sm">Edit</button><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div></div></div>
+        <div class="course-card"><div class="cc-top" style="background:#7B3FB0;"></div><div class="cc-body"><div class="cc-name">Young Learners A2</div><div class="cc-level"><span class="badge badge-neutral">A2</span></div><div class="cc-meta"><span>20 hrs</span><span>·</span><span>Ages 8–14</span></div><div class="cc-price">NT$8,800 <span>/ contract</span></div><div style="margin-top:12px;display:flex;gap:6px;"><button class="btn btn-secondary btn-sm">Edit</button><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div></div></div>
+        <div class="course-card"><div class="cc-top" style="background:var(--danger);"></div><div class="cc-body"><div class="cc-name">Corporate Communication</div><div class="cc-level"><span class="badge badge-warning">B1–B2</span></div><div class="cc-meta"><span>30 hrs</span><span>·</span><span>Corporate</span></div><div class="cc-price">NT$16,000 <span>/ contract</span></div><div style="margin-top:12px;display:flex;gap:6px;"><button class="btn btn-secondary btn-sm">Edit</button><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div></div></div>
+      </div>
+    </div>
+
+    <!-- ── LEAVE MANAGEMENT ── -->
+    <div id="pg-leaves" class="page-section">
+      <div class="page-header"><div><div class="page-title">Leave Management</div><div class="page-subtitle">7 pending reviews</div></div></div>
+      <div class="filter-bar">
+        <div class="select-wrap"><select><option>All Status</option><option>Pending</option><option>Approved</option><option>Rejected</option></select></div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Student</th><th>Leave Date</th><th>Period</th><th>Reason</th><th>Review Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              <tr><td class="td-name">Emily Chen</td><td class="td-mono">2026-05-22</td><td>Period 2</td><td>Illness</td><td><span class="badge badge-warning">Pending</span></td><td><div style="display:flex;gap:6px;"><button class="btn btn-success btn-sm">Approve</button><button class="btn btn-danger btn-sm">Reject</button></div></td></tr>
+              <tr><td class="td-name">Jason Ho</td><td class="td-mono">2026-05-23</td><td>Period 1</td><td>Travel</td><td><span class="badge badge-warning">Pending</span></td><td><div style="display:flex;gap:6px;"><button class="btn btn-success btn-sm">Approve</button><button class="btn btn-danger btn-sm">Reject</button></div></td></tr>
+              <tr><td class="td-name">Amy Lin</td><td class="td-mono">2026-05-19</td><td>Period 3</td><td>Family matter</td><td><span class="badge badge-success">Approved</span></td><td><div style="display:flex;gap:6px;"><button class="btn btn-secondary btn-sm" disabled style="opacity:.4;cursor:default;">Approve</button><button class="btn btn-danger btn-sm">Revoke</button></div></td></tr>
+              <tr><td class="td-name">Sarah Liu</td><td class="td-mono">2026-05-15</td><td>Period 2</td><td>Medical appointment</td><td><span class="badge badge-danger">Rejected</span></td><td><div style="display:flex;gap:6px;"><button class="btn btn-success btn-sm">Re-approve</button></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:0 16px 8px;"><div class="pagination"><button class="page-btn">‹</button><button class="page-btn active">1</button><button class="page-btn">›</button><span class="page-info">4 records</span></div></div>
+      </div>
+    </div>
+
+    <!-- ── STUDENT RESERVATION CENTER ── -->
+    <div id="pg-student-center" class="page-section">
+      <div class="page-header"><div><div class="page-title">Student Reservation Center</div><div class="page-subtitle">Book and manage your lessons</div></div><button class="btn btn-primary">+ New Booking</button></div>
+      <div class="filter-bar">
+        <div class="input-wrap"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-width="1.8" stroke-linecap="round"/></svg><input type="text" placeholder="Search..."></div>
+        <div class="select-wrap"><select><option>All Status</option><option>Confirmed</option><option>Pending</option></select></div>
+        <div class="select-wrap"><select><option>All Teachers</option></select></div>
+        <div class="select-wrap"><select><option>All Courses</option></select></div>
+        <div class="view-toggle" style="margin-left:auto;"><button class="view-btn active">Calendar</button><button class="view-btn">List</button></div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="cal-header"><button class="btn btn-secondary btn-sm">‹</button><span class="cal-title">May 2026</span><button class="btn btn-secondary btn-sm">›</button></div>
+          <div class="cal-grid">
+            <div class="cal-day-header">Sun</div><div class="cal-day-header">Mon</div><div class="cal-day-header">Tue</div><div class="cal-day-header">Wed</div><div class="cal-day-header">Thu</div><div class="cal-day-header">Fri</div><div class="cal-day-header">Sat</div>
+            <div class="cal-cell other-month"><div class="cal-date">27</div></div><div class="cal-cell other-month"><div class="cal-date">28</div></div><div class="cal-cell other-month"><div class="cal-date">29</div></div><div class="cal-cell other-month"><div class="cal-date">30</div></div>
+            <div class="cal-cell"><div class="cal-date">1</div></div><div class="cal-cell"><div class="cal-date">2</div></div><div class="cal-cell"><div class="cal-date">3</div></div>
+            <div class="cal-cell"><div class="cal-date">4</div></div><div class="cal-cell"><div class="cal-date">5</div><div class="cal-event cal-event-blue">10:00 Business B2</div></div><div class="cal-cell"><div class="cal-date">6</div></div><div class="cal-cell"><div class="cal-date">7</div></div><div class="cal-cell"><div class="cal-date">8</div></div><div class="cal-cell"><div class="cal-date">9</div></div><div class="cal-cell"><div class="cal-date">10</div></div>
+            <div class="cal-cell"><div class="cal-date">11</div></div><div class="cal-cell"><div class="cal-date">12</div><div class="cal-event cal-event-green">14:00 IELTS</div></div><div class="cal-cell"><div class="cal-date">13</div></div><div class="cal-cell"><div class="cal-date">14</div></div><div class="cal-cell"><div class="cal-date">15</div></div><div class="cal-cell"><div class="cal-date">16</div></div><div class="cal-cell"><div class="cal-date">17</div></div>
+            <div class="cal-cell"><div class="cal-date today">18</div></div><div class="cal-cell"><div class="cal-date">19</div><div class="cal-event cal-event-blue">10:00 Business B2</div></div><div class="cal-cell"><div class="cal-date">20</div></div><div class="cal-cell"><div class="cal-date">21</div></div><div class="cal-cell"><div class="cal-date">22</div></div><div class="cal-cell"><div class="cal-date">23</div></div><div class="cal-cell"><div class="cal-date">24</div></div>
+            <div class="cal-cell"><div class="cal-date">25</div></div><div class="cal-cell"><div class="cal-date">26</div><div class="cal-event cal-event-green">14:00 IELTS</div></div><div class="cal-cell"><div class="cal-date">27</div></div><div class="cal-cell"><div class="cal-date">28</div></div><div class="cal-cell"><div class="cal-date">29</div></div><div class="cal-cell"><div class="cal-date">30</div></div><div class="cal-cell"><div class="cal-date">31</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TEACHER SCHEDULE ── -->
+    <div id="pg-teacher-schedule" class="page-section">
+      <div class="page-header"><div><div class="page-title">My Class Schedule</div><div class="page-subtitle">Mr. Johnson · May 2026</div></div>
+        <div style="display:flex;gap:10px;">
+          <div class="view-toggle"><button class="view-btn active">Monthly</button><button class="view-btn">Weekly</button></div>
+          <button class="btn btn-secondary">Set Available Times</button>
+        </div>
+      </div>
+      <div class="filter-bar">
+        <div class="input-wrap"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-width="1.8" stroke-linecap="round"/></svg><input type="text" placeholder="Search student..."></div>
+        <div class="select-wrap"><select><option>All Status</option><option>Confirmed</option><option>Pending</option></select></div>
+        <div class="select-wrap"><select><option>All Course Status</option><option>In Progress</option><option>Completed</option></select></div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="cal-header"><button class="btn btn-secondary btn-sm">‹</button><span class="cal-title">May 2026</span><button class="btn btn-secondary btn-sm">›</button></div>
+          <div class="cal-grid">
+            <div class="cal-day-header">Sun</div><div class="cal-day-header">Mon</div><div class="cal-day-header">Tue</div><div class="cal-day-header">Wed</div><div class="cal-day-header">Thu</div><div class="cal-day-header">Fri</div><div class="cal-day-header">Sat</div>
+            <div class="cal-cell other-month"><div class="cal-date">27</div></div><div class="cal-cell other-month"><div class="cal-date">28</div></div><div class="cal-cell other-month"><div class="cal-date">29</div></div><div class="cal-cell other-month"><div class="cal-date">30</div></div>
+            <div class="cal-cell"><div class="cal-date">1</div></div><div class="cal-cell"><div class="cal-date">2</div></div><div class="cal-cell"><div class="cal-date">3</div></div>
+            <div class="cal-cell"><div class="cal-date">4</div></div><div class="cal-cell"><div class="cal-date">5</div><div class="cal-event cal-event-blue">E.Chen 10:00</div></div><div class="cal-cell"><div class="cal-date">6</div><div class="cal-event cal-event-green">M.Wang 14:00</div></div><div class="cal-cell"><div class="cal-date">7</div></div><div class="cal-cell"><div class="cal-date">8</div><div class="cal-event cal-event-amber">J.Ho 09:00</div></div><div class="cal-cell"><div class="cal-date">9</div></div><div class="cal-cell"><div class="cal-date">10</div></div>
+            <div class="cal-cell"><div class="cal-date">11</div></div><div class="cal-cell"><div class="cal-date">12</div><div class="cal-event cal-event-blue">E.Chen 10:00</div><div class="cal-event cal-event-green">A.Lin 15:00</div></div><div class="cal-cell"><div class="cal-date">13</div></div><div class="cal-cell"><div class="cal-date">14</div></div><div class="cal-cell"><div class="cal-date">15</div></div><div class="cal-cell"><div class="cal-date">16</div></div><div class="cal-cell"><div class="cal-date">17</div></div>
+            <div class="cal-cell"><div class="cal-date today">18</div></div><div class="cal-cell"><div class="cal-date">19</div><div class="cal-event cal-event-blue">E.Chen 10:00</div></div><div class="cal-cell"><div class="cal-date">20</div></div><div class="cal-cell"><div class="cal-date">21</div></div><div class="cal-cell"><div class="cal-date">22</div></div><div class="cal-cell"><div class="cal-date">23</div></div><div class="cal-cell"><div class="cal-date">24</div></div>
+            <div class="cal-cell"><div class="cal-date">25</div></div><div class="cal-cell"><div class="cal-date">26</div><div class="cal-event cal-event-blue">E.Chen 10:00</div></div><div class="cal-cell"><div class="cal-date">27</div></div><div class="cal-cell"><div class="cal-date">28</div></div><div class="cal-cell"><div class="cal-date">29</div></div><div class="cal-cell"><div class="cal-date">30</div></div><div class="cal-cell"><div class="cal-date">31</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SYSTEM SETTINGS ── -->
+    <div id="pg-system" class="page-section">
+      <div class="page-header"><div><div class="page-title">System Settings</div><div class="page-subtitle">Employee, accounts, permissions, and integrations</div></div></div>
+      <div class="tab-bar">
+        <div class="tab-item active" onclick="switchTab(this,'sys-employees')">Employee Mgmt</div>
+        <div class="tab-item" onclick="switchTab(this,'sys-accounts')">System Accounts</div>
+        <div class="tab-item" onclick="switchTab(this,'sys-perms')">Permission Settings</div>
+        <div class="tab-item" onclick="switchTab(this,'sys-zoom')">Zoom Accounts</div>
+      </div>
+
+      <div id="sys-employees">
+        <div class="filter-bar">
+          <div class="input-wrap"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-width="1.8" stroke-linecap="round"/></svg><input type="text" placeholder="Search employee..."></div>
+          <div class="select-wrap"><select><option>All Status</option><option>Active</option><option>Inactive</option></select></div>
+          <div class="select-wrap"><select><option>All Types</option><option>Full-time</option><option>Part-time</option></select></div>
+          <button class="btn btn-primary" style="margin-left:auto;">+ Add Employee</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Type</th><th>Phone</th><th>Email</th><th>Verified</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                <tr><td class="td-name">Alice Huang</td><td><span class="badge badge-primary">Full-time</span></td><td class="td-mono">0912-010-010</td><td>alice.h@eop.com</td><td><span class="badge badge-success">Verified</span></td><td><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></td><td><div style="display:flex;gap:6px;"><button class="btn btn-secondary btn-sm">Edit</button><button class="btn btn-secondary btn-sm">Contract</button></div></td></tr>
+                <tr><td class="td-name">Ben Lee</td><td><span class="badge badge-neutral">Part-time</span></td><td class="td-mono">0912-020-020</td><td>ben.lee@eop.com</td><td><span class="badge badge-warning">Pending</span></td><td><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></td><td><div style="display:flex;gap:6px;"><button class="btn btn-secondary btn-sm">Edit</button><button class="btn btn-secondary btn-sm">Contract</button></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:0 16px 8px;"><div class="pagination"><button class="page-btn active">1</button><button class="page-btn">2</button><span class="page-info">18 records</span></div></div>
+        </div>
+      </div>
+
+      <div id="sys-accounts" style="display:none;">
+        <div class="filter-bar">
+          <div class="input-wrap"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-width="1.8" stroke-linecap="round"/></svg><input type="text" placeholder="Search account..."></div>
+          <div class="select-wrap"><select><option>All Status</option></select></div>
+          <div class="select-wrap"><select><option>All Roles</option><option>Administrator</option><option>Teacher</option><option>Student</option><option>Employee</option></select></div>
+          <button class="btn btn-primary" style="margin-left:auto;">+ Add Account</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Account Type</th><th>Phone</th><th>Email</th><th>Verified</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                <tr><td class="td-name">Admin User</td><td><span class="badge badge-danger">Administrator</span></td><td class="td-mono">0912-000-001</td><td>admin@eop.com</td><td><span class="badge badge-success">Verified</span></td><td><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></td><td><div style="display:flex;gap:6px;"><button class="btn btn-secondary btn-sm">Edit</button><button class="btn btn-secondary btn-sm">Permissions</button></div></td></tr>
+                <tr><td class="td-name">Michael Johnson</td><td><span class="badge badge-primary">Teacher</span></td><td class="td-mono">0912-001-001</td><td>m.johnson@eop.com</td><td><span class="badge badge-success">Verified</span></td><td><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></td><td><div style="display:flex;gap:6px;"><button class="btn btn-secondary btn-sm">Edit</button><button class="btn btn-secondary btn-sm">Permissions</button></div></td></tr>
+                <tr><td class="td-name">Emily Chen</td><td><span class="badge badge-info">Student</span></td><td class="td-mono">0912-111-111</td><td>emily.chen@mail.com</td><td><span class="badge badge-success">Verified</span></td><td><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></td><td><div style="display:flex;gap:6px;"><button class="btn btn-secondary btn-sm">Edit</button><button class="btn btn-secondary btn-sm">Permissions</button></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="sys-perms" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div style="font-size:13px;color:var(--text-light);">Manage role-based access control</div>
+          <button class="btn btn-primary">+ New Role</button>
+        </div>
+        <div class="perm-group">
+          <div class="perm-group-head">
+            <svg width="16" height="16" fill="none" stroke="var(--primary)" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-width="1.8"/></svg>
+            Administrator — Full Access
+          </div>
+          <div class="perm-group-body">
+            <div class="perm-item"><div class="checkbox checked"></div>Teacher Mgmt</div>
+            <div class="perm-item"><div class="checkbox checked"></div>Student Mgmt</div>
+            <div class="perm-item"><div class="checkbox checked"></div>Appointments</div>
+            <div class="perm-item"><div class="checkbox checked"></div>Course Mgmt</div>
+            <div class="perm-item"><div class="checkbox checked"></div>Leave Mgmt</div>
+            <div class="perm-item"><div class="checkbox checked"></div>System Settings</div>
+            <div class="perm-item"><div class="checkbox checked"></div>Reporting</div>
+            <div class="perm-item"><div class="checkbox checked"></div>Permissions</div>
+          </div>
+        </div>
+        <div class="perm-group">
+          <div class="perm-group-head">
+            <svg width="16" height="16" fill="none" stroke="var(--success)" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            Teacher — Class Management
+          </div>
+          <div class="perm-group-body">
+            <div class="perm-item"><div class="checkbox"></div>Teacher Mgmt</div>
+            <div class="perm-item"><div class="checkbox checked"></div>View Students</div>
+            <div class="perm-item"><div class="checkbox checked"></div>Own Schedule</div>
+            <div class="perm-item"><div class="checkbox checked"></div>View Courses</div>
+            <div class="perm-item"><div class="checkbox"></div>Leave Approval</div>
+            <div class="perm-item"><div class="checkbox"></div>System Settings</div>
+          </div>
+        </div>
+        <div class="perm-group">
+          <div class="perm-group-head">
+            <svg width="16" height="16" fill="none" stroke="var(--info)" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" stroke-width="1.8"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke-width="1.8" stroke-linecap="round"/></svg>
+            Student — Self-Service
+          </div>
+          <div class="perm-group-body">
+            <div class="perm-item"><div class="checkbox checked"></div>Reservation Center</div>
+            <div class="perm-item"><div class="checkbox checked"></div>Own Profile</div>
+            <div class="perm-item"><div class="checkbox checked"></div>Submit Leave</div>
+            <div class="perm-item"><div class="checkbox checked"></div>View Courses</div>
+            <div class="perm-item"><div class="checkbox"></div>Admin Features</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="sys-zoom" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div style="font-size:13px;color:var(--text-light);">Manage Zoom accounts used for online classes</div>
+          <button class="btn btn-primary">+ Add Zoom Account</button>
+        </div>
+        <div class="zoom-card">
+          <div class="zoom-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke-width="1.8"/></svg></div>
+          <div class="zoom-info"><div class="zoom-name">EOP English Main</div><div class="zoom-email">zoom-main@eopenglish.com</div></div>
+          <span class="badge badge-success">Active</span>
+          <div style="display:flex;gap:8px;margin-left:16px;"><button class="btn btn-secondary btn-sm">Edit</button><button class="btn btn-danger btn-sm">Remove</button></div>
+        </div>
+        <div class="zoom-card">
+          <div class="zoom-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke-width="1.8"/></svg></div>
+          <div class="zoom-info"><div class="zoom-name">EOP English Backup</div><div class="zoom-email">zoom-backup@eopenglish.com</div></div>
+          <span class="badge badge-warning">Expiring</span>
+          <div style="display:flex;gap:8px;margin-left:16px;"><button class="btn btn-secondary btn-sm">Edit</button><button class="btn btn-danger btn-sm">Remove</button></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /page-content -->
+</div><!-- /main -->
+
+<!-- ══ DRAWER ══ -->
+<div class="drawer-backdrop" id="drawer-backdrop" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <span class="drawer-title" id="drawer-title">Edit Record</span>
+    <button class="btn btn-secondary btn-sm btn-icon" onclick="closeDrawer()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+  <div class="drawer-foot">
+    <button class="btn btn-primary">Save Changes</button>
+    <button class="btn btn-secondary" onclick="closeDrawer()">Cancel</button>
+  </div>
+</div>
+
+<script>
+const pages = {
+  dashboard: 'Dashboard',
+  profile: 'Personal Settings',
+  teachers: 'Teacher Management',
+  students: 'Student Management',
+  appointments: 'Appointment Management',
+  courses: 'Course Management',
+  leaves: 'Leave Management',
+  system: 'System Settings',
+  'student-center': 'Student Reservation Center',
+  'teacher-schedule': 'My Schedule'
+};
+
+function show(id) {
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const pg = document.getElementById('pg-' + id);
+  if (pg) pg.classList.add('active');
+  document.getElementById('bc-current').textContent = pages[id] || id;
+  event && event.currentTarget && event.currentTarget.classList.add('active');
+}
+
+function switchTab(el, tabId) {
+  el.closest('.page-section').querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const pg = el.closest('.page-section');
+  pg.querySelectorAll('[id^="sys-"]').forEach(t => t.style.display = 'none');
+  const target = document.getElementById(tabId);
+  if (target) target.style.display = 'block';
+}
+
+const drawerContent = {
+  teacher: {
+    title: 'Edit Teacher',
+    html: `<div class="form-grid"><div class="form-row"><label class="form-label">First Name</label><input type="text" value="Michael"></div><div class="form-row"><label class="form-label">Last Name</label><input type="text" value="Johnson"></div></div><div class="form-row"><label class="form-label">Employment Type</label><div class="select-wrap" style="width:100%;"><select style="width:100%;"><option selected>Full-time</option><option>Part-time</option></select></div></div><div class="form-row"><label class="form-label">Phone</label><input type="tel" value="+886 912 001 001" style="width:100%;"></div><div class="form-row"><label class="form-label">Email</label><input type="email" value="m.johnson@eop.com" style="width:100%;"></div><div class="form-row"><label class="form-label">Account Verification</label><span class="badge badge-success">Verified</span></div><div class="form-row"><label class="form-label">Enabled</label><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>`
+  },
+  student: {
+    title: 'Edit Student',
+    html: `<div class="form-grid"><div class="form-row"><label class="form-label">First Name</label><input type="text" value="Emily"></div><div class="form-row"><label class="form-label">Last Name</label><input type="text" value="Chen"></div></div><div class="form-row"><label class="form-label">Identity</label><div class="select-wrap" style="width:100%;"><select style="width:100%;"><option>Adult</option><option>Youth</option><option>Corporate</option></select></div></div><div class="form-row"><label class="form-label">Phone</label><input type="tel" value="0912-111-111" style="width:100%;"></div><div class="form-row"><label class="form-label">Email</label><input type="email" value="emily.chen@mail.com" style="width:100%;"></div><div class="form-row"><label class="form-label">Enrolled Courses</label><div style="display:flex;flex-wrap:wrap;gap:6px;"><span class="badge badge-primary">Business English B2</span><span class="badge badge-success">IELTS Prep</span><span class="badge badge-info">Conversation A1</span></div></div>`
+  },
+  appt: {
+    title: 'Appointment Detail',
+    html: `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:20px;"><div style="font-size:18px;font-weight:600;">Business English B2</div><span class="badge badge-success" style="align-self:flex-start;">Confirmed</span></div><div class="form-row"><label class="form-label">Student</label><input type="text" value="Emily Chen" style="width:100%;"></div><div class="form-row"><label class="form-label">Teacher</label><input type="text" value="Mr. Michael Johnson" style="width:100%;"></div><div class="form-grid"><div class="form-row"><label class="form-label">Date</label><input type="date" value="2026-05-19" style="width:100%;"></div><div class="form-row"><label class="form-label">Time</label><input type="time" value="10:00" style="width:100%;"></div></div><div class="form-row"><label class="form-label">Duration</label><div class="select-wrap" style="width:100%;"><select style="width:100%;"><option>60 minutes</option><option>90 minutes</option><option>120 minutes</option></select></div></div><div class="form-row"><label class="form-label">Zoom Link</label><input type="url" value="https://zoom.us/j/1234567890" style="width:100%;"></div><div class="form-row"><label class="form-label">Notes</label><textarea style="width:100%;height:80px;padding:8px 12px;border:1px solid var(--input-border);border-radius:var(--input-radius);font-size:13px;font-family:inherit;resize:vertical;">Focus on presentation skills this session.</textarea></div>`
+  }
+};
+
+function openDrawer(type) {
+  const d = drawerContent[type];
+  if (!d) return;
+  document.getElementById('drawer-title').textContent = d.title;
+  document.getElementById('drawer-body').innerHTML = d.html;
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawer-backdrop').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawer-backdrop').classList.remove('open');
+}
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', function() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+document.querySelector('.nav-item.active') && null;
+</script>
+</body>
+</html>
