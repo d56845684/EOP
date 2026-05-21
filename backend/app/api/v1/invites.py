@@ -3,6 +3,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from app.services.supabase_service import supabase_service
 from app.services.invite_service import invite_service
 from app.core.dependencies import require_staff, CurrentUser
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import bad_request, forbidden, not_found, internal_error
 from app.schemas.invite import (
     GenerateInviteRequest, GenerateInviteResponse,
     AcceptInviteRequest, AcceptInviteResponse,
@@ -32,15 +34,15 @@ async def generate_invite(
             filters={"id": data.entity_id, "is_deleted": "eq.false"},
         )
         if not entities:
-            raise HTTPException(status_code=404, detail=f"{data.entity_type} 不存在")
+            raise not_found("entity", ErrorCode.INVITE_ENTITY_NOT_FOUND)
 
         entity = entities[0]
 
         if not entity.get("email"):
-            raise HTTPException(status_code=400, detail="該筆資料沒有 email，無法產生邀請")
+            raise bad_request("該筆資料沒有 email，無法產生邀請", ErrorCode.INVITE_NO_EMAIL)
 
         if entity.get("email_verified_at"):
-            raise HTTPException(status_code=400, detail="此帳號已驗證，無需重新邀請")
+            raise bad_request("此帳號已驗證，無需重新邀請", ErrorCode.INVITE_ACCOUNT_VERIFIED_RESEND)
 
         # 2. 檢查 email 未被 public.users 使用
         existing_users = await supabase_service.table_select(
@@ -49,7 +51,7 @@ async def generate_invite(
             filters={"email": entity["email"]},
         )
         if existing_users:
-            raise HTTPException(status_code=400, detail="此 email 已有登入帳號")
+            raise bad_request("此 email 已有登入帳號", ErrorCode.INVITE_EMAIL_HAS_ACCOUNT)
 
         # 3. 產生 token（員工可附帶指定角色）
         token, expires_at = await invite_service.generate_token(
@@ -68,7 +70,7 @@ async def generate_invite(
         raise
     except Exception as e:
         logger.exception("產生邀請連結失敗")
-        raise HTTPException(status_code=500, detail=f"產生邀請連結失敗: {str(e)}")
+        raise internal_error(f"產生邀請連結失敗: {str(e)}", ErrorCode.INVITE_LINK_GENERATE_FAILED)
 
 
 @router.post("/accept", response_model=AcceptInviteResponse)
@@ -78,7 +80,7 @@ async def accept_invite(data: AcceptInviteRequest):
         # 1. 消費 token
         token_data = await invite_service.consume_token(data.token)
         if not token_data:
-            raise HTTPException(status_code=400, detail="邀請連結無效或已過期")
+            raise bad_request("邀請連結無效或已過期", ErrorCode.INVITE_LINK_INVALID)
 
         entity_type = token_data["entity_type"]
         entity_id = token_data["entity_id"]
@@ -87,7 +89,7 @@ async def accept_invite(data: AcceptInviteRequest):
         table_map = {"student": "students", "teacher": "teachers", "employee": "employees"}
         table = table_map.get(entity_type)
         if not table:
-            raise HTTPException(status_code=400, detail=f"不支援的實體類型: {entity_type}")
+            raise bad_request(f"不支援的實體類型: {entity_type}", ErrorCode.INVITE_ENTITY_TYPE_INVALID)
 
         # 2. 再次驗證 entity 存在、未刪除、未驗證
         select_fields = "id,email,email_verified_at,is_deleted"
@@ -99,18 +101,18 @@ async def accept_invite(data: AcceptInviteRequest):
             filters={"id": entity_id, "is_deleted": "eq.false"},
         )
         if not entities:
-            raise HTTPException(status_code=400, detail="資料不存在或已被刪除")
+            raise bad_request("資料不存在或已被刪除", ErrorCode.INVITE_DATA_NOT_FOUND)
 
         entity = entities[0]
         if entity.get("email_verified_at"):
-            raise HTTPException(status_code=400, detail="此帳號已驗證")
+            raise bad_request("此帳號已驗證", ErrorCode.INVITE_ACCOUNT_VERIFIED)
 
         # 3. 建立 public.users 帳號
         metadata = {"full_name": name, "role": entity_type}
         auth_response = await supabase_service.sign_up(email, data.password, metadata)
 
         if not auth_response.user:
-            raise HTTPException(status_code=500, detail="建立帳號失敗")
+            raise internal_error("建立帳號失敗", ErrorCode.INVITE_CREATE_ACCOUNT_FAILED)
 
         user_id = auth_response.user.id
 
@@ -129,7 +131,7 @@ async def accept_invite(data: AcceptInviteRequest):
                 "SELECT id FROM roles WHERE key = $1", role_key
             )
             if not role_row:
-                raise HTTPException(status_code=500, detail=f"角色 '{role_key}' 不存在")
+                raise internal_error(f"角色 '{role_key}' 不存在", ErrorCode.INVITE_ROLE_NOT_FOUND)
             assigned_role_id = str(role_row["id"])
 
         profile_data = {
@@ -154,7 +156,7 @@ async def accept_invite(data: AcceptInviteRequest):
             # rollback：刪除 public.users
             logger.error(f"建立 user_profiles 失敗，rollback user: {profile_err}")
             await supabase_service.admin_delete_user(user_id)
-            raise HTTPException(status_code=500, detail="建立帳號失敗，請稍後再試")
+            raise internal_error("建立帳號失敗，請稍後再試", ErrorCode.INVITE_CREATE_ACCOUNT_FAILED)
 
         # 5. 設定 email_verified_at
         await supabase_service.table_update(
@@ -169,4 +171,4 @@ async def accept_invite(data: AcceptInviteRequest):
         raise
     except Exception as e:
         logger.exception("接受邀請失敗")
-        raise HTTPException(status_code=500, detail=f"建立帳號失敗: {str(e)}")
+        raise internal_error(f"建立帳號失敗: {str(e)}", ErrorCode.INVITE_CREATE_ACCOUNT_FAILED)

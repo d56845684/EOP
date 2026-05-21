@@ -2,6 +2,10 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 import asyncpg
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import (
+    AppException, bad_request, forbidden, not_found, conflict, internal_error,
+)
 from app.schemas.teacher_slot import (
     TeacherSlotCreate, TeacherSlotBatchCreate, TeacherSlotBatchDelete, TeacherSlotBatchUpdate,
     TeacherSlotBatchDeleteByIds, TeacherSlotBatchUpdateByIds,
@@ -173,7 +177,7 @@ async def list_teacher_slots(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得教師時段列表失敗: {str(e)}")
+        raise internal_error(f"取得教師時段列表失敗: {str(e)}", ErrorCode.SLOT_LIST_FAILED)
 
 
 @router.get("/options/teachers", tags=["教師時段管理"], response_model=DataResponse[List[TeacherOption]])
@@ -189,7 +193,7 @@ async def get_teacher_options(
         )
         return {"success": True, "message": "操作成功", "data": teachers}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.SLOT_INTERNAL)
 
 
 @router.get("/my-contracts", tags=["教師時段管理"], response_model=DataResponse[List[TeacherContractOption]])
@@ -214,7 +218,7 @@ async def get_my_contracts(
         )
         return {"success": True, "message": "操作成功", "data": contracts}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.SLOT_INTERNAL)
 
 
 @router.get("/{slot_id}", response_model=DataResponse[TeacherSlotResponse])
@@ -231,17 +235,17 @@ async def get_teacher_slot(
         )
 
         if not result:
-            raise HTTPException(status_code=404, detail="教師時段不存在")
+            raise not_found("教師時段", ErrorCode.SLOT_NOT_FOUND)
 
         slot = result[0]
 
         # 權限檢查
         if current_user.is_teacher():
             if slot["teacher_id"] != current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="無權查看此時段")
+                raise forbidden("無權查看此時段", ErrorCode.SLOT_FORBIDDEN_VIEW)
         elif current_user.is_student():
             if not slot["is_available"]:
-                raise HTTPException(status_code=403, detail="此時段不可查看")
+                raise forbidden("此時段不可查看", ErrorCode.SLOT_FORBIDDEN_NOT_VIEWABLE)
 
         enriched = await enrich_slot_with_relations(slot)
 
@@ -259,7 +263,7 @@ async def get_teacher_slot(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得教師時段失敗: {str(e)}")
+        raise internal_error(f"取得教師時段失敗: {str(e)}", ErrorCode.SLOT_GET_FAILED)
 
 
 @router.post("", response_model=DataResponse[TeacherSlotResponse])
@@ -272,10 +276,10 @@ async def create_teacher_slot(
         # 權限檢查：教師自動使用自己的 teacher_id
         if current_user.is_teacher():
             if not current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="找不到教師資料")
+                raise forbidden("找不到教師資料", ErrorCode.SLOT_FORBIDDEN_NO_TEACHER_DATA)
             data.teacher_id = current_user.teacher_id
         elif not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="無權建立教師時段")
+            raise forbidden("無權建立教師時段", ErrorCode.SLOT_FORBIDDEN_CREATE)
 
         # 驗證教師存在且未停用
         teacher = await supabase_service.table_select(
@@ -284,7 +288,7 @@ async def create_teacher_slot(
             filters={"id": data.teacher_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在或已停用")
+            raise bad_request("教師不存在或已停用", ErrorCode.SLOT_TEACHER_NOT_FOUND_OR_DISABLED)
 
         # 驗證教師合約：必須屬於該老師、active、未刪除
         contract = await supabase_service.table_select(
@@ -298,10 +302,7 @@ async def create_teacher_slot(
             },
         )
         if not contract:
-            raise HTTPException(
-                status_code=400,
-                detail="教師無有效合約，無法建立時段",
-            )
+            raise bad_request("教師無有效合約，無法建立時段", ErrorCode.SLOT_TEACHER_NO_VALID_CONTRACT_CREATE)
 
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -325,7 +326,7 @@ async def create_teacher_slot(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="建立教師時段失敗")
+            raise internal_error("建立教師時段失敗", ErrorCode.SLOT_CREATE_FAILED)
 
         # 添加關聯名稱
         enriched = await enrich_slot_with_relations(result)
@@ -338,9 +339,9 @@ async def create_teacher_slot(
     except HTTPException:
         raise
     except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise conflict(str(e), ErrorCode.SLOT_CONFLICT)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立教師時段失敗: {str(e)}")
+        raise internal_error(f"建立教師時段失敗: {str(e)}", ErrorCode.SLOT_CREATE_FAILED)
 
 
 @router.post("/batch", response_model=BaseResponse)
@@ -353,10 +354,10 @@ async def create_teacher_slots_batch(
         # 權限檢查：教師自動使用自己的 teacher_id
         if current_user.is_teacher():
             if not current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="找不到教師資料")
+                raise forbidden("找不到教師資料", ErrorCode.SLOT_FORBIDDEN_NO_TEACHER_DATA)
             data.teacher_id = current_user.teacher_id
         elif not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="無權建立教師時段")
+            raise forbidden("無權建立教師時段", ErrorCode.SLOT_FORBIDDEN_CREATE)
 
         # 驗證教師存在且未停用
         teacher = await supabase_service.table_select(
@@ -365,7 +366,7 @@ async def create_teacher_slots_batch(
             filters={"id": data.teacher_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在或已停用")
+            raise bad_request("教師不存在或已停用", ErrorCode.SLOT_TEACHER_NOT_FOUND_OR_DISABLED)
 
         # 驗證教師合約：必須屬於該老師、active、未刪除
         contract = await supabase_service.table_select(
@@ -379,10 +380,7 @@ async def create_teacher_slots_batch(
             },
         )
         if not contract:
-            raise HTTPException(
-                status_code=400,
-                detail="教師沒有 active 合約，無法建立時段",
-            )
+            raise bad_request("教師沒有 active 合約，無法建立時段", ErrorCode.SLOT_TEACHER_NO_ACTIVE_CONTRACT)
 
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -408,7 +406,7 @@ async def create_teacher_slots_batch(
             current_date += timedelta(days=1)
 
         if not slots_to_create:
-            raise HTTPException(status_code=400, detail="選定的日期範圍內沒有符合的星期")
+            raise bad_request("選定的日期範圍內沒有符合的星期", ErrorCode.SLOT_NO_MATCHING_WEEKDAY)
 
         # 批次插入
         created_count = 0
@@ -425,9 +423,9 @@ async def create_teacher_slots_batch(
     except HTTPException:
         raise
     except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise conflict(str(e), ErrorCode.SLOT_CONFLICT)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次建立教師時段失敗: {str(e)}")
+        raise internal_error(f"批次建立教師時段失敗: {str(e)}", ErrorCode.SLOT_CREATE_FAILED)
 
 
 @router.delete("/batch", response_model=BaseResponse)
@@ -440,10 +438,10 @@ async def delete_teacher_slots_batch(
         # 權限檢查：教師自動使用自己的 teacher_id
         if current_user.is_teacher():
             if not current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="找不到教師資料")
+                raise forbidden("找不到教師資料", ErrorCode.SLOT_FORBIDDEN_NO_TEACHER_DATA)
             data.teacher_id = current_user.teacher_id
         elif not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="無權刪除教師時段")
+            raise forbidden("無權刪除教師時段", ErrorCode.SLOT_FORBIDDEN_DELETE)
 
         # 查詢符合條件的時段（不再用 is_booked 過濾）
         filters = {
@@ -531,7 +529,7 @@ async def delete_teacher_slots_batch(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次刪除教師時段失敗: {str(e)}")
+        raise internal_error(f"批次刪除教師時段失敗: {str(e)}", ErrorCode.SLOT_DELETE_FAILED)
 
 
 @router.put("/batch", response_model=BaseResponse)
@@ -544,10 +542,10 @@ async def update_teacher_slots_batch(
         # 權限檢查：教師自動使用自己的 teacher_id
         if current_user.is_teacher():
             if not current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="找不到教師資料")
+                raise forbidden("找不到教師資料", ErrorCode.SLOT_FORBIDDEN_NO_TEACHER_DATA)
             data.teacher_id = current_user.teacher_id
         elif not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="無權更新教師時段")
+            raise forbidden("無權更新教師時段", ErrorCode.SLOT_FORBIDDEN_UPDATE)
 
         # 檢查是否有要更新的內容
         update_fields = {}
@@ -561,7 +559,7 @@ async def update_teacher_slots_batch(
             update_fields["notes"] = data.notes
 
         if not update_fields:
-            raise HTTPException(status_code=400, detail="沒有指定要更新的內容")
+            raise bad_request("沒有指定要更新的內容", ErrorCode.SLOT_NO_UPDATE_CONTENT)
 
         updating_time = data.new_start_time is not None or data.new_end_time is not None
 
@@ -640,9 +638,9 @@ async def update_teacher_slots_batch(
     except HTTPException:
         raise
     except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise conflict(str(e), ErrorCode.SLOT_CONFLICT)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次更新教師時段失敗: {str(e)}")
+        raise internal_error(f"批次更新教師時段失敗: {str(e)}", ErrorCode.SLOT_BATCH_UPDATE_FAILED)
 
 
 @router.post("/batch-by-ids/delete", response_model=BaseResponse)
@@ -653,7 +651,7 @@ async def delete_teacher_slots_by_ids(
     """根據 ID 批次刪除教師時段（僅刪除無有效預約的時段）"""
     try:
         if not data.slot_ids:
-            raise HTTPException(status_code=400, detail="請選擇要刪除的時段")
+            raise bad_request("請選擇要刪除的時段", ErrorCode.SLOT_SELECT_SLOTS_TO_DELETE)
 
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -715,7 +713,7 @@ async def delete_teacher_slots_by_ids(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次刪除教師時段失敗: {str(e)}")
+        raise internal_error(f"批次刪除教師時段失敗: {str(e)}", ErrorCode.SLOT_DELETE_FAILED)
 
 
 @router.post("/batch-by-ids/update", response_model=BaseResponse)
@@ -726,7 +724,7 @@ async def update_teacher_slots_by_ids(
     """根據 ID 批次更新教師時段"""
     try:
         if not data.slot_ids:
-            raise HTTPException(status_code=400, detail="請選擇要更新的時段")
+            raise bad_request("請選擇要更新的時段", ErrorCode.SLOT_SELECT_SLOTS_TO_UPDATE)
 
         # 檢查是否有要更新的內容
         update_fields = {}
@@ -740,7 +738,7 @@ async def update_teacher_slots_by_ids(
             update_fields["notes"] = data.notes
 
         if not update_fields:
-            raise HTTPException(status_code=400, detail="請指定要更新的內容")
+            raise bad_request("請指定要更新的內容", ErrorCode.SLOT_UPDATE_CONTENT_REQUIRED)
 
         updating_time = data.new_start_time is not None or data.new_end_time is not None
 
@@ -792,9 +790,9 @@ async def update_teacher_slots_by_ids(
     except HTTPException:
         raise
     except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise conflict(str(e), ErrorCode.SLOT_CONFLICT)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"批次更新教師時段失敗: {str(e)}")
+        raise internal_error(f"批次更新教師時段失敗: {str(e)}", ErrorCode.SLOT_BATCH_UPDATE_FAILED)
 
 
 @router.put("/{slot_id}", response_model=DataResponse[TeacherSlotResponse])
@@ -813,21 +811,21 @@ async def update_teacher_slot(
         )
 
         if not existing:
-            raise HTTPException(status_code=404, detail="教師時段不存在")
+            raise not_found("教師時段", ErrorCode.SLOT_NOT_FOUND)
 
         slot = existing[0]
 
         # 權限檢查
         if current_user.is_teacher():
             if slot["teacher_id"] != current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="教師只能更新自己的時段")
+                raise forbidden("教師只能更新自己的時段", ErrorCode.SLOT_FORBIDDEN_TEACHER_NOT_OWN_UPDATE)
         elif not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="無權更新教師時段")
+            raise forbidden("無權更新教師時段", ErrorCode.SLOT_FORBIDDEN_UPDATE)
 
         # 有有效預約的時段不能修改日期/時間
         if data.slot_date is not None or data.start_time is not None or data.end_time is not None:
             if await slot_has_active_bookings(slot_id):
-                raise HTTPException(status_code=400, detail="有預約的時段無法修改日期或時間")
+                raise bad_request("有預約的時段無法修改日期或時間", ErrorCode.SLOT_HAS_BOOKING_CANNOT_EDIT)
 
         # 若更新含 teacher_contract_id：必須屬於該老師、active、未刪除
         if data.teacher_contract_id is not None:
@@ -842,10 +840,7 @@ async def update_teacher_slot(
                 },
             )
             if not contract:
-                raise HTTPException(
-                    status_code=400,
-                    detail="教師沒有有效合約，無法更新時段合約",
-                )
+                raise bad_request("教師沒有有效合約，無法更新時段合約", ErrorCode.SLOT_TEACHER_NO_VALID_CONTRACT_UPDATE)
 
         # 更新時段
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
@@ -859,7 +854,7 @@ async def update_teacher_slot(
             update_data["end_time"] = update_data["end_time"].isoformat()
 
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.SLOT_NO_UPDATE_DATA)
 
         result = await supabase_service.table_update(
             table="teacher_available_slots",
@@ -868,7 +863,7 @@ async def update_teacher_slot(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="更新教師時段失敗")
+            raise internal_error("更新教師時段失敗", ErrorCode.SLOT_UPDATE_FAILED)
 
         # 添加關聯名稱
         enriched = await enrich_slot_with_relations(result)
@@ -881,9 +876,9 @@ async def update_teacher_slot(
     except HTTPException:
         raise
     except (asyncpg.exceptions.RaiseError, asyncpg.exceptions.ExclusionViolationError) as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise conflict(str(e), ErrorCode.SLOT_CONFLICT)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新教師時段失敗: {str(e)}")
+        raise internal_error(f"更新教師時段失敗: {str(e)}", ErrorCode.SLOT_UPDATE_FAILED)
 
 
 @router.delete("/{slot_id}", response_model=BaseResponse)
@@ -901,20 +896,20 @@ async def delete_teacher_slot(
         )
 
         if not existing:
-            raise HTTPException(status_code=404, detail="教師時段不存在")
+            raise not_found("教師時段", ErrorCode.SLOT_NOT_FOUND)
 
         slot = existing[0]
 
         # 權限檢查
         if current_user.is_teacher():
             if slot["teacher_id"] != current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="教師只能刪除自己的時段")
+                raise forbidden("教師只能刪除自己的時段", ErrorCode.SLOT_FORBIDDEN_TEACHER_NOT_OWN_DELETE)
         elif not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="無權刪除教師時段")
+            raise forbidden("無權刪除教師時段", ErrorCode.SLOT_FORBIDDEN_DELETE)
 
         # 動態檢查是否有有效預約
         if await slot_has_active_bookings(slot_id):
-            raise HTTPException(status_code=400, detail="有預約的時段無法刪除")
+            raise bad_request("有預約的時段無法刪除", ErrorCode.SLOT_HAS_BOOKING_CANNOT_DELETE)
 
         # 取得操作者的 employee_id
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -934,11 +929,11 @@ async def delete_teacher_slot(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="刪除教師時段失敗")
+            raise internal_error("刪除教師時段失敗", ErrorCode.SLOT_DELETE_FAILED)
 
         return BaseResponse(message="教師時段刪除成功")
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除教師時段失敗: {str(e)}")
+        raise internal_error(f"刪除教師時段失敗: {str(e)}", ErrorCode.SLOT_DELETE_FAILED)

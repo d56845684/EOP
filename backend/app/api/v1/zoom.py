@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from app.services.supabase_service import supabase_service
 from app.services.zoom_service import zoom_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import AppException, bad_request, forbidden, not_found, internal_error
 from app.schemas.zoom import (
     ZoomAccountCreate, ZoomAccountUpdate, ZoomAccountResponse, ZoomAccountListResponse,
     ZoomMeetingLogResponse, ZoomMeetingLogListResponse, ZoomMeetingCreateRequest,
@@ -71,7 +73,7 @@ async def list_zoom_accounts(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得 Zoom 帳號列表失敗: {str(e)}")
+        raise internal_error(f"取得 Zoom 帳號列表失敗: {str(e)}", ErrorCode.ZOOM_ACCOUNT_LIST_FAILED)
 
 
 @router.post("/accounts", response_model=DataResponse[ZoomAccountResponse])
@@ -94,7 +96,7 @@ async def create_zoom_account(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="新增 Zoom 帳號失敗")
+            raise internal_error("新增 Zoom 帳號失敗", ErrorCode.ZOOM_ACCOUNT_CREATE_FAILED)
 
         # 回傳不含 secret 的資料
         response_data = {k: v for k, v in result.items() if k != "zoom_client_secret"}
@@ -103,7 +105,7 @@ async def create_zoom_account(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"新增 Zoom 帳號失敗: {str(e)}")
+        raise internal_error(f"新增 Zoom 帳號失敗: {str(e)}", ErrorCode.ZOOM_ACCOUNT_CREATE_FAILED)
 
 
 @router.put("/accounts/{account_id}", response_model=DataResponse[ZoomAccountResponse])
@@ -121,11 +123,11 @@ async def update_zoom_account(
             filters={"id": account_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="Zoom 帳號不存在")
+            raise AppException(404, "Zoom 帳號不存在", ErrorCode.ZOOM_ACCOUNT_NOT_FOUND)
 
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.ZOOM_NO_UPDATE_DATA)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         if employee_id:
@@ -138,7 +140,7 @@ async def update_zoom_account(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="更新 Zoom 帳號失敗")
+            raise internal_error("更新 Zoom 帳號失敗", ErrorCode.ZOOM_ACCOUNT_UPDATE_FAILED)
 
         response_data = {k: v for k, v in result.items() if k != "zoom_client_secret"}
         return DataResponse(message="Zoom 帳號更新成功", data=ZoomAccountResponse(**response_data))
@@ -146,7 +148,7 @@ async def update_zoom_account(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新 Zoom 帳號失敗: {str(e)}")
+        raise internal_error(f"更新 Zoom 帳號失敗: {str(e)}", ErrorCode.ZOOM_ACCOUNT_UPDATE_FAILED)
 
 
 @router.delete("/accounts/{account_id}", response_model=BaseResponse)
@@ -162,7 +164,7 @@ async def delete_zoom_account(
             filters={"id": account_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="Zoom 帳號不存在")
+            raise AppException(404, "Zoom 帳號不存在", ErrorCode.ZOOM_ACCOUNT_NOT_FOUND)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         delete_data: dict = {
@@ -184,7 +186,7 @@ async def delete_zoom_account(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除 Zoom 帳號失敗: {str(e)}")
+        raise internal_error(f"刪除 Zoom 帳號失敗: {str(e)}", ErrorCode.ZOOM_ACCOUNT_DELETE_FAILED)
 
 
 @router.post("/accounts/{account_id}/test", response_model=BaseResponse)
@@ -200,20 +202,20 @@ async def test_zoom_account(
             filters={"id": account_id, "is_deleted": "eq.false"},
         )
         if not accounts:
-            raise HTTPException(status_code=404, detail="Zoom 帳號不存在")
+            raise AppException(404, "Zoom 帳號不存在", ErrorCode.ZOOM_ACCOUNT_NOT_FOUND)
 
         account = accounts[0]
         token = await zoom_service.get_s2s_token(account)
 
         if not token:
-            raise HTTPException(status_code=400, detail="Zoom S2S 連線失敗，請檢查 Account ID / Client ID / Client Secret")
+            raise bad_request("Zoom S2S 連線失敗，請檢查 Account ID / Client ID / Client Secret", ErrorCode.ZOOM_S2S_CONNECTION_FAILED)
 
         return BaseResponse(message="Zoom S2S 連線測試成功")
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"測試 Zoom 連線失敗: {str(e)}")
+        raise internal_error(f"測試 Zoom 連線失敗: {str(e)}", ErrorCode.ZOOM_TEST_CONNECTION_FAILED)
 
 
 # ============================================
@@ -234,12 +236,12 @@ async def create_zoom_meeting(
             filters={"id": data.booking_id, "is_deleted": "eq.false"},
         )
         if not bookings:
-            raise HTTPException(status_code=404, detail="預約不存在")
+            raise not_found("預約", ErrorCode.ZOOM_BOOKING_NOT_FOUND)
 
         booking = bookings[0]
 
         if booking.get("booking_status") not in ("confirmed", "pending"):
-            raise HTTPException(status_code=400, detail="只有待確認或已確認的預約可以建立 Zoom 會議")
+            raise bad_request("只有待確認或已確認的預約可以建立 Zoom 會議", ErrorCode.ZOOM_BOOKING_STATUS_INVALID)
 
         from datetime import date as date_type, time as time_type, datetime as dt_type
 
@@ -251,7 +253,7 @@ async def create_zoom_meeting(
         if isinstance(start_time_val_check, str):
             start_time_val_check = time_type.fromisoformat(start_time_val_check)
         if dt_type.combine(booking_date_val, start_time_val_check) < dt_type.now():
-            raise HTTPException(status_code=400, detail="無法為過去的預約建立 Zoom 會議")
+            raise bad_request("無法為過去的預約建立 Zoom 會議", ErrorCode.ZOOM_BOOKING_IN_PAST)
         booking_date = booking["booking_date"]
         if isinstance(booking_date, str):
             booking_date = date_type.fromisoformat(booking_date)
@@ -271,7 +273,7 @@ async def create_zoom_meeting(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="建立 Zoom 會議失敗，請確認帳號池是否有可用帳號")
+            raise internal_error("建立 Zoom 會議失敗，請確認帳號池是否有可用帳號", ErrorCode.ZOOM_MEETING_CREATE_FAILED)
 
         enriched = await enrich_meeting_log(result)
         return DataResponse(message="Zoom 會議建立成功", data=ZoomMeetingLogResponse(**enriched))
@@ -279,7 +281,7 @@ async def create_zoom_meeting(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立 Zoom 會議失敗: {str(e)}")
+        raise internal_error(f"建立 Zoom 會議失敗: {str(e)}", ErrorCode.ZOOM_MEETING_CREATE_FAILED)
 
 
 @router.get("/meetings", response_model=ZoomMeetingLogListResponse)
@@ -348,7 +350,7 @@ async def list_zoom_meetings(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得會議紀錄失敗: {str(e)}")
+        raise internal_error(f"取得會議紀錄失敗: {str(e)}", ErrorCode.ZOOM_MEETING_LIST_FAILED)
 
 
 @router.post("/meetings/batch")
@@ -360,7 +362,7 @@ async def batch_get_meetings_by_bookings(
     try:
         booking_ids = body.get("booking_ids", [])
         if not booking_ids or len(booking_ids) > 100:
-            raise HTTPException(status_code=400, detail="booking_ids 必須為 1~100 筆")
+            raise bad_request("booking_ids 必須為 1~100 筆", ErrorCode.ZOOM_BATCH_SIZE_INVALID)
 
         pool = supabase_service.pool
 
@@ -442,7 +444,7 @@ async def batch_get_meetings_by_bookings(
         raise
     except Exception as e:
         logger.exception("批次查詢 Zoom 會議失敗")
-        raise HTTPException(status_code=500, detail=f"批次查詢失敗: {str(e)}")
+        raise internal_error(f"批次查詢失敗: {str(e)}", ErrorCode.ZOOM_BATCH_QUERY_FAILED)
 
 
 @router.get("/meetings/{booking_id}", response_model=DataResponse[ZoomMeetingLogResponse])
@@ -460,7 +462,7 @@ async def get_meeting_by_booking(
                 filters={"id": booking_id, "is_deleted": "eq.false"},
             )
             if not bookings:
-                raise HTTPException(status_code=404, detail="預約不存在")
+                raise not_found("預約", ErrorCode.ZOOM_BOOKING_NOT_FOUND)
 
             booking = bookings[0]
             if current_user.is_teacher():
@@ -473,10 +475,10 @@ async def get_meeting_by_booking(
                     )
                     is_substitute = bool(sd and sd[0].get("substitute_teacher_id") == current_user.teacher_id)
                 if not (is_original or is_substitute):
-                    raise HTTPException(status_code=403, detail="無權查看此預約的 Zoom 資訊")
+                    raise forbidden("無權查看此預約的 Zoom 資訊", ErrorCode.ZOOM_FORBIDDEN_VIEW_BOOKING)
             elif current_user.is_student():
                 if booking.get("student_id") != current_user.student_id:
-                    raise HTTPException(status_code=403, detail="無權查看此預約的 Zoom 資訊")
+                    raise forbidden("無權查看此預約的 Zoom 資訊", ErrorCode.ZOOM_FORBIDDEN_VIEW_BOOKING)
 
         # 查詢會議
         logs = await supabase_service.table_select(
@@ -490,7 +492,7 @@ async def get_meeting_by_booking(
         )
 
         if not logs:
-            raise HTTPException(status_code=404, detail="此預約尚無 Zoom 會議")
+            raise AppException(404, "此預約尚無 Zoom 會議", ErrorCode.ZOOM_NO_MEETING_FOR_BOOKING)
 
         enriched = await enrich_meeting_log(logs[0])
         # start_url 含 ZAK，等同 host 完整權限，僅 staff 可見
@@ -501,7 +503,7 @@ async def get_meeting_by_booking(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"查詢 Zoom 會議失敗: {str(e)}")
+        raise internal_error(f"查詢 Zoom 會議失敗: {str(e)}", ErrorCode.ZOOM_MEETING_QUERY_FAILED)
 
 
 @router.post("/meetings/{booking_id}/fetch-recording", response_model=DataResponse[ZoomMeetingLogResponse])
@@ -518,11 +520,11 @@ async def fetch_recording(
             filters={"id": booking_id, "is_deleted": "eq.false"},
         )
         if not bookings:
-            raise HTTPException(status_code=404, detail="預約不存在")
+            raise not_found("預約", ErrorCode.ZOOM_BOOKING_NOT_FOUND)
 
         result = await zoom_service.fetch_meeting_recording(booking_id)
         if not result:
-            raise HTTPException(status_code=404, detail="尚無可用的錄影，請確認會議已結束且有雲端錄影")
+            raise AppException(404, "尚無可用的錄影，請確認會議已結束且有雲端錄影", ErrorCode.ZOOM_RECORDING_NOT_READY)
 
         # 重新查詢完整資料
         logs = await supabase_service.table_select(
@@ -531,7 +533,7 @@ async def fetch_recording(
             filters={"booking_id": booking_id, "is_deleted": "eq.false"},
         )
         if not logs:
-            raise HTTPException(status_code=500, detail="錄影資訊更新失敗")
+            raise internal_error("錄影資訊更新失敗", ErrorCode.ZOOM_RECORDING_UPDATE_FAILED)
 
         enriched = await enrich_meeting_log(logs[0])
         return DataResponse(message="錄影資訊取得成功", data=ZoomMeetingLogResponse(**enriched))
@@ -539,7 +541,7 @@ async def fetch_recording(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得錄影失敗: {str(e)}")
+        raise internal_error(f"取得錄影失敗: {str(e)}", ErrorCode.ZOOM_RECORDING_GET_FAILED)
 
 
 # ============================================
@@ -552,7 +554,7 @@ async def get_oauth_authorize_url(
 ):
     """取得 Zoom OAuth 授權 URL（教師綁定用）"""
     if not settings.zoom_oauth_configured:
-        raise HTTPException(status_code=400, detail="Zoom OAuth 尚未設定")
+        raise bad_request("Zoom OAuth 尚未設定", ErrorCode.ZOOM_OAUTH_NOT_CONFIGURED)
 
     state = current_user.user_id
     url = zoom_service.get_oauth_authorize_url(state=state)
@@ -566,12 +568,12 @@ async def oauth_callback(
 ):
     """Zoom OAuth callback，存 token 到 teacher_zoom_accounts 表"""
     if not settings.zoom_oauth_configured:
-        raise HTTPException(status_code=400, detail="Zoom OAuth 尚未設定")
+        raise bad_request("Zoom OAuth 尚未設定", ErrorCode.ZOOM_OAUTH_NOT_CONFIGURED)
 
     # 換取 token
     token_data = await zoom_service.exchange_code_for_token(code)
     if not token_data:
-        raise HTTPException(status_code=400, detail="Zoom OAuth token 換取失敗")
+        raise bad_request("Zoom OAuth token 換取失敗", ErrorCode.ZOOM_OAUTH_TOKEN_FAILED)
 
     access_token = token_data.get("access_token")
     refresh_token = token_data.get("refresh_token")
@@ -584,7 +586,7 @@ async def oauth_callback(
 
     # 用 state (user_id) 找到對應的 teacher
     if not state:
-        raise HTTPException(status_code=400, detail="缺少 state 參數")
+        raise bad_request("缺少 state 參數", ErrorCode.ZOOM_OAUTH_STATE_MISSING)
 
     # 根據 user_id 直接從 user_profiles 取 teacher_id
     profile = await supabase_service.table_select(
@@ -593,7 +595,7 @@ async def oauth_callback(
         filters={"id": state},
     )
     if not profile or not profile[0].get("teacher_id"):
-        raise HTTPException(status_code=404, detail="找不到對應的教師紀錄")
+        raise AppException(404, "找不到對應的教師紀錄", ErrorCode.ZOOM_TEACHER_NOT_FOUND_OAUTH)
 
     teacher_id = profile[0]["teacher_id"]
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
@@ -644,7 +646,7 @@ async def unlink_zoom(
         filters={"email": current_user.email},
     )
     if not teachers:
-        raise HTTPException(status_code=404, detail="找不到教師紀錄")
+        raise AppException(404, "找不到教師紀錄", ErrorCode.ZOOM_TEACHER_NOT_FOUND)
 
     await supabase_service.table_update(
         table="teacher_zoom_accounts",
@@ -758,7 +760,7 @@ async def zoom_webhook(request: Request):
 async def get_download_token(data: DownloadTokenRequest):
     """Lambda 呼叫：用 meeting_id 取得新的 Zoom token + 下載 URL（不需登入，靠 secret 驗證）"""
     if data.secret != settings.RECORDING_CALLBACK_SECRET:
-        raise HTTPException(403, "Invalid secret")
+        raise forbidden("Invalid secret", ErrorCode.ZOOM_INVALID_SECRET)
 
     try:
         # 查詢 meeting log 取得 zoom_account_id
@@ -768,14 +770,14 @@ async def get_download_token(data: DownloadTokenRequest):
             filters={"zoom_meeting_id": f"text.{data.meeting_id}", "is_deleted": "eq.false"},
         )
         if not logs:
-            raise HTTPException(404, "Meeting not found")
+            raise AppException(404, "Meeting not found", ErrorCode.ZOOM_MEETING_NOT_FOUND)
 
         log = logs[0]
 
         # 取得 token
         token = await zoom_service._get_token_for_download(log)
         if not token:
-            raise HTTPException(500, "無法取得 Zoom token")
+            raise internal_error("無法取得 Zoom token", ErrorCode.ZOOM_TOKEN_FAILED)
 
         # 用新 token 呼叫 Zoom API 取得新的下載 URL
         import httpx as hx
@@ -785,7 +787,7 @@ async def get_download_token(data: DownloadTokenRequest):
             timeout=15,
         )
         if resp.status_code != 200:
-            raise HTTPException(resp.status_code, f"Zoom API 錯誤: {resp.text[:200]}")
+            raise AppException(resp.status_code, f"Zoom API 錯誤: {resp.text[:200]}", ErrorCode.ZOOM_RECORDING_GET_FAILED)
 
         recording_files = resp.json().get("recording_files", [])
         video = None
@@ -801,7 +803,7 @@ async def get_download_token(data: DownloadTokenRequest):
         if not video and recording_files:
             video = recording_files[0]
         if not video:
-            raise HTTPException(404, "無可用錄影檔案")
+            raise AppException(404, "無可用錄影檔案", ErrorCode.ZOOM_NO_RECORDING_FILE)
 
         # 取得 Google Drive 設定
         from app.services.google_service import google_drive_service
@@ -866,7 +868,7 @@ async def get_download_token(data: DownloadTokenRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"取得下載 token 失敗: {str(e)}")
+        raise internal_error(f"取得下載 token 失敗: {str(e)}", ErrorCode.ZOOM_DOWNLOAD_TOKEN_FAILED)
 
 
 # ============================================
@@ -877,7 +879,7 @@ async def get_download_token(data: DownloadTokenRequest):
 async def recording_callback(data: RecordingCallbackRequest):
     """Lambda 錄影轉移完成回呼（更新 Google Drive 資訊到 zoom_meeting_logs）"""
     if data.secret != settings.RECORDING_CALLBACK_SECRET:
-        raise HTTPException(403, "Invalid secret")
+        raise forbidden("Invalid secret", ErrorCode.ZOOM_INVALID_SECRET)
 
     update: dict = {"recording_transfer_status": data.status}
     if data.status == "completed":

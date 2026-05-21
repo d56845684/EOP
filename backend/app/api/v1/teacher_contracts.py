@@ -12,6 +12,10 @@ from app.services.storage_service import storage_service
 from app.services.contract_pdf_service import generate_teacher_contract_pdf, generate_addendum_pdf
 from app.config import settings
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import (
+    AppException, bad_request, forbidden, not_found, internal_error,
+)
 from app.schemas.teacher_contract import (
     TeacherContractCreate, TeacherContractUpdate, TeacherContractResponse,
     TeacherContractListResponse, ContractStatus, EmploymentType,
@@ -164,7 +168,7 @@ async def get_teacher_options(
         )
         return {"success": True, "message": "操作成功", "data": teachers}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.TEACHER_CONTRACT_INTERNAL)
 
 
 @router.get("/options/courses", tags=["教師合約管理"], response_model=DataResponse[List[CourseOption]])
@@ -180,7 +184,7 @@ async def get_course_options(
         )
         return {"success": True, "message": "操作成功", "data": courses}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.TEACHER_CONTRACT_INTERNAL)
 
 
 @router.get("", response_model=TeacherContractListResponse)
@@ -360,7 +364,7 @@ async def list_teacher_contracts(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得教師合約列表失敗: {str(e)}")
+        raise internal_error(f"取得教師合約列表失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_LIST_FAILED)
 
 
 @router.get("/{contract_id}", response_model=DataResponse[TeacherContractResponse])
@@ -378,7 +382,7 @@ async def get_teacher_contract(
     try:
         # 學生無權查看教師合約
         if current_user.is_student():
-            raise HTTPException(status_code=403, detail="學生無權查看教師合約")
+            raise forbidden("學生無權查看教師合約", ErrorCode.TEACHER_CONTRACT_FORBIDDEN_STUDENT_VIEW)
 
         result = await supabase_service.table_select(
             table="teacher_contracts",
@@ -387,7 +391,7 @@ async def get_teacher_contract(
         )
 
         if not result:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         contract = result[0]
 
@@ -395,7 +399,7 @@ async def get_teacher_contract(
         if current_user.is_teacher():
             user_teacher_id = current_user.teacher_id
             if contract.get("teacher_id") != user_teacher_id:
-                raise HTTPException(status_code=403, detail="無權查看此合約")
+                raise forbidden("無權查看此合約", ErrorCode.TEACHER_CONTRACT_FORBIDDEN_VIEW)
 
         contract = await enrich_contract_with_relations(contract)
         return DataResponse(data=TeacherContractResponse(**contract))
@@ -403,7 +407,7 @@ async def get_teacher_contract(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得教師合約失敗: {str(e)}")
+        raise internal_error(f"取得教師合約失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_GET_FAILED)
 
 
 @router.post("", response_model=DataResponse[TeacherContractResponse])
@@ -420,16 +424,13 @@ async def create_teacher_contract(
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
         )
         if not teacher:
-            raise HTTPException(status_code=400, detail="教師不存在")
+            raise bad_request("教師不存在", ErrorCode.TEACHER_CONTRACT_TEACHER_NOT_FOUND)
 
         # 檢查 active 合約唯一性
         if data.contract_status == ContractStatus.active:
             conflict = await check_teacher_active_conflict(data.teacher_id)
             if conflict:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"該教師已有生效中的合約 (合約編號: {conflict['contract_no']}, ID: {conflict['id']})"
-                )
+                raise bad_request(f"該教師已有生效中的合約 (合約編號: {conflict['contract_no']}, ID: {conflict['id']})", ErrorCode.TEACHER_CONTRACT_DUPLICATE_ACTIVE)
 
         # 生成合約編號
         contract_no = await generate_contract_no()
@@ -459,7 +460,7 @@ async def create_teacher_contract(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="建立教師合約失敗")
+            raise internal_error("建立教師合約失敗", ErrorCode.TEACHER_CONTRACT_CREATE_FAILED)
 
         # 添加關聯名稱
         enriched = await enrich_contract_with_relations(result)
@@ -472,7 +473,7 @@ async def create_teacher_contract(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立教師合約失敗: {str(e)}")
+        raise internal_error(f"建立教師合約失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_CREATE_FAILED)
 
 
 @router.put("/{contract_id}", response_model=DataResponse[TeacherContractResponse])
@@ -491,7 +492,7 @@ async def update_teacher_contract(
         )
 
         if not existing:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         # 檢查 active 合約唯一性
         if data.contract_status == ContractStatus.active:
@@ -499,10 +500,7 @@ async def update_teacher_contract(
             if check_teacher_id:
                 conflict = await check_teacher_active_conflict(check_teacher_id, exclude_contract_id=contract_id)
                 if conflict:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"該教師已有生效中的合約 (合約編號: {conflict['contract_no']}, ID: {conflict['id']})"
-                    )
+                    raise bad_request(f"該教師已有生效中的合約 (合約編號: {conflict['contract_no']}, ID: {conflict['id']})", ErrorCode.TEACHER_CONTRACT_DUPLICATE_ACTIVE)
 
         # 如果有更新教師 ID，驗證教師存在
         if data.teacher_id:
@@ -512,7 +510,7 @@ async def update_teacher_contract(
                 filters={"id": data.teacher_id, "is_deleted": "eq.false"},
             )
             if not teacher:
-                raise HTTPException(status_code=400, detail="教師不存在")
+                raise bad_request("教師不存在", ErrorCode.TEACHER_CONTRACT_TEACHER_NOT_FOUND)
 
         # 更新合約
         update_data = {}
@@ -530,7 +528,7 @@ async def update_teacher_contract(
                     update_data[key] = value
 
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.TEACHER_CONTRACT_NO_UPDATE_DATA)
 
         result = await supabase_service.table_update(
             table="teacher_contracts",
@@ -539,7 +537,7 @@ async def update_teacher_contract(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="更新教師合約失敗")
+            raise internal_error("更新教師合約失敗", ErrorCode.TEACHER_CONTRACT_UPDATE_FAILED)
 
         # 添加關聯名稱
         enriched = await enrich_contract_with_relations(result)
@@ -552,7 +550,7 @@ async def update_teacher_contract(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新教師合約失敗: {str(e)}")
+        raise internal_error(f"更新教師合約失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_UPDATE_FAILED)
 
 
 @router.delete("/{contract_id}", response_model=BaseResponse)
@@ -570,7 +568,7 @@ async def delete_teacher_contract(
         )
 
         if not existing:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         now = datetime.utcnow().isoformat()
@@ -634,14 +632,14 @@ async def delete_teacher_contract(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="刪除教師合約失敗")
+            raise internal_error("刪除教師合約失敗", ErrorCode.TEACHER_CONTRACT_DELETE_FAILED)
 
         return BaseResponse(message="教師合約刪除成功")
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除教師合約失敗: {str(e)}")
+        raise internal_error(f"刪除教師合約失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_DELETE_FAILED)
 
 
 # ========== Contract Details CRUD ==========
@@ -655,7 +653,7 @@ async def list_contract_details(
     try:
         # 學生無權
         if current_user.is_student():
-            raise HTTPException(status_code=403, detail="學生無權查看教師合約明細")
+            raise forbidden("學生無權查看教師合約明細", ErrorCode.TEACHER_CONTRACT_FORBIDDEN_STUDENT_VIEW_DETAIL)
 
         # 確認合約存在
         contract = await supabase_service.table_select(
@@ -664,13 +662,13 @@ async def list_contract_details(
             filters={"id": contract_id, "is_deleted": "eq.false"},
         )
         if not contract:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         # 教師只能看自己的合約明細
         if current_user.is_teacher():
             user_teacher_id = current_user.teacher_id
             if contract[0].get("teacher_id") != user_teacher_id:
-                raise HTTPException(status_code=403, detail="無權查看此合約明細")
+                raise forbidden("無權查看此合約明細", ErrorCode.TEACHER_CONTRACT_FORBIDDEN_VIEW_DETAIL)
 
         details = await supabase_service.table_select(
             table="teacher_contract_details",
@@ -698,7 +696,7 @@ async def list_contract_details(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得合約明細失敗: {str(e)}")
+        raise internal_error(f"取得合約明細失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_DETAIL_LIST_FAILED)
 
 
 @router.post("/{contract_id}/details", response_model=DataResponse[TeacherContractDetailResponse])
@@ -716,7 +714,7 @@ async def create_contract_detail(
             filters={"id": contract_id, "is_deleted": "eq.false"},
         )
         if not contract:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         # 若為 course_rate，驗證課程存在
         if data.course_id:
@@ -726,7 +724,7 @@ async def create_contract_detail(
                 filters={"id": data.course_id, "is_deleted": "eq.false"},
             )
             if not course:
-                raise HTTPException(status_code=400, detail="課程不存在")
+                raise bad_request("課程不存在", ErrorCode.TEACHER_CONTRACT_COURSE_NOT_FOUND)
 
         # overtime_rate 每合約只能一筆
         if data.detail_type.value == "overtime_rate":
@@ -740,7 +738,7 @@ async def create_contract_detail(
                 },
             )
             if existing_ot:
-                raise HTTPException(status_code=400, detail="每份合約只能設定一筆加班費")
+                raise bad_request("每份合約只能設定一筆加班費", ErrorCode.TEACHER_CONTRACT_OVERTIME_DUPLICATE)
 
         detail_data = {
             "teacher_contract_id": contract_id,
@@ -761,7 +759,7 @@ async def create_contract_detail(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="新增合約明細失敗")
+            raise internal_error("新增合約明細失敗", ErrorCode.TEACHER_CONTRACT_DETAIL_CREATE_FAILED)
 
         # enrich course_name
         if result.get("course_id"):
@@ -780,7 +778,7 @@ async def create_contract_detail(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"新增合約明細失敗: {str(e)}")
+        raise internal_error(f"新增合約明細失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_DETAIL_CREATE_FAILED)
 
 
 @router.put("/{contract_id}/details/{detail_id}", response_model=DataResponse[TeacherContractDetailResponse])
@@ -803,7 +801,7 @@ async def update_contract_detail(
             },
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="合約明細不存在")
+            raise not_found("合約明細", ErrorCode.TEACHER_CONTRACT_DETAIL_NOT_FOUND)
 
         update_data = {}
         for key, value in data.model_dump().items():
@@ -811,7 +809,7 @@ async def update_contract_detail(
                 update_data[key] = value
 
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.TEACHER_CONTRACT_NO_UPDATE_DATA)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         if employee_id:
@@ -824,7 +822,7 @@ async def update_contract_detail(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="更新合約明細失敗")
+            raise internal_error("更新合約明細失敗", ErrorCode.TEACHER_CONTRACT_DETAIL_UPDATE_FAILED)
 
         # enrich course_name
         if result.get("course_id"):
@@ -843,7 +841,7 @@ async def update_contract_detail(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新合約明細失敗: {str(e)}")
+        raise internal_error(f"更新合約明細失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_DETAIL_UPDATE_FAILED)
 
 
 @router.delete("/{contract_id}/details/{detail_id}", response_model=BaseResponse)
@@ -865,7 +863,7 @@ async def delete_contract_detail(
             },
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="合約明細不存在")
+            raise not_found("合約明細", ErrorCode.TEACHER_CONTRACT_DETAIL_NOT_FOUND)
 
         delete_data = {
             "is_deleted": True,
@@ -883,14 +881,14 @@ async def delete_contract_detail(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="刪除合約明細失敗")
+            raise internal_error("刪除合約明細失敗", ErrorCode.TEACHER_CONTRACT_DETAIL_DELETE_FAILED)
 
         return BaseResponse(message="合約明細刪除成功")
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除合約明細失敗: {str(e)}")
+        raise internal_error(f"刪除合約明細失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_DETAIL_DELETE_FAILED)
 
 
 # ========== Work Schedules CRUD ==========
@@ -903,7 +901,7 @@ async def list_work_schedules(
     """取得合約工作時段列表"""
     try:
         if current_user.is_student():
-            raise HTTPException(status_code=403, detail="學生無權查看教師合約工作時段")
+            raise forbidden("學生無權查看教師合約工作時段", ErrorCode.TEACHER_CONTRACT_FORBIDDEN_STUDENT_VIEW_SCHEDULE)
 
         contract = await supabase_service.table_select(
             table="teacher_contracts",
@@ -911,11 +909,11 @@ async def list_work_schedules(
             filters={"id": contract_id, "is_deleted": "eq.false"},
         )
         if not contract:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         if current_user.is_teacher():
             if contract[0].get("teacher_id") != current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="無權查看此合約工作時段")
+                raise forbidden("無權查看此合約工作時段", ErrorCode.TEACHER_CONTRACT_FORBIDDEN_VIEW_SCHEDULE)
 
         schedules = await supabase_service.table_select(
             table="teacher_work_schedules",
@@ -931,7 +929,7 @@ async def list_work_schedules(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得工作時段失敗: {str(e)}")
+        raise internal_error(f"取得工作時段失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_WORK_SCHEDULE_GET_FAILED)
 
 
 @router.put("/{contract_id}/work-schedules", response_model=DataResponse[List[TeacherWorkScheduleResponse]])
@@ -948,7 +946,7 @@ async def set_work_schedules(
             filters={"id": contract_id, "is_deleted": "eq.false"},
         )
         if not contract:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         # 檢查同 weekday 時段重疊
         by_weekday: dict[int, list[TeacherWorkScheduleCreate]] = {}
@@ -960,10 +958,7 @@ async def set_work_schedules(
             for i in range(len(sorted_slots) - 1):
                 if sorted_slots[i].end_time > sorted_slots[i + 1].start_time:
                     weekday_names = ['週一', '週二', '週三', '週四', '週五', '週六', '週日']
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"{weekday_names[weekday]}的工作時段有重疊"
-                    )
+                    raise bad_request(f"{weekday_names[weekday]}的工作時段有重疊", ErrorCode.TEACHER_CONTRACT_WORK_SCHEDULE_OVERLAP)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         now = datetime.utcnow().isoformat()
@@ -1015,7 +1010,7 @@ async def set_work_schedules(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新工作時段失敗: {str(e)}")
+        raise internal_error(f"更新工作時段失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_WORK_SCHEDULE_UPDATE_FAILED)
 
 
 @router.delete("/{contract_id}/work-schedules", response_model=BaseResponse)
@@ -1031,7 +1026,7 @@ async def clear_work_schedules(
             filters={"id": contract_id, "is_deleted": "eq.false"},
         )
         if not contract:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         now = datetime.utcnow().isoformat()
@@ -1059,7 +1054,7 @@ async def clear_work_schedules(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"清除工作時段失敗: {str(e)}")
+        raise internal_error(f"清除工作時段失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_WORK_SCHEDULE_CLEAR_FAILED)
 
 
 # ========== PDF Generation ==========
@@ -1073,7 +1068,7 @@ async def generate_teacher_pdf(
     try:
         result = await generate_teacher_contract_pdf(contract_id)
         if not result:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         pdf_bytes, contract_no = result
         return Response(
@@ -1086,7 +1081,7 @@ async def generate_teacher_pdf(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"產生合約 PDF 失敗: {str(e)}")
+        raise internal_error(f"產生合約 PDF 失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_PDF_FAILED)
 
 
 # ========== File Upload/Download (unchanged) ==========
@@ -1113,7 +1108,7 @@ async def get_teacher_contract_upload_url(
             filters={"id": contract_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         await storage_service.ensure_bucket_exists(settings.AWS_S3_BUCKET)
 
@@ -1125,7 +1120,7 @@ async def get_teacher_contract_upload_url(
             path=storage_path,
         )
         if not signed:
-            raise HTTPException(status_code=500, detail="產生上傳連結失敗")
+            raise internal_error("產生上傳連結失敗", ErrorCode.TEACHER_CONTRACT_UPLOAD_URL_FAILED)
 
         return {
             "upload_url": signed["upload_url"],
@@ -1136,7 +1131,7 @@ async def get_teacher_contract_upload_url(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"產生上傳連結失敗: {str(e)}")
+        raise internal_error(f"產生上傳連結失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_UPLOAD_URL_FAILED)
 
 
 @router.post("/{contract_id}/confirm-upload", response_model=DataResponse[TeacherContractResponse])
@@ -1156,21 +1151,18 @@ async def confirm_teacher_contract_upload(
             filters={"id": contract_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         # 檢查 active 合約唯一性（上傳確認會自動設為 active）
         check_teacher_id = existing[0].get("teacher_id")
         if check_teacher_id:
             conflict = await check_teacher_active_conflict(check_teacher_id, exclude_contract_id=contract_id)
             if conflict:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"該教師已有生效中的合約 (合約編號: {conflict['contract_no']}, ID: {conflict['id']})"
-                )
+                raise bad_request(f"該教師已有生效中的合約 (合約編號: {conflict['contract_no']}, ID: {conflict['id']})", ErrorCode.TEACHER_CONTRACT_DUPLICATE_ACTIVE)
 
         # 驗證 storage_path 格式
         if not re.match(r'^teacher-contracts/[a-f0-9\-]+/[a-f0-9]+\.(pdf|docx|doc)$', body.storage_path):
-            raise HTTPException(status_code=400, detail="無效的檔案路徑格式")
+            raise bad_request("無效的檔案路徑格式", ErrorCode.TEACHER_CONTRACT_INVALID_FILE_PATH)
 
         # 確認檔案已上傳至 S3
         file_exists = await storage_service.verify_file_exists(
@@ -1178,7 +1170,7 @@ async def confirm_teacher_contract_upload(
             path=body.storage_path,
         )
         if not file_exists:
-            raise HTTPException(status_code=400, detail="檔案尚未上傳至 S3，請重新上傳")
+            raise bad_request("檔案尚未上傳至 S3，請重新上傳", ErrorCode.TEACHER_CONTRACT_FILE_NOT_UPLOADED)
 
         employee_id = await get_user_employee_id(current_user.user_id)
 
@@ -1198,7 +1190,7 @@ async def confirm_teacher_contract_upload(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="更新合約資訊失敗")
+            raise internal_error("更新合約資訊失敗", ErrorCode.TEACHER_CONTRACT_UPDATE_INFO_FAILED)
 
         enriched = await enrich_contract_with_relations(result)
         return DataResponse(
@@ -1209,7 +1201,7 @@ async def confirm_teacher_contract_upload(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"確認上傳失敗: {str(e)}")
+        raise internal_error(f"確認上傳失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_UPLOAD_CONFIRM_FAILED)
 
 
 @router.get("/{contract_id}/download-url", response_model=DownloadUrlResponse)
@@ -1226,7 +1218,7 @@ async def get_teacher_contract_download_url(
     """
     try:
         if current_user.is_student():
-            raise HTTPException(status_code=403, detail="學生無權下載教師合約")
+            raise forbidden("學生無權下載教師合約", ErrorCode.TEACHER_CONTRACT_FORBIDDEN_STUDENT_DOWNLOAD)
 
         result = await supabase_service.table_select(
             table="teacher_contracts",
@@ -1235,18 +1227,18 @@ async def get_teacher_contract_download_url(
         )
 
         if not result:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         contract = result[0]
 
         if current_user.is_teacher():
             user_teacher_id = current_user.teacher_id
             if contract.get("teacher_id") != user_teacher_id:
-                raise HTTPException(status_code=403, detail="無權下載此合約")
+                raise forbidden("無權下載此合約", ErrorCode.TEACHER_CONTRACT_FORBIDDEN_DOWNLOAD)
 
         file_path = contract.get("contract_file_path")
         if not file_path:
-            raise HTTPException(status_code=404, detail="此合約尚未上傳檔案")
+            raise AppException(404, "此合約尚未上傳檔案", ErrorCode.TEACHER_CONTRACT_FILE_NOT_UPLOADED_404)
 
         signed_url = await storage_service.create_signed_download_url(
             bucket=settings.AWS_S3_BUCKET,
@@ -1254,7 +1246,7 @@ async def get_teacher_contract_download_url(
             expires_in=3600,
         )
         if not signed_url:
-            raise HTTPException(status_code=500, detail="產生下載連結失敗")
+            raise internal_error("產生下載連結失敗", ErrorCode.TEACHER_CONTRACT_GENERATE_DOWNLOAD_URL_FAILED)
 
         return {
             "download_url": signed_url,
@@ -1264,7 +1256,7 @@ async def get_teacher_contract_download_url(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得下載連結失敗: {str(e)}")
+        raise internal_error(f"取得下載連結失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_DOWNLOAD_URL_FAILED)
 
 
 # ========== Contract Addendums (附約) ==========
@@ -1327,7 +1319,7 @@ async def list_teacher_addendums(
             filters={"id": contract_id, "is_deleted": "eq.false"},
         )
         if not contract:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         addendums = await supabase_service.table_select(
             table="contract_addendums",
@@ -1349,7 +1341,7 @@ async def list_teacher_addendums(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得附約列表失敗: {str(e)}")
+        raise internal_error(f"取得附約列表失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_ADDENDUM_LIST_FAILED)
 
 
 @router.post("/{contract_id}/addendums", response_model=DataResponse[ContractAddendumResponse])
@@ -1366,14 +1358,14 @@ async def create_teacher_addendum(
             filters={"id": contract_id, "is_deleted": "eq.false"},
         )
         if not contract:
-            raise HTTPException(status_code=404, detail="教師合約不存在")
+            raise not_found("教師合約", ErrorCode.TEACHER_CONTRACT_NOT_FOUND)
 
         parent = contract[0]
         if parent["contract_status"] != "active":
-            raise HTTPException(status_code=400, detail="只有生效中的合約才能建立附約")
+            raise bad_request("只有生效中的合約才能建立附約", ErrorCode.TEACHER_CONTRACT_ADDENDUM_REQUIRES_ACTIVE)
 
         if data.new_end_date.isoformat() <= parent["end_date"]:
-            raise HTTPException(status_code=400, detail="新結束日期必須大於母約當前結束日期")
+            raise bad_request("新結束日期必須大於母約當前結束日期", ErrorCode.TEACHER_CONTRACT_ADDENDUM_END_BEFORE_PARENT)
 
         addendum_no = await _generate_teacher_addendum_no(parent["contract_no"], contract_id)
 
@@ -1396,7 +1388,7 @@ async def create_teacher_addendum(
             data=addendum_data,
         )
         if not result:
-            raise HTTPException(status_code=500, detail="建立附約失敗")
+            raise internal_error("建立附約失敗", ErrorCode.TEACHER_CONTRACT_ADDENDUM_CREATE_FAILED)
 
         result = await _enrich_teacher_addendum(result, parent)
         return DataResponse(message="附約建立成功", data=ContractAddendumResponse(**result))
@@ -1404,7 +1396,7 @@ async def create_teacher_addendum(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立附約失敗: {str(e)}")
+        raise internal_error(f"建立附約失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_ADDENDUM_CREATE_FAILED)
 
 
 @router.get("/{contract_id}/addendums/{addendum_id}", response_model=DataResponse[ContractAddendumResponse])
@@ -1426,7 +1418,7 @@ async def get_teacher_addendum(
             },
         )
         if not result:
-            raise HTTPException(status_code=404, detail="附約不存在")
+            raise not_found("附約", ErrorCode.TEACHER_CONTRACT_ADDENDUM_NOT_FOUND)
 
         enriched = await _enrich_teacher_addendum(result[0])
         return DataResponse(data=ContractAddendumResponse(**enriched))
@@ -1434,7 +1426,7 @@ async def get_teacher_addendum(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得附約失敗: {str(e)}")
+        raise internal_error(f"取得附約失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_ADDENDUM_GET_FAILED)
 
 
 @router.put("/{contract_id}/addendums/{addendum_id}", response_model=DataResponse[ContractAddendumResponse])
@@ -1457,22 +1449,22 @@ async def update_teacher_addendum(
             },
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="附約不存在")
+            raise not_found("附約", ErrorCode.TEACHER_CONTRACT_ADDENDUM_NOT_FOUND)
 
         if existing[0]["addendum_status"] != "pending":
-            raise HTTPException(status_code=400, detail="只有待生效狀態的附約才可修改")
+            raise bad_request("只有待生效狀態的附約才可修改", ErrorCode.TEACHER_CONTRACT_ADDENDUM_ONLY_PENDING_EDIT)
 
         update_data = {}
         if data.new_end_date is not None:
             original = existing[0]["original_end_date"]
             if data.new_end_date.isoformat() <= original:
-                raise HTTPException(status_code=400, detail="新結束日期必須大於原結束日期")
+                raise bad_request("新結束日期必須大於原結束日期", ErrorCode.TEACHER_CONTRACT_ADDENDUM_END_INVALID)
             update_data["new_end_date"] = data.new_end_date.isoformat()
         if data.notes is not None:
             update_data["notes"] = data.notes
 
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.TEACHER_CONTRACT_NO_UPDATE_DATA)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         if employee_id:
@@ -1484,7 +1476,7 @@ async def update_teacher_addendum(
             filters={"id": addendum_id},
         )
         if not result:
-            raise HTTPException(status_code=500, detail="更新附約失敗")
+            raise internal_error("更新附約失敗", ErrorCode.TEACHER_CONTRACT_ADDENDUM_UPDATE_FAILED)
 
         enriched = await _enrich_teacher_addendum(result)
         return DataResponse(message="附約更新成功", data=ContractAddendumResponse(**enriched))
@@ -1492,7 +1484,7 @@ async def update_teacher_addendum(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新附約失敗: {str(e)}")
+        raise internal_error(f"更新附約失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_ADDENDUM_UPDATE_FAILED)
 
 
 @router.delete("/{contract_id}/addendums/{addendum_id}", response_model=BaseResponse)
@@ -1514,7 +1506,7 @@ async def delete_teacher_addendum(
             },
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="附約不存在")
+            raise not_found("附約", ErrorCode.TEACHER_CONTRACT_ADDENDUM_NOT_FOUND)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         delete_data = {
@@ -1530,14 +1522,14 @@ async def delete_teacher_addendum(
             filters={"id": addendum_id},
         )
         if not result:
-            raise HTTPException(status_code=500, detail="刪除附約失敗")
+            raise internal_error("刪除附約失敗", ErrorCode.TEACHER_CONTRACT_ADDENDUM_DELETE_FAILED)
 
         return BaseResponse(message="附約刪除成功")
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除附約失敗: {str(e)}")
+        raise internal_error(f"刪除附約失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_ADDENDUM_DELETE_FAILED)
 
 
 @router.get("/{contract_id}/addendums/{addendum_id}/generate-pdf")
@@ -1559,11 +1551,11 @@ async def generate_teacher_addendum_pdf(
             },
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="附約不存在")
+            raise not_found("附約", ErrorCode.TEACHER_CONTRACT_ADDENDUM_NOT_FOUND)
 
         result = await generate_addendum_pdf(addendum_id)
         if not result:
-            raise HTTPException(status_code=404, detail="產生附約 PDF 失敗")
+            raise AppException(404, "產生附約 PDF 失敗", ErrorCode.TEACHER_CONTRACT_ADDENDUM_PDF_FAILED_404)
 
         pdf_bytes, addendum_no = result
         return Response(
@@ -1576,7 +1568,7 @@ async def generate_teacher_addendum_pdf(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"產生附約 PDF 失敗: {str(e)}")
+        raise internal_error(f"產生附約 PDF 失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_ADDENDUM_PDF_FAILED_500)
 
 
 class AddendumConfirmUploadRequest(BaseModel):
@@ -1604,7 +1596,7 @@ async def get_teacher_addendum_upload_url(
             },
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="附約不存在")
+            raise not_found("附約", ErrorCode.TEACHER_CONTRACT_ADDENDUM_NOT_FOUND)
 
         await storage_service.ensure_bucket_exists(settings.AWS_S3_BUCKET)
 
@@ -1616,7 +1608,7 @@ async def get_teacher_addendum_upload_url(
             path=storage_path,
         )
         if not signed:
-            raise HTTPException(status_code=500, detail="產生上傳連結失敗")
+            raise internal_error("產生上傳連結失敗", ErrorCode.TEACHER_CONTRACT_UPLOAD_URL_FAILED)
 
         return {
             "upload_url": signed["upload_url"],
@@ -1627,7 +1619,7 @@ async def get_teacher_addendum_upload_url(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"產生上傳連結失敗: {str(e)}")
+        raise internal_error(f"產生上傳連結失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_UPLOAD_URL_FAILED)
 
 
 @router.post("/{contract_id}/addendums/{addendum_id}/confirm-upload", response_model=DataResponse[ContractAddendumResponse])
@@ -1650,17 +1642,17 @@ async def confirm_teacher_addendum_upload(
             },
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="附約不存在")
+            raise not_found("附約", ErrorCode.TEACHER_CONTRACT_ADDENDUM_NOT_FOUND)
 
         if not re.match(r'^contract-addendums/[a-f0-9\-]+/[a-f0-9]+\.(pdf|docx|doc)$', body.storage_path):
-            raise HTTPException(status_code=400, detail="無效的檔案路徑格式")
+            raise bad_request("無效的檔案路徑格式", ErrorCode.TEACHER_CONTRACT_INVALID_FILE_PATH)
 
         file_exists = await storage_service.verify_file_exists(
             bucket=settings.AWS_S3_BUCKET,
             path=body.storage_path,
         )
         if not file_exists:
-            raise HTTPException(status_code=400, detail="檔案尚未上傳至 S3，請重新上傳")
+            raise bad_request("檔案尚未上傳至 S3，請重新上傳", ErrorCode.TEACHER_CONTRACT_FILE_NOT_UPLOADED)
 
         # 再次驗證母約仍為 active
         parent = await supabase_service.table_select(
@@ -1669,7 +1661,7 @@ async def confirm_teacher_addendum_upload(
             filters={"id": contract_id, "is_deleted": "eq.false"},
         )
         if not parent or parent[0]["contract_status"] != "active":
-            raise HTTPException(status_code=400, detail="母約狀態不是生效中，無法確認附約")
+            raise bad_request("母約狀態不是生效中，無法確認附約", ErrorCode.TEACHER_CONTRACT_PARENT_NOT_ACTIVE)
 
         employee_id = await get_user_employee_id(current_user.user_id)
 
@@ -1688,7 +1680,7 @@ async def confirm_teacher_addendum_upload(
             filters={"id": addendum_id},
         )
         if not result:
-            raise HTTPException(status_code=500, detail="更新附約失敗")
+            raise internal_error("更新附約失敗", ErrorCode.TEACHER_CONTRACT_ADDENDUM_UPDATE_FAILED)
 
         # 更新母約 end_date
         new_end_date = existing[0]["new_end_date"]
@@ -1707,7 +1699,7 @@ async def confirm_teacher_addendum_upload(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"確認上傳失敗: {str(e)}")
+        raise internal_error(f"確認上傳失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_UPLOAD_CONFIRM_FAILED)
 
 
 @router.get("/{contract_id}/addendums/{addendum_id}/download-url", response_model=DownloadUrlResponse)
@@ -1729,11 +1721,11 @@ async def get_teacher_addendum_download_url(
             },
         )
         if not result:
-            raise HTTPException(status_code=404, detail="附約不存在")
+            raise not_found("附約", ErrorCode.TEACHER_CONTRACT_ADDENDUM_NOT_FOUND)
 
         file_path = result[0].get("file_path")
         if not file_path:
-            raise HTTPException(status_code=404, detail="此附約尚未上傳檔案")
+            raise AppException(404, "此附約尚未上傳檔案", ErrorCode.TEACHER_CONTRACT_ADDENDUM_FILE_NOT_UPLOADED)
 
         signed_url = await storage_service.create_signed_download_url(
             bucket=settings.AWS_S3_BUCKET,
@@ -1741,7 +1733,7 @@ async def get_teacher_addendum_download_url(
             expires_in=3600,
         )
         if not signed_url:
-            raise HTTPException(status_code=500, detail="產生下載連結失敗")
+            raise internal_error("產生下載連結失敗", ErrorCode.TEACHER_CONTRACT_GENERATE_DOWNLOAD_URL_FAILED)
 
         return {
             "download_url": signed_url,
@@ -1751,4 +1743,4 @@ async def get_teacher_addendum_download_url(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得下載連結失敗: {str(e)}")
+        raise internal_error(f"取得下載連結失敗: {str(e)}", ErrorCode.TEACHER_CONTRACT_DOWNLOAD_URL_FAILED)

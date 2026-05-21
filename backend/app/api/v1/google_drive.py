@@ -7,6 +7,8 @@ from fastapi.responses import RedirectResponse
 from app.services.supabase_service import supabase_service
 from app.services.google_service import google_drive_service
 from app.core.dependencies import CurrentUser, require_staff, get_current_user
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import bad_request, not_found, internal_error
 from app.schemas.response import BaseResponse, DataResponse
 from app.schemas.google_drive import GoogleDriveOAuthUrlResponse, GoogleDriveStatusResponse
 from app.config import settings
@@ -25,7 +27,7 @@ async def get_oauth_authorize_url(
 ):
     """取得 Google OAuth 授權 URL（僅限員工/管理員）"""
     if not settings.google_drive_oauth_configured:
-        raise HTTPException(400, "Google Drive OAuth 尚未設定（缺少 GOOGLE_DRIVE_OAUTH_CLIENT_ID）")
+        raise bad_request("Google Drive OAuth 尚未設定（缺少 GOOGLE_DRIVE_OAUTH_CLIENT_ID）", ErrorCode.GDRIVE_OAUTH_NO_CLIENT_ID)
 
     url = google_drive_service.get_oauth_authorize_url(state=current_user.user_id)
     return {"authorize_url": url}
@@ -38,20 +40,20 @@ async def oauth_callback(
 ):
     """Google OAuth callback — 存 token 到 google_drive_config"""
     if not settings.google_drive_oauth_configured:
-        raise HTTPException(400, "Google Drive OAuth 尚未設定")
+        raise bad_request("Google Drive OAuth 尚未設定", ErrorCode.GDRIVE_OAUTH_NOT_CONFIGURED)
 
     try:
         # 換 token
         token_data = await google_drive_service.exchange_code_for_token(code)
         if not token_data:
-            raise HTTPException(500, "Google token exchange 失敗")
+            raise internal_error("Google token exchange 失敗", ErrorCode.GDRIVE_TOKEN_EXCHANGE_FAILED)
 
         access_token = token_data.get("access_token")
         refresh_token = token_data.get("refresh_token")
         expires_in = token_data.get("expires_in", 3600)
 
         if not refresh_token:
-            raise HTTPException(400, "未取得 refresh_token，請確認 OAuth 設定含 access_type=offline")
+            raise bad_request("未取得 refresh_token，請確認 OAuth 設定含 access_type=offline", ErrorCode.GDRIVE_NO_REFRESH_TOKEN)
 
         # 取得使用者資訊
         user_info = await google_drive_service.get_user_info(access_token)
@@ -138,7 +140,7 @@ async def unlink_drive(
         filters={"is_active": "eq.true"},
     )
     if not existing:
-        raise HTTPException(404, "未綁定 Google Drive")
+        raise AppException(404, "未綁定 Google Drive", ErrorCode.GDRIVE_NOT_BOUND)
 
     await supabase_service.table_update(
         table="google_drive_config",
@@ -168,7 +170,7 @@ async def update_drive_folder(
         filters={"is_active": "eq.true"},
     )
     if not existing:
-        raise HTTPException(404, "請先綁定 Google Drive")
+        raise AppException(404, "請先綁定 Google Drive", ErrorCode.GDRIVE_BIND_REQUIRED)
 
     await supabase_service.table_update(
         table="google_drive_config",

@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.services.preference_service import preference_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import bad_request, forbidden, not_found, internal_error
 from app.schemas.student_teacher_preference import (
     StudentTeacherPreferenceCreate,
     StudentTeacherPreferenceUpdate, StudentTeacherPreferenceResponse
@@ -60,7 +62,7 @@ async def get_teacher_options(
         )
         return {"success": True, "message": "操作成功", "data": teachers}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.STUDENT_PREF_INTERNAL)
 
 
 @router.get("/options/courses", tags=["學生教師偏好"], response_model=DataResponse[List[CourseOption]])
@@ -91,7 +93,7 @@ async def get_course_options(
         )
         return {"success": True, "message": "操作成功", "data": [{"id": str(c["id"]), "course_name": c["course_name"]} for c in courses]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.STUDENT_PREF_INTERNAL)
 
 
 @router.get("/allowed-teachers", tags=["學生教師偏好"], response_model=DataResponse[List[TeacherOption]])
@@ -116,7 +118,7 @@ async def get_allowed_teachers(
 
         return {"success": True, "message": "操作成功", "data": filtered}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.STUDENT_PREF_INTERNAL)
 
 
 @router.get("", tags=["學生教師偏好"], response_model=DataResponse[List[StudentTeacherPreferenceResponse]])
@@ -161,7 +163,7 @@ async def list_preferences(
 
         return {"success": True, "message": "操作成功", "data": prefs}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.STUDENT_PREF_INTERNAL)
 
 
 @router.post("", response_model=DataResponse)
@@ -184,7 +186,7 @@ async def create_preference(
             filters={"id": data.student_id, "is_deleted": "eq.false"},
         )
         if not student:
-            raise HTTPException(status_code=400, detail="學生不存在")
+            raise bad_request("學生不存在", ErrorCode.STUDENT_PREF_STUDENT_NOT_FOUND)
 
         # ── 指定教師模式（單筆 or 批次） ──
         if data.primary_teacher_ids:
@@ -198,7 +200,7 @@ async def create_preference(
             valid_ids = {str(r["id"]) for r in teacher_rows}
             invalid_ids = set(data.primary_teacher_ids) - valid_ids
             if invalid_ids:
-                raise HTTPException(status_code=400, detail=f"以下教師不存在: {', '.join(invalid_ids)}")
+                raise bad_request(f"以下教師不存在: {', '.join(invalid_ids)}", ErrorCode.STUDENT_PREF_TEACHERS_NOT_FOUND)
 
             # 查出已存在的偏好（避免重複）
             existing = await pool.fetch(
@@ -212,7 +214,7 @@ async def create_preference(
             # 單筆：嚴格報錯
             if len(data.primary_teacher_ids) == 1:
                 if not new_ids:
-                    raise HTTPException(status_code=400, detail="此學生已指定該教師，請編輯現有設定")
+                    raise bad_request("此學生已指定該教師，請編輯現有設定", ErrorCode.STUDENT_PREF_TEACHER_DUPLICATE)
                 tid = new_ids[0]
                 insert_data = {
                     "student_id": data.student_id,
@@ -226,7 +228,7 @@ async def create_preference(
                     table="student_teacher_preferences", data=insert_data,
                 )
                 if not result:
-                    raise HTTPException(status_code=500, detail="建立偏好失敗")
+                    raise internal_error("建立偏好失敗", ErrorCode.STUDENT_PREF_CREATE_FAILED)
                 enriched = await enrich_preference(result)
                 return DataResponse(
                     message="偏好建立成功",
@@ -235,7 +237,7 @@ async def create_preference(
 
             # 多筆：批次建立，跳過重複
             if not new_ids:
-                raise HTTPException(status_code=400, detail="所有選擇的教師已存在於偏好中")
+                raise bad_request("所有選擇的教師已存在於偏好中", ErrorCode.STUDENT_PREF_ALL_TEACHERS_DUPLICATE)
 
             created = []
             for tid in new_ids:
@@ -261,7 +263,7 @@ async def create_preference(
 
         # ── 等級模式 ──
         if not data.min_teacher_level:
-            raise HTTPException(status_code=400, detail="等級模式必須提供最高教師等級 (min_teacher_level)")
+            raise bad_request("等級模式必須提供最高教師等級 (min_teacher_level)", ErrorCode.STUDENT_PREF_LEVEL_MODE_REQUIRES_MIN)
 
         if data.course_id:
             course = await supabase_service.table_select(
@@ -269,7 +271,7 @@ async def create_preference(
                 filters={"id": data.course_id, "is_deleted": "eq.false"},
             )
             if not course:
-                raise HTTPException(status_code=400, detail="課程不存在")
+                raise bad_request("課程不存在", ErrorCode.STUDENT_PREF_COURSE_NOT_FOUND)
 
         dup_filters = {
             "student_id": data.student_id,
@@ -285,7 +287,7 @@ async def create_preference(
         )
         if existing:
             scope = "全域" if not data.course_id else "該課程"
-            raise HTTPException(status_code=400, detail=f"此學生已有{scope}等級偏好設定，請編輯現有設定")
+            raise bad_request(f"此學生已有{scope}等級偏好設定，請編輯現有設定", ErrorCode.STUDENT_PREF_SCOPE_DUPLICATE)
 
         insert_data = {
             "student_id": data.student_id,
@@ -300,7 +302,7 @@ async def create_preference(
             table="student_teacher_preferences", data=insert_data,
         )
         if not result:
-            raise HTTPException(status_code=500, detail="建立偏好失敗")
+            raise internal_error("建立偏好失敗", ErrorCode.STUDENT_PREF_CREATE_FAILED)
 
         enriched = await enrich_preference(result)
         return DataResponse(
@@ -311,7 +313,7 @@ async def create_preference(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立偏好失敗: {str(e)}")
+        raise internal_error(f"建立偏好失敗: {str(e)}", ErrorCode.STUDENT_PREF_CREATE_FAILED)
 
 
 @router.put("/{preference_id}", response_model=DataResponse[StudentTeacherPreferenceResponse])
@@ -331,7 +333,7 @@ async def update_preference(
             filters={"id": preference_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="偏好設定不存在")
+            raise not_found("偏好設定", ErrorCode.STUDENT_PREF_NOT_FOUND)
 
         # 驗證主要教師存在（如果有提供）
         if data.primary_teacher_id:
@@ -340,7 +342,7 @@ async def update_preference(
                 filters={"id": data.primary_teacher_id, "is_deleted": "eq.false"},
             )
             if not teacher:
-                raise HTTPException(status_code=400, detail="主要教師不存在")
+                raise bad_request("主要教師不存在", ErrorCode.STUDENT_PREF_TEACHER_PRIMARY_NOT_FOUND)
 
         update_data = {}
         # 使用 model_fields_set 判斷前端是否有明確傳入該欄位（包含 null）
@@ -350,7 +352,7 @@ async def update_preference(
             update_data["primary_teacher_id"] = data.primary_teacher_id
 
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有需要更新的欄位")
+            raise bad_request("沒有需要更新的欄位", ErrorCode.STUDENT_PREF_NO_UPDATE_DATA)
 
         # 重複檢查：防止更新後與同學生的其他偏好重複
         current = existing[0]
@@ -364,7 +366,7 @@ async def update_preference(
                 current["student_id"], new_teacher_id, preference_id,
             )
             if dup:
-                raise HTTPException(status_code=400, detail="此學生已有該教師的偏好設定，無法重複指定")
+                raise bad_request("此學生已有該教師的偏好設定，無法重複指定", ErrorCode.STUDENT_PREF_TEACHER_DUPLICATE_UPDATE)
 
         if employee_id:
             update_data["updated_by"] = employee_id
@@ -376,7 +378,7 @@ async def update_preference(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="更新偏好失敗")
+            raise internal_error("更新偏好失敗", ErrorCode.STUDENT_PREF_UPDATE_FAILED)
 
         enriched = await enrich_preference(result)
 
@@ -388,7 +390,7 @@ async def update_preference(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新偏好失敗: {str(e)}")
+        raise internal_error(f"更新偏好失敗: {str(e)}", ErrorCode.STUDENT_PREF_UPDATE_FAILED)
 
 
 @router.delete("/{preference_id}", response_model=BaseResponse)
@@ -407,7 +409,7 @@ async def delete_preference(
             filters={"id": preference_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="偏好設定不存在")
+            raise not_found("偏好設定", ErrorCode.STUDENT_PREF_NOT_FOUND)
 
         delete_data = {
             "is_deleted": True,
@@ -427,4 +429,4 @@ async def delete_preference(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除偏好失敗: {str(e)}")
+        raise internal_error(f"刪除偏好失敗: {str(e)}", ErrorCode.STUDENT_PREF_DELETE_FAILED)

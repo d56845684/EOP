@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -155,6 +156,55 @@ async def lifespan(app: FastAPI):
     notification_task = asyncio.create_task(notification_worker_loop())
     logger.info("Notification queue worker 已啟動（每 5 秒）")
 
+    # 啟動 Zoom 過期會議清理排程（每 24 小時）
+    zoom_cleanup_task = None
+    if settings.zoom_enabled:
+        async def zoom_cleanup_loop():
+            from app.services.zoom_service import zoom_service
+            while True:
+                try:
+                    await zoom_service.auto_delete_stale_meetings(
+                        days=settings.ZOOM_CLEANUP_GRACE_DAYS
+                    )
+                except Exception as e:
+                    logger.error(f"Zoom 過期會議清理排程錯誤: {e}")
+                await asyncio.sleep(86400)  # 每 24 小時執行一次
+
+        zoom_cleanup_task = asyncio.create_task(zoom_cleanup_loop())
+        logger.info(
+            f"Zoom 過期會議清理排程已啟動（每 24 小時，grace={settings.ZOOM_CLEANUP_GRACE_DAYS} 天）"
+        )
+
+    # 啟動課後筆記未上傳提醒排程（每 60 分鐘）
+    async def lesson_note_reminder_loop():
+        from app.services.lesson_note_reminder_service import lesson_note_reminder_service
+        while True:
+            try:
+                await lesson_note_reminder_service.scan_and_notify()
+            except Exception as e:
+                logger.error(f"課後筆記提醒排程錯誤: {e}")
+            await asyncio.sleep(3600)  # 每 60 分鐘檢查一次
+
+    lesson_note_reminder_task = asyncio.create_task(lesson_note_reminder_loop())
+    logger.info("課後筆記未上傳提醒排程已啟動（每 60 分鐘）")
+
+    # 啟動課前提醒排程
+    async def booking_reminder_loop():
+        from app.services.booking_reminder_service import booking_reminder_service
+        interval = settings.BOOKING_REMINDER_LOOP_INTERVAL_SECONDS
+        while True:
+            try:
+                await booking_reminder_service.scan_and_notify()
+            except Exception as e:
+                logger.error(f"課前提醒排程錯誤: {e}")
+            await asyncio.sleep(interval)
+
+    booking_reminder_task = asyncio.create_task(booking_reminder_loop())
+    logger.info(
+        f"課前提醒排程已啟動（每 {settings.BOOKING_REMINDER_LOOP_INTERVAL_SECONDS} 秒，"
+        f"窗口={settings.BOOKING_REMINDER_WINDOWS_HOURS}h）"
+    )
+
     yield
 
     # 關閉時
@@ -163,6 +213,22 @@ async def lifespan(app: FastAPI):
         await notification_task
     except asyncio.CancelledError:
         pass
+    lesson_note_reminder_task.cancel()
+    try:
+        await lesson_note_reminder_task
+    except asyncio.CancelledError:
+        pass
+    booking_reminder_task.cancel()
+    try:
+        await booking_reminder_task
+    except asyncio.CancelledError:
+        pass
+    if zoom_cleanup_task:
+        zoom_cleanup_task.cancel()
+        try:
+            await zoom_cleanup_task
+        except asyncio.CancelledError:
+            pass
     if zoom_task:
         zoom_task.cancel()
         try:
@@ -220,41 +286,102 @@ app.add_middleware(
 
 # ========== 例外處理 ==========
 
-def _error_response(status_code: int, message: str, error_code: str) -> JSONResponse:
-    """統一錯誤回傳格式：message 向後相容、detail 相容前端 parseErrorDetail"""
+def _error_response(
+    status_code: int,
+    message: str,
+    error_code: int | ErrorCode,
+    log_detail: str | None = None,
+    log_exc_info: bool = False,
+    request: Request | None = None,
+) -> JSONResponse:
+    """統一錯誤回傳格式 + 統一 logging。
+
+    - 4xx → logger.info（含 error_code、原始 detail）— 給 audit / debug 用
+    - 5xx → logger.error（含 error_code、原始 detail）+ optional traceback
+    - 對外回傳的 message 仍是給 user 看的（5xx 已被遮蔽）；log 走 log_detail
+    - error_code 對外輸出為 int（IntEnum 自動序列化為 number）
+    """
+    code_int = int(error_code)
+    ctx = f"[{request.method} {request.url.path}] " if request is not None else ""
+    log_text = (
+        f"{ctx}error_code={code_int} status={status_code} "
+        f"detail={log_detail or message}"
+    )
+    if status_code >= 500:
+        logger.error(log_text, exc_info=log_exc_info)
+    elif status_code >= 400:
+        logger.info(log_text)
     return JSONResponse(
         status_code=status_code,
         content={
             "success": False,
             "message": message,
             "detail": message,
-            "error_code": error_code,
+            "error_code": code_int,
         }
     )
+
 
 @app.exception_handler(AuthException)
 async def auth_exception_handler(request: Request, exc: AuthException):
     error_code = getattr(exc, "error_code", None) or ErrorCode.AUTH_ERROR
-    return _error_response(exc.status_code, exc.detail, error_code)
+    return _error_response(
+        exc.status_code, exc.detail, error_code,
+        log_detail=exc.detail, request=request,
+    )
+
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """攔截所有 HTTPException：5xx 錯誤隱藏內部細節，4xx 正常回傳"""
+    """攔截所有 HTTPException：5xx 錯誤對外隱藏內部細節，但 log 保留原始 detail。"""
     detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
 
     if exc.status_code >= 500:
-        logger.error(f"HTTP {exc.status_code} on {request.method} {request.url.path}: {detail}")
-        return _error_response(exc.status_code, "伺服器內部錯誤，請稍後再試", ErrorCode.INTERNAL_ERROR)
+        return _error_response(
+            exc.status_code,
+            "伺服器內部錯誤，請稍後再試",
+            ErrorCode.INTERNAL_ERROR,
+            log_detail=detail,
+            request=request,
+        )
 
     # 優先使用 AppException 明確指定的 error_code，否則自動推斷
     explicit_code = getattr(exc, "error_code", None)
     error_code = explicit_code or infer_error_code(exc.status_code, detail)
-    return _error_response(exc.status_code, detail, error_code)
+    return _error_response(
+        exc.status_code, detail, error_code,
+        log_detail=detail, request=request,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """FastAPI Pydantic 驗證錯誤 (422)：統一回成跟其他 error 一致的格式。"""
+    errors = exc.errors()
+    first = errors[0] if errors else {}
+    # loc 第 1 個通常是 'body' / 'query' / 'path'，跳過後組合欄位名
+    field = ".".join(str(x) for x in first.get("loc", [])[1:])
+    msg = first.get("msg", "請求資料格式錯誤")
+    detail = f"{field}: {msg}" if field else msg
+    return _error_response(
+        422,
+        detail,
+        ErrorCode.REQUEST_VALIDATION_ERROR,
+        log_detail=str(errors)[:300],
+        request=request,
+    )
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.exception(f"未處理的例外: {exc}")
-    return _error_response(500, "伺服器內部錯誤", ErrorCode.INTERNAL_ERROR)
+    return _error_response(
+        500,
+        "伺服器內部錯誤",
+        ErrorCode.INTERNAL_ERROR,
+        log_detail=f"{type(exc).__name__}: {exc}",
+        log_exc_info=True,
+        request=request,
+    )
 
 # ========== 路由 ==========
 

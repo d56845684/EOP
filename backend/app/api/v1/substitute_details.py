@@ -1,6 +1,10 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import (
+    bad_request, forbidden, not_found, conflict, internal_error,
+)
 from app.schemas.substitute_detail import (
     SubstituteDetailCreate, SubstituteDetailResponse, SubstituteDetailListResponse
 )
@@ -61,7 +65,7 @@ async def create_substitute_detail(
     """指派代課（僅限員工）"""
     try:
         if not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="僅限員工指派代課")
+            raise forbidden("僅限員工指派代課", ErrorCode.BOOKING_SUB_FORBIDDEN_ASSIGN)
 
         # 驗證預約存在且為 confirmed
         booking = await supabase_service.table_select(
@@ -70,15 +74,15 @@ async def create_substitute_detail(
             filters={"id": data.booking_id, "is_deleted": "eq.false"},
         )
         if not booking:
-            raise HTTPException(status_code=404, detail="預約不存在")
+            raise not_found("預約", ErrorCode.BOOKING_NOT_FOUND)
         if booking[0].get("booking_status") != "confirmed":
-            raise HTTPException(status_code=400, detail="只有已確認的預約可以指派代課")
+            raise bad_request("只有已確認的預約可以指派代課", ErrorCode.BOOKING_SUB_BOOKING_NOT_CONFIRMED)
         if booking[0].get("substitute_detail_id"):
-            raise HTTPException(status_code=400, detail="此預約已有代課紀錄")
+            raise bad_request("此預約已有代課紀錄", ErrorCode.BOOKING_SUB_ALREADY_ASSIGNED)
 
         # 不能指派原教師自己
         if data.substitute_teacher_id == booking[0].get("teacher_id"):
-            raise HTTPException(status_code=400, detail="不能指派原教師自己為代課教師")
+            raise bad_request("不能指派原教師自己為代課教師", ErrorCode.BOOKING_SUB_TEACHER_SELF_NOT_ALLOWED)
 
         # 驗證代課教師存在
         sub_teacher = await supabase_service.table_select(
@@ -86,7 +90,7 @@ async def create_substitute_detail(
             filters={"id": data.substitute_teacher_id, "is_deleted": "eq.false", "is_active": "eq.true"},
         )
         if not sub_teacher:
-            raise HTTPException(status_code=400, detail="代課教師不存在或未啟用")
+            raise bad_request("代課教師不存在或未啟用", ErrorCode.BOOKING_SUB_TEACHER_NOT_FOUND)
 
         # 驗證代課教師在該日有涵蓋時段的 slot
         booking_date = booking[0].get("booking_date")
@@ -110,7 +114,7 @@ async def create_substitute_detail(
             for s in slots
         )
         if not has_covering_slot:
-            raise HTTPException(status_code=400, detail="代課教師在該時段沒有可用的預約時段")
+            raise bad_request("代課教師在該時段沒有可用的預約時段", ErrorCode.BOOKING_SUB_TEACHER_NO_SLOT)
 
         # 驗證代課教師合約存在且有效
         sub_contract = await supabase_service.table_select(
@@ -118,7 +122,7 @@ async def create_substitute_detail(
             filters={"id": data.substitute_contract_id, "is_deleted": "eq.false", "contract_status": "eq.active"},
         )
         if not sub_contract:
-            raise HTTPException(status_code=400, detail="代課教師合約不存在或非有效狀態")
+            raise bad_request("代課教師合約不存在或非有效狀態", ErrorCode.BOOKING_SUB_TEACHER_CONTRACT_INVALID)
 
         # 驗證代課教師合約有該課程的 course_rate
         if course_id:
@@ -133,7 +137,7 @@ async def create_substitute_detail(
                 },
             )
             if not course_rate:
-                raise HTTPException(status_code=400, detail="代課教師合約未包含此課程")
+                raise bad_request("代課教師合約未包含此課程", ErrorCode.BOOKING_SUB_TEACHER_CONTRACT_NO_COURSE)
 
         # 檢查代課教師同日同時段是否有其他預約（時間衝突）
 
@@ -153,10 +157,7 @@ async def create_substitute_detail(
             tb_start = tb.get("start_time", "")[:5]
             tb_end = tb.get("end_time", "")[:5]
             if booking_start < tb_end and booking_end > tb_start:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"代課教師在 {booking_date} {tb_start}-{tb_end} 已有預約，時間衝突"
-                )
+                raise conflict(f"代課教師在 {booking_date} {tb_start}-{tb_end} 已有預約，時間衝突", ErrorCode.BOOKING_SUB_TIME_CONFLICT_OWN_BOOKING)
 
         # 也檢查代課教師作為代課者的其他預約是否衝突
         existing_subs = await supabase_service.table_select(
@@ -182,10 +183,7 @@ async def create_substitute_detail(
                 sb_start = sb.get("start_time", "")[:5]
                 sb_end = sb.get("end_time", "")[:5]
                 if booking_start < sb_end and booking_end > sb_start:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=f"代課教師在 {booking_date} {sb_start}-{sb_end} 已有代課安排，時間衝突"
-                    )
+                    raise conflict(f"代課教師在 {booking_date} {sb_start}-{sb_end} 已有代課安排，時間衝突", ErrorCode.BOOKING_SUB_TIME_CONFLICT_OTHER_SUB)
 
         # 從代課教師合約取得 course_rate
         course_id = booking[0].get("course_id")
@@ -223,7 +221,7 @@ async def create_substitute_detail(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="建立代課紀錄失敗")
+            raise internal_error("建立代課紀錄失敗", ErrorCode.BOOKING_SUB_CREATE_FAILED)
 
         # 更新 booking 的 substitute_detail_id
         await supabase_service.table_update(
@@ -238,7 +236,7 @@ async def create_substitute_detail(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"指派代課失敗: {str(e)}")
+        raise internal_error(f"指派代課失敗: {str(e)}", ErrorCode.BOOKING_SUB_ASSIGN_FAILED)
 
 
 @router.get("/my", response_model=SubstituteDetailListResponse)
@@ -250,7 +248,7 @@ async def list_my_substitute_details(
     """取得我的代課指派（代課教師用）"""
     try:
         if not current_user.teacher_id:
-            raise HTTPException(status_code=403, detail="僅限教師查看")
+            raise forbidden("僅限教師查看", ErrorCode.BOOKING_SUB_FORBIDDEN_VIEW)
 
         filters = {
             "substitute_teacher_id": f"eq.{current_user.teacher_id}",
@@ -282,7 +280,7 @@ async def list_my_substitute_details(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得我的代課紀錄失敗: {str(e)}")
+        raise internal_error(f"取得我的代課紀錄失敗: {str(e)}", ErrorCode.BOOKING_SUB_MY_LIST_FAILED)
 
 
 @router.get("", response_model=SubstituteDetailListResponse)
@@ -318,7 +316,7 @@ async def list_substitute_details(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得代課紀錄失敗: {str(e)}")
+        raise internal_error(f"取得代課紀錄失敗: {str(e)}", ErrorCode.BOOKING_SUB_LIST_FAILED)
 
 
 @router.get("/{sub_id}", response_model=DataResponse[SubstituteDetailResponse])
@@ -334,7 +332,7 @@ async def get_substitute_detail(
             filters={"id": sub_id, "is_deleted": "eq.false"},
         )
         if not result:
-            raise HTTPException(status_code=404, detail="代課紀錄不存在")
+            raise not_found("代課紀錄", ErrorCode.BOOKING_SUB_NOT_FOUND)
 
         enriched = await enrich_substitute_detail(result[0])
         return DataResponse(data=SubstituteDetailResponse(**enriched))
@@ -342,7 +340,7 @@ async def get_substitute_detail(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得代課紀錄失敗: {str(e)}")
+        raise internal_error(f"取得代課紀錄失敗: {str(e)}", ErrorCode.BOOKING_SUB_LIST_FAILED)
 
 
 @router.delete("/{sub_id}", response_model=BaseResponse)
@@ -353,7 +351,7 @@ async def delete_substitute_detail(
     """取消代課（僅限員工）— 清除 booking.substitute_detail_id"""
     try:
         if not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="僅限員工取消代課")
+            raise forbidden("僅限員工取消代課", ErrorCode.BOOKING_SUB_FORBIDDEN_CANCEL)
 
         record = await supabase_service.table_select(
             table="substitute_details",
@@ -361,7 +359,7 @@ async def delete_substitute_detail(
             filters={"id": sub_id, "is_deleted": "eq.false"},
         )
         if not record:
-            raise HTTPException(status_code=404, detail="代課紀錄不存在")
+            raise not_found("代課紀錄", ErrorCode.BOOKING_SUB_NOT_FOUND)
 
         employee_id = await get_user_employee_id(current_user.user_id)
 
@@ -393,4 +391,4 @@ async def delete_substitute_detail(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取消代課失敗: {str(e)}")
+        raise internal_error(f"取消代課失敗: {str(e)}", ErrorCode.BOOKING_SUB_CANCEL_FAILED)

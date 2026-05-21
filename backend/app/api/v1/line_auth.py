@@ -6,6 +6,8 @@ from typing import Literal
 from fastapi import APIRouter, Request, Response, Depends, HTTPException, Query
 
 from app.config import settings, ChannelType
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import service_unavailable
 from app.services.line_oauth_service import line_oauth_service
 from app.services.line_binding_service import line_binding_service
 from app.services.auth_service import auth_service
@@ -53,7 +55,7 @@ async def line_login(
     用於識別用戶綁定的角色類型。
     """
     if not line_oauth_service.is_configured:
-        raise HTTPException(status_code=503, detail="Line 登入功能未啟用")
+        raise service_unavailable("Line 登入功能未啟用", ErrorCode.LINE_LOGIN_DISABLED)
 
     state = await line_oauth_service.generate_state(channel)
     url = line_oauth_service.get_authorization_url(state, channel)
@@ -209,7 +211,7 @@ async def bind_line(
     channel_type = channel or get_channel_type_for_user(current_user)
 
     if not line_oauth_service.is_channel_configured(channel_type):
-        raise HTTPException(status_code=503, detail=f"Line {channel_type} 頻道功能未啟用")
+        raise service_unavailable(f"Line {channel_type} 頻道功能未啟用", ErrorCode.LINE_CHANNEL_DISABLED)
 
     # 檢查是否已綁定
     existing = await line_binding_service.get_binding_by_user(

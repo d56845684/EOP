@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import bad_request, not_found, internal_error
 from app.schemas.course import (
     CourseCreate, CourseUpdate, CourseResponse, CourseListResponse
 )
@@ -88,7 +90,7 @@ async def list_courses(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得課程列表失敗: {str(e)}")
+        raise internal_error(f"取得課程列表失敗: {str(e)}", ErrorCode.COURSE_LIST_FAILED)
 
 
 @router.get("/{course_id}", response_model=DataResponse[CourseResponse])
@@ -105,14 +107,14 @@ async def get_course(
         )
 
         if not result:
-            raise HTTPException(status_code=404, detail="課程不存在")
+            raise not_found("課程", ErrorCode.COURSE_NOT_FOUND)
 
         return DataResponse(data=CourseResponse(**result[0]))
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得課程失敗: {str(e)}")
+        raise internal_error(f"取得課程失敗: {str(e)}", ErrorCode.COURSE_GET_FAILED)
 
 
 @router.post("", response_model=DataResponse[CourseResponse])
@@ -130,7 +132,7 @@ async def create_course(
         )
 
         if existing:
-            raise HTTPException(status_code=400, detail="課程代碼已存在")
+            raise bad_request("課程代碼已存在", ErrorCode.COURSE_DUPLICATE_CODE)
 
         # 建立課程
         course_data = data.model_dump()
@@ -145,7 +147,7 @@ async def create_course(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="建立課程失敗")
+            raise internal_error("建立課程失敗", ErrorCode.COURSE_CREATE_FAILED)
 
         # table_insert 返回單個 dict 而不是 list
         return DataResponse(
@@ -156,7 +158,7 @@ async def create_course(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立課程失敗: {str(e)}")
+        raise internal_error(f"建立課程失敗: {str(e)}", ErrorCode.COURSE_CREATE_FAILED)
 
 
 @router.put("/{course_id}", response_model=DataResponse[CourseResponse])
@@ -175,7 +177,7 @@ async def update_course(
         )
 
         if not existing:
-            raise HTTPException(status_code=404, detail="課程不存在")
+            raise not_found("課程", ErrorCode.COURSE_NOT_FOUND)
 
         # 如果更新課程代碼，檢查是否重複
         if data.course_code and data.course_code != existing[0]["course_code"]:
@@ -185,25 +187,22 @@ async def update_course(
                 filters={"course_code": data.course_code, "is_deleted": "eq.false"},
             )
             if duplicate:
-                raise HTTPException(status_code=400, detail="課程代碼已存在")
+                raise bad_request("課程代碼已存在", ErrorCode.COURSE_DUPLICATE_CODE)
 
         # 更新課程
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
 
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.COURSE_NO_UPDATE_DATA)
 
         # 停用課程（is_active=False）若仍有 active 教師合約引用，硬擋
         if update_data.get("is_active") is False:
             ref_count = await _count_active_teacher_contract_details_for_course(course_id)
             if ref_count > 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
+                raise bad_request((
                         f"該課程仍在 {ref_count} 份 active 教師合約明細中使用，"
                         "無法停用。請先在合約明細中移除此課程。"
-                    ),
-                )
+                    ), ErrorCode.COURSE_INTERNAL_400)
 
         result = await supabase_service.table_update(
             table="courses",
@@ -212,7 +211,7 @@ async def update_course(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="更新課程失敗")
+            raise internal_error("更新課程失敗", ErrorCode.COURSE_UPDATE_FAILED)
 
         # table_update 返回單個 dict 而不是 list
         return DataResponse(
@@ -223,7 +222,7 @@ async def update_course(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新課程失敗: {str(e)}")
+        raise internal_error(f"更新課程失敗: {str(e)}", ErrorCode.COURSE_UPDATE_FAILED)
 
 
 @router.delete("/{course_id}", response_model=BaseResponse)
@@ -244,18 +243,15 @@ async def delete_course(
         )
 
         if not existing:
-            raise HTTPException(status_code=404, detail="課程不存在")
+            raise not_found("課程", ErrorCode.COURSE_NOT_FOUND)
 
         # 硬擋：仍被 active 教師合約明細引用
         ref_count = await _count_active_teacher_contract_details_for_course(course_id)
         if ref_count > 0:
-            raise HTTPException(
-                status_code=400,
-                detail=(
+            raise bad_request((
                     f"該課程仍在 {ref_count} 份 active 教師合約明細中使用，"
                     "無法刪除。請先在合約明細中移除此課程。"
-                ),
-            )
+                ), ErrorCode.COURSE_INTERNAL_400)
 
         # 軟刪除
         from datetime import datetime
@@ -269,11 +265,11 @@ async def delete_course(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="刪除課程失敗")
+            raise internal_error("刪除課程失敗", ErrorCode.COURSE_DELETE_FAILED)
 
         return BaseResponse(message="課程刪除成功")
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除課程失敗: {str(e)}")
+        raise internal_error(f"刪除課程失敗: {str(e)}", ErrorCode.COURSE_DELETE_FAILED)

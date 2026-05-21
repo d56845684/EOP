@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import bad_request, forbidden, not_found, internal_error
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeListResponse
 from app.schemas.response import BaseResponse, DataResponse, RoleOption
 from typing import Optional, List
@@ -53,7 +55,7 @@ async def list_roles_for_employees(
         )
         return {"success": True, "message": "操作成功", "data": [{"id": str(r["id"]), "key": r["key"], "name": r["name"]} for r in rows]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得角色列表失敗: {str(e)}")
+        raise internal_error(f"取得角色列表失敗: {str(e)}", ErrorCode.EMPLOYEE_ROLES_LIST_FAILED)
 
 
 @router.get("", response_model=EmployeeListResponse)
@@ -67,7 +69,7 @@ async def list_employees(
 ):
     """取得員工列表（僅限員工）"""
     if not current_user.is_staff():
-        raise HTTPException(status_code=403, detail="僅限員工存取")
+        raise forbidden("僅限員工存取", ErrorCode.EMPLOYEE_FORBIDDEN_STAFF_ONLY)
     try:
         filters = {"is_deleted": "eq.false"}
         if is_active is not None:
@@ -117,7 +119,7 @@ async def list_employees(
             total=total, page=page, per_page=per_page, total_pages=total_pages
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得員工列表失敗: {str(e)}")
+        raise internal_error(f"取得員工列表失敗: {str(e)}", ErrorCode.EMPLOYEE_LIST_FAILED)
 
 
 @router.get("/{employee_id}", response_model=DataResponse[EmployeeResponse])
@@ -127,20 +129,20 @@ async def get_employee(
 ):
     """取得單一員工（僅限員工）"""
     if not current_user.is_staff():
-        raise HTTPException(status_code=403, detail="僅限員工存取")
+        raise forbidden("僅限員工存取", ErrorCode.EMPLOYEE_FORBIDDEN_STAFF_ONLY)
     try:
         result = await supabase_service.table_select(
             table="employees", select=EMPLOYEE_SELECT,
             filters={"id": employee_id, "is_deleted": "eq.false"}
         )
         if not result:
-            raise HTTPException(status_code=404, detail="員工不存在")
+            raise not_found("員工", ErrorCode.EMPLOYEE_NOT_FOUND)
         enriched = await enrich_employee(result[0])
         return DataResponse(data=EmployeeResponse(**enriched))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得員工失敗: {str(e)}")
+        raise internal_error(f"取得員工失敗: {str(e)}", ErrorCode.EMPLOYEE_GET_FAILED)
 
 
 @router.post("", response_model=DataResponse[EmployeeResponse])
@@ -150,21 +152,21 @@ async def create_employee(
 ):
     """建立員工（僅限管理員）"""
     if not current_user.is_admin():
-        raise HTTPException(status_code=403, detail="僅限管理員操作")
+        raise forbidden("僅限管理員操作", ErrorCode.EMPLOYEE_FORBIDDEN_ADMIN_ONLY)
     try:
         existing = await supabase_service.table_select(
             table="employees", select="id",
             filters={"employee_no": data.employee_no, "is_deleted": "eq.false"}
         )
         if existing:
-            raise HTTPException(status_code=400, detail="員工編號已存在")
+            raise bad_request("員工編號已存在", ErrorCode.EMPLOYEE_NO_DUPLICATE)
 
         existing_email = await supabase_service.table_select(
             table="employees", select="id",
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if existing_email:
-            raise HTTPException(status_code=400, detail="此 Email 已被其他員工使用")
+            raise bad_request("此 Email 已被其他員工使用", ErrorCode.EMPLOYEE_EMAIL_USED_BY_EMPLOYEE)
 
         # 跨表檢查：員工 email 不可與學生或教師重複
         dup_student = await supabase_service.table_select(
@@ -172,14 +174,14 @@ async def create_employee(
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if dup_student:
-            raise HTTPException(status_code=400, detail="此 Email 已被學生使用")
+            raise bad_request("此 Email 已被學生使用", ErrorCode.EMPLOYEE_EMAIL_USED_BY_STUDENT)
 
         dup_teacher = await supabase_service.table_select(
             table="teachers", select="id",
             filters={"email": data.email, "is_deleted": "eq.false"}
         )
         if dup_teacher:
-            raise HTTPException(status_code=400, detail="此 Email 已被教師使用")
+            raise bad_request("此 Email 已被教師使用", ErrorCode.EMPLOYEE_EMAIL_USED_BY_TEACHER)
 
         employee_data = data.model_dump()
         if employee_data.get("hire_date"):
@@ -195,14 +197,14 @@ async def create_employee(
             table="employees", data=employee_data
         )
         if not result:
-            raise HTTPException(status_code=500, detail="建立員工失敗")
+            raise internal_error("建立員工失敗", ErrorCode.EMPLOYEE_CREATE_FAILED)
 
         enriched = await enrich_employee(result)
         return DataResponse(message="員工建立成功", data=EmployeeResponse(**enriched))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立員工失敗: {str(e)}")
+        raise internal_error(f"建立員工失敗: {str(e)}", ErrorCode.EMPLOYEE_CREATE_FAILED)
 
 
 @router.put("/{employee_id}", response_model=DataResponse[EmployeeResponse])
@@ -213,14 +215,14 @@ async def update_employee(
 ):
     """更新員工（僅限管理員）"""
     if not current_user.is_admin():
-        raise HTTPException(status_code=403, detail="僅限管理員操作")
+        raise forbidden("僅限管理員操作", ErrorCode.EMPLOYEE_FORBIDDEN_ADMIN_ONLY)
     try:
         existing = await supabase_service.table_select(
             table="employees", select="id,employee_no,email,employee_type",
             filters={"id": employee_id, "is_deleted": "eq.false"}
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="員工不存在")
+            raise not_found("員工", ErrorCode.EMPLOYEE_NOT_FOUND)
 
         if data.email and data.email != existing[0]["email"]:
             dup = await supabase_service.table_select(
@@ -228,21 +230,21 @@ async def update_employee(
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup:
-                raise HTTPException(status_code=400, detail="此 Email 已被其他員工使用")
+                raise bad_request("此 Email 已被其他員工使用", ErrorCode.EMPLOYEE_EMAIL_USED_BY_EMPLOYEE)
 
             dup_student = await supabase_service.table_select(
                 table="students", select="id",
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup_student:
-                raise HTTPException(status_code=400, detail="此 Email 已被學生使用")
+                raise bad_request("此 Email 已被學生使用", ErrorCode.EMPLOYEE_EMAIL_USED_BY_STUDENT)
 
             dup_teacher = await supabase_service.table_select(
                 table="teachers", select="id",
                 filters={"email": data.email, "is_deleted": "eq.false"}
             )
             if dup_teacher:
-                raise HTTPException(status_code=400, detail="此 Email 已被教師使用")
+                raise bad_request("此 Email 已被教師使用", ErrorCode.EMPLOYEE_EMAIL_USED_BY_TEACHER)
 
         # role_id 不寫 employees 表，單獨處理
         requested_role_id = data.role_id
@@ -255,7 +257,7 @@ async def update_employee(
             employee_update["termination_date"] = employee_update["termination_date"].isoformat()
 
         if not employee_update and not requested_role_id:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.EMPLOYEE_NO_UPDATE_DATA)
 
         result = existing[0]
         if employee_update:
@@ -263,7 +265,7 @@ async def update_employee(
                 table="employees", data=employee_update, filters={"id": employee_id}
             )
             if not result:
-                raise HTTPException(status_code=500, detail="更新員工失敗")
+                raise internal_error("更新員工失敗", ErrorCode.EMPLOYEE_UPDATE_FAILED)
 
         # 同步 user_profiles 角色（僅限已有帳號的員工）
         profile = None
@@ -294,7 +296,7 @@ async def update_employee(
                     )
                     logger.info(f"Employee {employee_id}: user_profiles 同步 {sync_data}")
             elif requested_role_id:
-                raise HTTPException(status_code=400, detail="此員工尚未建立帳號，無法設定角色")
+                raise bad_request("此員工尚未建立帳號，無法設定角色", ErrorCode.EMPLOYEE_NO_ACCOUNT_FOR_ROLE)
         except Exception as sync_err:
             logger.warning(f"Employee {employee_id}: 同步角色失敗: {sync_err}")
 
@@ -315,7 +317,7 @@ async def update_employee(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新員工失敗: {str(e)}")
+        raise internal_error(f"更新員工失敗: {str(e)}", ErrorCode.EMPLOYEE_UPDATE_FAILED)
 
 
 @router.delete("/{employee_id}", response_model=BaseResponse)
@@ -325,14 +327,14 @@ async def delete_employee(
 ):
     """刪除員工（軟刪除，僅限管理員）"""
     if not current_user.is_admin():
-        raise HTTPException(status_code=403, detail="僅限管理員操作")
+        raise forbidden("僅限管理員操作", ErrorCode.EMPLOYEE_FORBIDDEN_ADMIN_ONLY)
     try:
         existing = await supabase_service.table_select(
             table="employees", select="id",
             filters={"id": employee_id, "is_deleted": "eq.false"}
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="員工不存在")
+            raise not_found("員工", ErrorCode.EMPLOYEE_NOT_FOUND)
 
         delete_data = {
             "is_deleted": True,
@@ -346,10 +348,10 @@ async def delete_employee(
             table="employees", data=delete_data, filters={"id": employee_id}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="刪除員工失敗")
+            raise internal_error("刪除員工失敗", ErrorCode.EMPLOYEE_DELETE_FAILED)
 
         return BaseResponse(message="員工刪除成功")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除員工失敗: {str(e)}")
+        raise internal_error(f"刪除員工失敗: {str(e)}", ErrorCode.EMPLOYEE_DELETE_FAILED)

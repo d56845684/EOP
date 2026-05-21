@@ -4,6 +4,8 @@ from app.services.supabase_service import supabase_service
 from app.services.storage_service import storage_service
 from app.config import settings
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import AppException, bad_request, forbidden, not_found, internal_error
 from app.schemas.teacher_detail import (
     TeacherDetailCreate, TeacherDetailUpdate,
     TeacherDetailResponse, TeacherDetailListResponse,
@@ -28,7 +30,7 @@ async def list_teacher_details(
         if current_user.is_teacher():
             user_teacher_id = current_user.teacher_id
             if teacher_id != user_teacher_id:
-                raise HTTPException(status_code=403, detail="無權查看其他教師的明細")
+                raise forbidden("無權查看其他教師的明細", ErrorCode.TEACHER_DETAIL_FORBIDDEN_VIEW_OTHER)
 
         details = await supabase_service.table_select(
             table="teacher_details",
@@ -39,7 +41,7 @@ async def list_teacher_details(
             data=[TeacherDetailResponse(**d) for d in details]
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得教師明細失敗: {str(e)}")
+        raise internal_error(f"取得教師明細失敗: {str(e)}", ErrorCode.TEACHER_DETAIL_GET_FAILED)
 
 
 @router.post("", response_model=DataResponse[TeacherDetailResponse])
@@ -55,7 +57,7 @@ async def create_teacher_detail(
             filters={"id": data.teacher_id, "is_deleted": "eq.false"},
         )
         if not teachers:
-            raise HTTPException(status_code=404, detail="教師不存在")
+            raise not_found("教師", ErrorCode.TEACHER_DETAIL_TEACHER_NOT_FOUND)
 
         detail_data = {}
         detail_data["teacher_id"] = data.teacher_id
@@ -75,13 +77,13 @@ async def create_teacher_detail(
             table="teacher_details", data=detail_data
         )
         if not result:
-            raise HTTPException(status_code=500, detail="新增教師明細失敗")
+            raise internal_error("新增教師明細失敗", ErrorCode.TEACHER_DETAIL_CREATE_FAILED)
 
         return DataResponse(message="教師明細新增成功", data=TeacherDetailResponse(**result))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"新增教師明細失敗: {str(e)}")
+        raise internal_error(f"新增教師明細失敗: {str(e)}", ErrorCode.TEACHER_DETAIL_CREATE_FAILED)
 
 
 @router.put("/{detail_id}", response_model=DataResponse[TeacherDetailResponse])
@@ -97,7 +99,7 @@ async def update_teacher_detail(
             filters={"id": detail_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="教師明細不存在")
+            raise not_found("教師明細", ErrorCode.TEACHER_DETAIL_NOT_FOUND)
 
         update_data = {}
         if data.content is not None:
@@ -108,7 +110,7 @@ async def update_teacher_detail(
             update_data["expiry_date"] = data.expiry_date.isoformat()
 
         if not update_data:
-            raise HTTPException(status_code=400, detail="沒有要更新的資料")
+            raise bad_request("沒有要更新的資料", ErrorCode.TEACHER_DETAIL_NO_UPDATE_DATA)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         if employee_id:
@@ -119,13 +121,13 @@ async def update_teacher_detail(
             filters={"id": detail_id}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="更新教師明細失敗")
+            raise internal_error("更新教師明細失敗", ErrorCode.TEACHER_DETAIL_UPDATE_FAILED)
 
         return DataResponse(message="教師明細更新成功", data=TeacherDetailResponse(**result))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新教師明細失敗: {str(e)}")
+        raise internal_error(f"更新教師明細失敗: {str(e)}", ErrorCode.TEACHER_DETAIL_UPDATE_FAILED)
 
 
 @router.delete("/{detail_id}", response_model=BaseResponse)
@@ -140,7 +142,7 @@ async def delete_teacher_detail(
             filters={"id": detail_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="教師明細不存在")
+            raise not_found("教師明細", ErrorCode.TEACHER_DETAIL_NOT_FOUND)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         delete_data = {
@@ -155,13 +157,13 @@ async def delete_teacher_detail(
             filters={"id": detail_id}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="刪除教師明細失敗")
+            raise internal_error("刪除教師明細失敗", ErrorCode.TEACHER_DETAIL_DELETE_FAILED)
 
         return BaseResponse(message="教師明細刪除成功")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除教師明細失敗: {str(e)}")
+        raise internal_error(f"刪除教師明細失敗: {str(e)}", ErrorCode.TEACHER_DETAIL_DELETE_FAILED)
 
 
 # ========== File Upload / Download ==========
@@ -198,10 +200,7 @@ async def get_teacher_detail_upload_url(
     import os
     ext = os.path.splitext(body.file_name)[1].lower()
     if ext not in ALLOWED_UPLOAD_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"不支援的檔案格式，僅允許：{', '.join(ALLOWED_UPLOAD_EXTENSIONS.keys())}"
-        )
+        raise bad_request(f"不支援的檔案格式，僅允許：{', '.join(ALLOWED_UPLOAD_EXTENSIONS.keys())}", ErrorCode.TEACHER_DETAIL_FILE_FORMAT_INVALID)
     content_type = ALLOWED_UPLOAD_EXTENSIONS[ext]
 
     try:
@@ -211,7 +210,7 @@ async def get_teacher_detail_upload_url(
             filters={"id": detail_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="教師明細不存在")
+            raise not_found("教師明細", ErrorCode.TEACHER_DETAIL_NOT_FOUND)
 
         detail = existing[0]
         teacher_id = detail["teacher_id"]
@@ -228,7 +227,7 @@ async def get_teacher_detail_upload_url(
             content_type=content_type,
         )
         if not signed:
-            raise HTTPException(status_code=500, detail="產生上傳連結失敗")
+            raise internal_error("產生上傳連結失敗", ErrorCode.TEACHER_DETAIL_UPLOAD_URL_FAILED)
 
         return {
             "upload_url": signed["upload_url"],
@@ -239,7 +238,7 @@ async def get_teacher_detail_upload_url(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"產生上傳連結失敗: {str(e)}")
+        raise internal_error(f"產生上傳連結失敗: {str(e)}", ErrorCode.TEACHER_DETAIL_UPLOAD_URL_FAILED)
 
 
 @router.post("/{detail_id}/confirm-upload", response_model=DataResponse[TeacherDetailResponse])
@@ -255,7 +254,7 @@ async def confirm_teacher_detail_upload(
             filters={"id": detail_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="教師明細不存在")
+            raise not_found("教師明細", ErrorCode.TEACHER_DETAIL_NOT_FOUND)
 
         # 驗證 S3 檔案存在
         file_exists = await storage_service.verify_file_exists(
@@ -263,7 +262,7 @@ async def confirm_teacher_detail_upload(
             path=body.storage_path
         )
         if not file_exists:
-            raise HTTPException(status_code=400, detail="檔案尚未上傳至 S3")
+            raise bad_request("檔案尚未上傳至 S3", ErrorCode.TEACHER_DETAIL_FILE_NOT_UPLOADED)
 
         update_data = {
             "file_path": body.storage_path,
@@ -276,7 +275,7 @@ async def confirm_teacher_detail_upload(
             filters={"id": detail_id}
         )
         if not result:
-            raise HTTPException(status_code=500, detail="更新檔案資訊失敗")
+            raise internal_error("更新檔案資訊失敗", ErrorCode.TEACHER_DETAIL_FILE_INFO_UPDATE_FAILED)
 
         return DataResponse(
             message="檔案上傳確認成功",
@@ -285,7 +284,7 @@ async def confirm_teacher_detail_upload(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"確認上傳失敗: {str(e)}")
+        raise internal_error(f"確認上傳失敗: {str(e)}", ErrorCode.TEACHER_DETAIL_UPLOAD_CONFIRM_FAILED)
 
 
 @router.get("/{detail_id}/download-url", response_model=DownloadUrlResponse)
@@ -301,7 +300,7 @@ async def get_teacher_detail_download_url(
             filters={"id": detail_id, "is_deleted": "eq.false"},
         )
         if not result:
-            raise HTTPException(status_code=404, detail="教師明細不存在")
+            raise not_found("教師明細", ErrorCode.TEACHER_DETAIL_NOT_FOUND)
 
         detail = result[0]
 
@@ -309,17 +308,17 @@ async def get_teacher_detail_download_url(
         if current_user.is_teacher():
             user_teacher_id = current_user.teacher_id
             if detail.get("teacher_id") != user_teacher_id:
-                raise HTTPException(status_code=403, detail="無權下載此文件")
+                raise forbidden("無權下載此文件", ErrorCode.TEACHER_DETAIL_FORBIDDEN_DOWNLOAD)
 
         if not detail.get("file_path"):
-            raise HTTPException(status_code=404, detail="此明細尚無上傳檔案")
+            raise AppException(404, "此明細尚無上傳檔案", ErrorCode.TEACHER_DETAIL_FILE_NOT_UPLOADED_404)
 
         download_url = await storage_service.create_signed_download_url(
             bucket=settings.AWS_S3_BUCKET,
             path=detail["file_path"]
         )
         if not download_url:
-            raise HTTPException(status_code=500, detail="產生下載連結失敗")
+            raise internal_error("產生下載連結失敗", ErrorCode.TEACHER_DETAIL_DOWNLOAD_URL_FAILED)
 
         return {
             "download_url": download_url,
@@ -328,4 +327,4 @@ async def get_teacher_detail_download_url(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"產生下載連結失敗: {str(e)}")
+        raise internal_error(f"產生下載連結失敗: {str(e)}", ErrorCode.TEACHER_DETAIL_DOWNLOAD_URL_FAILED)

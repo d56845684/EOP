@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser, require_staff, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import bad_request, forbidden, not_found, internal_error
 from app.schemas.student_course import (
     StudentCourseCreate, StudentCourseResponse, StudentCourseListResponse
 )
@@ -53,7 +55,7 @@ async def get_student_options(
         )
         return {"success": True, "message": "操作成功", "data": students}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.STUDENT_COURSE_INTERNAL)
 
 
 @router.get("/options/courses", tags=["學生選課管理"])
@@ -69,7 +71,7 @@ async def get_course_options(
         )
         return {"success": True, "message": "操作成功", "data": courses}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), ErrorCode.STUDENT_COURSE_INTERNAL)
 
 
 # ========== CRUD ==========
@@ -159,7 +161,7 @@ async def list_student_courses(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得學生選課列表失敗: {str(e)}")
+        raise internal_error(f"取得學生選課列表失敗: {str(e)}", ErrorCode.STUDENT_COURSE_LIST_FAILED)
 
 
 @router.get("/by-student/{student_id}", response_model=DataResponse[List[StudentCourseResponse]])
@@ -173,7 +175,7 @@ async def get_courses_by_student(
         if current_user.is_student():
             user_student_id = current_user.student_id
             if student_id != user_student_id:
-                raise HTTPException(status_code=403, detail="無權查看其他學生的選課")
+                raise forbidden("無權查看其他學生的選課", ErrorCode.STUDENT_COURSE_FORBIDDEN_VIEW_OTHER)
 
         enrollments = await supabase_service.table_select(
             table="student_courses",
@@ -199,7 +201,7 @@ async def get_courses_by_student(
         return {"success": True, "message": "操作成功", "data": enrollments}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得學生選課失敗: {str(e)}")
+        raise internal_error(f"取得學生選課失敗: {str(e)}", ErrorCode.STUDENT_COURSE_GET_FAILED)
 
 
 @router.post("", response_model=DataResponse[StudentCourseResponse])
@@ -216,7 +218,7 @@ async def create_student_course(
             filters={"id": data.student_id, "is_deleted": "eq.false"},
         )
         if not student:
-            raise HTTPException(status_code=400, detail="學生不存在")
+            raise bad_request("學生不存在", ErrorCode.STUDENT_COURSE_STUDENT_NOT_FOUND)
 
         # 驗證課程存在
         course = await supabase_service.table_select(
@@ -225,7 +227,7 @@ async def create_student_course(
             filters={"id": data.course_id, "is_deleted": "eq.false"},
         )
         if not course:
-            raise HTTPException(status_code=400, detail="課程不存在")
+            raise bad_request("課程不存在", ErrorCode.STUDENT_COURSE_COURSE_NOT_FOUND)
 
         # 檢查是否已存在（未刪除）
         existing = await supabase_service.table_select(
@@ -238,7 +240,7 @@ async def create_student_course(
             },
         )
         if existing:
-            raise HTTPException(status_code=400, detail="此學生已選修此課程")
+            raise bad_request("此學生已選修此課程", ErrorCode.STUDENT_COURSE_ALREADY_ENROLLED)
 
         enrollment_data = {
             "student_id": data.student_id,
@@ -255,7 +257,7 @@ async def create_student_course(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="新增學生選課失敗")
+            raise internal_error("新增學生選課失敗", ErrorCode.STUDENT_COURSE_CREATE_FAILED)
 
         enriched = await enrich_enrollment(result)
 
@@ -267,7 +269,7 @@ async def create_student_course(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"新增學生選課失敗: {str(e)}")
+        raise internal_error(f"新增學生選課失敗: {str(e)}", ErrorCode.STUDENT_COURSE_CREATE_FAILED)
 
 
 @router.delete("/{enrollment_id}", response_model=BaseResponse)
@@ -283,7 +285,7 @@ async def delete_student_course(
             filters={"id": enrollment_id, "is_deleted": "eq.false"},
         )
         if not existing:
-            raise HTTPException(status_code=404, detail="選課紀錄不存在")
+            raise not_found("選課紀錄", ErrorCode.STUDENT_COURSE_NOT_FOUND)
 
         employee_id = await get_user_employee_id(current_user.user_id)
         now = datetime.utcnow().isoformat()
@@ -302,11 +304,11 @@ async def delete_student_course(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="移除學生選課失敗")
+            raise internal_error("移除學生選課失敗", ErrorCode.STUDENT_COURSE_DELETE_FAILED)
 
         return BaseResponse(message="學生選課移除成功")
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"移除學生選課失敗: {str(e)}")
+        raise internal_error(f"移除學生選課失敗: {str(e)}", ErrorCode.STUDENT_COURSE_DELETE_FAILED)

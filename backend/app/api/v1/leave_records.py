@@ -1,6 +1,10 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import get_current_user, CurrentUser, require_page_permission, get_user_employee_id
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import (
+    bad_request, forbidden, not_found, internal_error,
+)
 from app.schemas.leave_record import (
     LeaveRecordCreate, LeaveRecordReject, LeaveRecordResponse, LeaveRecordListResponse
 )
@@ -167,9 +171,9 @@ async def create_leave_record(
             filters={"id": data.booking_id, "is_deleted": "eq.false"},
         )
         if not booking:
-            raise HTTPException(status_code=404, detail="預約不存在")
+            raise not_found("預約", ErrorCode.BOOKING_NOT_FOUND)
         if booking[0].get("booking_status") != "confirmed":
-            raise HTTPException(status_code=400, detail="只有已確認的預約可以請假")
+            raise bad_request("只有已確認的預約可以請假", ErrorCode.BOOKING_LEAVE_BOOKING_NOT_CONFIRMED)
 
         # 檢查是否已有 pending 的請假申請
         existing_leave = await supabase_service.table_select(
@@ -182,28 +186,25 @@ async def create_leave_record(
             },
         )
         if existing_leave:
-            raise HTTPException(status_code=400, detail="此預約已有待審核的請假申請")
+            raise bad_request("此預約已有待審核的請假申請", ErrorCode.BOOKING_LEAVE_PENDING_ALREADY_EXISTS)
 
         # === 先決定 initiator_type（緊急請假豁免邏輯依賴它）===
         if current_user.is_student():
             if booking[0].get("student_id") != current_user.student_id:
-                raise HTTPException(status_code=403, detail="學生只能為自己的預約請假")
+                raise forbidden("學生只能為自己的預約請假", ErrorCode.BOOKING_LEAVE_FORBIDDEN_STUDENT_NOT_OWN)
             initiator_type = "student"
             initiator_student_id = current_user.student_id
             initiator_teacher_id = None
         elif current_user.is_teacher():
             if booking[0].get("teacher_id") != current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="教師只能為自己的預約請假")
+                raise forbidden("教師只能為自己的預約請假", ErrorCode.BOOKING_LEAVE_FORBIDDEN_TEACHER_NOT_OWN)
             initiator_type = "teacher"
             initiator_student_id = None
             initiator_teacher_id = current_user.teacher_id
         elif current_user.is_staff():
             # 員工代申請：必須指定 initiator_type=student 或 teacher
             if data.initiator_type not in ("student", "teacher"):
-                raise HTTPException(
-                    status_code=400,
-                    detail="員工代申請請假時須指定 initiator_type=student 或 teacher",
-                )
+                raise bad_request("員工代申請請假時須指定 initiator_type=student 或 teacher", ErrorCode.BOOKING_LEAVE_INITIATOR_TYPE_REQUIRED)
             initiator_type = data.initiator_type
             if initiator_type == "student":
                 initiator_student_id = booking[0].get("student_id")
@@ -212,7 +213,7 @@ async def create_leave_record(
                 initiator_student_id = None
                 initiator_teacher_id = booking[0].get("teacher_id")
         else:
-            raise HTTPException(status_code=403, detail="無權建立請假申請")
+            raise forbidden("無權建立請假申請", ErrorCode.BOOKING_LEAVE_FORBIDDEN_CREATE)
 
         # === 時間判定：正常 / 緊急 / 禁止 ===
         booking_date_str = booking[0].get("booking_date")  # "2026-03-20" or date obj
@@ -227,7 +228,7 @@ async def create_leave_record(
         hours_before = (class_start_dt - now).total_seconds() / 3600
 
         if hours_before < 0.5:
-            raise HTTPException(status_code=400, detail="課程開始前 30 分鐘內無法請假")
+            raise bad_request("課程開始前 30 分鐘內無法請假", ErrorCode.BOOKING_LEAVE_TOO_LATE)
 
         if hours_before >= 24:
             leave_type = "normal"
@@ -305,18 +306,12 @@ async def create_leave_record(
                         contract_id_uuid,
                     ) or 0
                     if used_emergency_count + pending_emergency_count >= emergency_quota:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=(
+                        raise bad_request((
                                 f"緊急請假額度已用完（已核准 {used_emergency_count} 筆 + "
                                 f"審核中 {pending_emergency_count} 筆 / 額度 {emergency_quota}），無法請假"
-                            ),
-                        )
+                            ), ErrorCode.BOOKING_LEAVE_EMERGENCY_QUOTA_EXCEEDED)
                 else:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="此預約查無對應的學生合約，無法申請緊急請假",
-                    )
+                    raise bad_request("此預約查無對應的學生合約，無法申請緊急請假", ErrorCode.BOOKING_LEAVE_NO_STUDENT_CONTRACT)
 
         leave_no = await generate_leave_no()
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -343,7 +338,7 @@ async def create_leave_record(
         )
 
         if not result:
-            raise HTTPException(status_code=500, detail="建立請假申請失敗")
+            raise internal_error("建立請假申請失敗", ErrorCode.BOOKING_LEAVE_CREATE_FAILED)
 
         enriched = await enrich_leave_record(result)
         # 附帶額度資訊
@@ -354,7 +349,7 @@ async def create_leave_record(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立請假申請失敗: {str(e)}")
+        raise internal_error(f"建立請假申請失敗: {str(e)}", ErrorCode.BOOKING_LEAVE_CREATE_FAILED)
 
 
 @router.get("", response_model=LeaveRecordListResponse)
@@ -389,7 +384,7 @@ async def list_leave_records(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得請假紀錄失敗: {str(e)}")
+        raise internal_error(f"取得請假紀錄失敗: {str(e)}", ErrorCode.BOOKING_LEAVE_LIST_FAILED)
 
 
 @router.get("/{leave_id}", response_model=DataResponse[LeaveRecordResponse])
@@ -405,16 +400,16 @@ async def get_leave_record(
             filters={"id": leave_id, "is_deleted": "eq.false"},
         )
         if not result:
-            raise HTTPException(status_code=404, detail="請假紀錄不存在")
+            raise not_found("請假紀錄", ErrorCode.BOOKING_LEAVE_NOT_FOUND)
 
         # 權限檢查
         record = result[0]
         if current_user.is_student():
             if record.get("initiator_student_id") != current_user.student_id:
-                raise HTTPException(status_code=403, detail="無權查看此請假紀錄")
+                raise forbidden("無權查看此請假紀錄", ErrorCode.BOOKING_LEAVE_FORBIDDEN_VIEW)
         elif current_user.is_teacher():
             if record.get("initiator_teacher_id") != current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="無權查看此請假紀錄")
+                raise forbidden("無權查看此請假紀錄", ErrorCode.BOOKING_LEAVE_FORBIDDEN_VIEW)
 
         enriched = await enrich_leave_record(record)
         return DataResponse(data=LeaveRecordResponse(**enriched))
@@ -422,7 +417,7 @@ async def get_leave_record(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得請假紀錄失敗: {str(e)}")
+        raise internal_error(f"取得請假紀錄失敗: {str(e)}", ErrorCode.BOOKING_LEAVE_LIST_FAILED)
 
 
 @router.post("/{leave_id}/approve", response_model=DataResponse[LeaveRecordResponse])
@@ -433,7 +428,7 @@ async def approve_leave_record(
     """核准請假（僅限員工）— 觸發取消預約 + 寫入合約請假紀錄"""
     try:
         if not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="僅限員工核准請假")
+            raise forbidden("僅限員工核准請假", ErrorCode.BOOKING_LEAVE_FORBIDDEN_APPROVE)
 
         # 取得請假紀錄
         record = await supabase_service.table_select(
@@ -442,9 +437,9 @@ async def approve_leave_record(
             filters={"id": leave_id, "is_deleted": "eq.false"},
         )
         if not record:
-            raise HTTPException(status_code=404, detail="請假紀錄不存在")
+            raise not_found("請假紀錄", ErrorCode.BOOKING_LEAVE_NOT_FOUND)
         if record[0].get("leave_status") != "pending":
-            raise HTTPException(status_code=400, detail="只有待審核的請假可以核准")
+            raise bad_request("只有待審核的請假可以核准", ErrorCode.BOOKING_LEAVE_ONLY_PENDING_CAN_APPROVE)
 
         booking_id = record[0].get("booking_id")
 
@@ -455,7 +450,7 @@ async def approve_leave_record(
             filters={"id": booking_id, "is_deleted": "eq.false"},
         )
         if not booking:
-            raise HTTPException(status_code=400, detail="關聯的預約不存在")
+            raise bad_request("關聯的預約不存在", ErrorCode.BOOKING_LEAVE_RELATED_BOOKING_NOT_EXIST)
 
         has_substitute = booking[0].get("substitute_detail_id") is not None
         employee_id = await get_user_employee_id(current_user.user_id)
@@ -490,10 +485,7 @@ async def approve_leave_record(
                 )
                 used_check = contract_check[0].get("used_emergency_leave_count", 0) or 0
                 if used_check >= quota_check:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"緊急請假額度已用完（{used_check}/{quota_check}），無法核准",
-                    )
+                    raise bad_request(f"緊急請假額度已用完（{used_check}/{quota_check}），無法核准", ErrorCode.BOOKING_LEAVE_EMERGENCY_QUOTA_EXCEEDED)
 
         # 1. 更新 leave_records 狀態
         await supabase_service.table_update(
@@ -572,7 +564,7 @@ async def approve_leave_record(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"核准請假失敗: {str(e)}")
+        raise internal_error(f"核准請假失敗: {str(e)}", ErrorCode.BOOKING_LEAVE_APPROVE_FAILED)
 
 
 @router.post("/{leave_id}/reject", response_model=DataResponse[LeaveRecordResponse])
@@ -584,7 +576,7 @@ async def reject_leave_record(
     """駁回請假（僅限員工）"""
     try:
         if not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="僅限員工駁回請假")
+            raise forbidden("僅限員工駁回請假", ErrorCode.BOOKING_LEAVE_FORBIDDEN_REJECT)
 
         record = await supabase_service.table_select(
             table="leave_records",
@@ -592,9 +584,9 @@ async def reject_leave_record(
             filters={"id": leave_id, "is_deleted": "eq.false"},
         )
         if not record:
-            raise HTTPException(status_code=404, detail="請假紀錄不存在")
+            raise not_found("請假紀錄", ErrorCode.BOOKING_LEAVE_NOT_FOUND)
         if record[0].get("leave_status") != "pending":
-            raise HTTPException(status_code=400, detail="只有待審核的請假可以駁回")
+            raise bad_request("只有待審核的請假可以駁回", ErrorCode.BOOKING_LEAVE_ONLY_PENDING_CAN_REJECT)
 
         employee_id = await get_user_employee_id(current_user.user_id)
 
@@ -620,7 +612,7 @@ async def reject_leave_record(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"駁回請假失敗: {str(e)}")
+        raise internal_error(f"駁回請假失敗: {str(e)}", ErrorCode.BOOKING_LEAVE_REJECT_FAILED)
 
 
 @router.post("/{leave_id}/cancel", response_model=DataResponse[LeaveRecordResponse])
@@ -636,19 +628,19 @@ async def cancel_leave_record(
             filters={"id": leave_id, "is_deleted": "eq.false"},
         )
         if not record:
-            raise HTTPException(status_code=404, detail="請假紀錄不存在")
+            raise not_found("請假紀錄", ErrorCode.BOOKING_LEAVE_NOT_FOUND)
         if record[0].get("leave_status") != "pending":
-            raise HTTPException(status_code=400, detail="只有待審核的請假可以撤回")
+            raise bad_request("只有待審核的請假可以撤回", ErrorCode.BOOKING_LEAVE_ONLY_PENDING_CAN_WITHDRAW)
 
         # 權限檢查：發起者本人或員工
         if current_user.is_student():
             if record[0].get("initiator_student_id") != current_user.student_id:
-                raise HTTPException(status_code=403, detail="只有發起者可以撤回請假")
+                raise forbidden("只有發起者可以撤回請假", ErrorCode.BOOKING_LEAVE_FORBIDDEN_NOT_INITIATOR)
         elif current_user.is_teacher():
             if record[0].get("initiator_teacher_id") != current_user.teacher_id:
-                raise HTTPException(status_code=403, detail="只有發起者可以撤回請假")
+                raise forbidden("只有發起者可以撤回請假", ErrorCode.BOOKING_LEAVE_FORBIDDEN_NOT_INITIATOR)
         elif not current_user.is_staff():
-            raise HTTPException(status_code=403, detail="無權撤回請假")
+            raise forbidden("無權撤回請假", ErrorCode.BOOKING_LEAVE_FORBIDDEN_WITHDRAW)
 
         await supabase_service.table_update(
             table="leave_records",
@@ -667,4 +659,4 @@ async def cancel_leave_record(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"撤回請假失敗: {str(e)}")
+        raise internal_error(f"撤回請假失敗: {str(e)}", ErrorCode.BOOKING_LEAVE_WITHDRAW_FAILED)

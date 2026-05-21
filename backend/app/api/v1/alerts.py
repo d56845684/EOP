@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.supabase_service import supabase_service
 from app.core.dependencies import CurrentUser, require_staff, require_page_permission
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import not_found, internal_error
 from app.schemas.response import BaseResponse, AlertListResponse, UnreadCountResponse
 from typing import Optional
 import math
@@ -85,7 +87,7 @@ async def list_alerts(
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得告警列表失敗: {e}")
+        raise internal_error(f"取得告警列表失敗: {e}", ErrorCode.ALERT_LIST_FAILED)
 
 
 @router.put("/{alert_id}/read", response_model=BaseResponse)
@@ -105,12 +107,12 @@ async def mark_alert_read(
             filters={"id": alert_id},
         )
         if not result:
-            raise HTTPException(status_code=404, detail="告警不存在")
+            raise not_found("告警", ErrorCode.ALERT_NOT_FOUND)
         return BaseResponse(message="已標記為已讀")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"標記失敗: {e}")
+        raise internal_error(f"標記失敗: {e}", ErrorCode.ALERT_MARK_FAILED)
 
 
 @router.put("/read-all", response_model=BaseResponse)
@@ -126,7 +128,7 @@ async def mark_all_read(
         )
         return BaseResponse(message="已全部標記為已讀")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"標記失敗: {e}")
+        raise internal_error(f"標記失敗: {e}", ErrorCode.ALERT_MARK_FAILED)
 
 
 @router.get("/unread-count", response_model=UnreadCountResponse)
@@ -140,4 +142,4 @@ async def get_unread_count(
         )
         return {"success": True, "count": row[0] if row else 0}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取得未讀數量失敗: {e}")
+        raise internal_error(f"取得未讀數量失敗: {e}", ErrorCode.ALERT_UNREAD_COUNT_FAILED)
