@@ -188,6 +188,23 @@ async def lifespan(app: FastAPI):
     lesson_note_reminder_task = asyncio.create_task(lesson_note_reminder_loop())
     logger.info("課後筆記未上傳提醒排程已啟動（每 60 分鐘）")
 
+    # 啟動課前提醒排程
+    async def booking_reminder_loop():
+        from app.services.booking_reminder_service import booking_reminder_service
+        interval = settings.BOOKING_REMINDER_LOOP_INTERVAL_SECONDS
+        while True:
+            try:
+                await booking_reminder_service.scan_and_notify()
+            except Exception as e:
+                logger.error(f"課前提醒排程錯誤: {e}")
+            await asyncio.sleep(interval)
+
+    booking_reminder_task = asyncio.create_task(booking_reminder_loop())
+    logger.info(
+        f"課前提醒排程已啟動（每 {settings.BOOKING_REMINDER_LOOP_INTERVAL_SECONDS} 秒，"
+        f"窗口={settings.BOOKING_REMINDER_WINDOWS_HOURS}h）"
+    )
+
     yield
 
     # 關閉時
@@ -199,6 +216,11 @@ async def lifespan(app: FastAPI):
     lesson_note_reminder_task.cancel()
     try:
         await lesson_note_reminder_task
+    except asyncio.CancelledError:
+        pass
+    booking_reminder_task.cancel()
+    try:
+        await booking_reminder_task
     except asyncio.CancelledError:
         pass
     if zoom_cleanup_task:

@@ -106,6 +106,19 @@ class Settings(BaseSettings):
     # 課程結束 + N 小時還沒上傳 → 推 admin 一次
     LESSON_NOTE_REMINDER_ADMIN_THRESHOLD_HOURS: int = 24
 
+    # 課前提醒排程（booking_reminder_service, issue #73）
+    # 課程開始前幾小時提醒（小時，逗號分隔字串以便 env 覆寫）
+    BOOKING_REMINDER_WINDOWS_HOURS: str = "24,1"
+    # 容忍窗口（分鐘）：實際提醒窗口為 [target-tolerance, target+tolerance]
+    # 須 >= loop interval 以避免漏發
+    BOOKING_REMINDER_TOLERANCE_MINUTES: int = 15
+    # 排程 loop 執行間隔（秒）
+    BOOKING_REMINDER_LOOP_INTERVAL_SECONDS: int = 600  # 10 分鐘
+
+    @property
+    def booking_reminder_windows(self) -> list[int]:
+        return [int(x) for x in self.BOOKING_REMINDER_WINDOWS_HOURS.split(",") if x.strip()]
+
     # Google Drive OAuth（個人 Gmail 上傳錄影用）
     GOOGLE_DRIVE_OAUTH_CLIENT_ID: str = ""
     GOOGLE_DRIVE_OAUTH_CLIENT_SECRET: str = ""
